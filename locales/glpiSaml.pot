@@ -1,0 +1,870 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-03-21 13:08+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: setup.php:166
+msgid "Installed / not configured"
+msgstr ""
+
+#: src/RuleSamlCollection.php:72 src/Config.php:142 src/RuleSaml.php:79
+msgid "JIT import rules"
+msgstr ""
+
+#: src/CronTask.php:65
+msgid "Clean old SAML sessions"
+msgstr ""
+
+#: src/CronTask.php:66
+msgid "SAML sessions retention period (in days, 0 for infinite)"
+msgstr ""
+
+#: src/LoginState.php:150
+msgid ""
+"LoginState could not write initial state to the state database. see: https://"
+"codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php"
+msgstr ""
+
+#: src/LoginFlow.php:111
+msgid "Could not load loginState"
+msgstr ""
+
+#: src/LoginFlow.php:253
+msgid "Could not update the loginState and therefor stopped the loginFlow for:"
+msgstr ""
+
+#: src/LoginFlow.php:290 src/LoginFlow.php:373
+msgid "Could not load loginState from database!"
+msgstr ""
+
+#: src/LoginFlow.php:348
+msgid "Login with external provider"
+msgstr ""
+
+#: src/LoginFlow.php:406
+msgid "⚠️ we are unable to log you in"
+msgstr ""
+
+#: src/LoginFlow.php:409 src/LoginFlow.php:450
+msgid "Return to GLPI"
+msgstr ""
+
+#: src/LoginFlow.php:446
+msgid "⚠️ An error occurred"
+msgstr ""
+
+#: src/Config.php:121
+msgid "Saml SSO applications"
+msgstr ""
+
+#: src/Config.php:141 src/Exclude.php:82
+msgid "Excluded paths"
+msgstr ""
+
+#: src/Config.php:177
+msgid "Idp entity ID"
+msgstr ""
+
+#: src/Exclude.php:125
+msgid "SAML providers"
+msgstr ""
+
+#: src/Exclude.php:141
+msgid "Agent contains"
+msgstr ""
+
+#: src/Exclude.php:147
+msgid "Bypass SAML auth"
+msgstr ""
+
+#: src/Exclude.php:152
+msgid "Url contains path or file"
+msgstr ""
+
+#: src/Exclude.php:174
+msgid "Client Agent performing the call"
+msgstr ""
+
+#: src/Exclude.php:183
+msgid "To be excluded path"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:136
+msgid "Unable to fetch idp configuration with id:"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:137
+msgid "Assert saml"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:162
+msgid "phpSaml::Settings->init"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:177
+msgid "Saml::Response->init"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:191
+msgid "LoginState"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:199
+msgid ""
+"We did not receive the required POST/GET headers, see: https://codeberg.org/"
+"QuinQuies/glpisaml/wiki/ACS.php for more information"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:200
+msgid "Acs assertion"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:223
+msgid ""
+"It looks like this samlResponse has already been used to authenticate a "
+"different user.\n"
+"                                 Maybe an error occurred and you pressed F5 "
+"and accidently resend the samlResponse that is\n"
+"                                 already registered as processed. For "
+"security reasons we can not allow processed samlResponses\n"
+"                                 to be processed again. Please login again "
+"to generate a new samlResponse. Sorry for any inconvenience.\n"
+"                                 If the problem presists, then please "
+"contact your administrator.\n"
+"                                 See: https://codeberg.org/QuinQuies/"
+"glpisaml/wiki/LoginState.php for more information"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:243
+msgid ""
+"An error occured while trying to update the samlResponseId into the "
+"LoginState database. Review the saml log for more details"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:254
+msgid ""
+"GLPI did not expect an assertion from this Idp. The most likely reason is a "
+"race condition\n"
+"                                  causing an inconsistant loginState in the "
+"database or software bug. Please login again via the\n"
+"                                  GLPI-interface. Sorry for the "
+"inconvenience. See: https://codeberg.org/QuinQuies/glpisaml/wiki/"
+"LoginState.php \n"
+"                                  for more information"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:258
+msgid "samlResponse assertion"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:271
+msgid ""
+"An error occured while trying to update the login phase to "
+"LoginState::PHASE_SAML_AUTH  into the LoginState database.\n"
+"                                  Review the saml log for more details"
+msgstr ""
+
+#: src/LoginFlow/Acs.php:279
+msgid ""
+"Validation of the samlResponse document failed. Review the saml log for more "
+"details"
+msgstr ""
+
+#: src/LoginFlow/User.php:153
+msgid ""
+"Your SSO login was successful but we where not able to fetch\n"
+"                                              the loginState from the "
+"database and could not continue to log\n"
+"                                              you into GLPI."
+msgstr ""
+
+#: src/LoginFlow/User.php:165
+msgid ""
+"Your SSO login was successful but there is no matching GLPI user account "
+"and\n"
+"                                                  we failed to create one "
+"dynamically using Just In Time user creation. Please\n"
+"                                                  request a GLPI "
+"administrator to review the logs and correct the problem or\n"
+"                                                  request the administrator "
+"to create a GLPI user manually."
+msgstr ""
+
+#: src/LoginFlow/User.php:202 src/LoginFlow/User.php:210
+msgid "User with GlpiUserid: "
+msgstr ""
+
+#: src/LoginFlow/User.php:230
+msgid ""
+"GLPI SAML was not able to assign the correct permissions to your user.\n"
+"                                                     Please let an "
+"Administrator review them before using GLPI."
+msgstr ""
+
+#: src/LoginFlow/User.php:261
+msgid ""
+"GLPI SAML was not able to assign the correct permissions to your user.\n"
+"                                                    Please let an "
+"Administrator review the user before using GLPI."
+msgstr ""
+
+#: src/LoginFlow/User.php:287
+msgid ""
+"GLPI SAML was not able to update the user defaults.\n"
+"                                                     Please let an "
+"administrator review the user before using GLPI."
+msgstr ""
+
+#: src/LoginFlow/User.php:332
+msgid "NameId attribute is missing in samlResponse"
+msgstr ""
+
+#: src/LoginFlow/User.php:341
+msgid ""
+"Detected a default guest user in samlResponse, this is not supported<br>\n"
+"                                      by glpiSAML. Please create a dedicated "
+"account for this user owned by your\n"
+"                                      tenant/identity provider.<br>\n"
+"                                      Also see: https://learn.microsoft.com/"
+"en-us/azure/active-directory/develop/saml-claims-customization"
+msgstr ""
+
+#: src/LoginFlow/User.php:359
+msgid ""
+"SamlResponse should have at least 1 valid email address for GLPI  to find\n"
+"                                          the corresponding GLPI user or "
+"create it (with JIT enabled). For this purpose make\n"
+"                                          sure either the IDP provided "
+"NameId property is populated with the email address format,\n"
+"                                          or configure the IDP to add the "
+"users email address in the samlResponse claims using\n"
+"                                          the designated schema property key:"
+msgstr ""
+
+#: src/LoginFlow/User.php:379
+msgid ""
+"Provided firstname or givenname exceeded 255 characters. This claim should "
+"not be longer than 255 characters"
+msgstr ""
+
+#: src/LoginFlow/User.php:390
+msgid ""
+"Provided surname claim exceeded 255 characters. This claim should not be "
+"longer than 255 characters"
+msgstr ""
+
+#: src/LoginFlow/User.php:401
+msgid ""
+"Provided job title claim exceeded 255 characters. This claim should not be "
+"longer than 255 characters"
+msgstr ""
+
+#: src/LoginFlow/User.php:412
+msgid ""
+"Provided mobile phone number claim exceeded 255 characters. This claim "
+"should not be longer than 255 characters"
+msgstr ""
+
+#: src/LoginFlow/User.php:423
+msgid ""
+"Provided telephone phone number claim exceeded 255 characters. This claim "
+"should not be longer than 255 characters"
+msgstr ""
+
+#: src/LoginFlow/User.php:434
+msgid ""
+"Provided country claim exceeded 255 characters. This claim should not be "
+"longer than 255 characters"
+msgstr ""
+
+#: src/LoginFlow/User.php:444
+msgid ""
+"Provided city claim exceeded 255 characters. This claim should not be longer "
+"than 255 characters"
+msgstr ""
+
+#: src/LoginFlow/User.php:454
+msgid ""
+"Provided street address claim exceeded 255 characters. This claim should not "
+"be longer than 255 characters"
+msgstr ""
+
+#: src/LoginFlow/User.php:463
+msgid "Created by phpSaml Just-In-Time user creation on:"
+msgstr ""
+
+#: src/Config/ConfigItem.php:94
+msgid "⭕ ID must be a positive numeric value!"
+msgstr ""
+
+#: src/Config/ConfigItem.php:97
+msgid "Unique identifier for this configuration"
+msgstr ""
+
+#: src/Config/ConfigItem.php:98
+msgid "CONFIG ID"
+msgstr ""
+
+#: src/Config/ConfigItem.php:111
+msgid ""
+"This name is shown with the login button on the login page.\n"
+"                                         Try to keep this name short en to "
+"the point."
+msgstr ""
+
+#: src/Config/ConfigItem.php:113
+msgid "FRIENDLY NAME"
+msgstr ""
+
+#: src/Config/ConfigItem.php:118
+msgid "⭕ Name is a required field"
+msgstr ""
+
+#: src/Config/ConfigItem.php:126
+msgid ""
+"Setting this value with the expected domain.tld, for example:\n"
+"                                         with \"google.com\" will allow a "
+"user to trigger this IDP by\n"
+"                                         providing their "
+"whatever@[google.com] username in the default\n"
+"                                         GLPI username field. Setting this "
+"field to: youruserdomain.tld\n"
+"                                         or to nothing disables this "
+"feature. Be aware that in the\n"
+"                                         current implementation, configuring "
+"this field will hide\n"
+"                                         the IDP button from the login screen"
+msgstr ""
+
+#: src/Config/ConfigItem.php:133
+msgid "USERDOMAIN"
+msgstr ""
+
+#: src/Config/ConfigItem.php:138
+msgid "⭕ "
+msgstr ""
+
+#: src/Config/ConfigItem.php:153
+msgid ""
+"⭕ Provided certificate does not like look a valid (base64 encoded) "
+"certificate"
+msgstr ""
+
+#: src/Config/ConfigItem.php:155
+msgid ""
+"The base64 encoded x509 service provider certificate. Used to sign and "
+"encrypt\n"
+"                                         messages send by the service "
+"provider to the identity provider. Required for most\n"
+"                                         of the security options"
+msgstr ""
+
+#: src/Config/ConfigItem.php:158
+msgid "SP CERTIFICATE"
+msgstr ""
+
+#: src/Config/ConfigItem.php:173
+msgid ""
+"The base64 encoded x509 service providers private key. Should match the "
+"modulus of the\n"
+"                                         provided X509 service provider "
+"certificate"
+msgstr ""
+
+#: src/Config/ConfigItem.php:175
+msgid "SP PRIVATE KEY"
+msgstr ""
+
+#: src/Config/ConfigItem.php:186
+msgid ""
+"The Service Provider nameid format specifies the constraints\n"
+"                                         on the name identifier to be used "
+"to represent the requested\n"
+"                                         subject."
+msgstr ""
+
+#: src/Config/ConfigItem.php:189
+msgid "NAMEID FORMAT"
+msgstr ""
+
+#: src/Config/ConfigItem.php:194
+msgid "Service provider name id is a required field"
+msgstr ""
+
+#: src/Config/ConfigItem.php:201
+msgid ""
+"Identifier of the IdP entity which is an URL provided by\n"
+"                                         the SAML2 Identity Provider (IdP)"
+msgstr ""
+
+#: src/Config/ConfigItem.php:203
+msgid "ENTITY ID"
+msgstr ""
+
+#: src/Config/ConfigItem.php:208
+msgid "⭕ Identity provider entity id is a required field"
+msgstr ""
+
+#: src/Config/ConfigItem.php:221
+msgid "⭕ The IdP SSO URL is a required field!<br>"
+msgstr ""
+
+#: src/Config/ConfigItem.php:226
+msgid "⭕ Invalid IdP SSO URL, use: scheme://host.domain.tld/path/"
+msgstr ""
+
+#: src/Config/ConfigItem.php:233
+msgid ""
+"Single Sign On Service endpoint of the IdP. URL Target of the IdP where the\n"
+"                                         Authentication Request Message will "
+"be sent. OneLogin PHPSAML\n"
+"                                         only supports the 'HTTP-redirect' "
+"binding for this endpoint."
+msgstr ""
+
+#: src/Config/ConfigItem.php:236
+msgid "SSO URL"
+msgstr ""
+
+#: src/Config/ConfigItem.php:258
+msgid "⭕ Invalid Idp SLO URL, use: scheme://host.domain.tld/path/"
+msgstr ""
+
+#: src/Config/ConfigItem.php:261
+msgid ""
+"Single Logout service endpoint of the IdP. URL Location of the IdP where\n"
+"                                          SLO Request will be sent.OneLogin "
+"PHPSAML only supports\n"
+"                                          the 'HTTP-redirect' binding for "
+"this endpoint."
+msgstr ""
+
+#: src/Config/ConfigItem.php:264
+msgid "SLO URL"
+msgstr ""
+
+#: src/Config/ConfigItem.php:283
+msgid "⭕ Valid Idp X509 certificate is required! (base64 encoded)"
+msgstr ""
+
+#: src/Config/ConfigItem.php:287
+msgid ""
+"The Public Base64 encoded x509 certificate used by the IdP. Fingerprinting\n"
+"                                          can be used, but is not "
+"recommended. Fingerprinting requires you to manually\n"
+"                                          alter the Saml Config array "
+"located in ConfigEntity.php and provide the\n"
+"                                          required configuration options"
+msgstr ""
+
+#: src/Config/ConfigItem.php:291
+msgid "X509 CERTIFICATE"
+msgstr ""
+
+#: src/Config/ConfigItem.php:316
+msgid ""
+"Authentication context needs to be satisfied by the IdP in order to allow "
+"Saml login. Set\n"
+"                                         to \"none\" and OneLogin PHPSAML "
+"will not send an AuthContext in the AuthNRequest. Or,\n"
+"                                         select one or more options using "
+"the \"control+click\" combination."
+msgstr ""
+
+#: src/Config/ConfigItem.php:319
+msgid "REQ AUTHN CONTEXT"
+msgstr ""
+
+#: src/Config/ConfigItem.php:324
+msgid "⭕ Requested authN context is a required field"
+msgstr ""
+
+#: src/Config/ConfigItem.php:329
+msgid "AUTHN Comparison attribute value"
+msgstr ""
+
+#: src/Config/ConfigItem.php:330
+msgid "AUTHN COMPARISON"
+msgstr ""
+
+#: src/Config/ConfigItem.php:335
+msgid "⭕ Requested authN context comparison is a required field"
+msgstr ""
+
+#: src/Config/ConfigItem.php:340
+msgid ""
+"The FontAwesome (https://fontawesome.com/) icon to show on the button on the "
+"login page."
+msgstr ""
+
+#: src/Config/ConfigItem.php:341
+msgid "LOGIN ICON"
+msgstr ""
+
+#: src/Config/ConfigItem.php:346
+msgid "⭕ Configuration icon is a required field"
+msgstr ""
+
+#: src/Config/ConfigItem.php:351
+msgid "The comments"
+msgstr ""
+
+#: src/Config/ConfigItem.php:352
+msgid "COMMENTS"
+msgstr ""
+
+#: src/Config/ConfigItem.php:362
+msgid "The date this configuration item was created"
+msgstr ""
+
+#: src/Config/ConfigItem.php:363
+msgid "CREATE DATE"
+msgstr ""
+
+#: src/Config/ConfigItem.php:374
+msgid "The date this config was modified"
+msgstr ""
+
+#: src/Config/ConfigItem.php:375
+msgid "MODIFICATION DATE"
+msgstr ""
+
+#: src/Config/ConfigItem.php:389
+msgid "Is this configuration marked as deleted by GLPI"
+msgstr ""
+
+#: src/Config/ConfigItem.php:390
+msgid "IS DELETED"
+msgstr ""
+
+#: src/Config/ConfigItem.php:398
+msgid ""
+"Indicates if this configuration activated. Disabled configurations cannot "
+"be\n"
+"                                                       used to login into "
+"GLPI and will NOT be shown on the login page."
+msgstr ""
+
+#: src/Config/ConfigItem.php:400
+msgid "IS ACTIVE"
+msgstr ""
+
+#: src/Config/ConfigItem.php:408
+msgid ""
+"If enabled PHPSAML will replace the default GLPI login screen with a "
+"version\n"
+"                                                       that does not have "
+"the default GLPI login options and only allows the user to\n"
+"                                                       authenticate using "
+"the configured SAML2 idps. This setting can be bypassed using\n"
+"                                                       a bypass URI parameter"
+msgstr ""
+
+#: src/Config/ConfigItem.php:412
+msgid "ENFORCED"
+msgstr ""
+
+#: src/Config/ConfigItem.php:420
+msgid "Is GLPI positioned behind a proxy that alters the SAML response scheme?"
+msgstr ""
+
+#: src/Config/ConfigItem.php:421
+msgid "REQUESTS PROXIED"
+msgstr ""
+
+#: src/Config/ConfigItem.php:429
+msgid ""
+"If enabled the OneLogin PHPSAML Toolkit will reject unsigned or unencrypted\n"
+"                                                       messages if it "
+"expects them to be signed or encrypted. Also it will reject the\n"
+"                                                       messages if the SAML "
+"standard is not strictly followed: Destination, NameId,\n"
+"                                                       Conditions are "
+"validated too. Strongly advised in production environments."
+msgstr ""
+
+#: src/Config/ConfigItem.php:433
+msgid "STRICT"
+msgstr ""
+
+#: src/Config/ConfigItem.php:441
+msgid ""
+"If enabled it will enforce OneLogin PHPSAML to print status and error "
+"messages.\n"
+"                                                       be aware that not all "
+"message's might be captured by GLPISAML and might therefor\n"
+"                                                       not become visible."
+msgstr ""
+
+#: src/Config/ConfigItem.php:452
+msgid ""
+"If enabled GLPISAML will create new GLPI users on the fly and assign the "
+"properties\n"
+"                                                         defined in the "
+"GLPISAML assignment rules. If disables users that do not have a valid\n"
+"                                                         GLPI user will not "
+"be able to login into GLPI until a user is manually created."
+msgstr ""
+
+#: src/Config/ConfigItem.php:455
+msgid "JIT USER CREATION"
+msgstr ""
+
+#: src/Config/ConfigItem.php:463
+msgid ""
+"If enabled the OneLogin PHPSAML toolkit will encrypt the "
+"<samlp:logoutRequest> sent by\n"
+"                                                         this SP using the "
+"provided SP certificate and private key. This option will be toggled\n"
+"                                                         \"off\" "
+"automatically if no, or no valid SP certificate and key is provided."
+msgstr ""
+
+#: src/Config/ConfigItem.php:466
+msgid "ENCRYPT NAMEID"
+msgstr ""
+
+#: src/Config/ConfigItem.php:474
+msgid ""
+"If enabled the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> "
+"messages\n"
+"                                                         send by this SP. "
+"The IDP should consult the metadata to get the information required\n"
+"                                                         to validate the "
+"signatures."
+msgstr ""
+
+#: src/Config/ConfigItem.php:477
+msgid "SIGN AUTHN REQUEST"
+msgstr ""
+
+#: src/Config/ConfigItem.php:485
+msgid ""
+"If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> "
+"messages\n"
+"                                                         send by this SP."
+msgstr ""
+
+#: src/Config/ConfigItem.php:487
+msgid "SIGN LOGOUT REQUEST"
+msgstr ""
+
+#: src/Config/ConfigItem.php:495
+msgid ""
+"If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutResponse> "
+"messages\n"
+"                                                         send by this SP."
+msgstr ""
+
+#: src/Config/ConfigItem.php:497
+msgid "SIGN LOGOUT RESPONSE"
+msgstr ""
+
+#: src/Config/ConfigItem.php:505
+msgid ""
+"If enabled the authentication requests send to the IdP will be compressed by "
+"the SP."
+msgstr ""
+
+#: src/Config/ConfigItem.php:506
+msgid "COMPRESS REQUESTS"
+msgstr ""
+
+#: src/Config/ConfigItem.php:514
+msgid "If enabled the SP expects responses send by the IdP to be compressed."
+msgstr ""
+
+#: src/Config/ConfigItem.php:515
+msgid "COMPRESS RESPONSES"
+msgstr ""
+
+#: src/Config/ConfigItem.php:523
+msgid ""
+"If enabled the SP will validate all received XMLs. In order to validate the "
+"XML\n"
+"                                                        \"strict\" security "
+"setting must be true."
+msgstr ""
+
+#: src/Config/ConfigItem.php:525
+msgid "VALIDATE XML"
+msgstr ""
+
+#: src/Config/ConfigItem.php:533
+msgid ""
+"If enabled, SAMLResponses with an empty value at its\n"
+"                                                       Destination attribute "
+"will not be rejected for this fact."
+msgstr ""
+
+#: src/Config/ConfigItem.php:535
+msgid "RELAX DEST VALIDATION"
+msgstr ""
+
+#: src/Config/ConfigItem.php:543
+msgid ""
+"ADFS URL-Encodes SAML data as lowercase, and the OneLogin PHPSAML\n"
+"                                                       toolkit by default "
+"uses uppercase. Enable this setting for ADFS\n"
+"                                                       compatibility on "
+"signature verification"
+msgstr ""
+
+#: src/Config/ConfigItem.php:546
+msgid "LOWER CASE ENCODING"
+msgstr ""
+
+#: src/Config/ConfigItem.php:601
+msgid ""
+"⚠️ Warning, do not use the 'withlove.from.donuts.nl' example certificates. "
+"They offer no additional protection."
+msgstr ""
+
+#: src/Config/ConfigItem.php:609
+msgid ""
+"⭕ Certificate must be wrapped in valid BEGIN CERTIFICATE and END "
+"CERTIFICATE tags"
+msgstr ""
+
+#: src/Config/ConfigItem.php:613
+msgid "⭕ Certificate should not contain \"carriage returns\" [<CR>]"
+msgstr ""
+
+#: src/Config/ConfigItem.php:617
+msgid "⭕ No valid X509 certificate found"
+msgstr ""
+
+#: src/Config/ConfigItem.php:620
+msgid "⚠️ OpenSSL is not available, GLPI cant validate your certificate"
+msgstr ""
+
+#: src/Config/ConfigForm.php:81
+msgid "Successfully added new GlpiSaml configuration."
+msgstr ""
+
+#: src/Config/ConfigForm.php:86
+msgid "Unable to add new GlpiSaml configuration, please review error logging"
+msgstr ""
+
+#: src/Config/ConfigForm.php:91
+msgid "Configuration invalid, please correct all ⭕ errors first"
+msgstr ""
+
+#: src/Config/ConfigForm.php:119
+msgid "Configuration updated successfully"
+msgstr ""
+
+#: src/Config/ConfigForm.php:124
+msgid "Configuration update failed, check your update rights or error logging"
+msgstr ""
+
+#: src/Config/ConfigForm.php:130
+msgid "Configuration invalid please correct all ⭕ errors first"
+msgstr ""
+
+#: src/Config/ConfigForm.php:149
+msgid "Configuration deleted successfully"
+msgstr ""
+
+#: src/Config/ConfigForm.php:153
+msgid "Not allowed or error deleting SAML configuration!"
+msgstr ""
+
+#: src/Config/ConfigForm.php:171
+msgid "Invalid request, redirecting back"
+msgstr ""
+
+#: src/Config/ConfigForm.php:298
+msgid "Email Address"
+msgstr ""
+
+#: src/Config/ConfigForm.php:299
+msgid "Transient"
+msgstr ""
+
+#: src/Config/ConfigForm.php:300
+msgid "Persistent"
+msgstr ""
+
+#: src/Config/ConfigForm.php:301
+msgid "PasswordProtectedTransport"
+msgstr ""
+
+#: src/Config/ConfigForm.php:303
+msgid "X509"
+msgstr ""
+
+#: src/Config/ConfigForm.php:304
+msgid "none"
+msgstr ""
+
+#: src/Config/ConfigForm.php:305
+msgid "Exact"
+msgstr ""
+
+#: src/Config/ConfigForm.php:308
+msgid "Better"
+msgstr ""
+
+#: src/Config/ConfigEntity.php:341
+msgid ""
+"⚠️ SP private key does not seem to match provided SP certificates modulus."
+msgstr ""
+
+#: src/Config/ConfigEntity.php:346
+msgid ""
+"⚠️ Will be defaulted to \"No\" because the provided SP certificate does not "
+"look valid!"
+msgstr ""
+
+#: front/config.form.php:54 front/config.php:57
+msgid "Identity providers"
+msgstr ""
+
+#: front/meta.php:82 front/meta.php:87 front/meta.php:92
+msgid ""
+"If this is a valid ID. Please request your administrator to enable the "
+"'debug' flag to expose the requested IdP config using this meta file"
+msgstr ""
+
+#: front/exclude.php:56
+msgid "SAML Excludes"
+msgstr ""
+
+#: hook.php:73
+msgid "SAML exclusions"
+msgstr ""
+
+#: hook.php:106
+msgid "🆗 Installing version:"
+msgstr ""
+
+#: hook.php:110
+msgid "⚠️ OpenSSL not available, cant verify provided certificates"
+msgstr ""
+
+#: hook.php:112
+msgid "🆗 OpenSSL found!"
+msgstr ""
+
+#: hook.php:117
+msgid "⚠️ No internet connection, cant verify latest versions"
+msgstr ""
+
+#: hook.php:119
+msgid "🆗 Internet connection found!"
+msgstr ""
