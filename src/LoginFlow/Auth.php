@@ -42,10 +42,10 @@
  * ------------------------------------------------------------------------
  **/
 
- namespace GlpiPlugin\Glpisaml\LoginFlow;
+ namespace GlpiPlugin\Samlsso\LoginFlow;
 
 use Auth as glpiAuth;
-use GlpiPlugin\Glpisaml\LoginFlow\User;
+use GlpiPlugin\Samlsso\LoginFlow\User;
 
 /**
  * Extends the glpi Auth class for injection into Session::init();

@@ -49,7 +49,7 @@
  *
  **/
 
-namespace GlpiPlugin\Glpisaml;
+namespace GlpiPlugin\Samlsso;
 
 use Session;
 use Throwable;
@@ -57,7 +57,7 @@ use Migration;
 use Exception;
 use CommonDBTM;
 use DBConnection;
-use GlpiPlugin\Glpisaml\Exclude;
+use GlpiPlugin\Samlsso\Exclude;
 
 
 /*
@@ -181,7 +181,7 @@ class LoginState extends CommonDBTM
 
     /**
      * Get state from database or if it doesnt exist
-     * create a new initial one. This method is called initially and 
+     * create a new initial one. This method is called initially and
      * after each successive click after the auth step.
      *
      * @param   $samlInResponseTo   - Fetch state using inResponseTo instead of phpSessionId;

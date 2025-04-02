@@ -38,8 +38,8 @@
  *  @since      1.0.0
  * ------------------------------------------------------------------------
  **/
-use GlpiPlugin\Glpisaml\LoginFlow\Acs;
-use GlpiPlugin\Glpisaml\LoginState;
+use GlpiPlugin\Samlsso\LoginFlow\Acs;
+// use GlpiPlugin\Samlsso\LoginState; TODO: test and delete if useless.
 
 // Capture the post and get before GLPI does.
 $post = $_POST;     // Contains the samlResponse;

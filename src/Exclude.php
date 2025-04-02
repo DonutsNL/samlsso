@@ -42,7 +42,7 @@
  * ------------------------------------------------------------------------
  **/
 
- namespace GlpiPlugin\Glpisaml;
+ namespace GlpiPlugin\Samlsso;
 
 use Session;
 use Migration;
@@ -216,7 +216,7 @@ class Exclude extends CommonDropdown
      *
      * @return bool     On success
      * @since           1.1.0
-     * 
+     *
      */
     public static function ProcessExcludes(): bool                                                         //NOSONAR - Maybe fix complexity in future.
     {

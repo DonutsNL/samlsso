@@ -49,14 +49,14 @@
  * @see https://github.com/pluginsGLPI/example/issues/51
  * @see https://github.com/DonutsNL/phpsaml2/issues/6
  */
-namespace GlpiPlugin\Glpisaml;
+namespace GlpiPlugin\Samlsso;
 
 use Session;
 use Migration;
 use CommonDBTM;
 use DBConnection;
-use GlpiPlugin\Glpisaml\Config\ConfigItem;
-use GlpiPlugin\Glpisaml\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\Config\ConfigItem;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
 
 /**
  * Class Handles the installation and listing of configuration front/config.php
@@ -263,7 +263,6 @@ class Config extends CommonDBTM
      * Returns true if any of the configured IdPs is set to enforced.
      * this will hide the password and database fields from the login
      * page.
-     * @todo make the function filter out deleted rows.
      * @return  bool
      * @see                             - src/LoginFlow/showLoginScreen()
      * @since 1.0.0
@@ -271,7 +270,7 @@ class Config extends CommonDBTM
     public static function getIsEnforced(): bool
     {
         global $DB;
-        return (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1]])) > 0) ? true : false;
+        return (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
     }
 
     /**

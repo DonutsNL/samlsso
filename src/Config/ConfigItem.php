@@ -41,11 +41,11 @@
  *  @since      1.0.0
  * ------------------------------------------------------------------------
  **/
-namespace GlpiPlugin\Glpisaml\Config;
+namespace GlpiPlugin\Samlsso\Config;
 
 use DateTime;
 use DateTimeImmutable;
-use GlpiPlugin\Glpisaml\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use Plugin;
 
 /*
@@ -269,7 +269,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::ERRORS    => ($error) ? $error : null,];
     }
 
-    // Im not yet happy with the structure and complexity. 
+    // Im not yet happy with the structure and complexity.
     // Should be simplified.
     protected function idp_certificate(mixed $var): array //NOSONAR
     {
@@ -560,7 +560,6 @@ class ConfigItem    //NOSONAR
                 ConfigItem::ERRORS => $error];
     }
 
-    // TODO: Im not yet happy with the structure and complexity.
     // Certificate string should have certain properties to be recognized correctly
     // https://www.man7.org/linux/man-pages/man7/ascii.7.html
     // https://datatracker.ietf.org/doc/rfc7468/ (2.  General Considerations)

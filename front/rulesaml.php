@@ -39,7 +39,7 @@
  * ------------------------------------------------------------------------
  **/
 
-use GlpiPlugin\Glpisaml\RuleSamlCollection;
+use GlpiPlugin\Samlsso\RuleSamlCollection;
 
 include_once '../../../inc/includes.php';                                                   //NOSONAR - Cant be included with USE.
 

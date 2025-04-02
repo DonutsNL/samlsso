@@ -41,13 +41,13 @@
  *  @since      1.0.0
  * ------------------------------------------------------------------------
  **/
-namespace GlpiPlugin\Glpisaml\Config;
+namespace GlpiPlugin\Samlsso\Config;
 
 use Plugin;
 use Session;
 use ReflectionClass;
-use GlpiPlugin\Glpisaml\Config as SamlConfig;
-use GlpiPlugin\Glpisaml\Config\ConfigItem;
+use GlpiPlugin\Samlsso\Config as SamlConfig;
+use GlpiPlugin\Samlsso\Config\ConfigItem;
 
 
 /*

@@ -42,14 +42,14 @@
  * ------------------------------------------------------------------------
  **/
 
-namespace GlpiPlugin\Glpisaml;
+namespace GlpiPlugin\Samlsso;
 
 use CommonDBTM;
 // https://glpi-developer-documentation.readthedocs.io/en/master/devapi/crontasks.html
 use CronTask as glpiCronTask;
 use Migration;
 use QueryExpression;
-use GlpiPlugin\Glpisaml\LoginState;
+use GlpiPlugin\Samlsso\LoginState;
 
 class CronTask extends CommonDBTM
 {
@@ -60,12 +60,12 @@ class CronTask extends CommonDBTM
      */
     public static function cronInfo(string $name): array
     {
-        switch ($name) {
-            case 'cleanSessionSAML':
+        if ($name == 'cleanSessionSAML') {
                 return ['description' => __("Clean old SAML sessions", PLUGIN_NAME),
                         'parameter'   => __("SAML sessions retention period (in days, 0 for infinite)", PLUGIN_NAME)];
+        }else{
+            return [];
         }
-        return [];
     }
 
     /**
@@ -88,7 +88,7 @@ class CronTask extends CommonDBTM
             );
 
             if ($result) {
-                $vol = $DB->affectedRows();
+                //$vol = $DB->affectedRows(); unsure this is required..
                 $cron_status = 1;
             }
         }

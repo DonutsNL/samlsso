@@ -42,7 +42,7 @@
  * ------------------------------------------------------------------------
  **/
 
-namespace GlpiPlugin\Glpisaml\LoginFlow;
+namespace GlpiPlugin\Samlsso\LoginFlow;
 
 use Session;
 use Toolbox;
@@ -51,10 +51,10 @@ use Profile_User;
 use User as glpiUser;
 use Glpi\Toolbox\Sanitizer;
 use OneLogin\Saml2\Response;
-use GlpiPlugin\Glpisaml\LoginFlow;
-use GlpiPlugin\Glpisaml\LoginState;
-use GlpiPlugin\Glpisaml\RuleSamlCollection;
-use GlpiPlugin\Glpisaml\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\LoginFlow;
+use GlpiPlugin\Samlsso\LoginState;
+use GlpiPlugin\Samlsso\RuleSamlCollection;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
 
 /**
  * This class is responsible to make sure a corresponding
@@ -131,7 +131,7 @@ class User
      * @return  glpiUser    GlpiUser object with populated fields.
      * @since               1.0.0
      */
-    public function getOrCreateUser(array $userFields): glpiUser    //NOSONAR
+    public function getOrCreateUser(array $userFields): glpiUser        //Not all paths have a return value error is by design.
     {
         // At this point the userFields should be present and validated (textually) by loginFlow.
         // https://codeberg.org/QuinQuies/glpisaml/issues/71
@@ -167,7 +167,6 @@ class User
                                                   we failed to create one dynamically using Just In Time user creation. Please
                                                   request a GLPI administrator to review the logs and correct the problem or
                                                   request the administrator to create a GLPI user manually.", PLUGIN_NAME));
-                    // PHP0405-no return by design.
                 }else{
                     $ruleCollection = new RuleSamlCollection();
                     $matchInput = [User::EMAIL          => $userFields[User::EMAIL],
@@ -180,7 +179,7 @@ class User
                     $ruleCollection->processAllRules($matchInput, [User::USERSID => $id], []);
                 }
 
-                // Return freshly created user!
+                // Return the freshly created user!
                 $user = new glpiUser();
                 if($user->getFromDB($id)){
                     Session::addMessageAfterRedirect('Dynamically created GLPI user for:'.$userFields[User::EMAIL]['0']);
@@ -193,9 +192,7 @@ class User
                 LoginFlow::showLoginError(__("Your SSO login was successful but there is no matching GLPI user account. In addition the Just-in-time user creation
                                               is disabled for: $idpName. Please contact your GLPI administrator and request an account to be created matching the
                                               provided email claim: $email or login using a local user account.", PLUGIN_NAME));
-                // PHP0405-no return by design.
             }
-
         // User is found, check if we are allowed to use it.
         }else{
             // Verify the user is not deleted (in trashcan)
@@ -204,14 +201,13 @@ class User
                                            this we cannot log you in as this would violate GLPI its security policies. Please contact the GLPI administrator
                                            to restore the user with provided ID or purge the user to allow the Just in Time (JIT) user creation to create a
                                            new user with the idp provided claims.", PLUGIN_NAME));
-                // PHP0405-no return by design.
             }
             // Verify the user is not disabled by the admin;
             if($user->fields[User::ACTIVE] == 0){
                 LoginFlow::showLoginError(__("User with GlpiUserid: ".$user->fields[User::USERID]." is disabled. Please contact your GLPI administrator and request him to
                                             reactivate your account.", PLUGIN_NAME));
-                // PHP0405-no return by design.
             }
+
             // Return the user to the LoginFlow object for session initialization!.
             return $user;
         }
@@ -294,7 +290,7 @@ class User
             // Do we need to set a default group?
             if(isset($update[User::GROUP_DEFAULT])){
                 $userDefaults[User::GROUPID]  = $update[User::GROUP_DEFAULT];
-                Toolbox::logInFile(PLUGIN_NAME.LOGEVENTS, __('JIT found default groupID:'.$update[User::GROUP_DEFAULT].'for userId:'.$update['users_id']."\n"));
+                Toolbox::logInFile(PLUGIN_NAME.LOGEVENTS, __('JIT found default groupID:'.$update[User::GROUP_DEFAULT].'for userId:'.$update['users_id']."\n"));        #NOSONAR not creating a constant for text repetition
             }else{
                 Toolbox::logInFile(PLUGIN_NAME.LOGEVENTS, __('Jit didnt find a default GroupID to assign, skipping'."\n"));
             }

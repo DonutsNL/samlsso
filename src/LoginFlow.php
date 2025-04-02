@@ -47,7 +47,7 @@
  *
  **/
 
-namespace GlpiPlugin\Glpisaml;
+namespace GlpiPlugin\Samlsso;
 
 use Html;
 use Plugin;
@@ -60,11 +60,11 @@ use Migration;
 use OneLogin\Saml2\Auth as samlAuth;
 use OneLogin\Saml2\Response;
 use Glpi\Application\View\TemplateRenderer;
-use GlpiPlugin\Glpisaml\Config;
-use GlpiPlugin\Glpisaml\LoginState;
-use GlpiPlugin\Glpisaml\Config\ConfigEntity;
-use GlpiPlugin\Glpisaml\LoginFlow\User;
-use GlpiPlugin\Glpisaml\LoginFlow\Auth as glpiAuth;
+use GlpiPlugin\Samlsso\Config;
+use GlpiPlugin\Samlsso\LoginState;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\LoginFlow\User;
+use GlpiPlugin\Samlsso\LoginFlow\Auth as glpiAuth;
 
 /**
  * This object brings it all together. It is responsible to handle the

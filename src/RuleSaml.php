@@ -42,7 +42,7 @@
  * ------------------------------------------------------------------------
  **/
 
- namespace GlpiPlugin\Glpisaml;
+ namespace GlpiPlugin\Samlsso;
 
 use Rule;
 use Group;

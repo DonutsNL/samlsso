@@ -40,7 +40,7 @@
  **/
 
 // https://codeberg.org/QuinQuies/glpisaml/issues/73
-use GlpiPlugin\Glpisaml\LoginFlow as samlFlowConfig;
+use GlpiPlugin\Samlsso\LoginFlow as samlFlowConfig;
 
 include_once '../../../inc/includes.php';               //NOSONAR - Cannot be included with USE keyword
 // Check the rights

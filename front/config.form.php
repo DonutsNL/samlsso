@@ -39,8 +39,8 @@
  * ------------------------------------------------------------------------
  **/
 
-use GlpiPlugin\Glpisaml\Config;
-use GlpiPlugin\Glpisaml\Config\ConfigForm;
+use GlpiPlugin\Samlsso\Config;
+use GlpiPlugin\Samlsso\Config\ConfigForm;
 
 // Capture post before GLPI processes it.
 $post  = $_POST;

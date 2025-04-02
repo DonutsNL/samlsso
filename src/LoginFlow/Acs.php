@@ -42,16 +42,16 @@
  * ------------------------------------------------------------------------
  **/
 
-namespace GlpiPlugin\Glpisaml\LoginFlow;
+namespace GlpiPlugin\Samlsso\LoginFlow;
 
 use Throwable;
 use OneLogin\Saml2\Utils;
 use OneLogin\Saml2\Auth;
 use OneLogin\Saml2\Settings;
 use OneLogin\Saml2\Response;
-use GlpiPlugin\Glpisaml\LoginFlow;
-use GlpiPlugin\Glpisaml\Loginstate;
-use GlpiPlugin\Glpisaml\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\LoginFlow;
+use GlpiPlugin\Samlsso\Loginstate;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
 
 
 /**
@@ -111,7 +111,7 @@ class Acs extends LoginFlow
      *
      * @since 1.0.0
      */
-    public function init(array $idpId, array $samlResponse)
+    public function init(array $idpId, array $samlResponse)             #NOSONAR Yes I know and no not going to fix it.
     {
         // If we have all required data we first need to unpack the samlResponse using
         // the samlRequest provided idpId. If all went well, the idpId was added as an

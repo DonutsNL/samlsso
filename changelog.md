@@ -2,7 +2,8 @@
 - Updated the XMLseclibs to version 3.1.3
 - Renaming plugin to samlSSO for better searchability
 - Updated the credits
-
+- Config.php:270 `getIsEnforced()` added `is_deleted` check to enforced query.
+- Added `return ''; // Unreachable return but prevents PHP0405-no return linting error.` various places
 
 **v1.1.11**
 - Removed the version validation from ConfigForm.php as its no longer used

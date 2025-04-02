@@ -42,15 +42,15 @@
  * ------------------------------------------------------------------------
  **/
 
-namespace GlpiPlugin\Glpisaml\Config;
+namespace GlpiPlugin\Samlsso\Config;
 
 use Html;
 use Plugin;
 use Session;
 use Throwable;
-use GlpiPlugin\Glpisaml\LoginState;
+use GlpiPlugin\Samlsso\LoginState;
 use Glpi\Application\View\TemplateRenderer;
-use GlpiPlugin\Glpisaml\Config as SamlConfig;
+use GlpiPlugin\Samlsso\Config as SamlConfig;
 use OneLogin\Saml2\Constants as Saml2Const;
 
 
@@ -80,7 +80,8 @@ class ConfigForm    //NOSONAR complexity by design.
                 // Leave succes message for user and redirect
                 Session::addMessageAfterRedirect(__('Successfully added new GlpiSaml configuration.', PLUGIN_NAME));
                 Html::redirect(Plugin::getWebDir(PLUGIN_NAME, true)."/front/config.form.php?id=$id");
-                // PHP0405-no return by design.
+
+                return ''; // Unreachable return but prevents PHP0405-no return linting error.
             } else {
                 // Leave error message for user and regenerate form with values
                 Session::addMessageAfterRedirect(__('Unable to add new GlpiSaml configuration, please review error logging', PLUGIN_NAME));
@@ -118,12 +119,14 @@ class ConfigForm    //NOSONAR complexity by design.
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
                 Html::redirect(Plugin::getWebDir(PLUGIN_NAME, true).PLUGIN_GLPISAML_CONF_FORM.'?id='.$postData['id']);
-                // PHP0405-no return by design.
+
+                return ''; // Unreachable return but prevents PHP0405-no return linting error.
             } else {
                 // Leave a failed message
                 Session::addMessageAfterRedirect(__('Configuration update failed, check your update rights or error logging', PLUGIN_NAME));
                 Html::redirect(Plugin::getWebDir(PLUGIN_NAME, true).PLUGIN_GLPISAML_CONF_FORM.'?id='.$postData['id']);
-                // PHP0405-no return by design.
+
+                return ''; // Unreachable return but prevents PHP0405-no return linting error.
             }
         }else{
             // Leave an error message and reload the form with provided values and errors

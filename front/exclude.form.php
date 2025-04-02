@@ -40,7 +40,7 @@
  **/
 
 use Plugin;
-use GlpiPlugin\Glpisaml\Exclude;
+use GlpiPlugin\Samlsso\Exclude;
 
 include '../../../inc/includes.php';                            //NOSONAR - Cant be included with USE.
 

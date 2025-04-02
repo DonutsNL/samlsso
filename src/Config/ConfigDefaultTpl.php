@@ -1,9 +1,9 @@
 <?php
 
-namespace GlpiPlugin\Glpisaml\Config;
+namespace GlpiPlugin\Samlsso\Config;
 
 use OneLogin\Saml2\Constants as Saml2Const;
-use GlpiPlugin\Glpisaml\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
 
 /**
  * Provides a default template for new configurations

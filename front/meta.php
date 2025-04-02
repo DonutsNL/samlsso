@@ -40,7 +40,7 @@
  **/
 use html;
 use OneLogin\Saml2\Settings;
-use GlpiPlugin\Glpisaml\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
 
 // Load GLPI
 include_once '../../../inc/includes.php';                       //NOSONAR - Cant be included with USE.
