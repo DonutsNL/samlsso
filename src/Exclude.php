@@ -1,9 +1,9 @@
 <?php
 /**
  *  ------------------------------------------------------------------------
- *  GLPISaml
+ *  samlSSO
  *
- *  GLPISaml was inspired by the initial work of Derrick Smith's
+ *  samlSSO was inspired by the initial work of Derrick Smith's
  *  PhpSaml. This project's intend is to address some structural issues
  *  caused by the gradual development of GLPI and the broad amount of
  *  wishes expressed by the community.
@@ -13,36 +13,36 @@
  *
  * LICENSE
  *
- * This file is part of GLPISaml project.
+ * This file is part of samlSSO plugin for GLPI.
  *
- * GLPISaml plugin is free software: you can redistribute it and/or modify
+ * samlSSO plugin is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * GLPISaml is distributed in the hope that it will be useful,
+ * samlSSO is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with GLPISaml. If not, see <http://www.gnu.org/licenses/> or
+ * along with samlSSO. If not, see <http://www.gnu.org/licenses/> or
  * https://choosealicense.com/licenses/gpl-3.0/
  *
  * ------------------------------------------------------------------------
  *
- *  @package    GLPISaml
- *  @version    1.1.6
+ *  @package    samlSSO
+ *  @version    1.2.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
- *  @see        https://github.com/DonutsNL/GLPISaml/readme.md
- *  @link       https://github.com/DonutsNL/GLPISaml
+ *  @see        https://github.com/DonutsNL/samlSSO/readme.md
+ *  @link       https://github.com/DonutsNL/samlSSO
  *  @since      1.0.0
  * ------------------------------------------------------------------------
  **/
 
- namespace GlpiPlugin\Samlsso;
+namespace GlpiPlugin\Samlsso;
 
 use Session;
 use Migration;
@@ -114,17 +114,7 @@ class Exclude extends CommonDropdown
     {
         return 'fa-regular fa-eye-slash';
     }
-
-    /**
-     * @see CommonGLPI::getAdditionalMenuLinks()
-     * CommonDropdown does not seem to implement this,
-     * just keep it for the future. Hopefully it will be
-     * added in the future?
-     **/
-    public static function getAdditionalMenuLinks() {
-        $links[__('SAML providers', PLUGIN_NAME)] = PLUGIN_GLPISAML_WEBDIR.'/front/config.php';
-        return $links;
-    }
+    
 
     /**
      * getAdditionalFields(): array

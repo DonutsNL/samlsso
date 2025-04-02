@@ -1,14 +1,14 @@
 <root>
-<name>glpisaml</name>
-<key>glpisaml</key>
+<name>samlSSO</name>
+<key>samlSSO</key>
 <state>Stable</state>
-<logo>https://codeberg.org/QuinQuies/glpisaml/raw/branch/main/donut.png</logo>
+<logo>https://github.com/DonutsNL/samlSSO/raw/branch/main/donut.png</logo>
 <description>
     <short>
-        <en>Enables you to configure SAML with an external IdP to authenticate and authorize users using the GLPI UI.</en>
+        <en>samlSSO enables you to configure SAML with an external IdP to authenticate and authorize users using the GLPI UI.</en>
     </short>
     <long>
-        <en>Glpisaml provides SAML Single Sign On (SSO) capabilties for GLPI. Glpisaml is written with GLPI10+ 
+        <en>samlSSO provides SAML Single Sign On (SSO) capabilties for GLPI. samlSSO is written with GLPI10+ 
             support in mind. It uses GLPI core components and best-practices for maximum compatibility and 
             maintainability. The plugin enables you to configure multiple SAML providers allowing your customers
             SSO access as well. The plugin will create new GLPI users on the fly and apply jit rules to assign 
@@ -17,14 +17,19 @@
         </en>
     </long>
 </description>
-<homepage>https://codeberg.org/QuinQuies/glpisaml/wiki</homepage>
-<download>https://codeberg.org/QuinQuies/glpisaml/releases/</download>
-<issues>https://codeberg.org/QuinQuies/glpisaml/issues</issues>
-<readme>https://codeberg.org/QuinQuies/glpisaml/src/branch/main/README.md</readme>
+<homepage>https://github.com/DonutsNL/samlSSO</homepage>
+<download>https://github.com/DonutsNL/samlSSO/releases</download>
+<issues>https://github.com/DonutsNL/samlSSO/issues</issues>
+<readme>https://github.com/DonutsNL/samlSSO/blob/main/README.md</readme>
 <authors>
     <author>Chris Gralike</author>
 </authors>
 <versions>
+    <version>
+        <num>1.2.00</num>
+        <compatibility>~11.0.0</compatibility>
+        <download_url>https://github.com/DonutsNL/samlSSO/releases/download/v1.2.00/glpisaml.zip</download_url>
+    </version>
     <version>
         <num>1.1.10</num>
         <compatibility>~10.0.0</compatibility>

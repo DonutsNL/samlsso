@@ -1,10 +1,9 @@
 <?php
-
 /**
  *  ------------------------------------------------------------------------
- *  GLPISaml
+ *  samlSSO
  *
- *  GLPISaml was inspired by the initial work of Derrick Smith's
+ *  samlSSO was inspired by the initial work of Derrick Smith's
  *  PhpSaml. This project's intend is to address some structural issues
  *  caused by the gradual development of GLPI and the broad amount of
  *  wishes expressed by the community.
@@ -14,31 +13,31 @@
  *
  * LICENSE
  *
- * This file is part of GLPISaml project.
+ * This file is part of samlSSO plugin for GLPI.
  *
- * GLPISaml plugin is free software: you can redistribute it and/or modify
+ * samlSSO plugin is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * GLPISaml is distributed in the hope that it will be useful,
+ * samlSSO is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with GLPISaml. If not, see <http://www.gnu.org/licenses/> or
+ * along with samlSSO. If not, see <http://www.gnu.org/licenses/> or
  * https://choosealicense.com/licenses/gpl-3.0/
  *
  * ------------------------------------------------------------------------
  *
- *  @package    GLPISaml
- *  @version    1.1.6
+ *  @package    samlSSO
+ *  @version    1.2.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
- *  @see        https://github.com/DonutsNL/GLPISaml/readme.md
- *  @link       https://github.com/DonutsNL/GLPISaml
+ *  @see        https://github.com/DonutsNL/samlSSO/readme.md
+ *  @link       https://github.com/DonutsNL/samlSSO
  *  @since      1.0.0
  * ------------------------------------------------------------------------
  **/
@@ -59,7 +58,7 @@ use GlpiPlugin\Samlsso\Config\ConfigItem;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
 
 /**
- * Class Handles the installation and listing of configuration front/config.php
+ * This class Handles the installation and listing of configuration front/config.php
  * is is also the baseClass that extends the CommonDBTM GLPI object. All other
  * glpisaml config classes reference this class for CRUD operations on the config
  * database.
@@ -68,21 +67,21 @@ class Config extends CommonDBTM
 {
     /**
      * Tell DBTM to keep history
-     * @var    bool     - $dohistory
+     * @var    bool     $dohistory
      */
     public $dohistory = true;
 
     /**
      * Tell CommonGLPI to use config (Setup->Setup in UI) rights.
-     * @var    string   - $rightname
+     * @var    string   $rightname
      */
     public static $rightname = 'config';
 
     /**
      * Overloads missing canCreate Setup right and returns canUpdate instead
      *
-     * @return bool     - Returns true if profile assigned Setup->Setup->Update right
-     * @see             - https://github.com/pluginsGLPI/example/issues/50
+     * @return bool     Returns true if profile assigned Setup->Setup->Update right
+     * @see             https://github.com/pluginsGLPI/example/issues/50
      */
     public static function canCreate(): bool
     {
@@ -92,8 +91,8 @@ class Config extends CommonDBTM
     /**
      * Overloads missing canDelete Setup right and returns canUpdate instead
      *
-     * @return bool     - Returns true if profile assigned Setup->Setup->Update right
-     * @see             - https://github.com/pluginsGLPI/example/issues/50
+     * @return bool     Returns true if profile assigned Setup->Setup->Update right
+     * @see             https://github.com/pluginsGLPI/example/issues/50
      */
     public static function canDelete(): bool
     {
@@ -103,8 +102,8 @@ class Config extends CommonDBTM
     /**
      * Overloads missing canPurge Setup right and returns canUpdate instead
      *
-     * @return bool     - Returns true if profile assigned Setup->Setup->Update right
-     * @see             - https://github.com/pluginsGLPI/example/issues/50
+     * @return bool     Returns true if profile assigned Setup->Setup->Update right
+     * @see             https://github.com/pluginsGLPI/example/issues/50
      */
     public static function canPurge(): bool
     {
@@ -112,20 +111,21 @@ class Config extends CommonDBTM
     }
 
     /**
-     * returns class friendly TypeName
-     * @param  int      - $nb return plural or singular friendly name.
-     * @return string   - returns translated friendly name.
+     * returns class friendly TypeName.
+     *
+     * @param  int      $nb return plural or singular friendly name.
+     * @return string   returns translated friendly name.
      */
     public static function getTypeName($nb = 0): string
     {
-        return __('Saml SSO applications', PLUGIN_NAME);
+        return __('samlSSO Config', PLUGIN_NAME);
     }
 
     /**
      * Returns class icon to use in menus and tabs
      *
-     * @return string   - returns Font Awesome icon className.
-     * @see             - https://fontawesome.com/search
+     * @return string   returns Font Awesome icon className.
+     * @see             https://fontawesome.com/search
      */
     public static function getIcon(): string
     {
@@ -133,13 +133,15 @@ class Config extends CommonDBTM
     }
 
     /**
-     * Added links for user convenience
-     * @see CommonGLPI::getAdditionalMenuLinks()
-     * @see https://codeberg.org/QuinQuies/glpisaml/issues/8
+     * Added links for user convenience.
+     *
+     * @return array    Array containing requested interface links
+     * @see             CommonGLPI::getAdditionalMenuLinks()
      **/
     public static function getAdditionalMenuLinks() {
-        $links[__('Excluded paths', PLUGIN_NAME)] = PLUGIN_GLPISAML_WEBDIR.'/front/exclude.php';
-        $links[__('JIT import rules', PLUGIN_NAME)] = PLUGIN_GLPISAML_WEBDIR.'/front/rulesaml.php';
+        $links[__('Excluded paths', PLUGIN_NAME)] = PLUGIN_SAMLSSO_WEBDIR.'/front/exclude.php';
+        $links[__('JIT import rules', PLUGIN_NAME)] = PLUGIN_SAMLSSO_WEBDIR.'/front/rulesaml.php';
+        $links[__('Generic config', PLUGIN_NAME)] = PLUGIN_SAMLSSO_WEBDIR.'/front/configFlow.form.php';
         return $links;
     }
 
@@ -147,10 +149,8 @@ class Config extends CommonDBTM
      * Provides search options for DBTM.
      * Do not rely on this, @see CommonDBTM::searchOptions instead.
      *
-     * @return array  $tab  - returns searchOptions
-     * @see                 - https://glpi-developer-documentation.readthedocs.io/en/master/devapi/search.html
-     * @see                 - https://codeberg.org/QuinQuies/glpisaml/issues/9
-     * @see                 - https://codeberg.org/QuinQuies/glpisaml/issues/11
+     * @return array    returns array with requested searchOptions
+     * @see             https://glpi-developer-documentation.readthedocs.io/en/master/devapi/search.html
      */
     function rawSearchOptions(): array                          //NOSONAR - phpcs:ignore PSR1.Function.CamelCapsMethodName
     {
@@ -231,9 +231,11 @@ class Config extends CommonDBTM
     /**
      * Get all valid configurations and return config buttons only if config is valid
      * and active.
-     * @return  array
-     * @see                             - src/LoginFlow/showLoginScreen()
-     * @since 1.0.0
+     *
+     * @return array    Array containing configured login buttons
+     * @see             src/LoginFlow/showLoginScreen()
+     * @since           1.0.0
+     * @todo            TODO: !$configEntity->getConfigDomain() must be moved to generic config
      */
     public static function getLoginButtons(int $length): array
     {
@@ -249,12 +251,17 @@ class Config extends CommonDBTM
         {
             // Only populate buttons that are considered valid by ConfigEntity;
             $configEntity = new ConfigEntity($value[ConfigEntity::ID]);
-            if($configEntity->isValid() && $configEntity->isActive() && !$configEntity->getConfigDomain()){
-                $tplvars['buttons'][] = ['id'      => $value[ConfigEntity::ID],
-                                        'icon'    => $value[ConfigEntity::CONF_ICON],
-                                        'name'    => sprintf("%.".$length."s", $value[ConfigEntity::NAME]) ];
+
+            if( $configEntity->isValid()         &&     // Must be valid
+                $configEntity->isActive()        &&     // Must be active
+                !$configEntity->getConfigDomain()){     // Must not have a domain configured
+                  // Populate the button we found in the array.
+                  $tplvars['buttons'][] = ['id'      => $value[ConfigEntity::ID],
+                                           'icon'    => $value[ConfigEntity::CONF_ICON],
+                                           'name'    => sprintf( "%.".$length."s", $value[ConfigEntity::NAME]) ];
             }
         }
+
         // Return the buttons (if any) else empty array.
         return $tplvars;
     }
@@ -263,77 +270,102 @@ class Config extends CommonDBTM
      * Returns true if any of the configured IdPs is set to enforced.
      * this will hide the password and database fields from the login
      * page.
-     * @return  bool
-     * @see                             - src/LoginFlow/showLoginScreen()
-     * @since 1.0.0
+     *
+     * @return bool
+     * @see             src/LoginFlow/showLoginScreen()
+     * @since           1.0.0
+     * @todo            IsEnforced must be moved to generic config in version 1.2.0
      */
     public static function getIsEnforced(): bool
     {
+        // Get global DB object to query the configTable.
         global $DB;
-        return (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
+        
+        // Return true if we have more then one row that enforces the config
+        return (count($DB->request(['FROM' => Config::getTable(),'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
     }
 
     /**
      * Returns the configId if there is only 1 configuration present.
+     *
      * @return  bool
-     * @see                             - src/LoginFlow/doAuth()
-     * @see                             - https://codeberg.org/QuinQuies/glpisaml/issues/61
-     * @since 1.1.5
+     * @see             src/LoginFlow/doAuth()
+     * @since           1.1.5
+     * @todo            Replace this logic with a config ID that we can configure in the generic config.
      */
     public static function getIsOnlyOneConfig(): int
     {
+        // Get global DB object to query the configTable.
         global $DB;
-        $res = $DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::IS_DELETED  => 0, ConfigEntity::IS_ACTIVE => 1]]);
-        if (count($res) == 1       &&   // If we only get one row, return the ID
-            $row = $res->current() ){   // Assign the result to a var
-            $r = (is_numeric($row[ConfigEntity::ID])) ? $row[ConfigEntity::ID] : 0;
-        }else{
-            $r = 0;                     // If we get no, or multiple, return 0;
+
+        // Query table glpi_plugin_samlsso_configs where is_deleted = 0 and is_active = 1.
+        $res = $DB->request(['FROM' => Config::getTable(),
+                             'WHERE' => [ConfigEntity::IS_DELETED  => 0,
+                                         ConfigEntity::IS_ACTIVE => 1],
+                            ]);
+        // If we only get exactly one row, return the found ID
+        if ( count($res) == 1 ){
+            // Assign the result to a var
+            $row = $res->current();
+            return (is_numeric($row[ConfigEntity::ID])) ? $row[ConfigEntity::ID] : 0;
+        // If we find more then one row return 0
+        // because we cant enforce multiple idps
+        } else {
+            return 0;
         }
-        return $r;
     }
 
     /**
      * Search saml configurations based on provided username@[domain.ext]
      * and return the configuration ID of the matching saml configuration.
+     *
      * @return  int     ConfigId
      * @see             https://codeberg.org/QuinQuies/glpisaml/issues/3
-     * @since 1.1.3
+     * @since           1.1.3
      */
     public static function getConfigIdByEmailDomain(string $fielda): int
     {
+        // Get global DB object to query the configTable.
         global $DB;
         // Make sure we are dealing with a valid emailaddress.
-        if($upn = filter_var($fielda, FILTER_VALIDATE_EMAIL)){
+        if( $upn = filter_var($fielda, FILTER_VALIDATE_EMAIL) ){
             // Domain portion of address is at index [1];
             $domain = explode('@', $upn);
             // Query the database for the given domain;
             $req = $DB->request(['SELECT'   =>  ConfigEntity::ID,
                                  'FROM'     =>  Config::getTable(),
-                                 'WHERE'    =>  [ConfigEntity::CONF_DOMAIN => $domain[1]]]);
+                                 'WHERE'    =>  [ConfigEntity::CONF_DOMAIN => $domain[1]],
+                                ]);
             // If we got a result, cast it to int and return it
-            if($req->numrows() == 1){
-                foreach($req as $row){
+            if( $req->numrows() == 1 ){
+                foreach( $req as $row ){
                     $id = (int) $row['id'];
                 }
                 return $id; // Return the correct idp id
-            }          // We found nothing, return 0
-        }              // Username is not an email, return 0
+            } // We found nothing, return 0
+        } // Username is not an email, return 0
         return 0;
     }
 
     /**
-     * Install table needed for Ticket Filter configuration dropdowns
-     * @param   Migration $migration    - Plugin migration information;
+     * Install table needed for Ticket Filter configuration dropdowns.
+     *
+     * @param   Migration   $migration Plugin migration information;
      * @return  void
-     * @see                             - GLPISaml/hook.php
+     * @see                 GLPISaml/hook.php
+     * @todo                Move enforce_sso, debug to generic config.
      */
     public static function install(Migration $migration): void
     {
+        // Get global DB object to query the configTable.
         global $DB;
+
+        // Set the layout
         $default_charset    = DBConnection::getDefaultCharset();
         $default_collation  = DBConnection::getDefaultCollation();
         $default_key_sign   = DBConnection::getDefaultPrimaryKeySignOption();
+
+        // Get the class Table: glpi_plugin_samlsso_configs;
         $table              = Config::getTable();
 
         // Create the base table if it does not yet exist;
@@ -382,7 +414,6 @@ class Config extends CommonDBTM
         }
 
         // Alter column width for conf_domain
-        // https://codeberg.org/QuinQuies/glpisaml/issues/30
         if($DB->tableExists($table)){
             $migration->displayMessage("Updating table layout for $table");
             $query = <<<SQL

@@ -1,9 +1,9 @@
 <?php
 /**
  *  ------------------------------------------------------------------------
- *  glpisaml plugin
+ *  samlSSO
  *
- *  GLPISaml was inspired by the initial work of Derrick Smith's
+ *  samlSSO was inspired by the initial work of Derrick Smith's
  *  PhpSaml. This project's intend is to address some structural issues
  *  caused by the gradual development of GLPI and the broad amount of
  *  wishes expressed by the community.
@@ -13,122 +13,142 @@
  *
  * LICENSE
  *
- * This file is part of GLPISaml project.
+ * This file is part of samlSSO plugin for GLPI.
  *
- * GLPISaml plugin is free software: you can redistribute it and/or modify
+ * samlSSO plugin is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * GLPISaml is distributed in the hope that it will be useful,
+ * samlSSO is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with GLPISaml. If not, see <http://www.gnu.org/licenses/> or
+ * along with samlSSO. If not, see <http://www.gnu.org/licenses/> or
  * https://choosealicense.com/licenses/gpl-3.0/
  *
  * ------------------------------------------------------------------------
  *
- *  @package    GLPISaml
- *  @version    1.1.6
+ *  @package    samlSSO
+ *  @version    1.2.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
- *  @see        https://github.com/DonutsNL/GLPISaml/readme.md
- *  @link       https://github.com/DonutsNL/GLPISaml
+ *  @see        https://github.com/DonutsNL/samlSSO/readme.md
+ *  @link       https://github.com/DonutsNL/samlSSO
  *  @since      1.0.0
  * ------------------------------------------------------------------------
  **/
 
-use GlpiPlugin\Glpisaml\Exclude;
-use GlpiPlugin\Glpisaml\RuleSaml;
-use GlpiPlugin\Glpisaml\LoginFlow;
-use GlpiPlugin\Glpisaml\LoginFlow\User;
+// This file is included in the GLPI\Plugins\Hooks context.
+// USE
+use GlpiPlugin\Samlsso\Exclude;
+use GlpiPlugin\Samlsso\RuleSaml;
+use GlpiPlugin\Samlsso\LoginFlow;
+use GlpiPlugin\Samlsso\LoginFlow\User;
 
+// METHODS
 /**
- * Hooked by rule engine if an user import rule matches
- * sadly we cannot call the User::updateUser() method directly
- * from the hook itself.
- * @see setup.php
- * @see src\LoginFlow\User.php
+ * This function is hooked by rule engine if an user import rule matches configured criteria.
+ * it will call the implementation with the params passed by the ruleEngine.
+ *
+ * @param array $params
+ * @return void
+ *
+ * @see - rgst - setup.php->plugin_init_samlsso();
+ * @see - call - src\LoginFlow\User.php->getOrCreateUser();
+ * @see - impl - src\LoginFlow\User.php->updateUserRights();
  */
 function updateUser(array $params): void
 {
-    // Only call the update if sub_type is our ruleSaml::class
-    // https://codeberg.org/QuinQuies/glpisaml/issues/55
-    if($params['sub_type'] == RuleSaml::class) {
-        // Call the update User method
+    // RuleEngine does not discriminate rulesets on execution
+    // so validate sub_type is correct class before executing.
+    if( $params['sub_type'] == RuleSaml::class ){
+        // Pass the params to the updateUserRight method non statically.
         (new User)->updateUserRights($params);
     }
 }
 
-/**
- * Add Excludes to setup dropdown menu.
- * @return array [ClassName => __('Menu label') ]
- */
-function plugin_glpisaml_getDropdown() : array                                      //NOSONAR - phpcs:ignore PSR1.Function.CamelCapsMethodName
-{
-   return [Exclude::class => __("SAML exclusions", PLUGIN_NAME)];
-}
 
 /**
- * function to inject the loginFlow logic
+ * Add Excludes to setup dropdown menu.
+ *
+ * @param void
+ * @return array [ClassName => __('Menu label') ]
+ */
+function plugin_samlsso_getDropdown() : array                                      // NOSONAR - Default GLPI naming
+{
+   // Tell GLPI to add Excludes to Setup>dropdowns
+   return [Exclude::class => __("samlSSO exclusions", PLUGIN_NAME)];
+}
+
+
+/**
+ * This function is hooked by Hooks::POST_INIT to trigger our loginFlow logic.
+ * This hook is registered by setup.php
+ *
+ * @param void
  * @return void
  */
-function plugin_glpisaml_evalAuth() : void                                          //NOSONAR - phpcs:ignore PSR1.Function.CamelCapsMethodName
+function plugin_samlsso_evalAuth() : void                                          // NOSONAR - Default GLPI naming
 {
     // Call the evalAuth hook;
     (new LoginFlow())->doAuth();
 }
 
+
 /**
- * function to inject the loginFlow show login form.
+ * This function is hooked by Hooks::DISPLAY_LOGIN to show our custom login form.
+ * This hook is registered by setup.php
+ *
+ * @param void
  * @return void
  */
-function plugin_glpisaml_displaylogin() : void                                      //NOSONAR - phpcs:ignore PSR1.Function.CamelCapsMethodName
+function plugin_samlsso_displaylogin() : void                                      // NOSONAR - Default GLPI naming
 {
     // Call the showLoginScreen method
     (new LoginFlow())->showLoginScreen();
 }
 
+
 /**
- * Performs install of plugin classes in /src.
+ * This function performs install of all plugin classes.
  *
+ * @param void
  * @return boolean
- * @see https://codeberg.org/QuinQuies/glpisaml/issues/65
  */
-//phpcs:ignore PSR1.Function.CamelCapsMethodName
-function plugin_glpisaml_install() : bool                                           //NOSONAR - phpcs:ignore PSR1.Function.CamelCapsMethodName
+function plugin_samlsso_install() : bool                                           // NOSONAR - Default GLPI naming
 {
     // Init the migration object
-    $version   = plugin_version_glpisaml();
+    $version   = plugin_version_samlsso();
     $migration = new Migration($version['version']);
 
     // Report the version we are installing
-    Session::addMessageAfterRedirect(__('🆗 Installing version:'.PLUGIN_GLPISAML_VERSION));
+    Session::addMessageAfterRedirect(__('🆗 Installing version:'.PLUGIN_SAMLSSO_VERSION));
 
-    // openssl is nice to have!
-    if (!function_exists('openssl_x509_parse')){
-        Session::addMessageAfterRedirect(__('⚠️ OpenSSL not available, cant verify provided certificates'));
-    }else{
-        Session::addMessageAfterRedirect(__('🆗 OpenSSL found!'));
+    // openssl is nice to have therefore it is not included in the prerequisites.
+    if ( !function_exists('openssl_x509_parse') ) {
+        Session::addMessageAfterRedirect( __('⚠️ OpenSSL not available, cant verify provided certificates') );
+    } else {
+        Session::addMessageAfterRedirect( __('🆗 OpenSSL found!') );
     }
 
-    if($files = plugin_glpisaml_getSrcClasses())
-    {
-        if(is_array($files)) {                                                      //NOSONAR
-            foreach($files as $name){
-                $class = "GlpiPlugin\\Glpisaml\\" . basename($name, '.php');
-                if(method_exists($class, 'install')){
+    // Traverse pkugin files and call install methods if they exist within the class.
+    if( $files = plugin_samlsso_getSrcClasses() ){
+        if( is_array($files) ){                                                      // NOSONAR - For readability ifs nested.
+            foreach( $files as $name ){
+                $class = "GlpiPlugin\\Samlsso\\" . basename($name, '.php');
+                if( method_exists($class, 'install') ){
                     $class::install($migration);
                 }
             }
-        } // We are not handling an empty array on error;
-    }
+        } // Should never be emtpy, but not handling that.
+    } // Should never be emtpy, but not handling that.
     return true;
 }
+
 
 /**
  * Performs uninstall of plugin classes in /src.
@@ -136,20 +156,20 @@ function plugin_glpisaml_install() : bool                                       
  * @return boolean
  * @see https://codeberg.org/QuinQuies/glpisaml/issues/65
  */
-function plugin_glpisaml_uninstall() : bool                                         //NOSONAR - phpcs:ignore PSR1.Function.CamelCapsMethodName
+function plugin_samlsso_uninstall() : bool                                         // NOSONAR - Default GLPI naming
 {
-    if($files = plugin_glpisaml_getSrcClasses()) {
-        if(is_array($files)) {                                                      //NOSONAR
-            foreach($files as $name){
-                $class = "GlpiPlugin\\Glpisaml\\" . basename($name, '.php');
-                if(method_exists($class, 'install')){
-                    $version   = plugin_version_glpisaml();
+    if( $files = plugin_samlsso_getSrcClasses() ) {
+        if( is_array($files) ){                                                     // NOSONAR - For readability ifs nested.
+            foreach( $files as $name ){
+                $class = "GlpiPlugin\\Samlsso\\" . basename($name, '.php');
+                if( method_exists($class, 'install') ){
+                    $version   = plugin_version_samlsso();
                     $migration = new Migration($version['version']);
                     $class::uninstall($migration);
                 }
             }
-        }   // We are not handling an empty array on error;
-    }
+        } // Should never be emtpy, but not handling that.
+    } // Should never be emtpy, but not handling that.
     return true;
 }
 
@@ -159,15 +179,14 @@ function plugin_glpisaml_uninstall() : bool                                     
  *
  * @return array
  */
-function plugin_glpisaml_getSrcClasses() : array                                    //NOSONAR - phpcs:ignore PSR1.Function.CamelCapsMethodName
+function plugin_samlsso_getSrcClasses() : array                                    // NOSONAR - Default GLPI naming
 {
-    if(is_dir(PLUGIN_GLPISAML_SRCDIR)       &&
-       is_readable(PLUGIN_GLPISAML_SRCDIR)  ){
-        return array_filter(scandir(PLUGIN_GLPISAML_SRCDIR, SCANDIR_SORT_NONE), function($item) {
-            return !is_dir(PLUGIN_GLPISAML_SRCDIR.'/'.$item);
+    if( is_dir(PLUGIN_SAMLSSO_SRCDIR) && is_readable(PLUGIN_SAMLSSO_SRCDIR) ){
+        return array_filter(scandir(PLUGIN_SAMLSSO_SRCDIR, SCANDIR_SORT_NONE), function($item) {
+            return !is_dir(PLUGIN_SAMLSSO_SRCDIR.'/'.$item);
         });
-    }else{
-        echo "The directory". PLUGIN_GLPISAML_SRCDIR . "Is not accessible, Plugin installation failed!";
+    } else {
+        echo "The directory". PLUGIN_SAMLSSO_SRCDIR . "Is not accessible, Plugin installation failed!";
         return [];
     }
 }
