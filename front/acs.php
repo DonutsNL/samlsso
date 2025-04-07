@@ -59,7 +59,7 @@ $_POST = [];
 $_GET = [];
 
 // Load GLPI includes
-include_once '../../../inc/includes.php';                       //NOSONAR - Cant be included with USE.
+//include_once '../../../inc/includes.php';                       //NOSONAR - Cant be included with USE.
 
 // Load ACS
 $acs = new Acs();

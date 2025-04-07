@@ -43,7 +43,7 @@
  **/
 
 use GlpiPlugin\Samlsso\Config;
-use GlpiPlugin\Samlsso\Config\ConfigFlowForm;
+use GlpiPlugin\Samlsso\LoginFlow\LoginFlowForm;
 
 // Capture post before GLPI processes it.
 $post  = $_POST;

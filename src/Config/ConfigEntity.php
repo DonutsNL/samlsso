@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -195,7 +196,7 @@ class ConfigEntity extends ConfigItem
             foreach($config->fields as $field => $value) {
                 // Do validations on all provided fields. All fields need to be
                 // verified by GlpiPlugin\Glpisaml\Config\ConfigItem per default.
-                $this->evaluateItem($field, $value);
+                $this->evaluateItem((string) $field, $value);
             }
         }else{
             // Return the default configuration, this exception can be verified
@@ -289,6 +290,7 @@ class ConfigEntity extends ConfigItem
         return $fields;
     }
 
+
     /**
      * Returns the validated and normalized fields in the ConfigEntity
      * for database insertion. It will not add fields added to the
@@ -308,6 +310,7 @@ class ConfigEntity extends ConfigItem
         return $fields;
     }
 
+
     /**
      * Fetches the config domain from the populated config entity
      * if the entity is anything else than the default 'youruserdomain.tld' or empty
@@ -323,6 +326,7 @@ class ConfigEntity extends ConfigItem
                 !empty($this->fields[ConfigEntity::CONF_DOMAIN])     &&
                 $this->fields[ConfigEntity::CONF_DOMAIN] != 'youruserdomain.tld') ? $this->fields[ConfigEntity::CONF_DOMAIN] : '';
     }
+
 
     /**
      * Validate advanced configuration options and correct params if not supported by provided setup.
@@ -369,6 +373,7 @@ class ConfigEntity extends ConfigItem
         return $fields;
     }
 
+
     /**
      * This function will return specific config field if it exists
      *
@@ -377,8 +382,16 @@ class ConfigEntity extends ConfigItem
      */
     public function getField(string $fieldName): string|bool
     {
-        return (key_exists($fieldName, $this->fields)) ? $this->fields[$fieldName] : false;
+        if(key_exists($fieldName, $this->fields) &&
+           is_int($this->fields[$fieldName])     ){
+            return (bool) $this->fields[$fieldName];
+        }elseif (key_exists($fieldName, $this->fields)){
+            return (string) $this->fields[$fieldName];
+        }else{
+            return false;
+        }
     }
+
 
     /**
      * This function will return all registered error messages
@@ -390,14 +403,16 @@ class ConfigEntity extends ConfigItem
             return (count($this->invalidMessages) > 0) ? $this->invalidMessages : [];
     }
 
+
     /**
      * Returns the validity state of the currently loaded ConfigEntity
      * @return bool
      */
     public function isValid(): bool
     {
-        return $this->isValid;
+        return (bool) $this->isValid;
     }
+
 
     /**
      * Returns the validity state of the currently loaded ConfigEntity
@@ -405,9 +420,14 @@ class ConfigEntity extends ConfigItem
      */
     public function isActive(): bool
     {
-        return $this->fields[ConfigEntity::IS_ACTIVE];
+        return (bool) $this->fields[ConfigEntity::IS_ACTIVE];
     }
 
+
+    /**
+     * Returns the validity state of the currently loaded ConfigEntity
+     * @return bool
+     */
     public function getRequestedAuthnContextArray(): array
     {
         if(strstr($this->fields[ConfigEntity::AUTHN_CONTEXT], ':')){
@@ -435,10 +455,10 @@ class ConfigEntity extends ConfigItem
                     'sp' => [
                         'entityId'                          => $CFG_GLPI['url_base'].'/',
                         'assertionConsumerService'          => [
-                            'url'                           => $CFG_GLPI['url_base'].'/'.PLUGIN_SAMLSSO_WEBDIR.'/front/acs.php?idpId='.$this->fields[ConfigEntity::ID],
+                            'url'                           => PLUGIN_SAMLSSO_WEBDIR.'/front/acs.php?idpId='.$this->fields[ConfigEntity::ID],
                         ],
                         'singleLogoutService'               => [
-                            'url'                           => $CFG_GLPI['url_base'].'/'.PLUGIN_SAMLSSO_WEBDIR.'/front/slo.php',
+                            'url'                           => PLUGIN_SAMLSSO_WEBDIR.'/front/slo.php',
                         ],
                         'x509cert'                          => $this->fields[ConfigEntity::SP_CERTIFICATE],
                         'privateKey'                        => $this->fields[ConfigEntity::SP_KEY],

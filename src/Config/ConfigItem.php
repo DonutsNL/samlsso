@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -553,7 +554,7 @@ class ConfigItem    //NOSONAR
     protected function handleAsBool(mixed $var, $field = null): array
     {
         // Default to false if no or an impropriate value is provided.
-        $error = (!empty($var) && !preg_match('/[0-1]/', $var)) ? __("⭕ $field can only be 1 or 0", PLUGIN_NAME) : null;
+        $error = (!empty($var) && !preg_match('/[0-1]/', (string) $var)) ? __("⭕ $field can only be 1 or 0", PLUGIN_NAME) : null;
 
         return [ConfigItem::EVAL   => (is_numeric($var)) ? ConfigItem::VALID : ConfigItem::INVALID,
                 ConfigItem::VALUE  => (!$error) ? $var : '0',

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -166,13 +167,13 @@ class Acs extends LoginFlow
                 // PROCESS THE SAMLRESPONSE
                 try { $this->samlResponse = new Response($samlSettings, $samlResponse['SAMLResponse']); } catch(Throwable $e) {
                     $extended = '';
-                    if($this->debug){
+                    //if($this->debug){
                         $extended = Acs::EXTENDED_HEADER.
                                     Acs::ERRORS.var_export($samlSettings->getErrors(), true)."\n\n".
                                     Acs::STATE_OBJ.var_export($this->state, true)."\n\n".
                                     Acs::EXTENDED_FOOTER;
-                    }
-                    $this->printError($e->getMessage(),
+                    //}
+                    $this->printError(__('Could not process samlResponse with Error:').$e->getMessage(),
                                     __('Saml::Response->init'),
                                     $extended);
                 }

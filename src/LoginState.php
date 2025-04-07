@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -422,7 +423,7 @@ class LoginState extends CommonDBTM
      */
     public function getPhase(): int
     {
-        return (!empty($this->state[LoginState::PHASE])) ? $this->state[LoginState::PHASE] : 0;
+        return (!empty($this->state[LoginState::PHASE])) ? (int) $this->state[LoginState::PHASE] : 0;
     }
 
     /**
@@ -538,7 +539,7 @@ class LoginState extends CommonDBTM
      * @return int  LoginState::SAML_RESPONSE_ID.
      * @since       1.2.0
      */
-    public function getSamlResponseId(): bool
+    public function getSamlResponseId(): int
     {
         return (!empty($this->state[LoginState::SAML_RESPONSE_ID])) ? $this->state[LoginState::SAML_RESPONSE_ID] : 0;
     }

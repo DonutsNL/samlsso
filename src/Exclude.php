@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -90,7 +91,7 @@ class Exclude extends CommonDropdown
      */
     public static function canCreate(): bool
     {
-        return static::canUpdate();
+        return (bool) static::canUpdate();
     }
 
     /**
@@ -101,7 +102,7 @@ class Exclude extends CommonDropdown
      */
     public static function canPurge(): bool
     {
-        return static::canUpdate();
+        return (bool) static::canUpdate();
     }
 
     /**
@@ -183,6 +184,7 @@ class Exclude extends CommonDropdown
      *
      * @return array    Array with all configured patterns
      * @since           1.1.0
+     * @see             https://github.com/DonutsNL/samlSSO/issues/1
      */
     public static function getExcludes(): array
     {
@@ -190,7 +192,8 @@ class Exclude extends CommonDropdown
         $excludes = [];
         $dropdown = new Exclude();
         $table = $dropdown::getTable();
-        foreach($DB->request($table) as $id => $row){                           //NOSONAR - For readability
+        
+        foreach($DB->request(['FROM' => $table]) as $row){
             $excludes[] = [Exclude::NAME                => $row[Exclude::NAME],
                            Exclude::ACTION              => $row[Exclude::ACTION],
                            Exclude::DATE_CREATION       => $row[Exclude::DATE_CREATION],

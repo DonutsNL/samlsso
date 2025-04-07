@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -85,7 +86,7 @@ class Config extends CommonDBTM
      */
     public static function canCreate(): bool
     {
-        return static::canUpdate();
+        return (bool) static::canUpdate();
     }
 
     /**
@@ -96,7 +97,7 @@ class Config extends CommonDBTM
      */
     public static function canDelete(): bool
     {
-        return static::canUpdate();
+        return (bool) static::canUpdate();
     }
 
     /**
@@ -107,7 +108,7 @@ class Config extends CommonDBTM
      */
     public static function canPurge(): bool
     {
-        return static::canUpdate();
+        return (bool) static::canUpdate();
     }
 
     /**
@@ -139,6 +140,7 @@ class Config extends CommonDBTM
      * @see             CommonGLPI::getAdditionalMenuLinks()
      **/
     public static function getAdditionalMenuLinks() {
+        global $CFG_GLPI;
         $links[__('Excluded paths', PLUGIN_NAME)] = PLUGIN_SAMLSSO_WEBDIR.'/front/exclude.php';
         $links[__('JIT import rules', PLUGIN_NAME)] = PLUGIN_SAMLSSO_WEBDIR.'/front/rulesaml.php';
         $links[__('Generic config', PLUGIN_NAME)] = PLUGIN_SAMLSSO_WEBDIR.'/front/configFlow.form.php';

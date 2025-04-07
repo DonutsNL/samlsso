@@ -11,6 +11,8 @@
 - Fix constant and method naming in `Config/ConfigItem.php`
 - Renamed all the file headers
 - Updated `samlsso.xml` with new name and repo.
+- Added strict typechecking and corrected all typing issues `declare(strict_types=1);` 
+-    @see: https://www.php.net/manual/en/language.types.declarations.php.
 
 
 **v1.1.11**

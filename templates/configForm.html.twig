@@ -125,9 +125,9 @@
                             {{ fields.textField(
                                 inputfields.name.field, 
                                 inputfields.name.value, 
-                                inputfields.name.formtitle ~ helper, 
+                                inputfields.name.formtitle ~ helper | raw, 
                                 {
-                                    'add_field_html': error_helper,
+                                    'add_field_html': error_helper | raw,
                                 }
                             ) }}
                         </div>

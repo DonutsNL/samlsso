@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -222,7 +223,7 @@ class LoginFlow extends CommonDBTM
             strlen($_POST[LoginFlow::POSTFIELD]) < 3    ){      // Should not exceed 999
             $state->addLoginFlowTrace(['redirectedIdp' => 'idpId:'.$_POST[LoginFlow::POSTFIELD]]);
             // If we know the idp we register it in the login State
-            $state->setIdpId(filter_var($_POST[LoginFlow::POSTFIELD], FILTER_SANITIZE_NUMBER_INT));
+            $state->setIdpId((int) filter_var($_POST[LoginFlow::POSTFIELD], FILTER_SANITIZE_NUMBER_INT));
 
             // Actually perform SSO
             $this->performSamlSSO($state);
@@ -371,20 +372,20 @@ class LoginFlow extends CommonDBTM
         $tplVars = Config::getLoginButtons(12);         // Fetch the global DB object;
         if(!empty($tplVars)){                           // Only show the interface if we have buttons to show.
             // Define static translatable elements
-            $tplVars['action']     = Plugin::getWebDir(PLUGIN_NAME, true);
+            $tplVars['action']     = PLUGIN_SAMLSSO_WEBDIR;
             $tplVars['header']     = __('Login with external provider', PLUGIN_NAME);
-            $tplVars['showbuttons']    = true;
+            $tplVars['showbuttons']= true;
             $tplVars['postfield']  = LoginFlow::POSTFIELD;
             $tplVars['enforced']   = Config::getIsEnforced();
             // https://codeberg.org/QuinQuies/glpisaml/issues/12
-            TemplateRenderer::getInstance()->display('@glpisaml/loginScreen.html.twig',  $tplVars);
+            TemplateRenderer::getInstance()->display('@samlsso/loginScreen.html.twig',  $tplVars);
         }else{
             // We might still need to hide password, remember and database login fields
             if($tplVars['enforced'] = Config::getIsEnforced() &&    // Validate there is 'an' enforced saml Config
                !isset($_GET['bypass'])                        ){    // Validate we don't want to bypass our enforcement
                 
                 // Call the renderer to render our CSS injection.
-                TemplateRenderer::getInstance()->display('@glpisaml/loginScreen.html.twig',  $tplVars);
+                TemplateRenderer::getInstance()->display('@samlsso/loginScreen.html.twig',  $tplVars);
             }
         }
     }
@@ -478,7 +479,7 @@ class LoginFlow extends CommonDBTM
         // print header
         Html::nullHeader("Login",  $CFG_GLPI["root_doc"] . '/');
         // Render twig template
-        echo TemplateRenderer::getInstance()->render('@glpisaml/errorScreen.html.twig',  $tplVars);
+        echo TemplateRenderer::getInstance()->render('@samlsso/errorScreen.html.twig',  $tplVars);
         // print footer
         Html::nullFooter();
         
@@ -502,8 +503,7 @@ class LoginFlow extends CommonDBTM
         $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
 
         $table = LoginFlow::getTable();
-
-        // Create the base table if it does not yet exist;
+    
         // Do not update this table for later versions, use the migration class;
         if (!$DB->tableExists($table)) {
             // Create table
@@ -513,27 +513,35 @@ class LoginFlow extends CommonDBTM
                 `debug`                     tinyint NOT NULL DEFAULT 0,
                 `enforced`                  tinyint NOT NULL DEFAULT 0,
                 `forcedIdp`                 int DEFAULT -1,
+                `enableDomainLogin`         tinyint NOT NULL DEFAULT 0,
                 `enableGetterLogin`         tinyint NOT NULL DEFAULT 0,
                 `hideGlpiLogin`             tinyint NOT NULL DEFAULT 0,
                 `hideSamlButtons`           tinyint NOT NULL DEFAULT 0,
-                `hideUsername`              tinyint NOT NULL DEFAULT 0,
-                `applyRulesOnLogin`         tinyint NOT NULL DEFAULT 0,
+                `hidePassword`              tinyint NOT NULL DEFAULT 0,
+                `applyRulesOnAuth`          tinyint NOT NULL DEFAULT 0,
                 `applyRulesOnJit`           tinyint NOT NULL DEFAULT 1,
                 `allowUnsolicited`          tinyint NOT NULL DEFAULT 0,
                 `processRedirects`          tinyint NOT NULL DEFAULT 0,
-                `useCustomLoginTemplate`    varchar(255) NULL,
-                `byPassString`              varchar(255) DEFAULT '1',
+                `byPassString`              varchar(255) DEFAULT '1234',
                 `byPassVar`                 varchar(255) DEFAULT 'bypass',
                 `enableIdpLogout`           tinyint NOT NULL DEFAULT 0,
                 `enforceReAuthAfterIdle`    int NOT NULL DEFAULT -1,
                 `blockAfterEnfocedLogout`   int NOT NULL DEFAULT -1,
+                `is_deleted`                tinyint NOT NULL DEFAULT '0',
+                `date_creation`             timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+                `date_mod`                  timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
             $DB->doQuery($query) or die($DB->error());
-            Session::addMessageAfterRedirect("🆗 Installed: $table.");
+
+            // Alter column width for conf_domain
+            if($DB->tableExists($table)                                                         &&
+               !$DB->insert( $table, [\GlpiPlugin\Samlsso\LoginFlow\LoginFlowEntity::ID => 1 ]) ){
+                Session::addMessageAfterRedirect("⚠️ Error on creating initial loginflow config");
+            }
         }else{
-            Session::addMessageAfterRedirect("🆗 $table allready installed");
+            Session::addMessageAfterRedirect("ℹ️ $table allready exists");
         }
     }
 

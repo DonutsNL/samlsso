@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -67,6 +68,7 @@ class ConfigForm    //NOSONAR complexity by design.
      */
     public function addSamlConfig(array $postData): string
     {
+        global $CFG_GLPI;
         // Populate configEntity using post;
         $configEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postData]);
         // Validate configEntity
@@ -79,7 +81,7 @@ class ConfigForm    //NOSONAR complexity by design.
             if($id = $config->add($fields)) {
                 // Leave succes message for user and redirect
                 Session::addMessageAfterRedirect(__('Successfully added new samlSSO configuration.', PLUGIN_NAME));
-                Html::redirect(Plugin::getWebDir(PLUGIN_NAME, true)."/front/config.form.php?id=$id");
+                Html::redirect(PLUGIN_SAMLSSO_WEBDIR."/front/config.form.php?id=$id");
 
                 return ''; // Unreachable return but prevents PHP0405-no return linting error.
             } else {
@@ -118,13 +120,13 @@ class ConfigForm    //NOSONAR complexity by design.
                $config->update($fields) ){
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
-                Html::redirect(Plugin::getWebDir(PLUGIN_NAME, true).PLUGIN_SAMLSSO_CONF_FORM.'?id='.$postData['id']);
+                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_FORM.'?id='.$postData['id']);
 
                 return ''; // Unreachable return but prevents PHP0405-no return linting error.
             } else {
                 // Leave a failed message
                 Session::addMessageAfterRedirect(__('Configuration update failed, check your update rights or error logging', PLUGIN_NAME));
-                Html::redirect(Plugin::getWebDir(PLUGIN_NAME, true).PLUGIN_SAMLSSO_CONF_FORM.'?id='.$postData['id']);
+                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_FORM.'?id='.$postData['id']);
 
                 return ''; // Unreachable return but prevents PHP0405-no return linting error.
             }
@@ -150,11 +152,11 @@ class ConfigForm    //NOSONAR complexity by design.
            $config->delete($postData)){
             // Leave success message and redirect
             Session::addMessageAfterRedirect(__('Configuration deleted successfully', PLUGIN_NAME));
-            Html::redirect(Plugin::getWebDir(PLUGIN_NAME, true)."/front/config.php");
+            Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_PATH);
         } else {
             // Leave fail message and redirect back to config.
             Session::addMessageAfterRedirect(__('Not allowed or error deleting SAML configuration!', PLUGIN_NAME));
-            Html::redirect(Plugin::getWebDir(PLUGIN_NAME, true).PLUGIN_SAMLSSO_CONF_FORM.'?id='.$postData['id']);
+            Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_FORM.'?id='.$postData['id']);
         }
     }
 
@@ -260,19 +262,19 @@ class ConfigForm    //NOSONAR complexity by design.
         }else{
             $logging = [];
         }
-       
+        
         // Define static field translations
         $tplVars = array_merge($tplVars, [
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
-            'glpi_rootdoc'              =>  Plugin::getWebDir(PLUGIN_NAME, true).'/front/config.form.php',
+            'glpi_rootdoc'              =>  $CFG_GLPI['url_base'] .'/marketplace/samlsso/front/config.form.php',
             'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
             'inputfields'               =>  $fields,
             'buttonsHiddenWarn'         =>  ($configEntity->getConfigDomain()) ? true : false,
             'loggingfields'             =>  $logging,
             'entityID'                  =>  $CFG_GLPI['url_base'].'/',
-            'acsUrl'                    =>  Plugin::getWebDir(PLUGIN_NAME, true, true).'/front/acs.php',
-            'metaUrl'                   =>  Plugin::getWebDir(PLUGIN_NAME, true, true).'/front/meta.php?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'acsUrl'                    =>  $CFG_GLPI['url_base'] .'/marketplace/samlsso/front/acs.php',
+            'metaUrl'                   =>  $CFG_GLPI['url_base'] .'/marketplace/samlsso/front/meta.php?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'inputOptionsBool'          =>  [ 1                                 => __('Yes', PLUGIN_NAME),
                                               0                                 => __('No', PLUGIN_NAME)],
             'inputOptionsNameFormat'    =>  [Saml2Const::NAMEID_UNSPECIFIED     => __('Unspecified', PLUGIN_NAME),
