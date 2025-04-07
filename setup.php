@@ -58,12 +58,11 @@ define('PLUGIN_SAMLSSO_MIN_GLPI', '10.0.11');                                   
 define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.00');                                                  // Max GLPI compat version
 define('PLUGIN_SAMLSSO_LOGEVENTS','events');                                                   // specifies log extention
 define('PLUGIN_SAMLSSO_SRCDIR', __DIR__ . '/src');                                             // Location of the main classes
-define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/public/plugins/'.PLUGIN_NAME);           // Make sure we dont use this messy code everywhere
+define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/public/plugins/'.PLUGIN_NAME);        // Make sure we dont use this messy code everywhere
 define('PLUGIN_SAMLSSO_META_PATH', '/front/meta.php');                                         // Location where to get metadata about sp
 define('PLUGIN_SAMLSSO_CONF_PATH', '/front/config.php');                                       // Location of the config page
 define('PLUGIN_SAMLSSO_CONF_FORM', '/front/config.form.php');                                  // Location of config form
-define('PLUGIN_SAMLSSO_FLOW_FORM', '/front/loginFlow.form.php');                                  // Location of the loginFlow form
-define('PLUGIN_SAMLSSO_CONFCSS_PATH', 'templates/css/samlSSO.css');                            // Location of the config CSS
+define('PLUGIN_SAMLSSO_FLOW_FORM', '/front/loginFlow.form.php');                               // Location of the loginFlow form
 
 // METHODS
 /**
@@ -94,7 +93,6 @@ function plugin_init_samlsso() : void                                           
 
         // Add samlSSO configuration page to menu
         $PLUGIN_HOOKS['menu_toadd'][PLUGIN_NAME]['config']  = [Config::class];
-        $PLUGIN_HOOKS[Hooks::ADD_CSS][PLUGIN_NAME][]        = PLUGIN_SAMLSSO_CONFCSS_PATH;
 
         // Register and hook the samlRules to Hooks::RULE_MATCHED
         Plugin::registerClass(RuleSamlCollection::class, ['rulecollections_types' => true]);
