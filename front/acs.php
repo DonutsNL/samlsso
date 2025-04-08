@@ -44,23 +44,30 @@
 
 use GlpiPlugin\Samlsso\LoginFlow\Acs;
 
-// Capture the post and get before GLPI does.
-$post = $_POST;     // Contains the samlResponse;
+class AcsFront extends Acs {
+    public function __construct() {
+        // Capture the post and get before GLPI does.
+        //$post = $_POST;     // Contains the samlResponse;
 
-// https://codeberg.org/QuinQuies/glpisaml/issues/45
-// Added idpId because we need to be able to unpack the samlResponse,
-// get het RequestId inside and match that with our database and work
-// from there as a way to get arround the cookie requirements.
-$get = $_GET;       // Contains at least the idpId field;
+        // https://codeberg.org/QuinQuies/glpisaml/issues/45
+        // Added idpId because we need to be able to unpack the samlResponse,
+        // get het RequestId inside and match that with our database and work
+        // from there as a way to get arround the cookie requirements.
+        //$get = $_GET;       // Contains at least the idpId field;
 
-// Use a countable datatype to empty the global
-// https://github.com/derricksmith/phpsaml/issues/153
-$_POST = [];
-$_GET = [];
+        // Use a countable datatype to empty the global
+        // https://github.com/derricksmith/phpsaml/issues/153
+        //$_POST = [];
+        //$_GET = [];
 
-// Load GLPI includes
-//include_once '../../../inc/includes.php';                       //NOSONAR - Cant be included with USE.
+        // Load GLPI includes
+        //include_once '../../../inc/includes.php';                       //NOSONAR - Cant be included with USE.
 
-// Load ACS
-$acs = new Acs();
-$acs->init($get, $post);
+        // Load ACS
+        $acs = new Acs();
+        $acs->init($_GET, $_POST);
+    }
+
+}
+
+new AcsFront();

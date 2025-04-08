@@ -267,7 +267,7 @@ class ConfigForm    //NOSONAR complexity by design.
         $tplVars = array_merge($tplVars, [
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
-            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_FORM,
+            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_FORM.'?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
             'inputfields'               =>  $fields,
             'buttonsHiddenWarn'         =>  ($configEntity->getConfigDomain()) ? true : false,

@@ -141,9 +141,9 @@ class Config extends CommonDBTM
      **/
     public static function getAdditionalMenuLinks() {
         global $CFG_GLPI;
-        $links[__('Excluded paths', PLUGIN_NAME)] = PLUGIN_SAMLSSO_WEBDIR.'/front/exclude.php';
-        $links[__('JIT import rules', PLUGIN_NAME)] = PLUGIN_SAMLSSO_WEBDIR.'/front/rulesaml.php';
-        $links[__('Generic config', PLUGIN_NAME)] = PLUGIN_SAMLSSO_WEBDIR.'/front/configFlow.form.php';
+        $links[__('Excluded paths', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/front/exclude.php';
+        $links[__('JIT import rules', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/front/rulesaml.php';
+        $links[__('Generic config', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/front/configFlow.form.php';
         return $links;
     }
 

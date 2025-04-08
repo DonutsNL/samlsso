@@ -45,6 +45,7 @@
 // USE
 // This file is included in the GLPI\Plugins context.
 use Glpi\Plugin\Hooks;
+use Glpi\Http\Firewall;                         // We need to allow access to ACS, SLO files.
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginFlow;
 use GlpiPlugin\Samlsso\RuleSamlCollection;
@@ -54,7 +55,7 @@ global $CFG_GLPI;
 // PLUGIN CONSTANTS
 define('PLUGIN_NAME', 'samlsso');                                                              // Plugin name
 define('PLUGIN_SAMLSSO_VERSION', '1.2.00');                                                    // Plugin version
-define('PLUGIN_SAMLSSO_MIN_GLPI', '10.0.11');                                                  // Min required GLPI version
+define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.00');                                                  // Min required GLPI version
 define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.00');                                                  // Max GLPI compat version
 define('PLUGIN_SAMLSSO_LOGEVENTS','events');                                                   // specifies log extention
 define('PLUGIN_SAMLSSO_SRCDIR', __DIR__ . '/src');                                             // Location of the main classes
@@ -85,6 +86,10 @@ function plugin_init_samlsso() : void                                           
     
     // Do not show config buttons if plugin is not enabled.
     if ( $plugin->isInstalled(PLUGIN_NAME) || $plugin->isActivated(PLUGIN_NAME) ){
+        // Allow anonymous access to acs, meta and slo objects.
+        Firewall::addPluginStrategyForLegacyScripts(PLUGIN_NAME, '#^/front/acs.php$#', Firewall::STRATEGY_NO_CHECK);
+        Firewall::addPluginStrategyForLegacyScripts(PLUGIN_NAME, '#^/front/slo.php$#', Firewall::STRATEGY_NO_CHECK);
+        Firewall::addPluginStrategyForLegacyScripts(PLUGIN_NAME, '#^/front/meta.php$#', Firewall::STRATEGY_NO_CHECK);
 
         // Hook the configuration page
         if ( Session::haveRight('config', UPDATE) ){

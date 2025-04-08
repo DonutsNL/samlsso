@@ -1,19 +1,19 @@
 <root>
 <name>samlSSO</name>
 <key>samlSSO</key>
-<state>Stable</state>
+<state>Beta</state>
 <logo>https://github.com/DonutsNL/samlSSO/raw/branch/main/donut.png</logo>
 <description>
     <short>
         <en>samlSSO enables you to configure SAML with an external IdP to authenticate and authorize users using the GLPI UI.</en>
     </short>
     <long>
-        <en>samlSSO provides SAML Single Sign On (SSO) capabilties for GLPI. samlSSO is written with GLPI10+ 
-            support in mind. It uses GLPI core components and best-practices for maximum compatibility and 
-            maintainability. The plugin enables you to configure multiple SAML providers allowing your customers
-            SSO access as well. The plugin will create new GLPI users on the fly and apply jit rules to assign 
-            entities, groups and profiles. For questions join our discord at: https://discord.gg/KyMdkqJcGz. 
-            Find an issue, register it at my codeberg site. Written with passion for OSS, Enjoy!
+        <en>samlSSO provides SAML Single Sign On (SSO) capabilties for GLPI. samlSSO is written with GLPI11+ 
+            compatibility in mind. It uses GLPI core components and best-practices for maximum compatibility and 
+            maintainability. The plugin enables you to configure multiple SAML providers. The plugin allows you to create 
+            new GLPI users Just-In-Time and apply samlSSO rules to assign entities, groups and profiles. If you find an 
+            issue or need support, register an issue at Github. If you like my work, share me a star of recognition.
+            For everything else join my discord at: https://discord.gg/KyMdkqJcGz. 
         </en>
     </long>
 </description>
