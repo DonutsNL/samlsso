@@ -75,7 +75,7 @@ class LoginFlowItem    //NOSONAR
 
     protected function noMethod(string $field, string $value): array
     {
-        return [LoginFlowItem::FORMEXPLAIN => ConfigItem::INVALID,
+        return [LoginFlowItem::FORMEXPLAIN => LoginFlowItem::INVALID,
                 LoginFlowItem::VALUE     => $value,
                 LoginFlowItem::FIELD     => $field,
                 LoginFlowItem::VALIDATOR => __method__,
@@ -204,7 +204,7 @@ class LoginFlowItem    //NOSONAR
                             LoginFlowItem::handleAsBool($var, LoginFlowEntity::HIDEPASSWORD));
     }
 
-    protected function applyRulesOnAuth(mixed $var): array
+    protected function apply2RulesOnAuth(mixed $var): array
     {
         if(empty($var)){ $var = '0'; }
 
@@ -215,7 +215,7 @@ class LoginFlowItem    //NOSONAR
                             LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEDOMAIN));
     }
 
-    protected function applyRulesOnAuth(mixed $var): array
+    protected function apply3RulesOnAuth(mixed $var): array
     {
         if(empty($var)){ $var = '0'; }
 
@@ -225,12 +225,6 @@ class LoginFlowItem    //NOSONAR
                             LoginFlowItem::VALIDATOR     => __method__,],
                             LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEDOMAIN));
     }
-
-
-
-
-
-
 
 
     // Make sure we always return the correct boolean datatype.

@@ -44,12 +44,11 @@ declare(strict_types=1);
  **/
 namespace GlpiPlugin\Samlsso\Config;
 
-use Plugin;
 use Session;
 use ReflectionClass;
-use GlpiPlugin\Samlsso\Config as SamlConfig;
 use GlpiPlugin\Samlsso\Config\ConfigItem;
-
+use GlpiPlugin\Samlsso\Config as SamlConfig;
+use GlpiPlugin\Samlsso\Controller\SamlSsoController;
 
 /*
  * Class ConfigEntity's job is to populate, evaluate, test, normalize and
@@ -455,10 +454,10 @@ class ConfigEntity extends ConfigItem
                     'sp' => [
                         'entityId'                          => $CFG_GLPI['url_base'].'/',
                         'assertionConsumerService'          => [
-                            'url'                           => PLUGIN_SAMLSSO_WEBDIR.'/front/acs.php?idpId='.$this->fields[ConfigEntity::ID],
+                            'url'                           => PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::ACS_ROUTE.'/'.$this->fields[ConfigEntity::ID],
                         ],
                         'singleLogoutService'               => [
-                            'url'                           => PLUGIN_SAMLSSO_WEBDIR.'/front/slo.php',
+                            'url'                           => PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::SLO_ROUTE,
                         ],
                         'x509cert'                          => $this->fields[ConfigEntity::SP_CERTIFICATE],
                         'privateKey'                        => $this->fields[ConfigEntity::SP_KEY],

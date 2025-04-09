@@ -45,15 +45,19 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Samlsso\Config;
 
+
 use Html;
-use Plugin;
+use Search;
 use Session;
-use Throwable;
+use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginState;
 use Glpi\Application\View\TemplateRenderer;
-use GlpiPlugin\Samlsso\Config as SamlConfig;
+use Glpi\Plugin\Hooks;
 use OneLogin\Saml2\Constants as Saml2Const;
-
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;     
+use GlpiPlugin\Samlsso\Controller\SamlSsoController;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 
 /**
  * Class Handles the Configuration front/config.form.php Form
@@ -61,14 +65,90 @@ use OneLogin\Saml2\Constants as Saml2Const;
 class ConfigForm    //NOSONAR complexity by design.
 {
     /**
+     * Handles the form calls from the ConfigController and loads the
+     * config listing
+     *
+     * @param array     $postData $_POST data from form
+     * @return string   String containing HTML form with values or redirect into added form.
+     */
+    public function invoke(Request $request){
+        Html::header(__('Identity providers'), 
+                     SamlSsoController::CONFIG_ROUTE,
+                     SamlSsoController::CONFIG_PNAME, 
+                     Config::class);
+
+        Search::show(Config::class);
+    }
+
+    /**
+     * Handles the form calls from the ConfigFormController and loads the
+     * configuration item requested from the listing.
+     *
+     * @param array     $postData $_POST data from form
+     * @return string   String containing HTML form with values or redirect into added form.
+     */
+    public function invokeForm(Request $request): void
+    {
+        $inputBag = $request->getPayload();
+        $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;
+
+        if( !$inputBag->has('update') ){                                            // IF the update is empy load a given template for initial form.
+            $options['template'] = ( $request->get('template') &&                   // iF set URI?template={template}
+                                     ctype_alpha($request->get('update')) ) ?       // iF template only contains alpha txt
+                                     $request->get('update') :                      // THEN set it to requested template
+                                     'default';                                     // Else fallback to default.
+            
+            Html::header(__('Identity providers'),                                  // Title for browser tab
+                         SamlSsoController::CONFIG_ROUTE,
+                         SamlSsoController::CONFIG_PNAME, 
+                         Config::class);                                            // Item name
+
+            print $this->showForm($id, $options);                                   // Print the form
+    
+        }elseif($inputBag->has('update') &&                                         // IF we received an update
+                $id == -1                ){                                         // AND ID param is empty
+                                                                                    // THEN perform ADD
+                // Add new item
+                Html::header(__('Identity providers'),                              // Title for browser tab
+                             SamlSsoController::CONFIG_ROUTE,
+                             SamlSsoController::CONFIG_PNAME, 
+                             Config::class);                                        // Item name
+                $this->addSamlConfig($inputBag->getIterator());                     // Call Create handler   
+
+        }elseif($inputBag->has('update')  &&                                        // IF update is set
+                $id > 0                   ){                                        // AND $id is higher than 0
+                                                                                    // THEN perform UPDATE
+
+                Html::header(__('Identity providers'),                              // Title for browser tab
+                             SamlSsoController::CONFIG_ROUTE,
+                             SamlSsoController::CONFIG_PNAME,                       // Section name
+                             Config::class);                                        // Item name
+
+                $this->updateSamlConfig($inputBag->getIterator());                  // Call update handler
+
+        }elseif($inputBag->has('delete')  &&                                        // IF get delete
+                $id > 0                  ){                                         // AND $id is higer then 0
+                                                                                    // THEN delete requested item
+
+                Html::header(__('Identity providers'),                              // Title for browser tab
+                             SamlSsoController::CONFIG_ROUTE,
+                             SamlSsoController::CONFIG_PNAME,                       // Section name
+                             Config::class);                                        // Item name
+
+                $this->deleteSamlConfig($inputBag->getIterator());
+        }
+    }
+
+
+
+    /**
      * Add new phpSaml configuration
      *
      * @param array     $postData $_POST data from form
      * @return string   String containing HTML form with values or redirect into added form.
      */
-    public function addSamlConfig(array $postData): string
+    public function addSamlConfig(\ArrayIterator $postData): Response|RedirectResponse
     {
-        global $CFG_GLPI;
         // Populate configEntity using post;
         $configEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postData]);
         // Validate configEntity
@@ -76,23 +156,22 @@ class ConfigForm    //NOSONAR complexity by design.
             // Get the normalized database fields
             $fields = $configEntity->getDBFields([ConfigEntity::ID, ConfigEntity::CREATE_DATE, ConfigEntity::MOD_DATE]);
             // Get instance of SamlConfig for db update.
-            $config = new SamlConfig();
+            $config = new Config();
             // Perform database insert using db fields.
             if($id = $config->add($fields)) {
                 // Leave succes message for user and redirect
                 Session::addMessageAfterRedirect(__('Successfully added new samlSSO configuration.', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR."/front/config.form.php?id=$id");
-
-                return ''; // Unreachable return but prevents PHP0405-no return linting error.
+                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE.'?id='.$id);
+                //Html::redirect(PLUGIN_SAMLSSO_WEBDIR."/front/config.form.php?id=$id");
             } else {
                 // Leave error message for user and regenerate form with values
                 Session::addMessageAfterRedirect(__('Unable to add new samlSSO configuration, please review error logging', PLUGIN_NAME));
-                return $this->generateForm($configEntity);
+                return new Response( $this->generateForm($configEntity) );
             }
         }else{
             // Leave error message for user and regenerate form with values
             Session::addMessageAfterRedirect(__('Configuration invalid, please correct all ⭕ errors first', PLUGIN_NAME));
-            return $this->generateForm($configEntity);
+            return new Response( $this->generateForm($configEntity) );
         }
     }
 
@@ -103,7 +182,7 @@ class ConfigForm    //NOSONAR complexity by design.
      * @param array $postData $_POST data from form
      * @return void -
      */
-    public function updateSamlConfig(array $postData): string
+    public function updateSamlConfig(\ArrayIterator $postData): string
     {
         // Populate configEntity using post;
         $configEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postData]);
@@ -114,19 +193,19 @@ class ConfigForm    //NOSONAR complexity by design.
             // Add the cross site request forgery token to the fields
             $fields['_glpi_csrf_token'] = $postData['_glpi_csrf_token'];
             // Get instance of SamlConfig for db update.
-            $config = new SamlConfig();
+            $config = new Config();
             // Perform database update using fields.
             if($config->canUpdate()       &&
                $config->update($fields) ){
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_FORM.'?id='.$postData['id']);
+                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
 
                 return ''; // Unreachable return but prevents PHP0405-no return linting error.
             } else {
                 // Leave a failed message
                 Session::addMessageAfterRedirect(__('Configuration update failed, check your update rights or error logging', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_FORM.'?id='.$postData['id']);
+                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
 
                 return ''; // Unreachable return but prevents PHP0405-no return linting error.
             }
@@ -143,20 +222,20 @@ class ConfigForm    //NOSONAR complexity by design.
      * @param array $postData $_POST data from form
      * @return void
      */
-    public function deleteSamlConfig(array $postData): void
+    public function deleteSamlConfig(\ArrayIterator $postData): void
     {
         // Get SamlConfig object for deletion
-        $config = new SamlConfig();
+        $config = new Config();
         // Validate user has the rights to delete then delete
         if($config->canPurge()  &&
            $config->delete($postData)){
             // Leave success message and redirect
             Session::addMessageAfterRedirect(__('Configuration deleted successfully', PLUGIN_NAME));
-            Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_PATH);
+            Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE);
         } else {
             // Leave fail message and redirect back to config.
             Session::addMessageAfterRedirect(__('Not allowed or error deleting SAML configuration!', PLUGIN_NAME));
-            Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_FORM.'?id='.$postData['id']);
+            Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE.'?id='.$postData['id']);
         }
     }
 
@@ -267,14 +346,14 @@ class ConfigForm    //NOSONAR complexity by design.
         $tplVars = array_merge($tplVars, [
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
-            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_CONF_FORM.'?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
             'inputfields'               =>  $fields,
             'buttonsHiddenWarn'         =>  ($configEntity->getConfigDomain()) ? true : false,
             'loggingfields'             =>  $logging,
             'entityID'                  =>  $CFG_GLPI['url_base'].'/',
-            'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.'/front/acs.php',
-            'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR.'/front/meta.php?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::ACS_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::META_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'inputOptionsBool'          =>  [ 1                                 => __('Yes', PLUGIN_NAME),
                                               0                                 => __('No', PLUGIN_NAME)],
             'inputOptionsNameFormat'    =>  [Saml2Const::NAMEID_UNSPECIFIED     => __('Unspecified', PLUGIN_NAME),

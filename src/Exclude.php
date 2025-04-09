@@ -45,10 +45,13 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Samlsso;
 
+use Html;
+use Search;
 use Session;
 use Migration;
 use DBConnection;
 use CommonDropdown;
+use GlpiPlugin\Samlsso\Controller\SamlSsoController;
 
 /**
  * Be careful with PSR4 Namespaces when extending common GLPI objects.
@@ -114,6 +117,17 @@ class Exclude extends CommonDropdown
     public static function getIcon() : string
     {
         return 'fa-regular fa-eye-slash';
+    }
+
+    public function invoke()
+    {
+        Html::header(__('samlSSO Excludes'), 
+        SamlSsoController::EXCLUDE_ROUTE,
+        SamlSsoController::EXCLUDE_PNAME, 
+        self::class);
+        
+        Search::show(Exclude::class);
+        Html::footer();
     }
     
 

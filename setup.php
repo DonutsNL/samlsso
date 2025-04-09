@@ -45,25 +45,22 @@
 // USE
 // This file is included in the GLPI\Plugins context.
 use Glpi\Plugin\Hooks;
-use Glpi\Http\Firewall;                         // We need to allow access to ACS, SLO files.
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginFlow;
 use GlpiPlugin\Samlsso\RuleSamlCollection;
+use GlpiPlugin\Samlsso\Controller\SamlSsoController;
 
 global $CFG_GLPI;
 
 // PLUGIN CONSTANTS
-define('PLUGIN_NAME', 'samlsso');                                                              // Plugin name
-define('PLUGIN_SAMLSSO_VERSION', '1.2.00');                                                    // Plugin version
-define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.00');                                                  // Min required GLPI version
-define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.00');                                                  // Max GLPI compat version
-define('PLUGIN_SAMLSSO_LOGEVENTS','events');                                                   // specifies log extention
-define('PLUGIN_SAMLSSO_SRCDIR', __DIR__ . '/src');                                             // Location of the main classes
-define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/public/plugins/'.PLUGIN_NAME);        // Make sure we dont use this messy code everywhere
-define('PLUGIN_SAMLSSO_META_PATH', '/front/meta.php');                                         // Location where to get metadata about sp
-define('PLUGIN_SAMLSSO_CONF_PATH', '/front/config.php');                                       // Location of the config page
-define('PLUGIN_SAMLSSO_CONF_FORM', '/front/config.form.php');                                  // Location of config form
-define('PLUGIN_SAMLSSO_FLOW_FORM', '/front/loginFlow.form.php');                               // Location of the loginFlow form
+define('PLUGIN_NAME', 'samlsso');                                                               // Plugin name
+define('PLUGIN_SAMLSSO_VERSION', '1.2.00');                                                     // Plugin version
+define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.00');                                                   // Min required GLPI version
+define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.00');                                                   // Max GLPI compat version
+define('PLUGIN_SAMLSSO_LOGEVENTS','events');                                                    // specifies log extention
+define('PLUGIN_SAMLSSO_SRCDIR', __DIR__ . '/src');                                              // Location of the main classes
+define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/public/plugins/'.PLUGIN_NAME.'/');     // Make sure we dont use this messy code everywhere
+
 
 // METHODS
 /**
@@ -73,27 +70,23 @@ define('PLUGIN_SAMLSSO_FLOW_FORM', '/front/loginFlow.form.php');                
  * @return void
  * @see https://glpi-developer-documentation.readthedocs.io/en/master/plugins/requirements.html
  */
-function plugin_init_samlsso() : void                                                          // NOSONAR - GLPI default naming
+function plugin_init_samlsso() : void                                                           // NOSONAR - GLPI default naming
 {
-    global $PLUGIN_HOOKS;                                                                      // NOSONAR - GLPI default naming. 
+    global $PLUGIN_HOOKS;                                                                       // NOSONAR - GLPI default naming. 
     $plugin = new Plugin();
 
     // Include additional composer PSR4 autoloader
-    include_once(__DIR__. '/vendor/autoload.php');                                             // NOSONAR - intentional include_once to load composer autoload;
+    include_once(__DIR__. '/vendor/autoload.php');                                              // NOSONAR - intentional include_once to load composer autoload;
 
     // CSRF
-    $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT][PLUGIN_NAME] = true;                                  // NOSONAR - GLPI default naming.
+    $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT][PLUGIN_NAME] = true;                                   // NOSONAR - GLPI default naming.
     
     // Do not show config buttons if plugin is not enabled.
     if ( $plugin->isInstalled(PLUGIN_NAME) || $plugin->isActivated(PLUGIN_NAME) ){
-        // Allow anonymous access to acs, meta and slo objects.
-        Firewall::addPluginStrategyForLegacyScripts(PLUGIN_NAME, '#^/front/acs.php$#', Firewall::STRATEGY_NO_CHECK);
-        Firewall::addPluginStrategyForLegacyScripts(PLUGIN_NAME, '#^/front/slo.php$#', Firewall::STRATEGY_NO_CHECK);
-        Firewall::addPluginStrategyForLegacyScripts(PLUGIN_NAME, '#^/front/meta.php$#', Firewall::STRATEGY_NO_CHECK);
 
         // Hook the configuration page
         if ( Session::haveRight('config', UPDATE) ){
-            $PLUGIN_HOOKS['config_page'][PLUGIN_NAME]       = PLUGIN_SAMLSSO_CONF_PATH;
+            $PLUGIN_HOOKS['config_page'][PLUGIN_NAME]       = SamlSsoController::CONFIG_ROUTE;
         }
 
         // Add samlSSO configuration page to menu

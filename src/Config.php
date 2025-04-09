@@ -57,6 +57,7 @@ use CommonDBTM;
 use DBConnection;
 use GlpiPlugin\Samlsso\Config\ConfigItem;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\Controller\SamlSsoController;
 
 /**
  * This class Handles the installation and listing of configuration front/config.php
@@ -119,7 +120,7 @@ class Config extends CommonDBTM
      */
     public static function getTypeName($nb = 0): string
     {
-        return __('samlSSO Config', PLUGIN_NAME);
+        return __('samlSSO', PLUGIN_NAME);
     }
 
     /**
@@ -141,9 +142,9 @@ class Config extends CommonDBTM
      **/
     public static function getAdditionalMenuLinks() {
         global $CFG_GLPI;
-        $links[__('Excluded paths', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/front/exclude.php';
-        $links[__('JIT import rules', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/front/rulesaml.php';
-        $links[__('Generic config', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/front/configFlow.form.php';
+        $links[__('Excluded paths', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::EXCLUDE_ROUTE;
+        $links[__('JIT import rules', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::RULES_ROUTE;
+        $links[__('Generic config', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::FLOWFORM_ROUTE;
         return $links;
     }
 

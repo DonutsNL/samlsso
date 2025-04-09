@@ -53,7 +53,7 @@ use OneLogin\Saml2\Response;
 use GlpiPlugin\Samlsso\LoginFlow;
 use GlpiPlugin\Samlsso\Loginstate;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
-
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Responsible to handle the incoming samlResponse. This object should
@@ -64,6 +64,8 @@ use GlpiPlugin\Samlsso\Config\ConfigEntity;
  * This class is intended to be very unforgivable given its the vulnerable nature
  * of the samlResponse assertion while providing enough logging for the administrator
  * to figure out whats going on and how to resolve or prevent issues.
+ * 
+ * Invoked by the AcsController
  */
 class Acs extends LoginFlow
 {
@@ -112,22 +114,18 @@ class Acs extends LoginFlow
      *
      * @since 1.0.0
      */
-    public function init(array $idpId, array $samlResponse)             #NOSONAR Yes I know and no not going to fix it.
+    public function init(Request $request)             #NOSONAR Yes I know and no not going to fix it.
     {
+
+        $samlResponse = $request->get('SAMLResponse');         // Get post fields if any
+        $this->idpId = !empty($request->get(LoginState::IDP_ID)) ? (int) $request->get(LoginState::IDP_ID) : -1;
+
         // If we have all required data we first need to unpack the samlResponse using
         // the samlRequest provided idpId. If all went well, the idpId was added as an
         // get value to the URL by the IdP using the value provided in the samlRequest
         // @see: ConfigEntity::getPhpSamlConfig()
-        if(!empty($samlResponse)                                &&          //samlResponse post should not be empty
-            array_key_exists('SAMLResponse', $samlResponse)     &&          //samlResponse arrayKey should exist
-            !empty($idpId)                                      &&          //idpId get should not be empty
-            array_key_exists(LoginState::IDP_ID, $idpId)        &&          //idpId arrayKey should exist
-            is_numeric($idpId[LoginState::IDP_ID])              ){          //idpId should be a nummeric value (1>)
-                
-                // overwrite the value with the value from array
-                // We already checked if it was available
-                // getters are strings, so we cast it to int.
-                $this->idpId = (int) $idpId[LoginState::IDP_ID];
+        if(!empty($samlResponse)                  &&          //samlResponse post should not be empty
+            is_numeric($this->idpId)              ){          //idpId should be a nummeric value (1>)
 
                 // We got everything we need!
                 // get the configuration using the idpId provided
@@ -165,7 +163,7 @@ class Acs extends LoginFlow
                 }
 
                 // PROCESS THE SAMLRESPONSE
-                try { $this->samlResponse = new Response($samlSettings, $samlResponse['SAMLResponse']); } catch(Throwable $e) {
+                try { $this->samlResponse = new Response($samlSettings, $samlResponse); } catch(Throwable $e) {
                     $extended = '';
                     //if($this->debug){
                         $extended = Acs::EXTENDED_HEADER.
@@ -196,6 +194,7 @@ class Acs extends LoginFlow
                 $this->assertSaml();
 
         } else {
+
             $this->printError(__('We did not receive the required POST/GET headers, see: https://codeberg.org/QuinQuies/glpisaml/wiki/ACS.php for more information', PLUGIN_NAME),
                             __('Acs assertion'),
                             Acs::EXTENDED_HEADER.

@@ -46,12 +46,12 @@ declare(strict_types=1);
 namespace GlpiPlugin\Samlsso\LoginFlow;
 
 use Html;
-use Plugin;
+use Search;
 use Session;
-use Throwable;
 use GlpiPlugin\Samlsso\LoginFlow;
 use GlpiPlugin\Samlsso\LoginState;
 use Glpi\Application\View\TemplateRenderer;
+use GlpiPlugin\Samlsso\Controller\SamlSsoController;
 use OneLogin\Saml2\Constants as Saml2Const;
 
 
@@ -60,6 +60,21 @@ use OneLogin\Saml2\Constants as Saml2Const;
  */
 class LoginFlowForm    //NOSONAR complexity by design.
 {
+    /**
+     * Called by the controller to load the
+     * configFlow list (top lvl).
+     */
+    public function init(): void
+    {
+        Html::header(__('Identity providers'), 
+                     SamlSsoController::FLOWFORM_ROUTE,
+                     SamlSsoController::FLOWFORM_PNAME, 
+                     LoginFlow::class);
+
+        Search::show(LoginFlow::class);
+    }
+
+
     /**
      * Update phpSaml configuration
      *
@@ -151,13 +166,13 @@ class LoginFlowForm    //NOSONAR complexity by design.
         $tplVars = array_merge($tplVars, [
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
-            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.'/front/config.form.php',
+            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::FLOWFORM_ROUTE.'?id='.$fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
             'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
             'inputfields'               =>  $fields,
             'loggingfields'             =>  $logging,
             'entityID'                  =>  $CFG_GLPI['url_base'].'/',
-            'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.'/front/acs.php',
-            'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR.'/front/meta.php?id='.$fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
+            'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::ACS_ROUTE.'?id='.$fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
+            'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::META_ROUTE.'?id='.$fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
             'inputOptionsBool'          =>  [ 1                                 => __('Yes', PLUGIN_NAME),
                                               0                                 => __('No', PLUGIN_NAME)],
             'inputOptionsNameFormat'    =>  [Saml2Const::NAMEID_UNSPECIFIED     => __('Unspecified', PLUGIN_NAME),
