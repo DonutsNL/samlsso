@@ -40,6 +40,7 @@ declare(strict_types=1);
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
  *  @since      1.0.0
+ *  @todo       Loose the \ArrayItterator and cast those to Array.
  * ------------------------------------------------------------------------
  **/
 
@@ -52,7 +53,6 @@ use Session;
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginState;
 use Glpi\Application\View\TemplateRenderer;
-use Glpi\Plugin\Hooks;
 use OneLogin\Saml2\Constants as Saml2Const;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;     
@@ -72,11 +72,7 @@ class ConfigForm    //NOSONAR complexity by design.
      * @return string   String containing HTML form with values or redirect into added form.
      */
     public function invoke(Request $request){
-        Html::header(__('Identity providers'), 
-                     SamlSsoController::CONFIG_ROUTE,
-                     SamlSsoController::CONFIG_PNAME, 
-                     Config::class);
-
+        $this->displayHeader();
         Search::show(Config::class);
     }
 
@@ -87,65 +83,65 @@ class ConfigForm    //NOSONAR complexity by design.
      * @param array     $postData $_POST data from form
      * @return string   String containing HTML form with values or redirect into added form.
      */
-    public function invokeForm(Request $request): void
+    public function invokeForm(Request $request): Response|RedirectResponse
     {
-        $inputBag = $request->getPayload();
-        $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;
+        $inputBag = $request->getPayload();                                     // Assign the inputBag
+        $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;     // Assign the ID if any
+        $options['template'] = ( $request->get('template') &&                   // iF set URI?template={template}
+                                 ctype_alpha($request->get('update')) ) ?       // iF template only contains alpha txt
+                                 $request->get('update') :                      // THEN set it to requested template
+                                 'default';                                     // Else fallback to default.
 
-        if( !$inputBag->has('update') ){                                            // IF the update is empy load a given template for initial form.
-            $options['template'] = ( $request->get('template') &&                   // iF set URI?template={template}
-                                     ctype_alpha($request->get('update')) ) ?       // iF template only contains alpha txt
-                                     $request->get('update') :                      // THEN set it to requested template
-                                     'default';                                     // Else fallback to default.
-            
-            Html::header(__('Identity providers'),                                  // Title for browser tab
-                         SamlSsoController::CONFIG_ROUTE,
-                         SamlSsoController::CONFIG_PNAME, 
-                         Config::class);                                            // Item name
+        // Add using template
+        if( !$inputBag->has('update')     &&
+            !$inputBag->has('delete')     ){                                    // IF the update is empy load a given template for initial form.
 
-            print $this->showForm($id, $options);                                   // Print the form
+            $this->displayHeader();
+            return $this->showForm($id, $options);                              // Return the form
     
-        }elseif($inputBag->has('update') &&                                         // IF we received an update
-                $id == -1                ){                                         // AND ID param is empty
-                                                                                    // THEN perform ADD
-                // Add new item
-                Html::header(__('Identity providers'),                              // Title for browser tab
-                             SamlSsoController::CONFIG_ROUTE,
-                             SamlSsoController::CONFIG_PNAME, 
-                             Config::class);                                        // Item name
-                $this->addSamlConfig($inputBag->getIterator());                     // Call Create handler   
+        // Add new item
+        }elseif($inputBag->has('update')  &&                                    // IF we received an update
+                $id == -1                 ){                                    // AND ID param is empty
+            $this->displayHeader();
+            return $this->addSamlConfig($inputBag->getIterator());              // Call Create handler
 
-        }elseif($inputBag->has('update')  &&                                        // IF update is set
-                $id > 0                   ){                                        // AND $id is higher than 0
-                                                                                    // THEN perform UPDATE
+        // Update an item
+        }elseif($inputBag->has('update')  &&                                    // IF update is set
+                $id > 0                   ){                                    // AND $id is higher than 0
+            return $this->updateSamlConfig($inputBag->getIterator());
 
-                Html::header(__('Identity providers'),                              // Title for browser tab
-                             SamlSsoController::CONFIG_ROUTE,
-                             SamlSsoController::CONFIG_PNAME,                       // Section name
-                             Config::class);                                        // Item name
-
-                $this->updateSamlConfig($inputBag->getIterator());                  // Call update handler
-
-        }elseif($inputBag->has('delete')  &&                                        // IF get delete
-                $id > 0                  ){                                         // AND $id is higer then 0
-                                                                                    // THEN delete requested item
-
-                Html::header(__('Identity providers'),                              // Title for browser tab
-                             SamlSsoController::CONFIG_ROUTE,
-                             SamlSsoController::CONFIG_PNAME,                       // Section name
-                             Config::class);                                        // Item name
-
-                $this->deleteSamlConfig($inputBag->getIterator());
+        // Delete an item
+        }elseif($inputBag->has('delete')  &&                                    // IF get delete
+                $id > 0                   ){                                    // AND $id is higer then 0
+           return $this->deleteSamlConfig($inputBag->getIterator());
+        }else{
+            $this->displayHeader();
+            return new Response('No valid instructions received');
         }
     }
 
+
+    /**
+     * Populates the GLPI headers (UI)
+     * Might cause headers to be send prematurely as Html::header contains echo operations.
+     *
+     * @param void
+     * @return void
+     */
+    private function displayHeader()
+    {
+        Html::header(Config::getTypeName().' entities',                         // Title for browser tab
+                     SamlSsoController::CONFIG_ROUTE,
+                     SamlSsoController::CONFIG_PNAME, 
+                     Config::class);
+    }
 
 
     /**
      * Add new phpSaml configuration
      *
      * @param array     $postData $_POST data from form
-     * @return string   String containing HTML form with values or redirect into added form.
+     * @return          Response|RedirectResponse          String containing HTML form with values or redirect into added form.
      */
     public function addSamlConfig(\ArrayIterator $postData): Response|RedirectResponse
     {
@@ -161,7 +157,7 @@ class ConfigForm    //NOSONAR complexity by design.
             if($id = $config->add($fields)) {
                 // Leave succes message for user and redirect
                 Session::addMessageAfterRedirect(__('Successfully added new samlSSO configuration.', PLUGIN_NAME));
-                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE.'?id='.$id);
+                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$id);
                 //Html::redirect(PLUGIN_SAMLSSO_WEBDIR."/front/config.form.php?id=$id");
             } else {
                 // Leave error message for user and regenerate form with values
@@ -180,9 +176,9 @@ class ConfigForm    //NOSONAR complexity by design.
      *
      * @param int   $id of configuration to update
      * @param array $postData $_POST data from form
-     * @return void -
+     * @return      Response|RedirectResponse -
      */
-    public function updateSamlConfig(\ArrayIterator $postData): string
+    public function updateSamlConfig(\ArrayIterator $postData): Response|RedirectResponse
     {
         // Populate configEntity using post;
         $configEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postData]);
@@ -199,20 +195,16 @@ class ConfigForm    //NOSONAR complexity by design.
                $config->update($fields) ){
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
-
-                return ''; // Unreachable return but prevents PHP0405-no return linting error.
+                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
             } else {
                 // Leave a failed message
                 Session::addMessageAfterRedirect(__('Configuration update failed, check your update rights or error logging', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
-
-                return ''; // Unreachable return but prevents PHP0405-no return linting error.
+                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
             }
         }else{
             // Leave an error message and reload the form with provided values and errors
             Session::addMessageAfterRedirect(__('Configuration invalid please correct all ⭕ errors first', PLUGIN_NAME));
-            return $this->generateForm($configEntity);
+            return new Response($this->generateForm($configEntity));
         }
     }
 
@@ -220,42 +212,40 @@ class ConfigForm    //NOSONAR complexity by design.
      * Add new phpSaml configuration
      *
      * @param array $postData $_POST data from form
-     * @return void
+     * @return      Response|RedirectResponse
      */
-    public function deleteSamlConfig(\ArrayIterator $postData): void
+    public function deleteSamlConfig(\ArrayIterator $postData): RedirectResponse
     {
         // Get SamlConfig object for deletion
         $config = new Config();
         // Validate user has the rights to delete then delete
         if($config->canPurge()  &&
-           $config->delete($postData)){
+           $config->delete((array) $postData)){
             // Leave success message and redirect
             Session::addMessageAfterRedirect(__('Configuration deleted successfully', PLUGIN_NAME));
-            Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE);
+            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE);
         } else {
             // Leave fail message and redirect back to config.
             Session::addMessageAfterRedirect(__('Not allowed or error deleting SAML configuration!', PLUGIN_NAME));
-            Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE.'?id='.$postData['id']);
+            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE.'?id='.$postData['id']);
         }
     }
 
     /**
      * Figures out what form to show
      *
-     * @param integer $id       ID the configuration item to show
-     * @param array   $options  Options
+     * @param  integer  $id       ID the configuration item to show
+     * @param  array    $options  Options
+     * @return Response
      */
-    public function showForm(int $id, array $options = []): string
+    public function showForm(int $id, array $options = []): Response|RedirectResponse
     {
         if($id === -1 || $id > 0){
             // Generate form using a template
-            return $this->generateForm(new ConfigEntity($id, $options));
+            return new Response($this->generateForm(new ConfigEntity($id, $options)));
         }else{
             // Invalid id used redirect back to origin
-            Session::addMessageAfterRedirect(__('Invalid request, redirecting back', PLUGIN_NAME));
-            Html::back();
-            // Unreachable bogus return for linter.
-            return '';
+            return new RedirectResponse(__('Invalid request, redirecting back', PLUGIN_NAME));
         }
     }
 
