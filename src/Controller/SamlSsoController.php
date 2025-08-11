@@ -64,21 +64,22 @@ use GlpiPlugin\Samlsso\LoginFlow\LoginFlowForm;
 
 final class SamlSsoController extends AbstractController
 {
+    ####################################################################
     // ACS route
     public const ACS_ROUTE      = 'front/acs';                          // Route being registered by __class__
     public const ACS_PARAM      = '/{'.LoginState::IDP_ID.'}';
     public const ACS_NAME       = 'samlsso_ACS';                        // Route name
 
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
-    #[Route(self::ACS_ROUTE.self::ACS_PARAM, name: self::ACS_NAME)]                     // Decorator to register route to controller
+    #[Route(self::ACS_ROUTE.self::ACS_PARAM, name: self::ACS_NAME)]     // Decorator to register route to controller
     #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function acs(Request $request): Response                     // What to do if route is invoked.
     {
-        return new Response((new Acs)->init($request));            // Call the ACS handler.
+        return new Response((new Acs)->init($request));                 // Call the ACS handler.
     }
 
 
-
+    ####################################################################
     // SLO route
     public const SLO_ROUTE      = 'front/slo';                          // Route being registered by __class__
     public const SLO_NAME       = 'samlsso_SLO';                        // Route name
@@ -93,7 +94,7 @@ final class SamlSsoController extends AbstractController
     }
 
 
-
+    ####################################################################
     // Meta route
     public const META_ROUTE     = 'front/meta';                         // Route being registered by __class__
     public const META_PARAM     = '/{idpId}';
@@ -108,36 +109,39 @@ final class SamlSsoController extends AbstractController
     }
 
 
-
+    ####################################################################
     // Config routes
     public const CONFIG_FILE     = 'front/config.php';                  // Register old route as well
     public const CONFIG_ROUTE    = 'front/config';                      // Route being registered by __class__
     public const CONFIG_NAME     = 'configMain';                        // Route name
     public const CONFIG_PNAME    = 'config';                            // Parent object name
+
+    //#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
+    #[Route(self::CONFIG_ROUTE, name: self::CONFIG_NAME)]               // Decorator to register route to controller
+    #[Route(self::CONFIG_FILE, name: self::CONFIG_NAME.'_file')]        // Decorator to register old route to handle GLPI generated menu's
+    //#[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
+    public function config(Request $request): Response                  // What to do if route is invoked.
+    {
+        return new Response((new ConfigForm)->invoke($request));        // Call the form handler.
+    }
+
+    // ConfigForm routes
     public const CONFIGFORM_FILE = 'front/config.form.php';             // Register old route as well
-    public const CONFIGFORM_ROUTE= 'front/configform/';                 // Route being registered by __class__
+    public const CONFIGFORM_ROUTE= 'front/configform';                 // Route being registered by __class__
     public const CONFIGFORM_NAME = 'configForm';                        // Route name
     public const CONFIGFORM_PNAME= 'config';                            // Parent object name
 
-    #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
-    #[Route(self::CONFIG_ROUTE, name: self::CONFIG_NAME)]               // Decorator to register route to controller
-    #[Route(self::CONFIG_FILE, name: self::CONFIG_NAME.'_file')]        // Decorator to register old route to handle GLPI generated menu's
-    #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
-    public function config(Request $request): Response                  // What to do if route is invoked.
-    {
-        return new Response((new ConfigForm)->invoke($request));        // Call the ACS handler.
-    }
-    #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
+    //#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                  // Decorator to disable authentication check
     #[Route(self::CONFIGFORM_ROUTE, name: self::CONFIGFORM_NAME)]       // Decorator to register route to controller
     #[Route(self::CONFIGFORM_FILE, name: self::CONFIGFORM_NAME.'_file')]// Decorator to register old route to handle GLPI generated menu's
-    #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
+    //#[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function configform(Request $request): Response
     {
-        return new Response((new ConfigForm)->invokeForm($request));    // Call the ACS handler.
+        return new Response((new ConfigForm)->invokeForm($request));    // Call the form handler.
     }
 
 
-
+    ####################################################################
     // LoginFlowConfig
     public const FLOWFORM_FILE = 'front/loginflow.form.php';
     public const FLOWFORM_ROUTE= 'front/flowconfig';                    // Route being registered by __class__
@@ -153,7 +157,7 @@ final class SamlSsoController extends AbstractController
     }
 
 
-
+    ####################################################################
     // Exclude routes
     public const EXCLUDE_ROUTE = 'front/exclude';                       // Route being registered by __class__
     public const EXCLUDE_NAME  = 'excludeMain';                         // Route name
@@ -168,7 +172,7 @@ final class SamlSsoController extends AbstractController
     }
 
 
-
+    ####################################################################
     // Rules routes
     public const RULES_FILE     = 'front/rulesaml.php';                 // Register all route as well because these might be autogenerated
     public const RULES_ROUTE    = 'front/rule';                         // Route being registered by __class__

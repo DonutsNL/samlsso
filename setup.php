@@ -59,7 +59,7 @@ define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.00');                                   
 define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.00');                                                   // Max GLPI compat version
 define('PLUGIN_SAMLSSO_LOGEVENTS','events');                                                    // specifies log extention
 define('PLUGIN_SAMLSSO_SRCDIR', __DIR__ . '/src');                                              // Location of the main classes
-define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/public/plugins/'.PLUGIN_NAME.'/');     // Make sure we dont use this messy code everywhere
+define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/plugins/'.PLUGIN_NAME.'/');            // Make sure we dont use this messy code everywhere
 
 
 // METHODS
