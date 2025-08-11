@@ -13,6 +13,7 @@
 - Updated `samlsso.xml` with new name and repo.
 - Added strict typechecking and corrected all typing issues `declare(strict_types=1);` 
 -    @see: https://www.php.net/manual/en/language.types.declarations.php.
+- Change to trigger git 
 
 
 **v1.1.11**
