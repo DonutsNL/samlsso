@@ -436,7 +436,7 @@ class LoginState extends CommonDBTM
      */
     public function getPhase(): int
     {
-        return (!empty($this->state[LoginState::PHASE])) ? $this->state[LoginState::PHASE] : 0;
+        return (!empty($this->state[LoginState::PHASE])) ? (int) $this->state[LoginState::PHASE] : 0;
     }
 
     /**
