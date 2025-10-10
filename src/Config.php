@@ -144,7 +144,7 @@ class Config extends CommonDBTM
         global $CFG_GLPI;
         $links[__('Excluded paths', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::EXCLUDE_ROUTE;
         $links[__('JIT import rules', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::RULES_ROUTE;
-        $links[__('Generic config', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::FLOWFORM_ROUTE;
+        //$links[__('Generic config', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::FLOWFORM_ROUTE;
         return $links;
     }
 
