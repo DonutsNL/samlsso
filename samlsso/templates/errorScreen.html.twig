@@ -1,0 +1,16 @@
+<!-- implemented in Loginflow->printError() -->
+<div>
+    <div class="jumbotron">
+        <h1 class="display-4">{{ header|striptags }}</h1>
+        <p class="lead">{{ leading|striptags }}</p>
+        <hr class="my-4">
+        
+        <div class="alert alert-danger" role="alert">
+            <p>The following error was reported</p>
+            <p><pre>{{ error|striptags }}</pre></p>
+        </div>
+        <p class="lead">
+            <a class="btn btn-primary" href="{{ returnPath|striptags }}" target="_self">{{ returnLabel|striptags }}</a>
+        </p>
+      </div>
+</div>

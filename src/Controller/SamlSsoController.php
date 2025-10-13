@@ -59,9 +59,6 @@ use GlpiPlugin\Samlsso\RuleSaml;                                        // Requi
 use GlpiPlugin\Samlsso\LoginState;                                      //
 use GlpiPlugin\Samlsso\LoginFlow\LoginFlowForm;                         //
 
-
-
-
 final class SamlSsoController extends AbstractController
 {
     ####################################################################
@@ -111,7 +108,7 @@ final class SamlSsoController extends AbstractController
     public const CONFIG_NAME     = 'configMain';                        // Route name
     public const CONFIG_PNAME    = 'config';                            // Parent object name
 
-    //#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
+    //#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                  // Decorator to disable authentication check
     #[Route(self::CONFIG_ROUTE, name: self::CONFIG_NAME)]               // Decorator to register route to controller
     #[Route(self::CONFIG_FILE, name: self::CONFIG_NAME.'_file')]        // Decorator to register old route to handle GLPI generated menu's
     public function config(Request $request): Response                  // What to do if route is invoked.

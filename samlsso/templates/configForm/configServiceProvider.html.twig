@@ -1,0 +1,125 @@
+<div class="tab-pane fade" id="provider" role="tabpanel" aria-labelledby="provider-tab">
+    <div class="card-body">
+        <!-- Service provider details -->
+        <div>
+            <!-- Entity ID -->
+            {% set clipboad %}
+                <span class='btn btn-ghost-info' onclick="copyClip('EntityId')" onkeydown="copyClip('EntityId')">Copy Entity Id to clipboard</span>
+            {% endset %}
+            {{ fields.textField(
+                'EntityID', 
+                entityID, 
+                'Entity ID',
+                {
+                    'id': 'EntityId',
+                    'disabled':true,
+                    'add_field_html': clipboad,
+                    helper: __('You need to configure the Entity ID at the identity provider. This value is
+                                crosschecked by the identity provider to make sure the sign-in request is
+                                originating from the correct service provider.'),
+                }
+            ) }}
+
+            <!-- Meta URL -->
+            {% set clipboad %}
+                <span class='btn btn-ghost-info' onclick="copyClip('MetaUrl')" onkeydown="copyClip('MetaUrl')">Copy Meta Url to clipboard</span>
+                {% if inputfields.debug.value == false %}
+                    <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true" data-bs-content="Debug is 
+                    disabled, metadata will only be exposed if 'debug' is enabled.">⚠️</span>
+                {% endif %}
+            {% endset %}
+            {{ fields.textField(
+                'MetaUrl', 
+                metaUrl, 
+                'MetaUrl',
+                {
+                    'id': 'MetaUrl',
+                    'disabled':true,
+                    'add_field_html': clipboad,
+                    helper: __('The location of the metadata provider for this service provider (GLPI). The meta location can be
+                                used by the identity provider to collect important information from this service provider like
+                                what public certificate to use for signing and encrypting the SamlResponse.'),
+                }
+            ) }}
+            
+            <!-- ACS url -->
+            {% set clipboad %}
+                <span class='btn btn-ghost-info' onclick="copyClip('AcsUrl')" onkeydown="copyClip('AcsUrl')">Copy ACS Url to clipboard</span>
+            {% endset %}
+            {{ fields.textField(
+                'AcsUrl', 
+                acsUrl, 
+                'AcsUrl',
+                {
+                    'id': 'AcsUrl',
+                    'disabled':true,
+                    'add_field_html': clipboad,
+                    helper: __('The location of the Assertion Consumer Service (ACS) for this service provider (GLPI). 
+                                This url is called by the identity provider after succesfull login.'),
+                }
+            ) }}
+        </div>
+
+        <!-- sp_certificate -->
+        <div>
+            {% set error_helper %}
+                {% if inputfields.sp_private_key.errors == true %}
+                    <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.sp_private_key.errors }}</div>
+                {% endif %}
+                {% if inputfields.sp_certificate.errors == true %}
+                    <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.sp_certificate.errors }}</div>
+                {% endif %}
+                {% if inputfields.sp_certificate.validate.subject.CN == true %}
+                    <div id="textHelper" class="form-text" style="color:rgb(71, 180, 8);">🆗 Valid certificate found: {{ inputfields.sp_certificate.validate.subject.CN }}</div>
+                {% endif %}
+                {% if inputfields.sp_certificate.validate.validations.validTo == true %}
+                    <div id="textHelper" class="form-text" style="color:rgb(180, 120, 8);">{{ inputfields.sp_certificate.validate.validations.validTo }}</div>
+                {% endif %}
+                {% if inputfields.sp_certificate.validate.validations.validFrom == true %}
+                    <div id="textHelper" class="form-text" style="color:rgb(180, 120, 8);">{{ inputfields.sp_certificate.validate.validations.validFrom }}</div>
+                {% endif %}
+            {% endset %}
+            
+            {{ fields.textareaField(
+                inputfields.sp_certificate.field,
+                inputfields.sp_certificate.value,
+                inputfields.sp_certificate.formtitle,
+                {
+                    'add_field_html': error_helper,
+                    helper: inputfields.sp_certificate.formexplain,
+                }) 
+            }}
+        </div>
+
+        <!-- sp_private_key -->
+        <div>
+            {{ fields.textareaField( 
+                inputfields.sp_private_key.field,
+                inputfields.sp_private_key.value,
+                inputfields.sp_private_key.formtitle,
+                {
+                    helper: inputfields.sp_private_key.formexplain,
+                }) 
+            }}
+        </div>
+        
+        <div>
+            {% set error_helper %}
+                {% if inputfields.sp_nameid_format.errors == true %}
+                    <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.sp_nameid_format.errors }}</div>
+                {% endif %}
+            {% endset %}
+
+            {{ fields.dropdownArrayField(
+                inputfields.sp_nameid_format.field,
+                inputfields.sp_nameid_format.value,
+                inputOptionsNameFormat,
+                inputfields.sp_nameid_format.formtitle,
+                {
+                    'add_field_html': error_helper,
+                    helper: inputfields.sp_nameid_format.formexplain,
+                }
+            ) }}
+        </div>
+    </div>
+</div>

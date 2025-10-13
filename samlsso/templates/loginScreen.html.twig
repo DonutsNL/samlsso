@@ -1,0 +1,37 @@
+<!-- implemented in Loginflow->showLoginScreen(void): string -->
+{% if showbuttons == true %}
+<div class="plugin_glpisaml_login">
+    <div class="card-header" id="saml_header">
+        <h2>{{ header }}</h2>
+    </div>
+    <div class='row align-items-start' id="saml_buttons" style="max-width: 300px; margin-top:40px;">
+        {% for button in buttons %}
+        <div class="col-sm-6">
+            <button action="submit" name="{{ postfield }}" value="{{ button.id|abs }}" class="btn btn-light" style="width:125px; margin-bottom:30px;"> 
+                <div class="" style="cursor:pointer; margin:10px 0px 5px 0px;">
+                    <div class="d-flex flex-column">
+                        <i class="{{ button.icon|striptags }} fa-5x" ></i>
+                        <span><b>{{ button.name|striptags }}</b></span>
+                    </div>
+                </div>
+            </button>
+        </div>
+        <!-- This section should never be reached -->
+        {% else %}
+            <div><p>{{ noconfig }}</p>
+        {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+<!-- Add CSS to hide certain login buttons
+     Will be used as configurable option in 
+     version 1.2.0
+{% if enforced == true %}
+<style>
+    .mb-4:has(#login_password){ display:none; }
+    .mb-2:has(#login_remember){ display:none; }
+    .mb-3:has(.select2){ display:none; }
+</style>
+{% endif %}
+-->

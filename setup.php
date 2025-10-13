@@ -44,6 +44,7 @@
 
 // USE
 // This file is included in the GLPI\Plugins context.
+use Glpi\Http\SessionManager;
 use Glpi\Plugin\Hooks;
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginFlow;
