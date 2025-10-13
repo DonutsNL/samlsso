@@ -26,6 +26,7 @@
 - Removed unsupported DisableCsrfCheck decorators from Controller routes.
 - Refactored the `mkzip.sh` and added it to the tools directory.
 - Upgraded onelogin/php-saml (4.2.0 => 4.3.0) to latest release
+- Fixed branding and excludes in mkzip.sh
 
 **v1.1.11**
 - Removed the version validation from ConfigForm.php as its no longer used
