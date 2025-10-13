@@ -47,7 +47,6 @@ namespace GlpiPlugin\Samlsso\Controller;
 use Glpi\Http\Firewall;                                                 // Required to allow anonymous access to ACS route
 use Glpi\Controller\AbstractController;                                 // The controller 
 use Glpi\Security\Attribute\SecurityStrategy;                           // Required to decorate the invoke
-use Glpi\Security\Attribute\DisableCsrfChecks;                          // Required to disable the Csrf checks
 use Symfony\Component\HttpFoundation\Request;                           // Required for __invoke
 use Symfony\Component\HttpFoundation\Response;                          // Required for __invoke
 use Symfony\Component\Routing\Attribute\Route;                          // Required to register controller route
@@ -118,10 +117,9 @@ final class SamlSsoController extends AbstractController
 
     // ConfigForm routes
     public const CONFIGFORM_FILE = 'front/config.form.php';             // Register old route as well
-    public const CONFIGFORM_ROUTE= 'front/configform';                 // Route being registered by __class__
+    public const CONFIGFORM_ROUTE= 'front/config/form';                 // Route being registered by __class__
     public const CONFIGFORM_NAME = 'configForm';                        // Route name
     public const CONFIGFORM_PNAME= 'config';                            // Parent object name
-
     //#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                  // Decorator to disable authentication check
     #[Route(self::CONFIGFORM_ROUTE, name: self::CONFIGFORM_NAME)]       // Decorator to register route to controller
     #[Route(self::CONFIGFORM_FILE, name: self::CONFIGFORM_NAME.'_file')]// Decorator to register old route to handle GLPI generated menu's

@@ -190,7 +190,9 @@ class LoginFlow
             strlen($_POST[LoginFlow::POSTFIELD]) < 3    ){      // Should not exceed 999
             $state->addLoginFlowTrace(['finalIdp' => 'idpId:'.$_POST[LoginFlow::POSTFIELD]]);
             // If we know the idp we register it in the login State
-            $state->setIdpId(filter_var($_POST[LoginFlow::POSTFIELD], FILTER_SANITIZE_NUMBER_INT));
+            // the input is validated as is_numeric. Floats will be truncated by
+            // the cast to int (int).
+            $state->setIdpId((int) filter_var($_POST[LoginFlow::POSTFIELD], FILTER_SANITIZE_NUMBER_INT));
 
             // Actually perform SSO
             $this->performSamlSSO($state);
@@ -292,49 +294,19 @@ class LoginFlow
         // Update the sessionID (thats reset by Session::init)
         // So we can find it after the redirect! Else we will
         // end up in a login loop. Very anoying!
-        $state->setSessionId();
+        //$state->setSessionId();
 
         // Populate Glpi session with the Auth object
         // so GLPI knows we logged in succesfully
         Session::init($auth);
-
+        
         // Restore the saved redirect location
         // https://github.com/DonutsNL/glpisaml/issues/22
         if(!empty($state->getRedirect())){
-            $redirect = '?redirect=' . $state->getRedirect();
+            GlpiAuth::redirectIfAuthenticated($state->getRedirect());
         }else{
-            $redirect = '';
+            GlpiAuth::redirectIfAuthenticated();
         }
-
-        // Redirect back to main page
-        // We should fix added .'/' to prevent (string|int) type issue.
-        // Html::redirect($CFG_GLPI['url_base']);
-        // https://codeberg.org/QuinQuies/glpisaml/issues/42
-        $this->doMetaRefresh($CFG_GLPI['url_base'].'/'.$redirect);
-    }
-
-    /**
-     * This is a 'nasty' hack to deal with the session cookie not being accessible on
-     * redirect with the php.ini:session.cookie_samesite='Strict'. Performing a meta
-     * refresh makes sure the cookie survives.
-     *
-     * @param    Response  Response object with the samlResponse attributes.
-     * @return   array     user->add input fields array with properties.
-     * @since    1.1.3
-     */
-    private function doMetaRefresh(string $location): void
-    {
-
-        $location = (filter_var($location, FILTER_VALIDATE_URL)) ? $location : '/';
-        echo <<<HTML
-        <html>
-        <head>
-            <meta http-equiv="refresh" content="0;URL='$location'"/>
-        </head>
-            <body></body>
-        </html>
-        HTML;
-        exit;
     }
 
     /**

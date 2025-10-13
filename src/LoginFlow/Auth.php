@@ -46,23 +46,28 @@ declare(strict_types=1);
 namespace GlpiPlugin\Samlsso\LoginFlow;
 
 use Auth as glpiAuth;
+use Profile_User;
 use GlpiPlugin\Samlsso\LoginFlow\User;
 
 /**
  * Extends the glpi Auth class for injection into Session::init();
  * by the LoginFlow class. Loads the $this->user after successful
- * authentication by phpSaml using the provided claim attributes.
+ * authentication by phpSaml using the provided claim attributes
+ * and sets all session variables to allow for login.
  */
 class Auth extends glpiAuth
 {
     public function loadUser(array $userFields)
     {
+        global $DB;
+
         // Get or Jit create user or exit on error.
         $this->user = (new User())->getOrCreateUser($userFields);
 
         // Setting this property actually authorizes the login for the user.
-        // (sic) Succeeded is spelled incorrectly in GLPI object
-        $this->auth_succeded = (bool)$this->user->fields;
+        // Be aware (sic) Succeeded is spelled incorrectly in parent GLPI object
+        // as per Auth.php:1043
+        $this->auth_succeded = $this->user;
 
         // Return this object for injection into the session.
         return $this;
