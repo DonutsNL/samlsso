@@ -1,21 +1,4 @@
-
-**v1.2.1**
-- Updated the XMLseclibs to version 3.1.3
-- Renaming plugin to samlSSO for better searchability
-- Updated the credits
-- `Config.php`:270 `getIsEnforced()` added `is_deleted` check to enforced query.
-- Added `return ''; // Unreachable return but prevents PHP0405-no return linting error.` various places
-- Fix non functional linting errors in `src/LoginFlow/User.php` paths without return value
-- Fix constant and method naming in `hook.php`
-- Fix constant and method naming in `Config/ConfigForm.php`
-- Fix constant and method naming in `Config/ConfigEntity.php`
-- Fix constant and method naming in `Config/ConfigItem.php`
-- Renamed all the file headers
-- Updated `samlsso.xml` with new name and repo.
-- Added strict typechecking and corrected all typing issues `declare(strict_types=1);` 
--    @see: https://www.php.net/manual/en/language.types.declarations.php.
-
-**V1.2.0**
+**V1.2.1**
 - Added new bootstrap function to `setup.php` to register stateless paths.
 - Disabled generic config tab untill fully implemented.
 - Corrected typing issue in `LoginState.php:544` bool should be int.
@@ -31,6 +14,21 @@
 - Fixed branding and excludes in mkzip.sh
 - Change to trigger git 
 
+**v1.2.0**
+- Updated the XMLseclibs to version 3.1.3
+- Renaming plugin to samlSSO for better searchability
+- Updated the credits
+- `Config.php`:270 `getIsEnforced()` added `is_deleted` check to enforced query.
+- Added `return ''; // Unreachable return but prevents PHP0405-no return linting error.` various places
+- Fix non functional linting errors in `src/LoginFlow/User.php` paths without return value
+- Fix constant and method naming in `hook.php`
+- Fix constant and method naming in `Config/ConfigForm.php`
+- Fix constant and method naming in `Config/ConfigEntity.php`
+- Fix constant and method naming in `Config/ConfigItem.php`
+- Renamed all the file headers
+- Updated `samlsso.xml` with new name and repo.
+- Added strict typechecking and corrected all typing issues `declare(strict_types=1);` 
+-    @see: https://www.php.net/manual/en/language.types.declarations.php.
 
 **v1.1.11**
 - Removed the version validation from ConfigForm.php as its no longer used
