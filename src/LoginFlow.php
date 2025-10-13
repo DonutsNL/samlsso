@@ -50,11 +50,13 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Samlsso;
 
+use DB;
 use Html;
 use Plugin;
 use Session;
 use Toolbox;
 use Throwable;
+use Glpi\Http\SessionManager;
 use OneLogin\Saml2\Auth as samlAuth;
 use OneLogin\Saml2\Response;
 use Glpi\Application\View\TemplateRenderer;
@@ -93,7 +95,6 @@ class LoginFlow
     public const SAMLBYPASS  =  'bypass';
 
     // LOGIN FLOW AFTER PRESSING A IDP BUTTON.
-
     /**
      * Evaluates the session and determines if login/logout is required
      * Called by post_init hook via function in hooks.php. It watches POST
@@ -145,7 +146,7 @@ class LoginFlow
            $_GET[LoginFlow::SAMLBYPASS] == 1                    ){  // bypass is set to 1 (can be replaced with secret key)
             $state->addLoginFlowTrace(['bypassUsed' => true]);      // Register the bypass was used
             $this->performLogOff();                                 // Perform logoff
-            $this->doMetaRefresh($CFG_GLPI['url_base'].'/');        // Redirect user to the login page
+            Html::Redirect($CFG_GLPI['url_base'].'/', 302);         // Perform redirect back.
         }
 
         // CAPTURE LOGIN FIELD
@@ -262,6 +263,7 @@ class LoginFlow
         } // Do nothing, ignore the samlSSORequest.
     }
 
+
     /**
      * Called by the src/LoginFlow/Acs class if the received response was valid
      * to handle the samlLogin or invalidate the login if there are deeper issues
@@ -274,6 +276,13 @@ class LoginFlow
     protected function performSamlLogin(Response $response): void
     {
         global $CFG_GLPI;
+
+        // Before we continue we need to make sure to have a valid session. This is important
+        // because the method is called by the acs which is stateless. At this point we want 
+        // to start authenticating the user with GLPI and we need a valid session for that.
+        ini_set('session.use_cookies', 1);  // Renable Cookies Disabled by PostBootListner/SessionStart.php:106
+        Session::destroy();                 // Clean existing session
+        Session::start();                   // Create a new statefull one.
 
         // Validate samlResponse and returns provided Saml attributes (claims).
         // validation will print and exit on errors because user information is required.
@@ -290,11 +299,6 @@ class LoginFlow
         if(!$state = new Loginstate()){ $this->printError(__('Could not load loginState from database!', PLUGIN_NAME)); }
         // Indicate we accepted the SAMLResponse for auth.
         $state->setSamlAuthTrue();
-
-        // Update the sessionID (thats reset by Session::init)
-        // So we can find it after the redirect! Else we will
-        // end up in a login loop. Very anoying!
-        //$state->setSessionId();
 
         // Populate Glpi session with the Auth object
         // so GLPI knows we logged in succesfully

@@ -622,7 +622,6 @@ class LoginState extends CommonDBTM
         return $logging;
     }
 
-
     /**
      * Determin if the state was loaded from the LoginState database or if you are dealing with
      * an initial version.

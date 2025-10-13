@@ -47,7 +47,6 @@ namespace GlpiPlugin\Samlsso\LoginFlow;
 
 use Throwable;
 use OneLogin\Saml2\Utils;
-use OneLogin\Saml2\Auth;
 use OneLogin\Saml2\Settings;
 use OneLogin\Saml2\Response;
 use GlpiPlugin\Samlsso\LoginFlow;
