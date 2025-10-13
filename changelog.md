@@ -1,4 +1,5 @@
-**v1.2.00**
+
+**v1.2.1**
 - Updated the XMLseclibs to version 3.1.3
 - Renaming plugin to samlSSO for better searchability
 - Updated the credits
@@ -14,9 +15,16 @@
 - Added strict typechecking and corrected all typing issues `declare(strict_types=1);` 
 -    @see: https://www.php.net/manual/en/language.types.declarations.php.
 - Added new bootstrap function to `setup.php` to register stateless paths.
-- Cleaned depr decorators from Controller.
 - Disabled generic config tab untill fully implemented.
 - Corrected typing issue in `LoginState.php:544` bool should be int.
+- Corrected the authflow to seamlessly follow the GLPI auth.
+- Added logic to reinitiate statefull redirect after stateless init at ACS.
+- Removed deprecated CSRF_COMPLIANT hook.
+- Fixed a few typing issues caused by enforcing strict mode in all PHP files.
+- Bumped version to 1.2.1 to allow upgrade for those who tested with old crappy version.
+- Updated the samlsso.xml and removed all old non compatible codeberg artifacts.
+- Removed unsupported DisableCsrfCheck decorators from Controller routes.
+- Refactored the `mkzip.sh` and added it to the tools directory.
  
 
 **v1.1.11**

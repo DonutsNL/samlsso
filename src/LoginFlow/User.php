@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.0
+ *  @version    1.2.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -203,11 +203,11 @@ class User
             }else{
                 $ruleCollection = new RuleSamlCollection();
                 $matchInput = [User::EMAIL          => $userFields[User::EMAIL],
-                                User::SAMLGROUPS     => $userFields[User::SAMLGROUPS],
-                                User::SAMLJOBTITLE   => $userFields[User::SAMLJOBTITLE],
-                                User::SAMLCOUNTRY    => $userFields[User::SAMLCOUNTRY],
-                                User::SAMLCITY       => $userFields[User::SAMLCITY],
-                                User::SAMLSTREET     => $userFields[User::SAMLSTREET]];
+                               User::SAMLGROUPS     => $userFields[User::SAMLGROUPS],
+                               User::SAMLJOBTITLE   => $userFields[User::SAMLJOBTITLE],
+                               User::SAMLCOUNTRY    => $userFields[User::SAMLCOUNTRY],
+                               User::SAMLCITY       => $userFields[User::SAMLCITY],
+                               User::SAMLSTREET     => $userFields[User::SAMLSTREET]];
                 // Uses a hook to call $this->updateUser() if a rule was found.
                 $ruleCollection->processAllRules($matchInput, [User::USERSID => $id], []);
             }
