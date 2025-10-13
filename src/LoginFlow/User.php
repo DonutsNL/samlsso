@@ -47,6 +47,7 @@ namespace GlpiPlugin\Samlsso\LoginFlow;
 
 use Session;
 use Toolbox;
+use Throwable;
 use Group_User;
 use Profile_User;
 use User as glpiUser;
@@ -393,8 +394,18 @@ class User
                                       var_export($response, true));
         }
 
+        /* @TODO: Dont forget! */
+        // getAttribute should return an array or throw an error
+        // showLoginError enforces a hard exit.
+        // https://github.com/DonutsNL/samlsso/issues/3
+        try {
+           $claims = $response->getAttributes();
+        }catch (Throwable $e) {
+           LoginFlow::showLoginError($e);
+        }
+        
         // Fetch additional claims from the samlResponse.
-        if($claims = $response->getAttributes()){
+        if(is_array($claims)){
             // Assign the available claims.
             // EmailAddress, if it is provided it should be a valid emailaddress.
             // This is a optional field.
