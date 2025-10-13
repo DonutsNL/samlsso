@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.0
+ *  @version    1.2.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -144,7 +144,7 @@ class Config extends CommonDBTM
         global $CFG_GLPI;
         $links[__('Excluded paths', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::EXCLUDE_ROUTE;
         $links[__('JIT import rules', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::RULES_ROUTE;
-        $links[__('Generic config', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::FLOWFORM_ROUTE;
+        //$links[__('Generic config', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::FLOWFORM_ROUTE;
         return $links;
     }
 

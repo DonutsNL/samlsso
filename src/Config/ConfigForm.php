@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.0
+ *  @version    1.2.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -66,7 +66,7 @@ class ConfigForm    //NOSONAR complexity by design.
 {
     /**
      * Handles the form calls from the ConfigController and loads the
-     * config listing
+     * config idps listing (first screen before selecting a specific config)
      *
      * @param array     $postData $_POST data from form
      * @return string   String containing HTML form with values or redirect into added form.
@@ -91,7 +91,7 @@ class ConfigForm    //NOSONAR complexity by design.
                                  ctype_alpha($request->get('update')) ) ?       // iF template only contains alpha txt
                                  $request->get('update') :                      // THEN set it to requested template
                                  'default';                                     // Else fallback to default.
-
+                                 
         // Add using template
         if( !$inputBag->has('update')     &&
             !$inputBag->has('delete')     ){                                    // IF the update is empy load a given template for initial form.

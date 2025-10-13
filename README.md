@@ -28,7 +28,6 @@ Have coding experience (or are learning to code) and want to add meaningfull cha
 - Xdebug profiler;
 - SonarLint;
 - Twig language support;
-- tip: devsense PHP All-in-one.
 
 # Credits
 Special credits go to:

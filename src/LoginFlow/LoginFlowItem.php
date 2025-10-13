@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.0
+ *  @version    1.2.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -43,11 +43,6 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  **/
 namespace GlpiPlugin\Samlsso\LoginFlow;
-
-use DateTime;
-use DateTimeImmutable;
-use GlpiPlugin\Samlsso\Config\ConfigEntity;
-use Plugin;
 
 /*
  * Validate, evaluate, clean, normalizes, enriches, saml config items before

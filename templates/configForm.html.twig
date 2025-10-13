@@ -102,17 +102,13 @@
             </li>
         </ul>
         <div class="tab-content flex-fill glpisaml" id="myTabContent">
-            <!-- ################################################################################-->
+           <!-- ################################################################################-->
             <!-- General details -->
             <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
                 <div class="card-body">
                     <div class="row g-2">
                         <!-- name field -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.name.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.name.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.name.errors }}</div>
@@ -125,19 +121,16 @@
                             {{ fields.textField(
                                 inputfields.name.field, 
                                 inputfields.name.value, 
-                                inputfields.name.formtitle ~ helper, 
+                                inputfields.name.formtitle, 
                                 {
                                     'add_field_html': error_helper,
+                                    helper: inputfields.name.formexplain,
                                 }
                             ) }}
                         </div>
                    
                         <!-- icon field -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.conf_icon.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.conf_icon.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.conf_icon.errors }}</div>
@@ -149,19 +142,16 @@
                             {{ fields.textField(
                                 inputfields.conf_icon.field, 
                                 inputfields.conf_icon.value, 
-                                inputfields.conf_icon.formtitle ~ helper, 
+                                inputfields.conf_icon.formtitle, 
                                 {
                                     'add_field_html': error_helper,
+                                    helper: inputfields.conf_icon.formexplain,
                                 }
                             ) }}
                         </div>
 
                         <!-- domain field -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.conf_domain.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.conf_domain.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.conf_domain.errors }}</div>
@@ -177,19 +167,16 @@
                             {{ fields.textField(
                                 inputfields.conf_domain.field, 
                                 inputfields.conf_domain.value, 
-                                inputfields.conf_domain.formtitle ~ helper, 
+                                inputfields.conf_domain.formtitle, 
                                 {
-                                    'add_field_html': error_helper,
+                                    'add_field_html': error_helper|raw,
+                                    helper: inputfields.conf_domain.formexplain,
                                 }
                             ) }}
                         </div>
 
                         <!-- Comment field -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.comment.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.comment.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.comment.errors }}</div>
@@ -198,20 +185,17 @@
                             {{ fields.textareaField(
                                 inputfields.comment.field, 
                                 inputfields.comment.value, 
-                                inputfields.comment.formtitle ~ helper, 
+                                inputfields.comment.formtitle, 
                                 {
                                     'required':false,
                                     'add_field_html': error_helper,
+                                    helper: inputfields.comment.formexplain,
                                 }
                             ) }}
                         </div>
 
                          <!-- enabled -->
                          <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.is_active.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.is_active.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.is_active.errors }}</div>
@@ -220,19 +204,16 @@
                             {{ fields.sliderField(
                                 inputfields.is_active.field,
                                 inputfields.is_active.value,
-                                inputfields.is_active.formtitle ~ helper,
+                                inputfields.is_active.formtitle,
                                {
                                   'add_field_html': error_helper,
+                                  helper: inputfields.is_active.formexplain,
                                }
                             ) }}
                         </div>
 
                         <!-- Debug mode -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.debug.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.debug.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.debug.errors }}</div>
@@ -241,16 +222,16 @@
                             {{ fields.sliderField(
                                 inputfields.debug.field,
                                 inputfields.debug.value,
-                                inputfields.debug.formtitle ~ helper,
+                                inputfields.debug.formtitle,
                                {
                                   'add_field_html': error_helper,
+                                  helper: inputfields.debug.formexplain,
                                }
                             ) }}
                         </div>
                     </div>
                 </div>
             </div>
-
             <!-- ################################################################################-->
             <!-- transit tab -->
             <div class="tab-pane fade show" id="transit" role="tabpanel" aria-labelledby="transit-tab">
@@ -259,10 +240,6 @@
 
                         <!-- compress_requests -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.compress_requests.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.compress_requests.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.compress_requests.errors }}</div>
@@ -271,19 +248,16 @@
                             {{ fields.sliderField(
                                 inputfields.compress_requests.field,
                                 inputfields.compress_requests.value,
-                                inputfields.compress_requests.formtitle ~ helper,
+                                inputfields.compress_requests.formtitle,
                                {
                                   'add_field_html': error_helper,
+                                   helper: inputfields.compress_requests.formexplain,
                                }
                             ) }}
                         </div>
 
                         <!-- compress_responses -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.compress_responses.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.compress_responses.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.compress_responses.errors }}</div>
@@ -292,19 +266,16 @@
                             {{ fields.sliderField(
                                 inputfields.compress_responses.field,
                                 inputfields.compress_responses.value,
-                                inputfields.compress_responses.formtitle ~ helper,
+                                inputfields.compress_responses.formtitle,
                                {
                                   'add_field_html': error_helper,
+                                   helper: inputfields.compress_responses.formexplain,
                                }
                             ) }}
                         </div>
                         
                         <!-- Proxied -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.proxied.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.proxied.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.proxied.errors }}</div>
@@ -318,19 +289,16 @@
                             {{ fields.sliderField(
                                 inputfields.proxied.field,
                                 inputfields.proxied.value,
-                                inputfields.proxied.formtitle ~ helper,
+                                inputfields.proxied.formtitle,
                                {
                                   'add_field_html': error_helper,
+                                   helper: inputfields.proxied.formexplain,
                                }
                             ) }}
                         </div>
 
                         <!-- validate_xml -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.validate_xml.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.validate_xml.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.validate_xml.errors }}</div>
@@ -342,19 +310,16 @@
                             {{ fields.sliderField(
                                 inputfields.validate_xml.field,
                                 inputfields.validate_xml.value,
-                                inputfields.validate_xml.formtitle ~ helper,
+                                inputfields.validate_xml.formtitle,
                                {
                                   'add_field_html': error_helper,
+                                   helper: inputfields.validate_xml.formexplain,
                                }
                             ) }}
                         </div>
 
                         <!-- validate_destination -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.validate_destination.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.validate_destination.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.validate_destination.errors }}</div>
@@ -363,19 +328,16 @@
                             {{ fields.sliderField(
                                 inputfields.validate_destination.field,
                                 inputfields.validate_destination.value,
-                                inputfields.validate_destination.formtitle ~ helper,
+                                inputfields.validate_destination.formtitle,
                                {
                                   'add_field_html': error_helper,
+                                   helper: inputfields.validate_destination.formexplain,
                                }
                             ) }}
                         </div>
 
                         <!-- lowercase_url_encoding -->
                         <div>
-                            {% set helper %}
-                                <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                                data-bs-content="{{ inputfields.lowercase_url_encoding.formexplain }}">?</span>
-                            {% endset %}
                             {% set error_helper %}
                                 {% if inputfields.lowercase_url_encoding.errors == true %}
                                     <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.lowercase_url_encoding.errors }}</div>
@@ -384,9 +346,10 @@
                             {{ fields.sliderField(
                                 inputfields.lowercase_url_encoding.field,
                                 inputfields.lowercase_url_encoding.value,
-                                inputfields.lowercase_url_encoding.formtitle ~ helper,
+                                inputfields.lowercase_url_encoding.formtitle,
                                {
                                   'add_field_html': error_helper,
+                                   helper: inputfields.lowercase_url_encoding.formexplain,
                                }
                             ) }}
                         </div>
@@ -402,33 +365,24 @@
                     <!-- Service provider details -->
                     <div>
                         <!-- Entity ID -->
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="You need to configure the Entity ID at the identity provider. This value is
-                                             crosschecked by the identity provider to make sure the sign-in request is
-                                             originating from the correct service provider.">?</span>
-                        {% endset %}
                         {% set clipboad %}
                             <span class='btn btn-ghost-info' onclick="copyClip('EntityId')" onkeydown="copyClip('EntityId')">Copy Entity Id to clipboard</span>
                         {% endset %}
                         {{ fields.textField(
                             'EntityID', 
                             entityID, 
-                            'Entity ID' ~ helper,
+                            'Entity ID',
                             {
                                 'id': 'EntityId',
                                 'disabled':true,
                                 'add_field_html': clipboad,
+                                helper: __('You need to configure the Entity ID at the identity provider. This value is
+                                            crosschecked by the identity provider to make sure the sign-in request is
+                                            originating from the correct service provider.'),
                             }
                         ) }}
 
                         <!-- Meta URL -->
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="The location of the metadata provider for this service provider (GLPI). The meta location can be
-                                             used by the identity provider to collect important information from this service provider like
-                                             what public certificate to use for signing and encrypting the SamlResponse.">?</span>
-                        {% endset %}
                         {% set clipboad %}
                             <span class='btn btn-ghost-info' onclick="copyClip('MetaUrl')" onkeydown="copyClip('MetaUrl')">Copy Meta Url to clipboard</span>
                             {% if inputfields.debug.value == false %}
@@ -439,41 +393,37 @@
                         {{ fields.textField(
                             'MetaUrl', 
                             metaUrl, 
-                            'MetaUrl' ~ helper,
+                            'MetaUrl',
                             {
                                 'id': 'MetaUrl',
                                 'disabled':true,
                                 'add_field_html': clipboad,
+                                helper: __('The location of the metadata provider for this service provider (GLPI). The meta location can be
+                                            used by the identity provider to collect important information from this service provider like
+                                            what public certificate to use for signing and encrypting the SamlResponse.'),
                             }
                         ) }}
                        
                         <!-- ACS url -->
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="The location of the Assertion Consumer Service (ACS) for this service provider (GLPI). 
-                                             This url is called by the identity provider after succesfull login.">?</span>
-                        {% endset %}
                         {% set clipboad %}
                             <span class='btn btn-ghost-info' onclick="copyClip('AcsUrl')" onkeydown="copyClip('AcsUrl')">Copy ACS Url to clipboard</span>
                         {% endset %}
                         {{ fields.textField(
                             'AcsUrl', 
                             acsUrl, 
-                            'AcsUrl' ~ helper,
+                            'AcsUrl',
                             {
                                 'id': 'AcsUrl',
                                 'disabled':true,
                                 'add_field_html': clipboad,
+                                helper: __('The location of the Assertion Consumer Service (ACS) for this service provider (GLPI). 
+                                            This url is called by the identity provider after succesfull login.'),
                             }
                         ) }}
                     </div>
 
                     <!-- sp_certificate -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.sp_certificate.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.sp_private_key.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.sp_private_key.errors }}</div>
@@ -495,33 +445,27 @@
                         {{ fields.textareaField(
                             inputfields.sp_certificate.field,
                             inputfields.sp_certificate.value,
-                            inputfields.sp_certificate.formtitle ~ helper,
+                            inputfields.sp_certificate.formtitle,
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.sp_certificate.formexplain,
                             }) 
                         }}
                     </div>
 
                     <!-- sp_private_key -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.sp_private_key.formexplain }}">?</span>
-                        {% endset %}
-
                         {{ fields.textareaField( 
                             inputfields.sp_private_key.field,
                             inputfields.sp_private_key.value,
-                            inputfields.sp_private_key.formtitle ~ helper,
-                            {}) 
+                            inputfields.sp_private_key.formtitle,
+                            {
+                                helper: inputfields.sp_private_key.formexplain,
+                            }) 
                         }}
                     </div>
                     
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.sp_nameid_format.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.sp_nameid_format.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.sp_nameid_format.errors }}</div>
@@ -532,14 +476,13 @@
                             inputfields.sp_nameid_format.field,
                             inputfields.sp_nameid_format.value,
                             inputOptionsNameFormat,
-                            inputfields.sp_nameid_format.formtitle ~ helper,
+                            inputfields.sp_nameid_format.formtitle,
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.sp_nameid_format.formexplain,
                             }
                         ) }}
                     </div>
-
-
                 </div>
             </div>
 
@@ -549,10 +492,6 @@
                 <div class="card-body">
                      <!-- idp_entity_id -->
                      <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.idp_entity_id.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.idp_entity_id.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.idp_entity_id.errors }}</div>
@@ -562,19 +501,16 @@
                         {{ fields.textField( 
                             inputfields.idp_entity_id.field, 
                             inputfields.idp_entity_id.value, 
-                            inputfields.idp_entity_id.formtitle ~ helper, 
+                            inputfields.idp_entity_id.formtitle, 
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.idp_entity_id.formexplain,
                             }) 
                         }}
                     </div>
 
                     <!-- idp_single_sign_on_service -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.idp_single_sign_on_service.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.idp_single_sign_on_service.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.idp_single_sign_on_service.errors }}</div>
@@ -584,19 +520,16 @@
                         {{ fields.textField( 
                             inputfields.idp_single_sign_on_service.field, 
                             inputfields.idp_single_sign_on_service.value, 
-                            inputfields.idp_single_sign_on_service.formtitle ~ helper, 
+                            inputfields.idp_single_sign_on_service.formtitle ~ helper|raw, 
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.idp_single_sign_on_service.formexplain,
                             }) 
                         }}
                     </div>
 
                     <!-- idp_single_logout_service -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.idp_single_logout_service.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.idp_single_logout_service.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.idp_single_logout_service.errors }}</div>
@@ -606,19 +539,16 @@
                         {{ fields.textField( 
                             inputfields.idp_single_logout_service.field, 
                             inputfields.idp_single_logout_service.value, 
-                            inputfields.idp_single_logout_service.formtitle ~ helper, 
+                            inputfields.idp_single_logout_service.formtitle ~ helper|raw, 
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.idp_single_logout_service.formexplain,
                             }) 
                         }}
                     </div>
 
                     <!-- idp_certificate -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.idp_certificate.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.idp_certificate.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.idp_certificate.errors }}</div>
@@ -637,9 +567,10 @@
                         {{ fields.textareaField( 
                             inputfields.idp_certificate.field, 
                             inputfields.idp_certificate.value, 
-                            inputfields.idp_certificate.formtitle ~ helper, 
+                            inputfields.idp_certificate.formtitle, 
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.idp_certificate.formexplain,
                             }) 
                         }}
                     </div>
@@ -674,10 +605,6 @@
 
                     <!-- requested_authn_context -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.requested_authn_context_comparison.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.requested_authn_context_comparison.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.requested_authn_context_comparison.errors }}</div>
@@ -688,9 +615,10 @@
                             inputfields.requested_authn_context_comparison.field,
                             inputfields.requested_authn_context_comparison.value,
                             inputOptionsAuthnCompare,
-                            inputfields.requested_authn_context_comparison.formtitle ~ helper, 
+                            inputfields.requested_authn_context_comparison.formtitle ~ helper|raw, 
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.requested_authn_context_comparison.formexplain,
                             }) 
                         }}
                        
@@ -705,10 +633,6 @@
                 <div class="card-body">
                     <!-- enforce SSO -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.enforce_sso.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.enforce_sso.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.enforce_sso.errors }}</div>
@@ -717,19 +641,16 @@
                         {{ fields.sliderField(
                             inputfields.enforce_sso.field,
                             inputfields.enforce_sso.value,
-                            inputfields.enforce_sso.formtitle ~ helper,
+                            inputfields.enforce_sso.formtitle,
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.enforce_sso.formexplain,
                             }
                         ) }}
                     </div>
 
                     <!-- Strict mode -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.strict.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.strict.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.strict.errors }}</div>
@@ -741,19 +662,16 @@
                         {{ fields.sliderField(
                             inputfields.strict.field,
                             inputfields.strict.value,
-                            inputfields.strict.formtitle ~ helper,
+                            inputfields.strict.formtitle,
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.strict.formexplain,
                             }
                         ) }}
                     </div>
                     
                     <!-- User JIT -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.user_jit.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.user_jit.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.user_jit.errors }}</div>
@@ -762,19 +680,16 @@
                         {{ fields.sliderField(
                             inputfields.user_jit.field,
                             inputfields.user_jit.value,
-                            inputfields.user_jit.formtitle ~ helper,
+                            inputfields.user_jit.formtitle,
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.user_jit.formexplain,
                             }
                         ) }}
                     </div>
                     
                     <!-- security_nameidencrypted -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.security_nameidencrypted.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.security_nameidencrypted.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.security_nameidencrypted.errors }}</div>
@@ -783,9 +698,10 @@
                         {{ fields.sliderField(
                             inputfields.security_nameidencrypted.field,
                             inputfields.security_nameidencrypted.value,
-                            inputfields.security_nameidencrypted.formtitle ~ helper,
+                            inputfields.security_nameidencrypted.formtitle,
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.security_nameidencrypted.formexplain,
                             }) 
                         }}
                     </div>
@@ -794,10 +710,6 @@
 
                     <!-- security_authnrequestssigned -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.security_authnrequestssigned.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.security_authnrequestssigned.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.security_authnrequestssigned.errors }}</div>
@@ -806,9 +718,10 @@
                         {{ fields.sliderField(
                             inputfields.security_authnrequestssigned.field,
                             inputfields.security_authnrequestssigned.value,
-                            inputfields.security_authnrequestssigned.formtitle ~ helper,
+                            inputfields.security_authnrequestssigned.formtitle,
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.security_authnrequestssigned.formexplain,
                             }) 
                         }}
                     </div>
@@ -817,10 +730,6 @@
 
                     <!-- security_logoutrequestsigned -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.security_logoutrequestsigned.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.security_logoutrequestsigned.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.security_logoutrequestsigned.errors }}</div>
@@ -829,9 +738,10 @@
                         {{ fields.sliderField(
                             inputfields.security_logoutrequestsigned.field,
                             inputfields.security_logoutrequestsigned.value,
-                            inputfields.security_logoutrequestsigned.formtitle ~ helper,
+                            inputfields.security_logoutrequestsigned.formtitle,
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.security_logoutrequestsigned.formexplain,
                             }) 
                         }}
                     </div>
@@ -840,10 +750,6 @@
 
                     <!-- security_logoutresponsesigned -->
                     <div>
-                        {% set helper %}
-                            <span class="form-help" data-bs-toggle="popover" data-bs-placement="top" data-bs-html="true"
-                            data-bs-content="{{ inputfields.security_logoutresponsesigned.formexplain }}">?</span>
-                        {% endset %}
                         {% set error_helper %}
                             {% if inputfields.security_logoutresponsesigned.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.security_logoutresponsesigned.errors }}</div>
@@ -852,9 +758,10 @@
                         {{ fields.sliderField(
                             inputfields.security_logoutresponsesigned.field,
                             inputfields.security_logoutresponsesigned.value,
-                            inputfields.security_logoutresponsesigned.formtitle ~ helper,
+                            inputfields.security_logoutresponsesigned.formtitle,
                             {
                                 'add_field_html': error_helper,
+                                helper: inputfields.security_logoutresponsesigned.formexplain,
                             }) 
                         }}
                     </div>
@@ -867,8 +774,8 @@
                     <div class="row g-2">      
                         <!-- enforce SSO -->
                         <div class="col-md p-2">
-                            <h2>Work in progress</h2>
-                            <div>Session phases: 1 = initial, 2 = Performed IDP redirect, 3 = SAML Response accepted, 4 = Succesfully authenticated, 5=file_exclude, 6=forced_logoff, 7=timed_out, 8=manual_glpi_logout
+                            <h2>Work in progress, logging is by no means complete but still usable. All feedback more than welcome!</h2>
+                            <div>Phases: 1 = initial, 2=send_saml_SSO_request, 3=performed_saml_auth, 4=performed_glpi_auth, 5=file_exclude, 6=forced_logoff, 7=timed_out, 8=manual_glpi_logout
                             </div>
                             <table class="table table-striped table-sm">
                                 <thead>
@@ -876,9 +783,9 @@
                                     <th>Id</th>
                                     <th>IdpId</th>
                                     <th>username</th>
-                                    <th>Authed by GLPI</th>
-                                    <th>Authed by SAML</th>
-                                    <th>Session phase</th>
+                                    <th>glpiAuthed</th>
+                                    <th>samlAuthed</th>
+                                    <th>Phase</th>
                                     <th>loginTime</th>
                                     <th>lastClickTime</th>
                                     <th>Locations</th>
@@ -926,7 +833,7 @@
             </div>
             {% if inputfields.debug.value == true %}
             <div class="m-1 align-middle text-muted pull-left pt-2">
-                <a href="{{ LatestVersion.gitUrl }}" target="_blank">Repo version: {{ LatestVersion.gitVersion }} your version: v{{ LatestVersion.currentVersion }}</a> ⚠️ Warning SP metadata exposed! - ROWID: {{ inputfields.id.value }} | CREATED DATE: {{ inputfields.date_creation.value }} | LAST UPDATED: {{ inputfields.date_mod.value }}
+                ⚠️ Warning SP metadata exposed! - ROWID: {{ inputfields.id.value }} | CREATED DATE: {{ inputfields.date_creation.value }} | LAST UPDATED: {{ inputfields.date_mod.value }}
             {% endif %}
         </div>
     </div>

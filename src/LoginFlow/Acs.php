@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.0
+ *  @version    1.2.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -47,7 +47,6 @@ namespace GlpiPlugin\Samlsso\LoginFlow;
 
 use Throwable;
 use OneLogin\Saml2\Utils;
-use OneLogin\Saml2\Auth;
 use OneLogin\Saml2\Settings;
 use OneLogin\Saml2\Response;
 use GlpiPlugin\Samlsso\LoginFlow;
@@ -194,8 +193,8 @@ class Acs extends LoginFlow
                 $this->assertSaml();
 
         } else {
-
-            $this->printError(__('We did not receive the required POST/GET headers, see: https://codeberg.org/QuinQuies/glpisaml/wiki/ACS.php for more information', PLUGIN_NAME),
+            //https://github.com/DonutsNL/samlsso/issues/5
+            $this->printError(__('The received idp response did not contain the required samlResponse POST body or idpId to authenticate the user, see: https://codeberg.org/QuinQuies/glpisaml/wiki/ACS.php for more information', PLUGIN_NAME),
                             __('Acs assertion'),
                             Acs::EXTENDED_HEADER.
                             Acs::SERVER_OBJ.var_export($_SERVER, true)."\n\n".

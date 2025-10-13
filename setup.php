@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.0
+ *  @version    1.2.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -45,6 +45,7 @@
 // USE
 // This file is included in the GLPI\Plugins context.
 use Glpi\Plugin\Hooks;
+use Glpi\Http\SessionManager;
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginFlow;
 use GlpiPlugin\Samlsso\RuleSamlCollection;
@@ -54,18 +55,28 @@ global $CFG_GLPI;
 
 // PLUGIN CONSTANTS
 define('PLUGIN_NAME', 'samlsso');                                                               // Plugin name
-define('PLUGIN_SAMLSSO_VERSION', '1.2.00');                                                     // Plugin version
-define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.00');                                                   // Min required GLPI version
-define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.00');                                                   // Max GLPI compat version
+define('PLUGIN_SAMLSSO_VERSION', '1.2.1');                                                      // Plugin version
+define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.0');                                                    // Min required GLPI version
+define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.99');                                                   // Max GLPI compat version
 define('PLUGIN_SAMLSSO_LOGEVENTS','events');                                                    // specifies log extention
 define('PLUGIN_SAMLSSO_SRCDIR', __DIR__ . '/src');                                              // Location of the main classes
-define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/public/plugins/'.PLUGIN_NAME.'/');     // Make sure we dont use this messy code everywhere
+define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/plugins/'.PLUGIN_NAME.'/');            // Make sure we dont use this messy code everywhere
 
 
 // METHODS
 /**
- * Default GLPI Plugin Init function.
- *
+ * Default GLPI Plugin Init function./**
+ * Default GLPI Plugin bootstrap function.
+ * @param void
+ * @return void
+ * @see https://github.com/glpi-project/glpi/issues/21414
+ */
+function plugin_samlsso_boot(): void {
+        SessionManager::RegisterPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#');             // Register the assertion Service as stateless (prevent csrf checking)
+        SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/front/slo/#');             // Register the logout service as stateless (prevent csrf checking)
+}
+
+/** 
  * @param void
  * @return void
  * @see https://glpi-developer-documentation.readthedocs.io/en/master/plugins/requirements.html
@@ -77,9 +88,6 @@ function plugin_init_samlsso() : void                                           
 
     // Include additional composer PSR4 autoloader
     include_once(__DIR__. '/vendor/autoload.php');                                              // NOSONAR - intentional include_once to load composer autoload;
-
-    // CSRF
-    $PLUGIN_HOOKS[Hooks::CSRF_COMPLIANT][PLUGIN_NAME] = true;                                   // NOSONAR - GLPI default naming.
     
     // Do not show config buttons if plugin is not enabled.
     if ( $plugin->isInstalled(PLUGIN_NAME) || $plugin->isActivated(PLUGIN_NAME) ){
