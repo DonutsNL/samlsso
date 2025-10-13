@@ -171,7 +171,7 @@ class Auth
      * @throws Exception
      * @throws Error
      */
-    public function __construct(array $settings = null, bool $spValidationOnly = false)
+    public function __construct(?array $settings = null, bool $spValidationOnly = false)
     {
         $this->_settings = new Settings($settings, $spValidationOnly);
     }
@@ -220,7 +220,6 @@ class Auth
      * Process the SAML Response sent by the IdP.
      *
      * @param string|null $requestId The ID of the AuthNRequest sent by this SP to the IdP
-     * @phpstan-return ($stay is true ? string : never)
      *
      * @throws Error
      * @throws ValidationError
