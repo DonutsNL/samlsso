@@ -10,9 +10,10 @@ PRODUCTION RELEASE
 
 # Support
 Want to support my work?
-- Star my repo and contribute to my stargazer achievement. 
+- Star ⭐ my repo and contribute to my stargazer achievement. 
 - Want to do more, I just love coffee: https://www.buymeacoffee.com/donutsnl
 - Consider to donate codeberg.org to keep the open source movement going.
+- Number of downloads so far: https://hanadigital.github.io/grev/?user=DonutsNL&repo=glpisaml
 
 # Contribute, ideas and help?
 Join my (and hopefully our in the future) discord at: https://discord.gg/KyMdkqJcGz

@@ -14,6 +14,8 @@
 - Updated `samlsso.xml` with new name and repo.
 - Added strict typechecking and corrected all typing issues `declare(strict_types=1);` 
 -    @see: https://www.php.net/manual/en/language.types.declarations.php.
+
+**V1.2.0**
 - Added new bootstrap function to `setup.php` to register stateless paths.
 - Disabled generic config tab untill fully implemented.
 - Corrected typing issue in `LoginState.php:544` bool should be int.
@@ -27,6 +29,8 @@
 - Refactored the `mkzip.sh` and added it to the tools directory.
 - Upgraded onelogin/php-saml (4.2.0 => 4.3.0) to latest release
 - Fixed branding and excludes in mkzip.sh
+- Change to trigger git 
+
 
 **v1.1.11**
 - Removed the version validation from ConfigForm.php as its no longer used
