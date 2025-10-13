@@ -1,6 +1,6 @@
 <root>
-<name>samlSSO</name>
-<key>samlSSO</key>
+<name>samlsso</name>
+<key>samlsso</key>
 <state>Beta</state>
 <logo>https://github.com/DonutsNL/samlSSO/raw/branch/main/donut.png</logo>
 <description>

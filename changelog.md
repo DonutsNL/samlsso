@@ -13,7 +13,11 @@
 - Updated `samlsso.xml` with new name and repo.
 - Added strict typechecking and corrected all typing issues `declare(strict_types=1);` 
 -    @see: https://www.php.net/manual/en/language.types.declarations.php.
-
+- Added new bootstrap function to `setup.php` to register stateless paths.
+- Cleaned depr decorators from Controller.
+- Disabled generic config tab untill fully implemented.
+- Corrected typing issue in `LoginState.php:544` bool should be int.
+ 
 
 **v1.1.11**
 - Removed the version validation from ConfigForm.php as its no longer used

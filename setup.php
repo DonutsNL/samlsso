@@ -64,8 +64,18 @@ define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/plugins/'.PLUGIN_NAME.'
 
 // METHODS
 /**
- * Default GLPI Plugin Init function.
- *
+ * Default GLPI Plugin Init function./**
+ * Default GLPI Plugin bootstrap function.
+ * @param void
+ * @return void
+ * @see https://github.com/glpi-project/glpi/issues/21414
+ */
+function plugin_samlsso_boot(): void {
+        SessionManager::RegisterPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#');             // Register the assertion Service as stateless (prevent csrf checking)
+        SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/front/slo/#');             // Register the logout service as stateless (prevent csrf checking)
+}
+
+/** 
  * @param void
  * @return void
  * @see https://glpi-developer-documentation.readthedocs.io/en/master/plugins/requirements.html

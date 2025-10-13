@@ -541,7 +541,7 @@ class LoginState extends CommonDBTM
      * @return int  LoginState::SAML_RESPONSE_ID.
      * @since       1.2.0
      */
-    public function getSamlResponseId(): bool
+    public function getSamlResponseId(): int
     {
         return (!empty($this->state[LoginState::SAML_RESPONSE_ID])) ? $this->state[LoginState::SAML_RESPONSE_ID] : 0;
     }

@@ -56,8 +56,8 @@ use GlpiPlugin\Samlsso\LoginFlow\Meta;                                  // Requi
 use GlpiPlugin\Samlsso\Config\ConfigForm;                               // Required to call Config object
 use GlpiPlugin\Samlsso\Exclude;                                         // Required to call Exclude object
 use GlpiPlugin\Samlsso\RuleSaml;                                        // Required to call Rules object
-use GlpiPlugin\Samlsso\LoginState;
-use GlpiPlugin\Samlsso\LoginFlow\LoginFlowForm;
+use GlpiPlugin\Samlsso\LoginState;                                      //
+use GlpiPlugin\Samlsso\LoginFlow\LoginFlowForm;                         //
 
 
 
@@ -72,7 +72,6 @@ final class SamlSsoController extends AbstractController
 
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::ACS_ROUTE.self::ACS_PARAM, name: self::ACS_NAME)]     // Decorator to register route to controller
-    #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function acs(Request $request): Response                     // What to do if route is invoked.
     {
         return new Response((new Acs)->init($request));                 // Call the ACS handler.
@@ -83,10 +82,7 @@ final class SamlSsoController extends AbstractController
     // SLO route
     public const SLO_ROUTE      = 'front/slo';                          // Route being registered by __class__
     public const SLO_NAME       = 'samlsso_SLO';                        // Route name
- 
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
-    #[Route(self::SLO_ROUTE, name: self::SLO_NAME)]                     // Decorator to register route to controller
-    #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function slo(Request $request): Response                     // What to do if route is invoked.
     {
         global $CFG_GLPI;
@@ -102,7 +98,6 @@ final class SamlSsoController extends AbstractController
 
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::META_ROUTE.self::META_PARAM, name: self::META_NAME)]  // Decorator to register route to controller
-    #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function meta(Request $request): Response                    // What to do if route is invoked.
     {
         return (new Meta)->getSPMeta($request);                         // Call the SPMeta handler.
@@ -119,7 +114,6 @@ final class SamlSsoController extends AbstractController
     //#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::CONFIG_ROUTE, name: self::CONFIG_NAME)]               // Decorator to register route to controller
     #[Route(self::CONFIG_FILE, name: self::CONFIG_NAME.'_file')]        // Decorator to register old route to handle GLPI generated menu's
-    //#[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function config(Request $request): Response                  // What to do if route is invoked.
     {
         return new Response((new ConfigForm)->invoke($request));        // Call the form handler.
@@ -134,7 +128,6 @@ final class SamlSsoController extends AbstractController
     //#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                  // Decorator to disable authentication check
     #[Route(self::CONFIGFORM_ROUTE, name: self::CONFIGFORM_NAME)]       // Decorator to register route to controller
     #[Route(self::CONFIGFORM_FILE, name: self::CONFIGFORM_NAME.'_file')]// Decorator to register old route to handle GLPI generated menu's
-    //#[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function configform(Request $request): Response
     {
         return new Response((new ConfigForm)->invokeForm($request));    // Call the form handler.
@@ -150,7 +143,6 @@ final class SamlSsoController extends AbstractController
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::FLOWFORM_ROUTE, name: self::FLOWFORM_NAME)]           // Decorator to register route to controller
     #[Route(self::FLOWFORM_FILE, name: self::FLOWFORM_NAME.'_file')]    // Decorator to register old route to handle GLPI generated menu's
-    #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function loginflow(Request $request): Response               // What to do if route is invoked.
     {
         return new Response((new LoginFlowForm)->init($request));       // Call the ACS handler.
@@ -162,10 +154,8 @@ final class SamlSsoController extends AbstractController
     public const EXCLUDE_ROUTE = 'front/exclude';                       // Route being registered by __class__
     public const EXCLUDE_NAME  = 'excludeMain';                         // Route name
     public const EXCLUDE_PNAME = 'config';                              // Parent object name
-
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::EXCLUDE_ROUTE, name: self::EXCLUDE_NAME)]             // Decorator to register route to controller
-    #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function exclude(): Response                                 // What to do if route is invoked.
     {
         return new Response((new Exclude)->invoke());                   // Call the ACS handler.
@@ -187,15 +177,14 @@ final class SamlSsoController extends AbstractController
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::RULES_ROUTE, name: self::RULES_NAME)]                 // Decorator to register route to controller
     #[Route(self::RULES_FILE, name: self::RULES_NAME.'_file')]          // Decorator to register route to controller
-    #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function __invoke(Request $request): Response                // What to do if route is invoked.
     {
         return new Response((new RuleSaml)->invoke());                  // Call the ACS handler.
     }
+
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::RULESFORM_ROUTE, name: self::RULESFORM_NAME)]         // Decorator to register route to controller
     #[Route(self::RULESFORM_FILE, name: self::RULESFORM_NAME.'_file')]  // Decorator to register route to controller
-    #[DisableCsrfChecks()]                                              // Decorator to disable Csrf checking
     public function itemform(Request $request): Response                // What to do if route is invoked.
     {
         return new Response((new RuleSaml)->invokeForm());              // Call the ACS handler.
