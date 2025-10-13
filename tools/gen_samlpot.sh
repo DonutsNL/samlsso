@@ -3,10 +3,10 @@
 # depend of gettext
 # in debian install it via apt install gettext first.
 
-dirplugin="$HOME/GIT/glpisaml"
+dirplugin="../"
 
 
-pathGLPIenUSpo="$HOME/glpi/locales/"
+pathGLPIenUSpo="../../locales/"
 if [ ! -d "$pathGLPIenUSpo" ];then
     mkdir -p "${pathGLPIenUSpo}"
 fi

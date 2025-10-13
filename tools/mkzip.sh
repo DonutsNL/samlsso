@@ -17,12 +17,12 @@ if [ -d "$GLPIPATH" ]; then
 
 	# Remove old zipfiles
 	if [ -f "$GLPIPATH/plugins/samlsso.zip" ]; then
-		rm -y $GLPIPATH/plugins/samlsso.zip
+		rm -y $GLPIPATH/plugins/samlsso/release/samlsso.zip
 	fi
 	
 	cd $GLPIPATH;
 	if [ -d './samlsso' ]; then 
-		zip -r ./samlsso.zip ./samlsso -x "/samlsso/tools/*" "/samlsso/.gitignore" "/samlsso/.github/*" "/samlsso/.git/*" "/samlsso/releases/*" "/samlsso/composer.lock" "/samlsso/vendor/bin/*" "/samlsso/vendor/myclabs/*" "/samlsso/vendor/nikic/*" "/samlsso/vendor/phar-io/*" "/samlsso/vendor/phpunit/*" "/samlsso/vendor/sebastian/*" "/samlsso/vendor/theseer/*"
+		zip -r ./samlsso/release/samlsso.zip ./samlsso -x "/samlsso/tools/*" "/samlsso/.vscode/*" "/samlsso/.gitignore" "/samlsso/.github/*" "/samlsso/.git/*" "/samlsso/release/*" "/samlsso/composer.lock" "/samlsso/vendor/bin/*" "/samlsso/vendor/myclabs/*" "/samlsso/vendor/nikic/*" "/samlsso/vendor/phar-io/*" "/samlsso/vendor/phpunit/*" "/samlsso/vendor/sebastian/*" "/samlsso/vendor/theseer/*"
 	else
 		echo "/samlsso not found at `pwd`";
 	fi
