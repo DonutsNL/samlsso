@@ -56,7 +56,7 @@ use Plugin;
 use Session;
 use Toolbox;
 use Throwable;
-use Glpi\Http\SessionManager;
+use CommonDBTM;
 use OneLogin\Saml2\Auth as samlAuth;
 use OneLogin\Saml2\Response;
 use Glpi\Application\View\TemplateRenderer;
@@ -71,7 +71,7 @@ use GlpiPlugin\Samlsso\LoginFlow\Auth as glpiAuth;
  * main logic concerned with the Saml login and logout flows.
  * it will call upon various supporting objects to perform its tasks.
  */
-class LoginFlow
+class LoginFlow extends CommonDBTM
 {
     // Database fields
     public const ID                 =   'id';
@@ -93,6 +93,73 @@ class LoginFlow
     public const POSTFIELD   = 'samlIdpId';
     public const GETFIELD    = 'samlIdpId';
     public const SAMLBYPASS  =  'bypass';
+
+     /**
+     * Tell DBTM to keep history
+     * @var    bool     $dohistory
+     */
+    public $dohistory = true;
+
+    /**
+     * Tell CommonGLPI to use config (Setup->Setup in UI) rights.
+     * @var    string   $rightname
+     */
+    public static $rightname = 'config';
+
+    /**
+     * Overloads missing canCreate Setup right and returns canUpdate instead
+     *
+     * @return bool     Returns true if profile assigned Setup->Setup->Update right
+     * @see             https://github.com/pluginsGLPI/example/issues/50
+     */
+    public static function canCreate(): bool
+    {
+        return (bool) static::canUpdate();
+    }
+
+    /**
+     * Overloads missing canDelete Setup right and returns canUpdate instead
+     *
+     * @return bool     Returns true if profile assigned Setup->Setup->Update right
+     * @see             https://github.com/pluginsGLPI/example/issues/50
+     */
+    public static function canDelete(): bool
+    {
+        return (bool) static::canUpdate();
+    }
+
+    /**
+     * Overloads missing canPurge Setup right and returns canUpdate instead
+     *
+     * @return bool     Returns true if profile assigned Setup->Setup->Update right
+     * @see             https://github.com/pluginsGLPI/example/issues/50
+     */
+    public static function canPurge(): bool
+    {
+        return (bool) static::canUpdate();
+    }
+
+    /**
+     * returns class friendly TypeName.
+     *
+     * @param  int      $nb return plural or singular friendly name.
+     * @return string   returns translated friendly name.
+     */
+    public static function getTypeName($nb = 0): string
+    {
+        return __('samlFlow', PLUGIN_NAME);
+    }
+
+    /**
+     * Returns class icon to use in menus and tabs
+     *
+     * @return string   returns Font Awesome icon className.
+     * @see             https://fontawesome.com/search
+     */
+    public static function getIcon(): string
+    {
+        return 'fa-fw fas fa-sign-in-alt';
+    }
 
     // LOGIN FLOW AFTER PRESSING A IDP BUTTON.
     /**
@@ -184,11 +251,11 @@ class LoginFlow
             $_POST[LoginFlow::POSTFIELD] = Config::getIsOnlyOneConfig();
         }
 
-
+        // https://github.com/DonutsNL/samlsso/issues/12 add typecast.
         // Check if a SAML button was pressed and handle the corresponding logon request!
-        if (isset($_POST[LoginFlow::POSTFIELD])         &&      // Must be set
-            is_numeric($_POST[LoginFlow::POSTFIELD])    &&      // Value must be numeric
-            strlen($_POST[LoginFlow::POSTFIELD]) < 3    ){      // Should not exceed 999
+        if (isset($_POST[LoginFlow::POSTFIELD])                  &&      // Must be set
+            is_numeric($_POST[LoginFlow::POSTFIELD])             &&      // Value must be numeric
+            strlen((string) $_POST[LoginFlow::POSTFIELD]) < 3    ){      // Should not exceed 999
             $state->addLoginFlowTrace(['finalIdp' => 'idpId:'.$_POST[LoginFlow::POSTFIELD]]);
             // If we know the idp we register it in the login State
             // the input is validated as is_numeric. Floats will be truncated by

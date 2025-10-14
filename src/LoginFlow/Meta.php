@@ -53,14 +53,14 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  *  Responsible to handle any requests for Metadata.
- *  invoked by the MetaController. 
+ *  invoked by the MetaController.
  */
 class Meta
 {
     public const STAG  = '<xml><error>';                                            // Prevent repetition
     public const ETAG  = '</error></xml>';                                          // Prevent repetition
 
-    public final function getSPMeta(Request $request): Response
+    final public function getSPMeta(Request $request): Response
     {
 
         $id = (filter_var($request->get('idpId'), FILTER_VALIDATE_INT)) ?           // Did we get a valid ID?

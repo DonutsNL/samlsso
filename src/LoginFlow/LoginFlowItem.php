@@ -160,7 +160,7 @@ class LoginFlowItem    //NOSONAR
         if(empty($var)){ $var = '0'; }
 
         return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Allow the ?idpId=[val] URI to pre select IDP from URLs', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('ENABLE DOMAIN BASED SSO', PLUGIN_NAME),
+                            LoginFlowItem::FORMTITLE     => __('Enable getter login', PLUGIN_NAME),
                             LoginFlowItem::FIELD         => __function__,
                             LoginFlowItem::VALIDATOR     => __method__,],
                             LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEIDPGETTER));
@@ -182,7 +182,7 @@ class LoginFlowItem    //NOSONAR
         if(empty($var)){ $var = '0'; }
 
         return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Hides Saml Buttons. This option cannot be used together with the Hide GLPI login.', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('ENABLE DOMAIN BASED SSO', PLUGIN_NAME),
+                            LoginFlowItem::FORMTITLE     => __('Hide Saml Buttons', PLUGIN_NAME),
                             LoginFlowItem::FIELD         => __function__,
                             LoginFlowItem::VALIDATOR     => __method__,],
                             LoginFlowItem::handleAsBool($var, LoginFlowEntity::HIDEBUTTONS));
@@ -199,7 +199,7 @@ class LoginFlowItem    //NOSONAR
                             LoginFlowItem::handleAsBool($var, LoginFlowEntity::HIDEPASSWORD));
     }
 
-    protected function apply2RulesOnAuth(mixed $var): array
+    protected function reApplyRulesOnAuth(mixed $var): array
     {
         if(empty($var)){ $var = '0'; }
 
@@ -209,18 +209,6 @@ class LoginFlowItem    //NOSONAR
                             LoginFlowItem::VALIDATOR     => __method__,],
                             LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEDOMAIN));
     }
-
-    protected function apply3RulesOnAuth(mixed $var): array
-    {
-        if(empty($var)){ $var = '0'; }
-
-        return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Forces samlSSO to (re)apply the rules on each succesfull auth.', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('APPLY RULES ON AUTH', PLUGIN_NAME),
-                            LoginFlowItem::FIELD         => __function__,
-                            LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEDOMAIN));
-    }
-
 
     // Make sure we always return the correct boolean datatype.
     protected function handleAsBool(mixed $var, $field = null): array

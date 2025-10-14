@@ -66,11 +66,10 @@ class LoginFlowForm    //NOSONAR complexity by design.
      */
     public function init(): void
     {
-        Html::header(__('Identity providers'), 
+        Html::header(__('Identity providers'),
                      SamlSsoController::FLOWFORM_ROUTE,
-                     SamlSsoController::FLOWFORM_PNAME, 
+                     SamlSsoController::FLOWFORM_PNAME,
                      LoginFlow::class);
-
         Search::show(LoginFlow::class);
     }
 
@@ -99,13 +98,11 @@ class LoginFlowForm    //NOSONAR complexity by design.
                 $config->update($fields) ){
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_FLOW_FORM.'?id='.$postData['id']);
-                return ''; // Unreachable return but prevents PHP0405-no return linting error.
+                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::FLOWFORM_ROUTE.'/'.$postData['id']);
             } else {
                 // Leave a failed message
                 Session::addMessageAfterRedirect(__('Configuration update failed, check your update rights or error logging', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.PLUGIN_SAMLSSO_FLOW_FORM.'?id='.$postData['id']); 
-                return ''; // Unreachable return but prevents PHP0405-no return linting error.
+                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::FLOWFORM_ROUTE.'/'.$postData['id']);
             }
         }else{
             // Leave an error message and reload the form with provided values and errors
@@ -144,10 +141,10 @@ class LoginFlowForm    //NOSONAR complexity by design.
      * @since                               1.0.0
      * @see https://codeberg.org/QuinQuies/glpisaml/issues/17
      */
-    private function generateForm(LoginFlowEntity $LoginFlowEntity)
+    private function generateForm(LoginFlowEntity $loginFlowEntity)
     {
         global $CFG_GLPI;
-        $fields = $LoginFlowEntity->getFields();
+        $fields = $loginFlowEntity->getFields();
         // Get warnings tabs
         $tplVars  = [];
        

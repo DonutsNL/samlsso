@@ -123,7 +123,8 @@ function plugin_init_samlsso() : void                                           
 function plugin_version_samlsso() : array                                                      // NOSONAR - GLPI default naming.
 {
     return [
-        'name'           => 'samlSSO',
+        'name'           => 'samlsso',
+        'oldname'        => 'glpisaml',
         'version'        => PLUGIN_SAMLSSO_VERSION,
         'author'         => 'Chris Gralike',
         'license'        => 'GPLv3',

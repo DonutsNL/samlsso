@@ -394,9 +394,7 @@ class User
                                       var_export($response, true));
         }
 
-        /* @TODO: Dont forget! */
-        // getAttribute should return an array or throw an error
-        // showLoginError enforces a hard exit.
+        // getAttributes might throw an error causing a white screen.
         // https://github.com/DonutsNL/samlsso/issues/3
         try {
            $claims = $response->getAttributes();
