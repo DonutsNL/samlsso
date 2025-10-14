@@ -45,17 +45,17 @@
 namespace GlpiPlugin\Samlsso\Controller;
 
 use Glpi\Http\Firewall;                                                 // Required to allow anonymous access to ACS route
-use Glpi\Controller\AbstractController;                                 // The controller 
+use Glpi\Controller\AbstractController;                                 // The controller
 use Glpi\Security\Attribute\SecurityStrategy;                           // Required to decorate the invoke
 use Symfony\Component\HttpFoundation\Request;                           // Required for __invoke
 use Symfony\Component\HttpFoundation\Response;                          // Required for __invoke
 use Symfony\Component\Routing\Attribute\Route;                          // Required to register controller route
-use GlpiPlugin\Samlsso\LoginFlow\Acs;                                   // Required to call the ACS object
-use GlpiPlugin\Samlsso\LoginFlow\Meta;                                  // Required to call Exclude object
-use GlpiPlugin\Samlsso\Config\ConfigForm;                               // Required to call Config object
 use GlpiPlugin\Samlsso\Exclude;                                         // Required to call Exclude object
 use GlpiPlugin\Samlsso\RuleSaml;                                        // Required to call Rules object
 use GlpiPlugin\Samlsso\LoginState;                                      //
+use GlpiPlugin\Samlsso\LoginFlow\Acs;                                   // Required to call the ACS object
+use GlpiPlugin\Samlsso\LoginFlow\Meta;                                  // Required to call Exclude object
+use GlpiPlugin\Samlsso\Config\ConfigForm;                               // Required to call Config object
 use GlpiPlugin\Samlsso\LoginFlow\LoginFlowForm;                         //
 
 final class SamlSsoController extends AbstractController
@@ -125,7 +125,7 @@ final class SamlSsoController extends AbstractController
     #[Route(self::CONFIGFORM_FILE, name: self::CONFIGFORM_NAME.'_file')]// Decorator to register old route to handle GLPI generated menu's
     public function configform(Request $request): Response
     {
-        return new Response((new ConfigForm)->invokeForm($request));    // Call the form handler.
+        return (new ConfigForm)->invokeForm($request);
     }
 
 

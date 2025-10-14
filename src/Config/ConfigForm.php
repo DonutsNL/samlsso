@@ -40,7 +40,6 @@ declare(strict_types=1);
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
  *  @since      1.0.0
- *  @todo       Loose the \ArrayItterator and cast those to Array.
  * ------------------------------------------------------------------------
  **/
 
@@ -55,7 +54,7 @@ use GlpiPlugin\Samlsso\LoginState;
 use Glpi\Application\View\TemplateRenderer;
 use OneLogin\Saml2\Constants as Saml2Const;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;     
+use Symfony\Component\HttpFoundation\Response;
 use GlpiPlugin\Samlsso\Controller\SamlSsoController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 
@@ -72,7 +71,7 @@ class ConfigForm    //NOSONAR complexity by design.
      * @return string   String containing HTML form with values or redirect into added form.
      */
     public function invoke(Request $request){
-        $this->displayHeader();
+        $this->displayUIHeader();
         Search::show(Config::class);
     }
 
@@ -81,7 +80,7 @@ class ConfigForm    //NOSONAR complexity by design.
      * configuration item requested from the listing.
      *
      * @param array     $postData $_POST data from form
-     * @return string   String containing HTML form with values or redirect into added form.
+     * @return Response|RedirectResponse   String containing HTML form with values or redirect into added form.
      */
     public function invokeForm(Request $request): Response|RedirectResponse
     {
@@ -96,13 +95,13 @@ class ConfigForm    //NOSONAR complexity by design.
         if( !$inputBag->has('update')     &&
             !$inputBag->has('delete')     ){                                    // IF the update is empy load a given template for initial form.
 
-            $this->displayHeader();
+            $this->displayUIHeader();
             return $this->showForm($id, $options);                              // Return the form
     
         // Add new item
         }elseif($inputBag->has('update')  &&                                    // IF we received an update
                 $id == -1                 ){                                    // AND ID param is empty
-            $this->displayHeader();
+            $this->displayUIHeader();
             return $this->addSamlConfig($inputBag->getIterator());              // Call Create handler
 
         // Update an item
@@ -115,7 +114,7 @@ class ConfigForm    //NOSONAR complexity by design.
                 $id > 0                   ){                                    // AND $id is higer then 0
            return $this->deleteSamlConfig($inputBag->getIterator());
         }else{
-            $this->displayHeader();
+            $this->displayUIHeader();
             return new Response('No valid instructions received');
         }
     }
@@ -128,11 +127,11 @@ class ConfigForm    //NOSONAR complexity by design.
      * @param void
      * @return void
      */
-    private function displayHeader()
+    private function displayUIHeader()
     {
         Html::header(Config::getTypeName().' entities',                         // Title for browser tab
                      SamlSsoController::CONFIG_ROUTE,
-                     SamlSsoController::CONFIG_PNAME, 
+                     SamlSsoController::CONFIG_PNAME,
                      Config::class);
     }
 
@@ -158,7 +157,6 @@ class ConfigForm    //NOSONAR complexity by design.
                 // Leave succes message for user and redirect
                 Session::addMessageAfterRedirect(__('Successfully added new samlSSO configuration.', PLUGIN_NAME));
                 return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$id);
-                //Html::redirect(PLUGIN_SAMLSSO_WEBDIR."/front/config.form.php?id=$id");
             } else {
                 // Leave error message for user and regenerate form with values
                 Session::addMessageAfterRedirect(__('Unable to add new samlSSO configuration, please review error logging', PLUGIN_NAME));

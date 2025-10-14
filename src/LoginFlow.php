@@ -370,7 +370,7 @@ class LoginFlow extends CommonDBTM
         // Populate Glpi session with the Auth object
         // so GLPI knows we logged in succesfully
         Session::init($auth);
-        
+
         // Restore the saved redirect location
         // https://github.com/DonutsNL/glpisaml/issues/22
         if(!empty($state->getRedirect())){

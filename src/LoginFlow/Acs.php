@@ -63,7 +63,7 @@ use Symfony\Component\HttpFoundation\Request;
  * This class is intended to be very unforgivable given its the vulnerable nature
  * of the samlResponse assertion while providing enough logging for the administrator
  * to figure out whats going on and how to resolve or prevent issues.
- * 
+ *
  * Invoked by the AcsController
  */
 class Acs extends LoginFlow

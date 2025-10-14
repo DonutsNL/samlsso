@@ -236,7 +236,6 @@ class LoginState extends CommonDBTM
             // SAML_UNSOLICITED is not set during the initial fetch by the acs
             // so if the SAML_UNSOLICITED is null and $samlInResponseTo
             // is not we are dealing with an unsolicited auth and want to update the field accordingly.
-            // var_dump($this->state);
             if(($this->state[LoginState::SAML_UNSOLICITED] === null) &&
                 $samlInResponseTo                                    ){
                 $this->state = array_merge($this->state, [LoginState::SAML_UNSOLICITED  => '1']);
