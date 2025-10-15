@@ -83,6 +83,7 @@ function plugin_samlsso_boot(): void {
  */
 function plugin_init_samlsso() : void                                                           // NOSONAR - GLPI default naming
 {
+
     global $PLUGIN_HOOKS;                                                                       // NOSONAR - GLPI default naming. 
     $plugin = new Plugin();
 
@@ -162,6 +163,23 @@ function plugin_samlsso_check_prerequisites() : bool                            
         echo 'Please make sure php-xml is installed and loaded!<br>';
         return false;
     }
+
+    // Add additional cookie validation because this is known to be
+    // faulty in many installations resulting in Session Timeout issues
+    // recognisable by the &error=3 in the redirect URL.
+    // https://github.com/DonutsNL/samlsso/issues/13
+    if(ini_get('session.cookie_secure') == 1   ||
+       !ini_get('session.cookie_httponly') == 1 ||
+       ini_get('session.cookie_samesite') == 0  ){
+        echo "PHP is configured with the following Cookie settings.";
+        echo "session.cookie_secure = ".ini_get('session.cookie_secure')."<br>";
+        echo "session.cookie_httponly = ".ini_get('session.cookie_httponly')."<br>";
+        echo "session.cookie_samesite =".ini_get('session.cookie_samesite')."<br>";
+        echo "These settings are <b>not aligned</b> with GLPI prerequisites. Please
+              correct them as described <a href='https://glpi-install.readthedocs.io/en/latest/prerequisites.html#security-configuration-for-sessions'>
+              in the GLPI Documentation</a>. SAML and GLPI redirects might not work correctly.";
+    }
+
     return true;
 }
 

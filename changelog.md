@@ -1,3 +1,8 @@
+**V1.2.2**
+- Corrected a router bug that caused the http header bag and response objects to be called with __toString()
+- Added an additional Prerequisites check to validate the php cookie settings and block install if they are not correct (issue 13).
+- Corrected small linting issues in the src files.
+
 **V1.2.1**
 - Added new bootstrap function to `setup.php` to register stateless paths.
 - Disabled generic config tab untill fully implemented.
