@@ -218,12 +218,13 @@ class LoginFlow extends CommonDBTM
 
         // CAPTURE LOGIN FIELD
         // https://codeberg.org/QuinQuies/glpisaml/issues/3
+        // https://github.com/DonutsNL/samlsso/issues/16
         // Capture the post of regular login and verify if the provided domain is SSO enabled.
         // by evaluating the domain portion against the configured user domains.
         // we need to iterate through the keys because of the added csrf token i.e.
         // [fielda[csrf_token]] = value.
         foreach($_POST as $key => $value){
-            if(strstr($key, 'fielda')                               &&                                      // Test keys if fielda[token] is present in the POST.
+            if(strstr($key, 'login_name')                           &&                                      // Test keys if fielda[token] is present in the POST.
                !empty($_POST[$key])                                 &&                                      // Test if fielda actually has a value we can process
                $id = Config::getConfigIdByEmailDomain($_POST[$key]) ){                                      // If all is true try to find an matching idp id.
                 $state->addLoginFlowTrace(['loginViaUserfield' => 'user:'.$_POST[$key].',idpId:'.$id]);     // Register the userfield was used with user

@@ -2,6 +2,7 @@
 - Corrected a router bug that caused the http header bag and response objects to be called with __toString()
 - Added an additional Prerequisites check to validate the php cookie settings and block install if they are not correct (issue 13).
 - Corrected small linting issues in the src files.
+- Corrected the `login_name` field in the `LoginFlow.php` file to capture the login domains. (issue 16). 
 
 **V1.2.1**
 - Added new bootstrap function to `setup.php` to register stateless paths.
