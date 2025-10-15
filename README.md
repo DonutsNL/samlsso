@@ -1,6 +1,9 @@
 # samlSSO
 This plugin is a full rewrite by Chris Gralike of Derrick Smith's initial PHPSAML plugin for GLPI. This plugin has evolved quit a bit sinds then and is fully redesigned and rewritten to be compatible with GLPI11. It now support multiple saml idp's, it implement's user right rules and more. The plugin is fully configurable from the GLPI UI and doesnt require any coding skills. It uses GLPI core components where possible for maximum compatibility and maintainability. It implements composer for quick 3rd party library updates if security issue's requires it. It follows the PSR best-practices where possible. And most importantly it is written with a security-by-design-by-default approach in mind to help you visually identify security issues where possible.
 
+## Feedback
+Im very interrested in your challanges and ideas. Want to contribute those? Look for issues with the label 'Public feedback wanted' or create a FB issue yourself. Love to engage with you guys!
+
 ## Documentation
 * Officially supported by Teclib: https://glpi-plugins.readthedocs.io/en/latest/saml/requirements.html
 * Further documentation see wiki: https://github.com/DonutsNL/samlsso/wiki.
