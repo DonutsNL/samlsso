@@ -392,6 +392,20 @@ class LoginFlow extends CommonDBTM
      */
     public function showLoginScreen(): void
     {
+        // Validate if we need to hide login fields?
+        if(Config::getHideLoginFields()){
+            echo '<style>
+                   .card-body div.mb-4:has(#login_password) {
+                        display: none;
+                    }
+                    .card-body div.mb-3:has([id^="dropdown_auth"]){
+                        display:none;
+                    }
+                    .card-body div.mb-2:has(#login_remember){
+                        display:none;
+                    }
+                  </style>';
+        }
         
         $tplVars = Config::getLoginButtons(12);         // Fetch the global DB object;
         if(!empty($tplVars)){                           // Only show the interface if we have buttons to show.

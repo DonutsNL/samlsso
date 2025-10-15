@@ -1,9 +1,9 @@
 <?php return array(
     'root' => array(
         'name' => 'donutsnl/glpisaml',
-        'pretty_version' => '1.2.0.x-dev',
-        'version' => '1.2.0.9999999-dev',
-        'reference' => '900af6a78053d99c984e27a0ae4614df600d5177',
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => 'dd98175b4ed741496f49ca78bfa4de527140cc0c',
         'type' => 'glpi-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -11,9 +11,9 @@
     ),
     'versions' => array(
         'donutsnl/glpisaml' => array(
-            'pretty_version' => '1.2.0.x-dev',
-            'version' => '1.2.0.9999999-dev',
-            'reference' => '900af6a78053d99c984e27a0ae4614df600d5177',
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => 'dd98175b4ed741496f49ca78bfa4de527140cc0c',
             'type' => 'glpi-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
