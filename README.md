@@ -16,8 +16,12 @@ Im very interrested in your challanges and ideas. Want to contribute those? Look
 * Add SCIM capabilities
 * Optimize the state table and functionality for SIEM monitoring and security manipulation (remote logout, lockout)
 
-## Support
-Want to support my work?
+## Support - Building awareness
+- 4000+ downloads and counting.
+- Hours spent maintaining and supporting glpisaml/samlsso for the past 3 years,  +1000h and counting, cofees received ytd: 29, hourly compensation for efforts: €0,145. 
+- Im not in the begging for money spot, but I do want to build some awareness about the OSS challange. Consider to support the OSS projects you are using and making money off like GLPI. Building quality software is time consuming and expensive!
+
+## Want to support my work?
 - Star ⭐ my repo and contribute to my stargazer achievement. 
 - Want to do more, I just love coffee: https://www.buymeacoffee.com/donutsnl
 - Consider to donate codeberg.org to keep the open source movement going.
