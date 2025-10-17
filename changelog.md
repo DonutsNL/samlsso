@@ -6,6 +6,7 @@
 - Added `Config::getHideLoginFields()` if domain based idp selection is used.
 - Added CSS to `LoginFlow::showLoginScreen()` to hide the password, source and rememeber fields when domain based auth is used and buttons are hidden.
 - Implemented the `?bypass=1` getter to bypass the hidden fields and enforcement.
+- Fixed the logo url being incorrect.
 
 
 **V1.2.1**

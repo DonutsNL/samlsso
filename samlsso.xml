@@ -2,7 +2,7 @@
 <name>samlsso</name>
 <key>samlsso</key>
 <state>test-release</state>
-<logo>https://github.com/DonutsNL/samlsso/raw/branch/main/templates/images/quinquies.jpeg</logo>
+<logo>https://github.com/DonutsNL/samlsso/blob/main/templates/images/quinquies.jpeg</logo>
 <description>
     <short>
         <en>Samlsso enables you to configure SAML2 authentication with an external IdP like Azure or Google to enable Single Sign On.</en>
