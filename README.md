@@ -24,8 +24,7 @@ Im very interrested in your challanges and ideas. Want to contribute those? Look
 ## Want to support my work?
 - Star ⭐ my repo and contribute to my stargazer achievement. 
 - Want to do more, I just love coffee: https://www.buymeacoffee.com/donutsnl
-- Consider to donate codeberg.org to keep the open source movement going.
-- Number of downloads so far: https://hanadigital.github.io/grev/?user=DonutsNL&repo=samlsso
+- Consider to donate codeberg.org to keep Europe's open source movement going.
 
 ## Contribute, or learn to code yourself?
 Join my (and hopefully our in the future) discord at: https://discord.gg/KyMdkqJcGz
@@ -47,3 +46,4 @@ Special credits go to:
 - @MikeDevresse for providing fixes to the codebase.
 - @dollierp for adding a nice state table clean task
 - @CTparental for working on translations (not sure where we are at with that).
+- Number of downloads so far: https://hanadigital.github.io/grev/?user=DonutsNL&repo=samlsso (not counting codeberg downloads +3K)
