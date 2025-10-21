@@ -470,7 +470,9 @@ class LoginFlow extends CommonDBTM
         global $CFG_GLPI;
         // Define static translatable elements
         $tplVars['header']      = __('⚠️ we are unable to log you in', PLUGIN_NAME);
-        $tplVars['error']       = htmlentities($errorMsg);
+        // https://github.com/DonutsNL/samlsso/issues/21
+        // Typecast might break if the passed object doesnt have a __toString() magic method.
+        $tplVars['error']       = htmlentities((string) $errorMsg); 
         $tplVars['returnPath']  = $CFG_GLPI["root_doc"] .'/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
         // print header
