@@ -152,6 +152,8 @@ class ConfigItem    //NOSONAR
            (!array_key_exists('subject', $certificate))      ){
 
             $e = __('⭕ Provided certificate does not like look a valid (base64 encoded) certificate', PLUGIN_NAME);
+        }else{
+            $certificate = '';
         }
         return [ConfigItem::FORMEXPLAIN => __('The base64 encoded x509 service provider certificate. Used to sign and encrypt
                                          messages send by the service provider to the identity provider. Required for most

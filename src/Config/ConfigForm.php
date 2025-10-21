@@ -202,6 +202,7 @@ class ConfigForm    //NOSONAR complexity by design.
         }else{
             // Leave an error message and reload the form with provided values and errors
             Session::addMessageAfterRedirect(__('Configuration invalid please correct all ⭕ errors first', PLUGIN_NAME));
+            $this->displayUIHeader();
             return new Response($this->generateForm($configEntity));
         }
     }
@@ -325,7 +326,7 @@ class ConfigForm    //NOSONAR complexity by design.
         // get the logging entries, but only if the object already exists
         // https://codeberg.org/QuinQuies/glpisaml/issues/15#issuecomment-1785284
         if(is_numeric($fields[ConfigEntity::ID]['value'])){
-            $logging = LoginState::getLoggingEntries($fields[ConfigEntity::ID]['value']);
+            $logging = LoginState::getLoggingEntries((int) $fields[ConfigEntity::ID]['value']);
         }else{
             $logging = [];
         }
