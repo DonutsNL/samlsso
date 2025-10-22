@@ -19,7 +19,7 @@ Im very interrested in your challanges and ideas. Want to contribute those? Look
 ## Building some awareness about the OSS funding gap.
 - 4000+ downloads and counting.
 - Hours spent maintaining and supporting glpisaml/samlsso for the past 3 years,  +1000h and counting, coffees received ytd: 29, hourly compensation for efforts: €0,145. 
-- Im not in the begging for money business, but I do want to build some awareness about the OSS funding gab problem. Be honost about the benefits and consider to support the OSS projects you are using and making money off like GLPI. Building quality software is time consuming and expensive!
+- Im not in the begging for money business, but I do want to build some awareness about the OSS funding gap problem. Be honost about the benefits and consider to support the OSS projects you are using and making money off like GLPI. Building quality software is time consuming and expensive!
 
 ## Want to support my work?
 - Star ⭐ my repo and contribute to my stargazer achievement. 
