@@ -11,6 +11,13 @@
 - Added logic for the logout functionality.
 - Added logout template.
 - Fixed bypass logic making sure no loops occur.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/27 with undefined tabs in twig.
+- Fixed issue with state database not aligning state entries correctly after ACS redirect.
+- Added logic for logout function https://github.com/DonutsNL/samlsso/issues/26
+- Removed old, double init logic in state object.
+- Fully Refined the state objects logic to prevent duplicate entries
+- Implemented 'logout' catching mechanism that allows user to log out everywhere if desired.
+- Added custom exceptions for saml State object not catched by design.
 
 
 **V1.2.1**

@@ -91,7 +91,8 @@ class LoginFlow extends CommonDBTM
     // https://codeberg.org/QuinQuies/glpisaml/issues/37
     public const POSTFIELD   = 'samlIdpId';
     public const GETFIELD    = 'samlIdpId';
-    public const SAMLBYPASS  =  'bypass';
+    public const SAMLBYPASS  = 'bypass';
+    public const SLOLOGOUT   = 'sloLogout';
 
      /**
      * Tell DBTM to keep history
@@ -180,28 +181,57 @@ class LoginFlow extends CommonDBTM
             return;
         }
 
+        // Get current state this can either be an initial state (new session) or
+        // an existing one. The state properties tell which one we are dealing with.
+        if($state = new Loginstate()){
+            // We need to check if this is the initial state, if so we write it to database.
+            // This logic cant be part of the objects logic because its reinitialized by the
+            // CommonDBTM object causing the sessions to be duplicated. This should also be
+            // the only place where we call the writeState() method.
+            // https://github.com/DonutsNL/samlsso/issues/26
+            if($state->getStateId() == -1                              &&
+              (strpos($_SERVER['REQUEST_URI'], 'front/acs') === false) ){
+                // Dont write anything if we are in the middle of an ACS request statelessly
+                // This logic is always called by the GLPI hook this could or should also
+                // be an exclusion but this is safer.
+                    $state->writeState();
+            }
+        }else{
+            $this->printError(__('Could not load loginState', PLUGIN_NAME));
+        }
+
+        // LOGOUT PRESSED?
+        // https://codeberg.org/QuinQuies/glpisaml/issues/18
+        if ( isset($_SERVER['REQUEST_URI']) && ( strpos($_SERVER['REQUEST_URI'], 'front/logout.php') !== false) ){
+            // Stop GLPI from processing cookie based auto login.
+            $state->addLoginFlowTrace(['logoutPressed' => true]);
+            $this->performLogOff();
+            // If we reach this then GLPI should handle the logoff not us.
+            return;
+        }
+
+        // Perform SLO logout with idp
+        if(isset($_GET[self::SLOLOGOUT])){
+            // If call was performed by performLogOff()
+            // Session is allready destroyed and we can continue here.
+            if($configEntity = new ConfigEntity($state->getIdpId())){
+                // Load the samlAuth object.
+                $samlAuth = new samlAuth($configEntity->getPhpSamlConfig());
+                // Get the (signed) logout url.
+                $sloUrl = $samlAuth->logout();
+                header('location:'.$sloUrl);
+                exit;
+            }// no linked entity ignore silently
+        }
+
         // Do nothing if glpi is trying to impersonate someone
         // Let GLPI handle auth in this scenario
         // https://codeberg.org/QuinQuies/glpisaml/issues/159
         if(isset($_POST['impersonate']) &&
            $_POST['impersonate'] == '1' &&
            !empty($_POST['id'])         ){
+                $state->addLoginFlowTrace(['Impersonated someone' => true]);
                 return;
-        }
-
-        // Get current state this can either be an initial state (new session) or
-        // an existing one. The state properties tell which one we are dealing with.
-        if(!$state = new Loginstate()){
-            $this->printError(__('Could not load loginState', PLUGIN_NAME));
-        }
-
-         // LOGOUT PRESSED?
-        // https://codeberg.org/QuinQuies/glpisaml/issues/18
-        if ( isset($_SERVER['REQUEST_URI']) && ( strpos($_SERVER['REQUEST_URI'], 'front/logout.php') !== false) ){
-            // Stop GLPI from processing cookie based auto login.
-            $_SESSION['noAUTO'] = 1;
-            $state->addLoginFlowTrace(['logoutPressed' => true]);
-            $this->performLogOff();
         }
 
         // BYPASS SAML ENFORCE OPTION
@@ -339,13 +369,12 @@ class LoginFlow extends CommonDBTM
      * with the response, for instance important claims are missing.
      *
      * @param   Response    SamlResponse from Acs.
+     * @param   LoginState  The correct state loaded with the samlRequestId passed by ACS
      * @return  void
      * @since               1.0.0
      */
-    protected function performSamlLogin(Response $response): void
+    protected function performSamlLogin(Response $response, LoginState $state): void
     {
-        global $CFG_GLPI;
-
         // Validate samlResponse and returns provided Saml attributes (claims).
         // validation will print and exit on errors because user information is required.
         $userFields = User::getUserInputFieldsFromSamlClaim($response);
@@ -357,9 +386,6 @@ class LoginFlow extends CommonDBTM
             $this->printError($e->getMessage(), 'doSamlLogin');
         }
 
-        // Update the current state
-        if(!$state = new Loginstate()){ $this->printError(__('Could not load loginState from database!', PLUGIN_NAME)); }
-        // Indicate we accepted the SAMLResponse for auth.
         $state->setSamlAuthTrue();
 
         ///// Build response and make session statefull.
@@ -394,53 +420,34 @@ class LoginFlow extends CommonDBTM
         // Update the loginState
         if(!$state = new Loginstate()){ $this->printError(__('Could not load loginState from database!', PLUGIN_NAME)); }
        
-
         // Get IdpConfiguration if any and figure out if we
         // need to handle some sort of logout at the IDP or
         // just ignore the logout request and let GLPI handle it.
         if($configEntity = new ConfigEntity($state->getIdpId())){
-            if($sloUrl = $configEntity->getField(ConfigEntity::IDP_SLO_URL)){
-                echo "<pre>";
-                //var_dump($state);
-                //exit;
-                //header('location:'.$CFG_GLPI["url_base"]);
+            if($configEntity->getField(ConfigEntity::IDP_SLO_URL)){
                 $state->setPhase(LoginState::PHASE_LOGOFF);
-
-                // Invalidate GLPI session (needs review)
-                $validId   = @$_SESSION['valid_id'];
-                $cookieKey = array_search($validId, $_COOKIE);
-                Session::destroy();
-                
-                //Remove cookie?
-                $cookiePath = ini_get('session.cookie_path');
-                if (isset($_COOKIE[$cookieKey])) {
-                setcookie($cookieKey, '', time() - 3600, $cookiePath);
-                unset($_COOKIE[$cookieKey]);
-                }
-
-                
-                    
-
-                // If required perform IDP logout as well
-                // Future feature.
-                // https://codeberg.org/QuinQuies/glpisaml/issues/1
+                Session::cleanOnLogout();
                 
                 // Define static translatable elements
-                $tplVars['header']      = __('⚠️ Are you sure you want to logout?', PLUGIN_NAME);
-                $tplVars['returnPath']  = $CFG_GLPI["url_base"] .'/';
-                $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
+                $tplVars = [
+                        'header'        => __('⚠️ Are you sure?', PLUGIN_NAME),
+                        'idpName'       => $configEntity->getField(ConfigEntity::NAME),
+                        'returnLabel'   => __('Continue GLPI logout', PLUGIN_NAME),
+                        'returnPath'    => $CFG_GLPI["url_base"] .'/',
+                        'sloLabel'      => __('Log out everywhere', PLUGIN_NAME),
+                        'sloPath'       =>  $CFG_GLPI["url_base"] .'/?'.self::SLOLOGOUT.'=1',
+                ];
+                
                 // print header
-                Html::nullHeader("Login",  $CFG_GLPI["url_base"] . '/');
+                Html::nullHeader("SamlSSO Logout catcher", '/');
                 // Render twig template
                 // https://codeberg.org/QuinQuies/glpisaml/issues/12
                 echo TemplateRenderer::getInstance()->render('@samlsso/logout.html.twig',  $tplVars);
                 // print footer
                 Html::nullFooter();
-                // This function always needs to exit to prevent accidental
-                // login with disabled or deleted users!
-                
-            }
-        }
+                exit;
+            }// If we have no valid SLO url, dont offer the option.
+        }// If we dont have a valid Entity linked silently ignore GLPI should handle the request not us.
     }
 
 

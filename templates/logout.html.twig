@@ -1,13 +1,17 @@
-<!-- implemented in Loginflow->showLoginScreen(void): string -->
+<!-- implemented in Loginflow->performLogOff() -->
 <div>
     <div class="jumbotron">
         <h1 class="display-4">{{ header|striptags }}</h1>
         <hr class="my-4">
         <div class="alert alert-warning" role="alert">
-            <p>{{ error|striptags }}</p>
+            <p>You have been authenticated using the SAML2 identity provider: <b>{{idpName}}</b>.<br><br><font color="red">If this authenitcation method is enforced 
+               you will be logged back into GLPI automatically using the IDP authenticated session.</font><br><br> You can log out permanently by also logging out 
+               with the IDP by pressing the button <b>'Log out everywhere'</b> or continue the local logout by pressing <b>'Continue'</b>. 
+               Be warned selecting 'log out everywhere' will log you out with the IDP and all applications depending on it.</p>
         </div>
         <p class="lead">
             <a class="btn btn-primary" href="{{ returnPath|striptags }}" target="_self">{{ returnLabel|striptags }}</a>
+            <a class="btn btn-red" style="float:right;" href="{{ sloPath|striptags }}" target="_self">{{ sloLabel|striptags }}</a>
         </p>
       </div>
 </div>

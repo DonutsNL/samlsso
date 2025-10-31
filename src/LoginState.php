@@ -53,11 +53,10 @@ declare(strict_types=1);
 namespace GlpiPlugin\Samlsso;
 
 use Session;
-use Throwable;
 use Migration;
-use Exception;
 use CommonDBTM;
 use DBConnection;
+use GlpiPlugin\Samlsso\Exception\LoginStateException;
 
 /*
  * The goal of this object is to keep track of the login state in the database.
@@ -68,6 +67,7 @@ use DBConnection;
 class LoginState extends CommonDBTM
 {
     // CLASS CONSTANTS
+    private static $instance                = null;               // Make class singleton!
     public const SESSION_GLPI_NAME_ACCESSOR = 'glpiname';       // NULL -> Populated with user->name in Session::class:128 after GLPI login->init;
     public const SESSION_VALID_ID_ACCESSOR  = 'valid_id';       // NULL -> Populated with session_id() in Session::class:107 after GLPI login;
     public const STATE_ID                   = 'id';             // State identifier
@@ -99,7 +99,6 @@ class LoginState extends CommonDBTM
     public const PHASE_FORCE_LOG            = 6;                // Session forced logged off
     public const PHASE_TIMED_OUT            = 7;                // Session Timed out
     public const PHASE_LOGOFF               = 8;                // Session was logged off
-
     private $state = [];                                        // Stores the stateValues;
 
     /**
@@ -119,25 +118,20 @@ class LoginState extends CommonDBTM
      */
     public function __construct(string $samlInResponseTo = '')
     {
-        // Get the state
+        // Get the state if any.
         $this->getState($samlInResponseTo);
-
-        // Write/update the state to database.
-        if(!$this->WriteStateToDb()){ //NOSONAR - not merging if statements by design
-            throw new Exception(__('LoginState could not write initial state to the state database. see: https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php'));          //NOSONAR - We use generic Exceptions
-        }
     }
 
     /**
      * Get state from database or if it doesnt exist
-     * create a new initial one. This method is called initially and 
+     * create a new initial one. This method is called initially and
      * after each successive click after the auth step.
      *
      * @param   $samlInResponseTo   - Fetch state using inResponseTo instead of phpSessionId;
      * @return  bool
      * @since   1.2.0
      */
-    private function getState(string $samlInResponseTo) : void
+    private function getState(string $samlInResponseTo) : void  //NOSONAR
     {
         // Get the globals we need
         global $DB;
@@ -151,7 +145,7 @@ class LoginState extends CommonDBTM
             // or we are fetching a GLPI authed session 1 row.
             // Here we use the PHP sessionId to perform the fetch.
             if(!$sessionIterator = $DB->request(['FROM' => LoginState::getTable(), 'WHERE' => [LoginState::SESSION_ID => session_id()]])){
-                throw new Exception('Could not fetch Login State from database');               //NOSONAR - We use generic Exceptions
+                throw new LoginStateException('Could not fetch Login State from database');
             }
         }else{
             // If we got an samlInResponseTo header, then we are dealing with an
@@ -160,17 +154,18 @@ class LoginState extends CommonDBTM
             // header to find the correct database session. The sessionId will be
             // updated by the calling this->getStateInResponseTo method.
             if(!$sessionIterator = $DB->request(['FROM' => LoginState::getTable(), 'WHERE' => [LoginState::SAML_REQUEST_ID => $samlInResponseTo]])){
-                throw new Exception('Could not fetch Login State from database');               //NOSONAR - We use generic Exceptions
+                throw new LoginStateException('Could not fetch Login State from database');
             }
         }
 
-        // We should never get more then one row, if we do
-        // just overwrite the values with the later entries.
-        // TODO: we should enforce the row order in the SQL to make sure
-        // we always fetch the latest one.
         if($sessionIterator->numrows() > 0){
-            // Populate the username field based on actual values.
-            // Get all the relevant fields from the database
+
+            // We should never get more then one row
+            if(!$sessionIterator->numrows() == 1){
+                throw new LoginStateException('Found duplicated sessions in samlsso state table!');
+            }
+
+            // Populate the stored database state into the object.
             foreach($sessionIterator as $sessionState)
             {
                 $this->state = array_merge($this->state,[
@@ -193,33 +188,36 @@ class LoginState extends CommonDBTM
                 ]);
             }
 
-            // SAML_UNSOLICITED is not set during the initial fetch by the acs
-            // so if the SAML_UNSOLICITED is null and $samlInResponseTo
-            // is not we are dealing with an unsolicited auth and want to update the field accordingly.
-            if(($this->state[LoginState::SAML_UNSOLICITED] === null) &&
-                $samlInResponseTo                                    ){
+
+
+            // We have a valid session, we have a samlInresponseTo but was a
+            // samlResponseId registered previously? If not the call is unsolicited.
+            if(($this->state[LoginState::SAML_REQUEST_ID] === null) &&
+                $samlInResponseTo                                   ){
                 $this->state = array_merge($this->state, [LoginState::SAML_UNSOLICITED  => '1']);
             }else{
+                // Set SAML unsolicited to 0
                 $this->state = array_merge($this->state, [LoginState::SAML_UNSOLICITED  => '0']);
             }
 
-            // Get the last activity
+            // Update latest activity
             $this->setLastActivity();
 
-            // Populate the username field
+            // Update the userfields if needed
             $this->setGlpiUserName();
 
-            // RePopulate the GLPI state as we
-            // allways follow GLPI.
+            // Evaluate GLPI auth state
             $this->evalGlpiAuth();
+
+            // Update the state in the database.
+            $this->UpdateState();
             
         } else {
+            // No previous state found in DB, create initial one.
             $this->createInitialState();
             
-            // If InResponseTo was set, but had no database results,
-            // then we are dealing with an unsolicited samlResponse
-            // and we should log this accordingly in our database
-            // Also update the phase correctly
+            // We dont have a registered session, but we have a samlResponse?
+            // This means we are dealing with an unsolicited auth so lets register that.
             if(!empty($samlInResponseTo)){
                 $this->state = array_merge($this->state, [LoginState::SAML_UNSOLICITED  => true,
                                                           LoginState::PHASE  => LoginState::PHASE_SAML_ACS]);
@@ -248,6 +246,7 @@ class LoginState extends CommonDBTM
             LoginState::ENFORCE_LOGOFF    => 0,
             LoginState::IDP_ID            => 0,
             LoginState::SAML_REQUEST_ID   => null,
+            LoginState::SAML_UNSOLICITED  => null,
             LoginState::DATABASE          => false,
             LoginState::PHASE             => LoginState::PHASE_INITIAL,
             LoginState::LOGIN_FLOW_TRACE  => serialize([]),
@@ -276,30 +275,64 @@ class LoginState extends CommonDBTM
 
     /**
      * Write the state into the database
+     *
+     * @return  bool
+     * @since   1.0.0
+     */
+    public function writeState(): bool   //NOSONAR - WIP
+    {
+        if(!isset($this->state[LoginState::STATE_ID])){
+            if($id = $this->add($this->state)){
+                // Make the ID available to the object.
+                // So it can be referenced;
+                $this->state[LoginState::STATE_ID] = $id;
+                return true;
+            }else{
+                return false;
+            }
+        }else{
+            // This should never happen and should not be
+            // silently ignored.
+            throw new LoginStateException('Tried to add duplicate state while existing saml state was allready loaded');
+        }
+    }
+
+
+    /**
+     * Write the state into the database
      * for external (SIEM) evaluation and interaction
      *
      * @return  bool
      * @since   1.0.0
      */
-    private function writeStateToDb(): bool   //NOSONAR - WIP
+    private function UpdateState(): bool   //NOSONAR - WIP
     {
-        // Register state in database;
-        if(!$this->state[LoginState::DATABASE]){
-            if(!$id = $this->add($this->state)){
-                return false;
-            }else{
-                // Update the ID for future updates when methods
-                // are called on the same object.
-                $this->state[LoginState::STATE_ID] = $id;
-            }
-        }else{
-            // Perform an UPDATE
+        // Most of the time we will have an active state
+        if($this->state[LoginState::STATE_ID]){
+            // Perform  update of existing state
             if(!$this->update($this->state)){
                 return false;
             }
+        }else{
+             throw new LoginStateException('Tried to update non-existing state');
         }
         return true;
     }
+
+    /**
+     * Get and set last activity in state array
+     * @since   1.0.0
+     */
+    public function getStateId(): int
+    {
+        if(isset($this->state[LoginState::STATE_ID]) &&
+           is_numeric($this->state[LoginState::STATE_ID])){
+            return $this->state[LoginState::STATE_ID];
+        }else{
+            return -1;
+        }
+    }
+
 
     /**
      * Get and set last activity in state array
@@ -334,7 +367,7 @@ class LoginState extends CommonDBTM
         }
     }
 
-    /** 
+    /**
      * Update the SAML Auth state in the state database.
      * This helps troubleshooting, if phase was saml auth
      * but the response was not accepted, this value will
@@ -343,6 +376,7 @@ class LoginState extends CommonDBTM
      * */
     public function setSamlAuthTrue(): bool
     {
+
         $this->state[LoginState::SAML_AUTHED] = true;
         return ($this->update($this->state)) ? true : false;
     }
@@ -355,12 +389,16 @@ class LoginState extends CommonDBTM
      */
     public function setPhase(int $phase): bool
     {
-        // would checking if the phase is always higher provide an additional layer of security?
-        if($phase > 0 && $phase <= 8){
-            $this->state[LoginState::PHASE] = $phase;
-            return ($this->update($this->state)) ? true : false;
+        if($this->state[LoginState::STATE_ID]){
+            // would checking if the phase is always higher provide an additional layer of security?
+            if($phase > 0 && $phase <= 8){
+                $this->state[LoginState::PHASE] = $phase;
+                return ($this->update($this->state)) ? true : false;
+            }
+            return false;
+        }else{
+            throw new LoginStateException('Tried to update phase of non existing state');
         }
-        return false;
     }
 
     /**
@@ -371,21 +409,25 @@ class LoginState extends CommonDBTM
      */
     public function addLoginFlowTrace(array $condition): bool
     {
-        if(!empty($this->state[LoginState::LOGIN_FLOW_TRACE])){
-            $trace = unserialize($this->state[LoginState::LOGIN_FLOW_TRACE]);
-            if(is_array($trace)){
-                $trace = array_merge($trace, $condition);
+        if($this->state[LoginState::STATE_ID]){
+            if(!empty($this->state[LoginState::LOGIN_FLOW_TRACE])){
+                $trace = unserialize($this->state[LoginState::LOGIN_FLOW_TRACE]);
+                if(is_array($trace)){
+                    $trace = array_merge($trace, $condition);
+                }else{
+                    // We might lose data here, but given its a trace
+                    // we dont care to much. It should never happen though!
+                    $trace = $condition;
+                }
             }else{
-                // We might lose data here, but given its a trace
-                // we dont care to much. It should never happen though!
                 $trace = $condition;
             }
+            // Serialize the new array for db storage;
+            $this->state[LoginState::LOGIN_FLOW_TRACE] = serialize($trace);
+            return ($this->update($this->state)) ? true : false;
         }else{
-            $trace = $condition;
+            throw new LoginStateException('Tried to add flow trace to non existing state');
         }
-        // Serialize the new array for db storage;
-        $this->state[LoginState::LOGIN_FLOW_TRACE] = serialize($trace);
-        return ($this->update($this->state)) ? true : false;
     }
 
     /**
@@ -406,11 +448,15 @@ class LoginState extends CommonDBTM
      */
     public function setIdpId(int $idpId): bool
     {
-        if($idpId > 0 && $idpId < 999){
-            $this->state[LoginState::IDP_ID] = $idpId;
-            return ($this->update($this->state)) ? true : false;
+        if($this->state[LoginState::STATE_ID]){
+            if($idpId > 0 && $idpId < 999){
+                $this->state[LoginState::IDP_ID] = $idpId;
+                return ($this->update($this->state)) ? true : false;
+            }else{
+                return false;
+            }
         }else{
-            return false;
+            throw new LoginStateException('Tried to add IdpId to non existing state');
         }
     }
 
@@ -431,8 +477,12 @@ class LoginState extends CommonDBTM
      */
     public function setSessionId(): bool
     {
-        $this->state[LoginState::SESSION_ID] = session_id();
-        return ($this->update($this->state)) ? true : false;
+        if($this->state[LoginState::STATE_ID]){
+            $this->state[LoginState::SESSION_ID] = session_id();
+            return ($this->update($this->state)) ? true : false;
+        }else{
+            throw new LoginStateException('Tried to add SessionId to non existing state');
+        }
     }
 
     
@@ -445,40 +495,50 @@ class LoginState extends CommonDBTM
      */
     public function setSamlResponseParams($samlResponse): bool
     {
-        if($samlResponse > 0){
-            $this->state[LoginState::SAML_RESPONSE] = $samlResponse;
-            return ($this->update($this->state)) ? true : false;
+        if($this->state[LoginState::STATE_ID]){
+            if($samlResponse > 0){
+                $this->state[LoginState::SAML_RESPONSE] = $samlResponse;
+                return ($this->update($this->state)) ? true : false;
+            }
+            return false;
+        }else{
+            throw new LoginStateException('Tried to add SamlResponseParams to non existing state');
         }
-        return false;
     }
 
     /**
      * Adds SamlRequest to the state table
-     * @todo  Only allow if debug is enabled.
      * @param  string   json_encoded samlRequest
      * @return bool     true on success.
      * @since           1.0.0
      */
     public function setRequestParams(string $samlRequest): bool
     {
-        if($samlRequest > 0){
-            $this->state[LoginState::SAML_REQUEST] = $samlRequest;
-            return ($this->update($this->state)) ? true : false;
+        if($this->state[LoginState::STATE_ID]){
+            if($samlRequest > 0){
+                $this->state[LoginState::SAML_REQUEST] = $samlRequest;
+                return ($this->update($this->state)) ? true : false;
+            }
+            return false;
+        }else{
+            throw new LoginStateException('Tried to add SamlRequestParams to non existing state');
         }
-        return false;
     }
 
     /**
      * Adds SamlRequestId to the state table
-     * @todo only allow if debug is enabled.
      * @param  string   samlRequestId "ONELOGIN_[0-9a-z]{40}"
      * @return bool     true on success.
      * @since           1.0.0
      */
     public function setRequestId(string $requestId): bool
     {
-        $this->state[LoginState::SAML_REQUEST_ID] = $requestId;
-        return ($this->update($this->state)) ? true : false;
+        if($this->state[LoginState::STATE_ID]){
+            $this->state[LoginState::SAML_REQUEST_ID] = $requestId;
+            return ($this->update($this->state)) ? true : false;
+        }else{
+            throw new LoginStateException('Tried to add SamlRequestId to non existing state');
+        }
     }
 
     /**
@@ -488,11 +548,15 @@ class LoginState extends CommonDBTM
      */
     public function setSamlResponseId(string $samlResponseId): bool
     {
-        if(!empty($samlResponseId)){
-            $this->state[LoginState::SAML_RESPONSE_ID] = $samlResponseId;
-            return ($this->update($this->state)) ? true : false;
+        if($this->state[LoginState::STATE_ID]){
+            if(!empty($samlResponseId)){
+                $this->state[LoginState::SAML_RESPONSE_ID] = $samlResponseId;
+                return ($this->update($this->state)) ? true : false;
+            }else{
+                return false;
+            }
         }else{
-            return false;
+            throw new LoginStateException('Tried to add SamlResponseId to non existing state'); //NOSONAR
         }
     }
 
@@ -520,7 +584,7 @@ class LoginState extends CommonDBTM
 
         // This field should match the samlRequestId registered in LoginFlow::performSamlSSO();
         if(!$sessionIterator = $DB->request(['FROM' => LoginState::getTable(), 'WHERE' => [LoginState::SAML_RESPONSE_ID => $responseId]])){
-            throw new Exception('Could not fetch Login State from database');   //NOSONAR we are happy with this one!
+            throw new LoginStateException('Could not fetch Login State from database');   //NOSONAR we are happy with this one!
         }
 
         return ($sessionIterator->numrows() > 0) ? false : true;
@@ -584,8 +648,11 @@ class LoginState extends CommonDBTM
 
     /**
      * Determin if the state was loaded from the LoginState database or if you are dealing with
-     * an initial version.
+     * an initial version. Deprecated due to new logic, use the LoginState::STATE_ID field to determin
+     * if a state was loaded from the database or initial. But it should always be loaded from database
+     * in subsequent calls as per the new logic.
      *
+     * @deprecated 1.2.2
      * @return  bool
      * @since   1.2.0
      */

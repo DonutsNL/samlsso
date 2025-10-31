@@ -113,9 +113,8 @@ class Acs extends LoginFlow
      *
      * @since 1.0.0
      */
-    public function init(Request $request)             #NOSONAR Yes I know and no not going to fix it.
+    public function init(Request $request)             #NOSONAR Yes TLDR not fixing it.
     {
-
         $samlResponse = $request->get('SAMLResponse');         // Get post fields if any
         $this->idpId = !empty($request->get(LoginState::IDP_ID)) ? (int) $request->get(LoginState::IDP_ID) : -1;
 
@@ -127,7 +126,7 @@ class Acs extends LoginFlow
             is_numeric($this->idpId)              ){          //idpId should be a nummeric value (1>)
 
                 // We got everything we need!
-                // get the configuration using the idpId provided
+                // get the configuration using the idpId provided in the ACS call.
                 try{
                     $this->configEntity = new ConfigEntity($this->idpId);
                 }catch (Throwable $e){
@@ -278,8 +277,9 @@ class Acs extends LoginFlow
                                  'LoginState', "The following error was reported: $e");
         }
 
-        // Call the performSamlLogin from the LoginFlow object.
-        $this->performSamlLogin($this->samlResponse);
+        // Call the performSamlLogin from the LoginFlow object
+        // We include the state because this session is still stateless (from GLPIs perspective).
+        $this->performSamlLogin($this->samlResponse, $this->state);
     }
 }
 
