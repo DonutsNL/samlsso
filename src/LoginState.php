@@ -119,52 +119,12 @@ class LoginState extends CommonDBTM
      */
     public function __construct(string $samlInResponseTo = '')
     {
-        // Are we dealing with an initial call (someone opening GLPI), a user allready authed by glpi, saml or a
-        // SamlResponse send by the IDP. In the latter case we need the initial registration to 
-        // validate the response where we cannot use the PHP session because its reset by GLPI during
-        // the redirect performed.
-        if(empty($samlInResponseTo) ){
-            // This is the default path 99% of the time, while GLPI is being used.
-            $this->getState();
-        }else{
-            // If we get a InResponseTO we need to use this to populate the state. Else the login
-            // flow wont match the response to the initial request properly as the PHP session is reset
-            // and we dont allow for unsolicited responses.
-            $this->getStateInResponseTo($samlInResponseTo);
-        }
+        // Get the state
+        $this->getState($samlInResponseTo);
 
-        // Write state to database.
+        // Write/update the state to database.
         if(!$this->WriteStateToDb()){ //NOSONAR - not merging if statements by design
             throw new Exception(__('LoginState could not write initial state to the state database. see: https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php'));          //NOSONAR - We use generic Exceptions
-        }
-        // We are done, do nothing the object is returned to the caller.
-    }
-
-    /**
-     * Update the state from the database using the requestId
-     * this method is called by the acs.php and its main purpose is to
-     * update the sessionId with the new Reset one and make sure
-     * the correct state is found after the acs auth redirect.
-     *
-     * @return  bool
-     * @since   1.2.0
-     */
-    private function getStateInResponseTo(string $samlInResponseTo)
-    {
-        if(!empty($samlInResponseTo)){
-            // Populate the state from the database (if any)
-            $this->getState($samlInResponseTo);
-
-            // Update the sessionId with the new (resetted) value
-            $this->state = array_merge($this->state,[
-                LoginState::SESSION_ID => session_id()]);
-            try {
-                $this->WriteStateToDb();
-            } catch(Throwable $e) {
-                throw new Exception('Could not write initial state to the state database with error:'. $e);          //NOSONAR - We use generic Exceptions
-            }
-        } else {
-            throw new Exception('Tried to fetch requestId from state database without InResponseTo ID');
         }
     }
 
@@ -177,7 +137,7 @@ class LoginState extends CommonDBTM
      * @return  bool
      * @since   1.2.0
      */
-    private function getState(string $samlInResponseTo = '') : void
+    private function getState(string $samlInResponseTo) : void
     {
         // Get the globals we need
         global $DB;
@@ -185,8 +145,8 @@ class LoginState extends CommonDBTM
         // Use either the sessionId or the requestId (after redirect)
         // to find the correct session. As long as there isnt an redirect
         // performed to an external host the PHP session ID can be used to
-        // reference the session. 
-        if(empty($samlInResponseTo)){
+        // reference the session.
+        if(!$samlInResponseTo){
             // Either we are handling an initial request and end up with 0 rows
             // or we are fetching a GLPI authed session 1 row.
             // Here we use the PHP sessionId to perform the fetch.
@@ -295,6 +255,7 @@ class LoginState extends CommonDBTM
 
         // Capture redirect parameter if any.
         // https://github.com/DonutsNL/glpisaml/issues/22
+        // https://github.com/DonutsNL/samlsso/issues/2
         if(isset($_GET[loginstate::REDIRECT])){
             // Use GLPI's native function to safely get and sanitize the parameter
             $redirect_url = filter_input(INPUT_GET, loginstate::REDIRECT, FILTER_DEFAULT);

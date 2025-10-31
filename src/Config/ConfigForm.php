@@ -286,21 +286,27 @@ class ConfigForm    //NOSONAR complexity by design.
                                                 configEntity::SIGN_SLO_REQ,
                                                 configEntity::SIGN_SLO_RES]];
         // Parse config fields
+        // https://github.com/DonutsNL/samlsso/issues/27
+        // Make sure all tabs are present for twig.
         $warnings = [];
         foreach($tabFields as $tab => $entityFields){
             foreach($entityFields as $field) {
                 if(!empty($fields[$field]['errors'])){
                     $warnings[$tab] = '⚠️';
+                }else{
+                    $warnings[$tab] = '';
                 }
                 // Add cert validation warnings
                 if(!empty($fields[$field]['validate']['validations']['validTo'])   ||
                    !empty($fields[$field]['validate']['validations']['validFrom']) ){
                     $warnings[$tab] = '⚠️';
+                }else{
+                    $warnings[$tab] = '';
                 }
             }
         }
         // Return warnings if any.
-        return (is_array($warnings)) ? $warnings : [];
+        return $warnings;
     }
 
     /**

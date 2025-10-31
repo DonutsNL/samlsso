@@ -7,6 +7,10 @@
 - Added CSS to `LoginFlow::showLoginScreen()` to hide the password, source and rememeber fields when domain based auth is used and buttons are hidden.
 - Implemented the `?bypass=1` getter to bypass the hidden fields and enforcement.
 - Fixed the logo url being incorrect.
+- Fixed redirects to browser sided redirects to make sure request chains are reset and not tainted.
+- Added logic for the logout functionality.
+- Added logout template.
+- Fixed bypass logic making sure no loops occur.
 
 
 **V1.2.1**
