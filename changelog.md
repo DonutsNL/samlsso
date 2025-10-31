@@ -18,6 +18,7 @@
 - Fully Refined the state objects logic to prevent duplicate entries
 - Implemented 'logout' catching mechanism that allows user to log out everywhere if desired.
 - Added custom exceptions for saml State object not catched by design.
+- Fix faulty Twig variable in configForm.
 
 
 **V1.2.1**
