@@ -67,7 +67,6 @@ use GlpiPlugin\Samlsso\Exception\LoginStateException;
 class LoginState extends CommonDBTM
 {
     // CLASS CONSTANTS
-    private static $instance                = null;               // Make class singleton!
     public const SESSION_GLPI_NAME_ACCESSOR = 'glpiname';       // NULL -> Populated with user->name in Session::class:128 after GLPI login->init;
     public const SESSION_VALID_ID_ACCESSOR  = 'valid_id';       // NULL -> Populated with session_id() in Session::class:107 after GLPI login;
     public const STATE_ID                   = 'id';             // State identifier
