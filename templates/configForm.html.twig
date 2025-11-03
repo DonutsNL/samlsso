@@ -418,6 +418,23 @@
                                             This url is called by the identity provider after succesfull login.'),
                             }
                         ) }}
+
+
+                        <!-- Logout url -->
+                        {% set clipboad %}
+                            <span class='btn btn-ghost-info' onclick="copyClip('SloUrl')" onkeydown="copyClip('SloUrl')">Copy logout Url to clipboard</span>
+                        {% endset %}
+                        {{ fields.textField(
+                            'SloUrl', 
+                             sloUrl, 
+                            'SloUrl',
+                            {
+                                'id': 'SloUrl',
+                                'disabled':true,
+                                'add_field_html': clipboad,
+                                helper: __('The location where logout requests should be send back to from the Identity Provider.'),
+                            }
+                        ) }}
                     </div>
 
                     <!-- sp_certificate -->
