@@ -183,23 +183,25 @@ class LoginFlow extends CommonDBTM
 
         // Get current state this can either be an initial state (new session) or
         // an existing one. The state properties tell which one we are dealing with.
-        if($state = new Loginstate()){
-            // We need to check if this is the initial state, if so we write it to database.
-            // This logic cant be part of the objects logic because its reinitialized by the
-            // CommonDBTM object causing the sessions to be duplicated. This should also be
-            // the only place where we call the writeState() method.
-            // https://github.com/DonutsNL/samlsso/issues/26
-            if($state->getStateId() == -1                              &&
-              (strpos($_SERVER['REQUEST_URI'], 'front/acs') === false) ){
-                // Dont write anything if we are in the middle of an ACS request statelessly
-                // This logic is always called by the GLPI hook this could or should also
-                // be an exclusion but this is safer.
-                    $state->writeState();
-            }
-            $state->setRedirect();
-        }else{
-            $this->printError(__('Could not load loginState', PLUGIN_NAME));
+        try {
+            $state = new Loginstate();
+        } catch(Throwable $e){
+            $this->printError(__("Loading login state failed with: $e", PLUGIN_NAME));
         }
+
+        // We need to check if this is the initial state, if so we write it to database.
+        // This logic cant be part of the objects logic because its reinitialized by the
+        // CommonDBTM object causing the sessions to be duplicated. This should also be
+        // the only place where we call the writeState() method.
+        // https://github.com/DonutsNL/samlsso/issues/26
+        if($state->getStateId() == -1                              &&
+            (strpos($_SERVER['REQUEST_URI'], 'front/acs') === false) ){
+            // Dont write anything if we are in the middle of an ACS request statelessly
+            // This logic is always called by the GLPI hook this could or should also
+            // be an exclusion but this is safer.
+                $state->writeState();
+        }
+        $state->setRedirect();
 
         // LOGOUT PRESSED?
         // https://codeberg.org/QuinQuies/glpisaml/issues/18
@@ -215,7 +217,7 @@ class LoginFlow extends CommonDBTM
         if(isset($_GET[self::SLOLOGOUT])){
             // If call was performed by performLogOff()
             // Session is allready destroyed and we can continue here.
-            if($configEntity = new ConfigEntity($state->getIdpId())){
+            if($configEntity = new ConfigEntity($state->getIdpId())){           //NOSONAR wont merge for readability.
                 // Load the samlAuth object.
                 $samlAuth = new samlAuth($configEntity->getPhpSamlConfig());
                 // Get the (signed) logout url.
@@ -418,37 +420,43 @@ class LoginFlow extends CommonDBTM
     protected function performLogOff(): void
     {
         global $CFG_GLPI;
-        // Update the loginState
-        if(!$state = new Loginstate()){ $this->printError(__('Could not load loginState from database!', PLUGIN_NAME)); }
-       
+
+        // Get an instance of loginState
+        try {
+            $state = new Loginstate();
+        } catch(Throwable $e){
+            $this->printError(__("Loading login state failed with: $e", PLUGIN_NAME));
+        }
+
         // Get IdpConfiguration if any and figure out if we
         // need to handle some sort of logout at the IDP or
         // just ignore the logout request and let GLPI handle it.
-        if($configEntity = new ConfigEntity($state->getIdpId())){
-            if($configEntity->getField(ConfigEntity::IDP_SLO_URL)){
-                $state->setPhase(LoginState::PHASE_LOGOFF);
-                Session::cleanOnLogout();
-                
-                // Define static translatable elements
-                $tplVars = [
-                        'header'        => __('⚠️ Are you sure?', PLUGIN_NAME),
-                        'idpName'       => $configEntity->getField(ConfigEntity::NAME),
-                        'returnLabel'   => __('Continue GLPI logout', PLUGIN_NAME),
-                        'returnPath'    => $CFG_GLPI["url_base"] .'/',
-                        'sloLabel'      => __('Log out everywhere', PLUGIN_NAME),
-                        'sloPath'       =>  $CFG_GLPI["url_base"] .'/?'.self::SLOLOGOUT.'=1',
-                ];
-                
-                // print header
-                Html::nullHeader("SamlSSO Logout catcher", '/');
-                // Render twig template
-                // https://codeberg.org/QuinQuies/glpisaml/issues/12
-                echo TemplateRenderer::getInstance()->render('@samlsso/logout.html.twig',  $tplVars);
-                // print footer
-                Html::nullFooter();
-                exit;
-            }// If we have no valid SLO url, dont offer the option.
-        }// If we dont have a valid Entity linked silently ignore GLPI should handle the request not us.
+        $configEntity = new ConfigEntity($state->getIdpId());
+        if( $configEntity->getField(ConfigEntity::IDP_SLO_URL)   &&          //NOSONAR cant merge ifs here.
+            $state->isSamlAuthed()                               ){
+
+            $state->setPhase(LoginState::PHASE_LOGOFF);
+            Session::cleanOnLogout();
+            
+            // Define static translatable elements
+            $tplVars = [
+                    'header'        => __('⚠️ Are you sure?', PLUGIN_NAME),
+                    'idpName'       => $configEntity->getField(ConfigEntity::NAME),
+                    'returnLabel'   => __('Continue GLPI logout', PLUGIN_NAME),
+                    'returnPath'    => $CFG_GLPI["url_base"] .'/',
+                    'sloLabel'      => __('Log out everywhere', PLUGIN_NAME),
+                    'sloPath'       =>  $CFG_GLPI["url_base"] .'/?'.self::SLOLOGOUT.'=1',
+            ];
+            
+            // print header
+            Html::nullHeader("SamlSSO Logout catcher", '/');
+            // Render twig template
+            // https://codeberg.org/QuinQuies/glpisaml/issues/12
+            echo TemplateRenderer::getInstance()->render('@samlsso/logout.html.twig',  $tplVars);
+            // print footer
+            Html::nullFooter();
+            exit;
+        } // else silently ignore
     }
 
 
@@ -515,7 +523,7 @@ class LoginFlow extends CommonDBTM
         $tplVars['header']      = __('⚠️ we are unable to log you in', PLUGIN_NAME);
         // https://github.com/DonutsNL/samlsso/issues/21
         // Typecast might break if the passed object doesnt have a __toString() magic method.
-        $tplVars['error']       = htmlentities((string) $errorMsg); 
+        $tplVars['error']       = htmlentities((string) $errorMsg);
         $tplVars['returnPath']  = $CFG_GLPI["url_base"] .'/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
         // print header
@@ -584,7 +592,11 @@ class LoginFlow extends CommonDBTM
         // reference global config;
         global $CFG_GLPI;
         // get actual state;
-        if(!$state = new Loginstate()){ LoginFlow::printError(__('Could not load loginState from database!', PLUGIN_NAME)); }
+        try {
+            $state = new Loginstate();
+        } catch(Throwable $e){
+            LoginFlow::printError(__("Loading login state failed with: $e", PLUGIN_NAME));
+        }
 
         // Restore stored redirect requests.
         // https://github.com/DonutsNL/samlsso/issues/2
