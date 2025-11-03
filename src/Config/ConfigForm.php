@@ -66,7 +66,7 @@ class ConfigForm    //NOSONAR complexity by design.
     /**
      * Handles the form calls from the ConfigController and loads the
      * config idps listing (first screen before selecting a specific config)
-     * 
+     *
      * @param Request   Drop in future? not needed here?
      * @return string   String containing HTML form with values or redirect into added form.
      */
