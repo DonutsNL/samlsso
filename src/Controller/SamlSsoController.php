@@ -76,9 +76,12 @@ final class SamlSsoController extends AbstractController
 
     ####################################################################
     // SLO route
-    public const SLO_ROUTE      = 'front/slo';                          // Route being registered by __class__
+    public const SLO_ROUTE      = 'front/logout';                       // Route being registered by __class__
+    public const SLO_PARAM      = '/{'.LoginState::IDP_ID.'}';
     public const SLO_NAME       = 'samlsso_SLO';                        // Route name
+
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
+    #[Route(self::SLO_ROUTE.self::SLO_PARAM, name: self::SLO_NAME)]     // Decorator to register route to controller
     public function slo(Request $request): Response                     // What to do if route is invoked.
     {
         global $CFG_GLPI;

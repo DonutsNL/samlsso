@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.1
+ *  @version    1.2.2
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -67,7 +67,7 @@ class ConfigForm    //NOSONAR complexity by design.
      * Handles the form calls from the ConfigController and loads the
      * config idps listing (first screen before selecting a specific config)
      *
-     * @param array     $postData $_POST data from form
+     * @param Request   Drop in future? not needed here?
      * @return string   String containing HTML form with values or redirect into added form.
      */
     public function invoke(Request $request){
@@ -82,7 +82,7 @@ class ConfigForm    //NOSONAR complexity by design.
      * @param array     $postData $_POST data from form
      * @return Response|RedirectResponse   String containing HTML form with values or redirect into added form.
      */
-    public function invokeForm(Request $request): Response|RedirectResponse
+    public function invokeForm(Request $request): Response|RedirectResponse     // NOSONAR - CRUDE returns by design.
     {
         $inputBag = $request->getPayload();                                     // Assign the inputBag
         $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;     // Assign the ID if any
@@ -202,6 +202,7 @@ class ConfigForm    //NOSONAR complexity by design.
         }else{
             // Leave an error message and reload the form with provided values and errors
             Session::addMessageAfterRedirect(__('Configuration invalid please correct all ⭕ errors first', PLUGIN_NAME));
+            $this->displayUIHeader();
             return new Response($this->generateForm($configEntity));
         }
     }
@@ -285,21 +286,27 @@ class ConfigForm    //NOSONAR complexity by design.
                                                 configEntity::SIGN_SLO_REQ,
                                                 configEntity::SIGN_SLO_RES]];
         // Parse config fields
+        // https://github.com/DonutsNL/samlsso/issues/27
+        // Make sure all tabs are present for twig.
         $warnings = [];
         foreach($tabFields as $tab => $entityFields){
             foreach($entityFields as $field) {
                 if(!empty($fields[$field]['errors'])){
                     $warnings[$tab] = '⚠️';
+                }else{
+                    $warnings[$tab] = '';
                 }
                 // Add cert validation warnings
                 if(!empty($fields[$field]['validate']['validations']['validTo'])   ||
                    !empty($fields[$field]['validate']['validations']['validFrom']) ){
                     $warnings[$tab] = '⚠️';
+                }else{
+                    $warnings[$tab] = '';
                 }
             }
         }
         // Return warnings if any.
-        return (is_array($warnings)) ? $warnings : [];
+        return $warnings;
     }
 
     /**
@@ -325,7 +332,7 @@ class ConfigForm    //NOSONAR complexity by design.
         // get the logging entries, but only if the object already exists
         // https://codeberg.org/QuinQuies/glpisaml/issues/15#issuecomment-1785284
         if(is_numeric($fields[ConfigEntity::ID]['value'])){
-            $logging = LoginState::getLoggingEntries($fields[ConfigEntity::ID]['value']);
+            $logging = LoginState::getLoggingEntries((int) $fields[ConfigEntity::ID]['value']);
         }else{
             $logging = [];
         }
@@ -342,6 +349,7 @@ class ConfigForm    //NOSONAR complexity by design.
             'entityID'                  =>  $CFG_GLPI['url_base'].'/',
             'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::ACS_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::META_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'sloUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::SLO_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'inputOptionsBool'          =>  [ 1                                 => __('Yes', PLUGIN_NAME),
                                               0                                 => __('No', PLUGIN_NAME)],
             'inputOptionsNameFormat'    =>  [Saml2Const::NAMEID_UNSPECIFIED     => __('Unspecified', PLUGIN_NAME),

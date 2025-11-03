@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.1
+ *  @version    1.2.2
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -113,9 +113,8 @@ class Acs extends LoginFlow
      *
      * @since 1.0.0
      */
-    public function init(Request $request)             #NOSONAR Yes I know and no not going to fix it.
+    public function init(Request $request)             #NOSONAR Yes TLDR not fixing it.
     {
-
         $samlResponse = $request->get('SAMLResponse');         // Get post fields if any
         $this->idpId = !empty($request->get(LoginState::IDP_ID)) ? (int) $request->get(LoginState::IDP_ID) : -1;
 
@@ -124,10 +123,10 @@ class Acs extends LoginFlow
         // get value to the URL by the IdP using the value provided in the samlRequest
         // @see: ConfigEntity::getPhpSamlConfig()
         if(!empty($samlResponse)                  &&          //samlResponse post should not be empty
-            is_numeric($this->idpId)              ){          //idpId should be a nummeric value (1>)
+           is_numeric($this->idpId)               ){          //idpId should be a nummeric value (1>)
 
                 // We got everything we need!
-                // get the configuration using the idpId provided
+                // get the configuration using the idpId provided in the ACS call.
                 try{
                     $this->configEntity = new ConfigEntity($this->idpId);
                 }catch (Throwable $e){
@@ -144,8 +143,14 @@ class Acs extends LoginFlow
                 // Does phpSaml needs to take proxy headers into account
                 // for assertion url validation
                 if($this->configEntity->getField(ConfigEntity::PROXIED)){
-                    $samltoolkit = new Utils();
-                    $samltoolkit::setProxyVars(true);
+                    try { 
+                        $samltoolkit = new Utils(); 
+                        $samltoolkit::setProxyVars(true);
+                    } catch (Throwable $e) {
+                        $this->printError($e->getMessage(),
+                                    __('phpSaml::Settings->init'),
+                                    'Could not enable required phpsaml proxyVars');
+                    }   
                 }
 
                 // GET POPULATED PHPSAML SETTINGS OBJECT
@@ -278,8 +283,9 @@ class Acs extends LoginFlow
                                  'LoginState', "The following error was reported: $e");
         }
 
-        // Call the performSamlLogin from the LoginFlow object.
-        $this->performSamlLogin($this->samlResponse);
+        // Call the performSamlLogin from the LoginFlow object
+        // We include the state because this session is still stateless (from GLPIs perspective).
+        $this->performSamlLogin($this->samlResponse, $this->state);
     }
 }
 

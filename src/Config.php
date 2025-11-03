@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.1
+ *  @version    1.2.2
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -349,6 +349,40 @@ class Config extends CommonDBTM
         } // Username is not an email, return 0
         return 0;
     }
+
+
+    /**
+     * If we have a IDP with a valid email configured, then
+     * we also need to hide the login fields.
+     * @return  int     ConfigId
+     * @see             https://codeberg.org/QuinQuies/glpisaml/issues/3
+     * @since           1.1.3
+     */
+    public static function getHideLoginFields(): int
+    {
+        // Get global DB object to query the configTable.
+        global $DB;
+        
+        // Verify there is at least 'one' domain.tld configured.
+        $req = $DB->request(['SELECT'   =>  ConfigEntity::CONF_DOMAIN,
+                             'FROM'     =>  Config::getTable(),
+                             'WHERE' => ['NOT' => [ConfigEntity::CONF_DOMAIN => ['youruserdomain.tld', '']]
+                            ]]);
+
+        if($req->numrows() > 0){
+            // Dont hide if we are trying to bypass
+            if(isset($_GET[LoginFlow::SAMLBYPASS])  &&  // Is ?bypass=1 set in our uri
+               $_GET[LoginFlow::SAMLBYPASS] == 1    ){
+                return 0;
+            }
+            // More then one result, hide the password fields.
+            return 1;
+        }else{
+            // Dont hide.
+            return 0;
+        }
+    }
+
 
     /**
      * Install table needed for Ticket Filter configuration dropdowns.

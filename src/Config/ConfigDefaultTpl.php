@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.1
+ *  @version    1.2.2
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -56,6 +56,7 @@ class ConfigDefaultTpl {
     public static function template(): array
     {
         // Do not define the 'id' field, this will break the ConfigEntity logic.
+        // DONT USE THE PROVIDED CERTIFICATES ANYWHERE, THESE ARE JUST EXAMPLES
         return [ ConfigEntity::NAME             => 'DonutsExample',
                  ConfigEntity::CONF_DOMAIN      => 'youruserdomain.tld',
                  ConfigEntity::CONF_ICON        => 'fa-brands fa-microsoft',

@@ -2,7 +2,7 @@
 <name>samlsso</name>
 <key>samlsso</key>
 <state>test-release</state>
-<logo>https://github.com/DonutsNL/samlsso/raw/branch/main/templates/images/quinquies.jpeg</logo>
+<logo>https://raw.githubusercontent.com/DonutsNL/samlsso/refs/heads/main/templates/images/quinquies.jpeg</logo>
 <description>
     <short>
         <en>Samlsso enables you to configure SAML2 authentication with an external IdP like Azure or Google to enable Single Sign On.</en>
@@ -26,6 +26,11 @@
     <author>Chris Gralike</author>
 </authors>
 <versions>
+    <version>
+        <num>1.2.2</num>
+        <compatibility>~11.0.0</compatibility>
+        <download_url>https://github.com/DonutsNL/samlsso/releases/download/v1.2.1/samlsso.zip</download_url>
+    </version>
     <version>
         <num>1.2.1</num>
         <compatibility>~11.0.0</compatibility>

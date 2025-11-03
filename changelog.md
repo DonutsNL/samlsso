@@ -2,6 +2,26 @@
 - Corrected a router bug that caused the http header bag and response objects to be called with __toString()
 - Added an additional Prerequisites check to validate the php cookie settings and block install if they are not correct (issue 13).
 - Corrected small linting issues in the src files.
+- Corrected the `login_name` field in the `LoginFlow.php` file to capture the login domains. (issue 16).
+- Added `Config::getHideLoginFields()` if domain based idp selection is used.
+- Added CSS to `LoginFlow::showLoginScreen()` to hide the password, source and rememeber fields when domain based auth is used and buttons are hidden.
+- Implemented the `?bypass=1` getter to bypass the hidden fields and enforcement.
+- Fixed the logo url being incorrect.
+- Fixed redirects to browser sided redirects to make sure request chains are reset and not tainted.
+- Added logic for the logout functionality.
+- Added logout template.
+- Fixed bypass logic making sure no loops occur.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/27 with undefined tabs in twig.
+- Fixed issue with state database not aligning state entries correctly after ACS redirect.
+- Added logic for logout function https://github.com/DonutsNL/samlsso/issues/26
+- Removed old, double init logic in state object.
+- Fully Refined the state objects logic to prevent duplicate entries
+- Implemented 'logout' catching mechanism that allows user to log out everywhere if desired.
+- Added custom exceptions for saml State object not catched by design.
+- Fix faulty Twig variable in configForm.
+- Added logout URLs to controller
+- Added logout URLs to config screen.
+
 
 **V1.2.1**
 - Added new bootstrap function to `setup.php` to register stateless paths.
