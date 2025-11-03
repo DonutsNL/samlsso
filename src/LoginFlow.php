@@ -196,6 +196,7 @@ class LoginFlow extends CommonDBTM
                 // be an exclusion but this is safer.
                     $state->writeState();
             }
+            $state->setRedirect();
         }else{
             $this->printError(__('Could not load loginState', PLUGIN_NAME));
         }

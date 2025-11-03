@@ -101,7 +101,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($error) ? $error : null,
+                ConfigItem::ERRORS    => ($error) ? $error : false,
         ];
     }
 
@@ -116,7 +116,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($var) ? null : __('⭕ Name is a required field', PLUGIN_NAME)];
+                ConfigItem::ERRORS    => ($var) ? false : __('⭕ Name is a required field', PLUGIN_NAME)];
     }
 
 
@@ -136,7 +136,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => (!$error) ? null : __('⭕ '.$error, PLUGIN_NAME)];
+                ConfigItem::ERRORS    => (!$error) ? false : __('⭕ '.$error, PLUGIN_NAME)];
     }
 
 
@@ -163,7 +163,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($e) ? $e : null,
+                ConfigItem::ERRORS    => ($e) ? $e : false,
                 ConfigItem::VALIDATE  => $certificate];
     }
 
@@ -194,7 +194,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE  => (string) $var,
                 ConfigItem::FIELD  => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS => ($var) ? null : __('Service provider name id is a required field', PLUGIN_NAME)];
+                ConfigItem::ERRORS => ($var) ? false : __('Service provider name id is a required field', PLUGIN_NAME)];
     }
 
 
@@ -208,7 +208,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE  => (string) $var,
                 ConfigItem::FIELD  => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS => ($var) ? null : __('⭕ Identity provider entity id is a required field', PLUGIN_NAME)];
+                ConfigItem::ERRORS => ($var) ? false : __('⭕ Identity provider entity id is a required field', PLUGIN_NAME)];
     }
 
     /**
@@ -241,7 +241,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($error) ? $error : null,];
+                ConfigItem::ERRORS    => ($error) ? $error : false];
     }
 
     /**
@@ -269,7 +269,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($error) ? $error : null,];
+                ConfigItem::ERRORS    => ($error) ? $error : false];
     }
 
     // Im not yet happy with the structure and complexity.
@@ -296,7 +296,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($e) ? $e : null,
+                ConfigItem::ERRORS    => ($e) ? $e : false,
                 ConfigItem::VALIDATE  => $certificate];
     }
 
@@ -324,7 +324,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $val,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($val) ? null : __('⭕ Requested authN context is a required field', PLUGIN_NAME)];
+                ConfigItem::ERRORS    => ($val) ? false : __('⭕ Requested authN context is a required field', PLUGIN_NAME)];
     }
 
     protected function requested_authn_context_comparison(mixed $var): array  //NOSONAR
@@ -335,7 +335,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($var) ? null : __('⭕ Requested authN context comparison is a required field', PLUGIN_NAME)];
+                ConfigItem::ERRORS    => ($var) ? false : __('⭕ Requested authN context comparison is a required field', PLUGIN_NAME)];
     }
 
     protected function conf_icon(mixed $var): array                     //NOSONAR
@@ -346,7 +346,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::VALIDATOR => __method__,
                 ConfigItem::FIELD     => __function__,
-                ConfigItem::ERRORS    => ($var) ? null : __('⭕ Configuration icon is a required field', PLUGIN_NAME)];
+                ConfigItem::ERRORS    => ($var) ? false : __('⭕ Configuration icon is a required field', PLUGIN_NAME)];
     }
 
     protected function comment(mixed $var): array                       //NOSONAR
@@ -356,7 +356,8 @@ class ConfigItem    //NOSONAR
                 ConfigItem::EVAL      => ConfigItem::VALID,
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::FIELD     => __function__,];
+                ConfigItem::FIELD     => __function__,
+                ConfigItem::ERRORS      => false];
     }
 
     // Might cast it into an EPOCH date with invalid values.
@@ -368,7 +369,8 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::RICHVALUE => new DateTime($var)];
+                ConfigItem::RICHVALUE => new DateTime($var),
+                ConfigItem::ERRORS    => false];
     }
 
     // Might cast it into an EPOCH date with invalid values.
@@ -380,7 +382,8 @@ class ConfigItem    //NOSONAR
                 ConfigItem::VALUE     => (string) $var,
                 ConfigItem::FIELD     => __function__,
                 ConfigItem::VALIDATOR => __method__,
-                ConfigItem::RICHVALUE => new DateTime($var)];
+                ConfigItem::RICHVALUE => new DateTime($var),
+                ConfigItem::ERRORS    => false];
     }
 
     // BOOLEANS, We accept mixed, normalize in the handleAsBool function.
@@ -393,7 +396,7 @@ class ConfigItem    //NOSONAR
                             ConfigItem::FORMTITLE     => __('IS DELETED', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, 'is_deleted'));
+                            ConfigItem::handleAsBool($var, 'is_deleted'),);
     }
 
     protected function is_active(mixed $var): array                     //NOSONAR
@@ -556,7 +559,7 @@ class ConfigItem    //NOSONAR
     protected function handleAsBool(mixed $var, $field = null): array
     {
         // Default to false if no or an impropriate value is provided.
-        $error = (!empty($var) && !preg_match('/[0-1]/', (string) $var)) ? __("⭕ $field can only be 1 or 0", PLUGIN_NAME) : null;
+        $error = (!empty($var) && !preg_match('/[0-1]/', (string) $var)) ? __("⭕ $field can only be 1 or 0", PLUGIN_NAME) : false;
 
         return [ConfigItem::EVAL   => (is_numeric($var)) ? ConfigItem::VALID : ConfigItem::INVALID,
                 ConfigItem::VALUE  => (!$error) ? $var : '0',

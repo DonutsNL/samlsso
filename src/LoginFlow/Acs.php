@@ -123,7 +123,7 @@ class Acs extends LoginFlow
         // get value to the URL by the IdP using the value provided in the samlRequest
         // @see: ConfigEntity::getPhpSamlConfig()
         if(!empty($samlResponse)                  &&          //samlResponse post should not be empty
-            is_numeric($this->idpId)              ){          //idpId should be a nummeric value (1>)
+           is_numeric($this->idpId)               ){          //idpId should be a nummeric value (1>)
 
                 // We got everything we need!
                 // get the configuration using the idpId provided in the ACS call.
@@ -143,8 +143,14 @@ class Acs extends LoginFlow
                 // Does phpSaml needs to take proxy headers into account
                 // for assertion url validation
                 if($this->configEntity->getField(ConfigEntity::PROXIED)){
-                    $samltoolkit = new Utils();
-                    $samltoolkit::setProxyVars(true);
+                    try { 
+                        $samltoolkit = new Utils(); 
+                        $samltoolkit::setProxyVars(true);
+                    } catch (Throwable $e) {
+                        $this->printError($e->getMessage(),
+                                    __('phpSaml::Settings->init'),
+                                    'Could not enable required phpsaml proxyVars');
+                    }   
                 }
 
                 // GET POPULATED PHPSAML SETTINGS OBJECT

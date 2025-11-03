@@ -184,6 +184,7 @@ class LoginState extends CommonDBTM
                     LoginState::SAML_UNSOLICITED  => $sessionState[LoginState::SAML_UNSOLICITED],
                     LoginState::LOGIN_FLOW_TRACE  => $sessionState[LoginState::LOGIN_FLOW_TRACE],
                     LoginState::PHASE             => $sessionState[LoginState::PHASE],
+                    LoginState::REDIRECT          => $sessionState[LoginState::REDIRECT],
                     LoginState::DATABASE          => true,
                 ]);
             }
@@ -251,15 +252,6 @@ class LoginState extends CommonDBTM
             LoginState::PHASE             => LoginState::PHASE_INITIAL,
             LoginState::LOGIN_FLOW_TRACE  => serialize([]),
         ]);
-
-        // Capture redirect parameter if any.
-        // https://github.com/DonutsNL/glpisaml/issues/22
-        // https://github.com/DonutsNL/samlsso/issues/2
-        if(isset($_GET[loginstate::REDIRECT])){
-            // Use GLPI's native function to safely get and sanitize the parameter
-            $redirect_url = filter_input(INPUT_GET, loginstate::REDIRECT, FILTER_DEFAULT);
-            $this->state[LoginState::REDIRECT] = $redirect_url;
-        }
 
         // Get the last activity
         $this->setLastActivity();
@@ -389,7 +381,7 @@ class LoginState extends CommonDBTM
      */
     public function setPhase(int $phase): bool
     {
-        if($this->state[LoginState::STATE_ID]){
+        if(isset($this->state[LoginState::STATE_ID])){
             // would checking if the phase is always higher provide an additional layer of security?
             if($phase > 0 && $phase <= 8){
                 $this->state[LoginState::PHASE] = $phase;
@@ -399,6 +391,26 @@ class LoginState extends CommonDBTM
         }else{
             throw new LoginStateException('Tried to update phase of non existing state');
         }
+    }
+
+
+    /**
+     * Update the redirect from the get if any in the state database.
+     * @param int   $phase ID
+     * @since       1.0.0
+     * @see         LoginState::PHASE_## constants for valid values
+     */
+    public function setRedirect(): bool
+    {
+        if(isset($this->state[LoginState::STATE_ID])){
+            // https://github.com/DonutsNL/glpisaml/issues/22
+            // https://github.com/DonutsNL/samlsso/issues/2
+            if($redirect_url = filter_input(INPUT_GET, loginstate::REDIRECT, FILTER_DEFAULT)){
+                $this->state[LoginState::REDIRECT] = $redirect_url;
+                return ($this->update($this->state)) ? true : false;
+            }
+        }// If the state doesnt have an ID (initial) we silently ignore it.
+        return false;
     }
 
     /**
@@ -448,7 +460,7 @@ class LoginState extends CommonDBTM
      */
     public function setIdpId(int $idpId): bool
     {
-        if($this->state[LoginState::STATE_ID]){
+        if(isset($this->state[LoginState::STATE_ID])){
             if($idpId > 0 && $idpId < 999){
                 $this->state[LoginState::IDP_ID] = $idpId;
                 return ($this->update($this->state)) ? true : false;
@@ -477,7 +489,7 @@ class LoginState extends CommonDBTM
      */
     public function setSessionId(): bool
     {
-        if($this->state[LoginState::STATE_ID]){
+        if(isset($this->state[LoginState::STATE_ID])){
             $this->state[LoginState::SESSION_ID] = session_id();
             return ($this->update($this->state)) ? true : false;
         }else{
@@ -495,7 +507,7 @@ class LoginState extends CommonDBTM
      */
     public function setSamlResponseParams($samlResponse): bool
     {
-        if($this->state[LoginState::STATE_ID]){
+        if(isset($this->state[LoginState::STATE_ID])){
             if($samlResponse > 0){
                 $this->state[LoginState::SAML_RESPONSE] = $samlResponse;
                 return ($this->update($this->state)) ? true : false;
@@ -514,7 +526,7 @@ class LoginState extends CommonDBTM
      */
     public function setRequestParams(string $samlRequest): bool
     {
-        if($this->state[LoginState::STATE_ID]){
+        if(isset($this->state[LoginState::STATE_ID])){
             if($samlRequest > 0){
                 $this->state[LoginState::SAML_REQUEST] = $samlRequest;
                 return ($this->update($this->state)) ? true : false;
@@ -533,7 +545,7 @@ class LoginState extends CommonDBTM
      */
     public function setRequestId(string $requestId): bool
     {
-        if($this->state[LoginState::STATE_ID]){
+        if(isset($this->state[LoginState::STATE_ID])){
             $this->state[LoginState::SAML_REQUEST_ID] = $requestId;
             return ($this->update($this->state)) ? true : false;
         }else{
@@ -548,7 +560,7 @@ class LoginState extends CommonDBTM
      */
     public function setSamlResponseId(string $samlResponseId): bool
     {
-        if($this->state[LoginState::STATE_ID]){
+        if(isset($this->state[LoginState::STATE_ID])){
             if(!empty($samlResponseId)){
                 $this->state[LoginState::SAML_RESPONSE_ID] = $samlResponseId;
                 return ($this->update($this->state)) ? true : false;
