@@ -66,8 +66,8 @@ class ConfigForm    //NOSONAR complexity by design.
     /**
      * Handles the form calls from the ConfigController and loads the
      * config idps listing (first screen before selecting a specific config)
-     *
-     * @param array     $postData $_POST data from form
+     * 
+     * @param Request   Drop in future? not needed here?
      * @return string   String containing HTML form with values or redirect into added form.
      */
     public function invoke(Request $request){
@@ -82,7 +82,7 @@ class ConfigForm    //NOSONAR complexity by design.
      * @param array     $postData $_POST data from form
      * @return Response|RedirectResponse   String containing HTML form with values or redirect into added form.
      */
-    public function invokeForm(Request $request): Response|RedirectResponse
+    public function invokeForm(Request $request): Response|RedirectResponse     // NOSONAR - CRUDE returns by design.
     {
         $inputBag = $request->getPayload();                                     // Assign the inputBag
         $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;     // Assign the ID if any
