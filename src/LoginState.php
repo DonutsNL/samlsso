@@ -404,7 +404,7 @@ class LoginState extends CommonDBTM
         if(isset($this->state[LoginState::STATE_ID])){
             // https://github.com/DonutsNL/glpisaml/issues/22
             // https://github.com/DonutsNL/samlsso/issues/2
-            if($redirect_url = filter_input(INPUT_GET, loginstate::REDIRECT, FILTER_DEFAULT)){
+            if($redirect_url = filter_input(INPUT_GET, loginstate::REDIRECT, FILTER_DEFAULT)){  //NOSONAR wont merge for readability
                 $this->state[LoginState::REDIRECT] = $redirect_url;
                 return ($this->update($this->state)) ? true : false;
             }
