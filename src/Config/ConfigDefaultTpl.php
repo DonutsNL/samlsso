@@ -56,6 +56,7 @@ class ConfigDefaultTpl {
     public static function template(): array
     {
         // Do not define the 'id' field, this will break the ConfigEntity logic.
+        // DONT USE THE PROVIDED CERTIFICATES ANYWHERE, THESE ARE JUST EXAMPLES
         return [ ConfigEntity::NAME             => 'DonutsExample',
                  ConfigEntity::CONF_DOMAIN      => 'youruserdomain.tld',
                  ConfigEntity::CONF_ICON        => 'fa-brands fa-microsoft',
