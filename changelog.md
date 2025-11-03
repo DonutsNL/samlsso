@@ -19,6 +19,8 @@
 - Implemented 'logout' catching mechanism that allows user to log out everywhere if desired.
 - Added custom exceptions for saml State object not catched by design.
 - Fix faulty Twig variable in configForm.
+- Added logout URLs to controller
+- Added logout URLs to config screen.
 
 
 **V1.2.1**
