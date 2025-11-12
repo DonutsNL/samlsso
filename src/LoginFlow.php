@@ -94,6 +94,12 @@ class LoginFlow extends CommonDBTM
     public const SAMLBYPASS  = 'bypass';
     public const SLOLOGOUT   = 'sloLogout';
 
+    /**
+     * Temporarily holds the username to be passed as SAML Subject.
+     * @var string|null
+     */
+    private ?string $subject = null;
+
      /**
      * Tell DBTM to keep history
      * @var    bool     $dohistory
@@ -172,14 +178,14 @@ class LoginFlow extends CommonDBTM
      */
     public function doAuth()                         //NOSONAR - complexity by design
     {
-        global $CFG_GLPI;
-
         // If we hit an excluded file, we return and do nothing, not even log the
         // event. Possibly we want to enable the user to perform SIEM calls by
         // implementing this functionality prior to this validation.
         if(Exclude::isExcluded()){
             return;
         }
+
+        global $CFG_GLPI;
 
         // Get current state this can either be an initial state (new session) or
         // an existing one. The state properties tell which one we are dealing with.
@@ -260,6 +266,7 @@ class LoginFlow extends CommonDBTM
                !empty($_POST[$key])                                 &&                                      // Test if fielda actually has a value we can process
                $id = Config::getConfigIdByEmailDomain($_POST[$key]) ){                                      // If all is true try to find an matching idp id.
                 $state->addLoginFlowTrace(['loginViaUserfield' => 'user:'.$_POST[$key].',idpId:'.$id]);     // Register the userfield was used with user
+                $this->subject = $_POST[$key];                                                              // Save the username as samlSubject to pass to the IDP
                 $_POST[LoginFlow::POSTFIELD] = $id;                                                         // If we found an ID Set the POST phpsaml to our found ID this will trigger
             }
         }
@@ -340,7 +347,15 @@ class LoginFlow extends CommonDBTM
             // before performing the redirect so we don't need Cookies
             // https://codeberg.org/QuinQuies/glpisaml/issues/45
             try{
-                $ssoBuiltUrl = $auth->login($CFG_GLPI["url_base"], array(), false, false, true);
+                $ssoBuiltUrl = $auth->login(
+                    $CFG_GLPI["url_base"],  // $returnTo (1st param)
+                    array(),                // $parameters (2nd param, empty array)
+                    false,                  // $forceAuthn (3rd param)
+                    false,                  // $isPassive (4th param)
+                    true,                   // $stay (5th param)
+                    true,                   // $setNameIdPolicy (6th param)
+                    null,                   // $nameIdValueReq pass Subject, not supported by Microsoft $this->username
+                );
             } catch (Throwable $e) {
                 $this->printError($e->getMessage(), 'Saml::Auth->init', var_export($auth->getErrors(), true));
             }

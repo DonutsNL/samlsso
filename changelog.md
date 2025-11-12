@@ -1,6 +1,9 @@
 **V1.2.3**
 - Added webhook.php to excludes https://github.com/DonutsNL/samlsso/issues/32
 - Added `.php` to excludes path in `Config.php` to make sure the 'add' button shows.
+- Altered `getConfigIdByEmailDomain()` to handle multiple domains per IDP using comma seperated domain lists i.e. `domain1.com,domain1.nl,domain1.org`
+- Added basics in `performSamlSSO()` and `doAuth()` for Subject hinting, but this isnt supported by Entra. Maybe make this a configurable option in the future for IDPs that do support Subject hinting.
+
 
 **V1.2.2**
 - Corrected a router bug that caused the http header bag and response objects to be called with __toString()

@@ -331,23 +331,49 @@ class Config extends CommonDBTM
     {
         // Get global DB object to query the configTable.
         global $DB;
-        // Make sure we are dealing with a valid emailaddress.
-        if( $upn = filter_var($fielda, FILTER_VALIDATE_EMAIL) ){
-            // Domain portion of address is at index [1];
-            $domain = explode('@', $upn);
-            // Query the database for the given domain;
-            $req = $DB->request(['SELECT'   =>  ConfigEntity::ID,
-                                 'FROM'     =>  Config::getTable(),
-                                 'WHERE'    =>  [ConfigEntity::CONF_DOMAIN => $domain[1]],
-                                ]);
-            // If we got a result, cast it to int and return it
-            if( $req->numrows() == 1 ){
-                foreach( $req as $row ){
-                    $id = (int) $row['id'];
-                }
-                return $id; // Return the correct idp id
-            } // We found nothing, return 0
-        } // Username is not an email, return 0
+        // VALIDATE EMAIL AND EXTRACT DOMAIN
+        if( !$upn = filter_var($fielda, FILTER_VALIDATE_EMAIL) ){
+            // Username is not formatted as an email address, return 0
+            return 0;
+        }
+        // This is now guaranteed to work since $upn is a valid email string
+        $userDomain = explode('@', $upn)[1];
+        // QUERY DATABASE
+        // We explicitly exclude both '' and NULL from the search.
+        $req = $DB->request([
+            'SELECT' => [ConfigEntity::ID, ConfigEntity::CONF_DOMAIN],
+            'FROM'   => Config::getTable(),
+            'WHERE'  => [
+                ConfigEntity::IS_ACTIVE => 1,
+                ConfigEntity::IS_DELETED => 0,
+                ['NOT' => [ConfigEntity::CONF_DOMAIN => '']],
+                ['NOT' => [ConfigEntity::CONF_DOMAIN => null]]
+            ]
+        ]);
+        // VALIDATE DATABASE REQUEST
+        // In strict mode, we can't assume $DB->request() always returns an iterable object.
+        // If the query fails, it might return false or null.
+        if (!$req) { return 0; }
+        // PROCESS ROWS
+        // If $req is an empty iterator, this loop is safely skipped.
+        foreach ($req as $row) {
+            // VALIDATION: Ensure the row data is a valid string before exploding.
+            // This prevents errors if the row or field is malformed.
+            if ( !empty($row[ConfigEntity::CONF_DOMAIN]) && is_string($row[ConfigEntity::CONF_DOMAIN]) ) {
+                // Create domain array from the database result.
+                $confDomainsArray = explode(',', $row[ConfigEntity::CONF_DOMAIN]);
+                // Trim whitespace from each domain in the array
+                $configured_domains_array = array_map('trim', $confDomainsArray);
+                // Search the array for our userDomain.
+                if (in_array($userDomain, $configured_domains_array)) {
+                    // FINAL VALIDATION: Ensure the ID is valid before returning.
+                    if (!empty($row[ConfigEntity::ID])) {
+                        return (int) $row[ConfigEntity::ID];
+                    }
+                    // If ID is bad, continue loop just in case of duplicate domain
+                }// If no match continue to the next row.
+            }// If row data is not a string, this row is skipped, preventing errors.
+        }// foreach Loop.
         return 0;
     }
 
