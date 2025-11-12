@@ -96,6 +96,8 @@ class LoginFlow extends CommonDBTM
 
     /**
      * Temporarily holds the username to be passed as SAML Subject.
+     * Not supported by Entra, make configurable in the future.
+     * @see https://github.com/DonutsNL/samlsso/issues/31
      * @var string|null
      */
     private ?string $subject = null;
@@ -354,7 +356,7 @@ class LoginFlow extends CommonDBTM
                     false,                  // $isPassive (4th param)
                     true,                   // $stay (5th param)
                     true,                   // $setNameIdPolicy (6th param)
-                    null,                   // $nameIdValueReq pass Subject, not supported by Microsoft $this->username
+                    null,                   // $nameIdValueReq pass Subject, not supported by Microsoft $this->subject
                 );
             } catch (Throwable $e) {
                 $this->printError($e->getMessage(), 'Saml::Auth->init', var_export($auth->getErrors(), true));
