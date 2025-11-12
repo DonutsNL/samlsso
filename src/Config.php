@@ -142,9 +142,10 @@ class Config extends CommonDBTM
      **/
     public static function getAdditionalMenuLinks() {
         global $CFG_GLPI;
-        $links[__('Excluded paths', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::EXCLUDE_ROUTE;
+        // Using fancy URLs hides the add button for CommonDropDowns so we add .php as a workaround.
+        $links[__('Excluded paths', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::EXCLUDE_ROUTE.'.php';
+        // Fancy urls can be used with rules for some weird reason.
         $links[__('JIT import rules', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::RULES_ROUTE;
-        //$links[__('Generic config', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::FLOWFORM_ROUTE;
         return $links;
     }
 

@@ -1,3 +1,7 @@
+**V1.2.3**
+- Added webhook.php to excludes https://github.com/DonutsNL/samlsso/issues/32
+- Added `.php` to excludes path in `Config.php` to make sure the 'add' button shows.
+
 **V1.2.2**
 - Corrected a router bug that caused the http header bag and response objects to be called with __toString()
 - Added an additional Prerequisites check to validate the php cookie settings and block install if they are not correct (issue 13).
