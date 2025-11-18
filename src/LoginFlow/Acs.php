@@ -143,14 +143,14 @@ class Acs extends LoginFlow
                 // Does phpSaml needs to take proxy headers into account
                 // for assertion url validation
                 if($this->configEntity->getField(ConfigEntity::PROXIED)){
-                    try { 
-                        $samltoolkit = new Utils(); 
+                    try {
+                        $samltoolkit = new Utils();
                         $samltoolkit::setProxyVars(true);
                     } catch (Throwable $e) {
                         $this->printError($e->getMessage(),
                                     __('phpSaml::Settings->init'),
                                     'Could not enable required phpsaml proxyVars');
-                    }   
+                    }
                 }
 
                 // GET POPULATED PHPSAML SETTINGS OBJECT
@@ -283,9 +283,11 @@ class Acs extends LoginFlow
                                  'LoginState', "The following error was reported: $e");
         }
 
-        // Call the performSamlLogin from the LoginFlow object
+        // Call the performGlpiLogin from the LoginFlow object
         // We include the state because this session is still stateless (from GLPIs perspective).
-        $this->performSamlLogin($this->samlResponse, $this->state);
+        // and we cant trust the current sessionId to align because initial cookies are tainted and
+        // prob not passed back to GLPI after the IDP redirect causing GLPI to reset the PHP sessionId.
+        $this->performGlpiLogin($this->samlResponse, $this->state);
     }
 }
 

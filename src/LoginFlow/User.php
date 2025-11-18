@@ -162,7 +162,7 @@ class User
 
             // Verify the found user is not deleted (in trashcan)
             if($user->fields[User::DELETED]){
-                LoginFlow::showLoginError(__("User with GlpiUserid: ".$user->fields[User::USERID]." is marked deleted but still exists in the GLPI database. Because of
+                LoginFlow::PrintFatalLoginError(__("User with GlpiUserid: ".$user->fields[User::USERID]." is marked deleted but still exists in the GLPI database. Because of
                                            this we cannot log you in as this would violate GLPI its security policies. Please contact the GLPI administrator
                                            to restore the user with provided ID or purge the user to allow the Just in Time (JIT) user creation to create a
                                            new user with the idp provided claims.", PLUGIN_NAME));
@@ -170,7 +170,7 @@ class User
 
             // Verify the found user is not disabled by the admin;
             if($user->fields[User::ACTIVE] == 0){
-                LoginFlow::showLoginError(__("User with GlpiUserid: ".$user->fields[User::USERID]." is disabled. Please contact your GLPI administrator and request him to
+                LoginFlow::PrintFatalLoginError(__("User with GlpiUserid: ".$user->fields[User::USERID]." is disabled. Please contact your GLPI administrator and request him to
                                             reactivate your account.", PLUGIN_NAME));
             }
 
@@ -186,7 +186,7 @@ class User
         // Get current loginState and
         // Fetch the correct configEntity using the idp found in our loginState.
         if(!$configEntity = new ConfigEntity((new Loginstate())->getIdpId())){
-            LoginFlow::showLoginError(__("Your SSO login was successful but we where not able to fetch
+            LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but we where not able to fetch
                                             the loginState from the database and could not continue to log
                                             you into GLPI.", PLUGIN_NAME));
         }
@@ -197,7 +197,7 @@ class User
             // from the samlResponse. maybe use this method in the future
             // to also validate provided claims in one go.
             if(!$id = $user->add(Sanitizer::sanitize($userFields))){
-                LoginFlow::showLoginError(__("Your SSO login was successful but there is no matching GLPI user account and
+                LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but there is no matching GLPI user account and
                                                 we failed to create one dynamically using Just In Time user creation. Please
                                                 request a GLPI administrator to review the logs and correct the problem or
                                                 request the administrator to create a GLPI user manually.", PLUGIN_NAME));
@@ -219,14 +219,14 @@ class User
                 Session::addMessageAfterRedirect('Dynamically created GLPI user for:'.$userFields[User::EMAIL]['0']);
                 return $user;
             }else{
-                LoginFlow::showLoginError(__("Critical error: samlSSO was unable to fetch newly created user from the database!", PLUGIN_NAME));
+                LoginFlow::PrintFatalLoginError(__("Critical error: samlSSO was unable to fetch newly created user from the database!", PLUGIN_NAME));
                 exit; // Unreachable but prevents linting errors.
             }
         }else{
             // Show a nice login Error
             $idpName = $configEntity->getField(ConfigEntity::NAME);
             $email   = $userFields[User::EMAIL]['0'];
-            LoginFlow::showLoginError(__("Your SSO login was successful but there is no matching GLPI user account. In addition the Just-in-time user creation
+            LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but there is no matching GLPI user account. In addition the Just-in-time user creation
                                           is disabled for: $idpName. Please contact your GLPI administrator and request an account to be created matching the
                                           provided email claim: $email or login using a local user account.", PLUGIN_NAME));
             exit; // Unreachable but prevents linting errors.
@@ -399,7 +399,7 @@ class User
         try {
            $claims = $response->getAttributes();
         }catch (Throwable $e) {
-           LoginFlow::showLoginError($e);
+           LoginFlow::PrintFatalLoginError($e);
         }
         
         // Fetch additional claims from the samlResponse.

@@ -109,8 +109,7 @@ class ConfigItem    //NOSONAR
 
     protected function name(mixed $var): array
     {
-        return [ConfigItem::FORMEXPLAIN => __('This name is shown with the login button on the login page.
-                                         Try to keep this name short en to the point.', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN => __('This name is shown with the login button on the login page. Try to keep this name short en to the point.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('FRIENDLY NAME', PLUGIN_NAME),
                 ConfigItem::EVAL      => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
                 ConfigItem::VALUE     => (string) $var,
@@ -124,13 +123,7 @@ class ConfigItem    //NOSONAR
     protected function conf_domain(mixed $var): array //NOSONAR
     {
         $error = '';
-        return [ConfigItem::FORMEXPLAIN => __('Setting this value with the expected domain.tld, for example:
-                                         with "google.com" will allow a user to trigger this IDP by
-                                         providing their whatever@[google.com] username in the default
-                                         GLPI username field. Setting this field to: youruserdomain.tld
-                                         or to nothing disables this feature. Be aware that in the
-                                         current implementation, configuring this field will hide
-                                         the IDP button from the login screen', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN => __(trim('Setting this value with the expected domain.tld, for example: with "google.com" will allow a user to trigger this IDP by providing their whatever@[google.com] username in the default GLPI username field. Setting this field to: youruserdomain.tld or to nothing disables this feature. Configuring this field will hide the IDP button from the login screen. Use a comma seperated list if you want to link multiple domains. i.e. domain1.com,domain1.org,domain1.edu'), PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('USERDOMAIN', PLUGIN_NAME),
                 ConfigItem::EVAL      => ConfigItem::VALID,
                 ConfigItem::VALUE     => (string) $var,
@@ -155,9 +148,7 @@ class ConfigItem    //NOSONAR
         }else{
             $certificate = '';
         }
-        return [ConfigItem::FORMEXPLAIN => __('The base64 encoded x509 service provider certificate. Used to sign and encrypt
-                                         messages send by the service provider to the identity provider. Required for most
-                                         of the security options', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN => __('The base64 encoded x509 service provider certificate. Used to sign and encrypt messages send by the service provider to the identity provider. Required for most of the security options', PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('SP CERTIFICATE', PLUGIN_NAME),
                 ConfigItem::EVAL      => ConfigItem::VALID,
                 ConfigItem::VALUE     => $var,
@@ -173,8 +164,7 @@ class ConfigItem    //NOSONAR
     {
         // Private is not required, if missing or invalid the ConfigEntity will toggle
         // depending security options to false.
-        return [ConfigItem::FORMEXPLAIN => __('The base64 encoded x509 service providers private key. Should match the modulus of the
-                                         provided X509 service provider certificate', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN => __('The base64 encoded x509 service providers private key. Should match the modulus of the provided X509 service provider certificate', PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('SP PRIVATE KEY', PLUGIN_NAME),
                 ConfigItem::EVAL      => ConfigItem::VALID,
                 ConfigItem::VALUE     => $var,
@@ -186,9 +176,7 @@ class ConfigItem    //NOSONAR
 
     protected function sp_nameid_format(mixed $var): array //NOSONAR
     {
-        return [ConfigItem::FORMEXPLAIN => __('The Service Provider nameid format specifies the constraints
-                                         on the name identifier to be used to represent the requested
-                                         subject.', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN => __('The Service Provider nameid format specifies the constraints on the name identifier to be used to represent the requested subject.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('NAMEID FORMAT', PLUGIN_NAME),
                 ConfigItem::EVAL   => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
                 ConfigItem::VALUE  => (string) $var,
@@ -201,8 +189,7 @@ class ConfigItem    //NOSONAR
 
     protected function idp_entity_id(mixed $var): array //NOSONAR
     {
-        return [ConfigItem::FORMEXPLAIN => __('Identifier of the IdP entity which is an URL provided by
-                                         the SAML2 Identity Provider (IdP)', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN => __('Identifier of the IdP entity which is an URL provided by the SAML2 Identity Provider (IdP)', PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('ENTITY ID', PLUGIN_NAME),
                 ConfigItem::EVAL   => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
                 ConfigItem::VALUE  => (string) $var,
@@ -233,9 +220,7 @@ class ConfigItem    //NOSONAR
         // Accessibility by the server is not a requirement given its the client browser
         // that needs to access the provided resource not the webserver itself.
         
-        return [ConfigItem::FORMEXPLAIN => __('Single Sign On Service endpoint of the IdP. URL Target of the IdP where the
-                                         Authentication Request Message will be sent. OneLogin PHPSAML
-                                         only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN => __('Single Sign On Service endpoint of the IdP. URL Target of the IdP where the Authentication Request Message will be sent. OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('SSO URL', PLUGIN_NAME),
                 ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
                 ConfigItem::VALUE     => (string) $var,
@@ -261,9 +246,7 @@ class ConfigItem    //NOSONAR
             $error = __('⭕ Invalid Idp SLO URL, use: scheme://host.domain.tld/path/', PLUGIN_NAME);
         }
 
-        return [ConfigItem::FORMEXPLAIN  => __('Single Logout service endpoint of the IdP. URL Location of the IdP where
-                                          SLO Request will be sent.OneLogin PHPSAML only supports
-                                          the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN  => __('Single Logout service endpoint of the IdP. URL Location of the IdP where SLO Request will be sent.OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('SLO URL', PLUGIN_NAME),
                 ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
                 ConfigItem::VALUE     => (string) $var,
@@ -287,10 +270,7 @@ class ConfigItem    //NOSONAR
             }
         }
 
-        return [ConfigItem::FORMEXPLAIN  => __('The Public Base64 encoded x509 certificate used by the IdP. Fingerprinting
-                                          can be used, but is not recommended. Fingerprinting requires you to manually
-                                          alter the Saml Config array located in ConfigEntity.php and provide the
-                                          required configuration options', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN  => __('The Public Base64 encoded x509 certificate used by the IdP. Fingerprinting can be used, but is not recommended. Fingerprinting requires you to manually alter the Saml Config array located in ConfigEntity.php and provide the required configuration options', PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('X509 CERTIFICATE', PLUGIN_NAME),
                 ConfigItem::EVAL      => ($e) ? ConfigItem::INVALID : ConfigItem::VALID,
                 ConfigItem::VALUE     => (string) $var,
@@ -316,9 +296,7 @@ class ConfigItem    //NOSONAR
         }
         $val = (empty($val)) ? 'none' : $val;
 
-        return [ConfigItem::FORMEXPLAIN => __('Authentication context needs to be satisfied by the IdP in order to allow Saml login. Set
-                                         to "none" and OneLogin PHPSAML will not send an AuthContext in the AuthNRequest. Or,
-                                         select one or more options using the "control+click" combination.', PLUGIN_NAME),
+        return [ConfigItem::FORMEXPLAIN => __('Authentication context needs to be satisfied by the IdP in order to allow Saml login. Set to "none" and OneLogin PHPSAML will not send an AuthContext in the AuthNRequest. Or, select one or more options using the "control+click" combination.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE => __('REQ AUTHN CONTEXT', PLUGIN_NAME),
                 ConfigItem::EVAL      => ($val) ? ConfigItem::VALID : ConfigItem::INVALID,
                 ConfigItem::VALUE     => (string) $val,
@@ -401,8 +379,7 @@ class ConfigItem    //NOSONAR
 
     protected function is_active(mixed $var): array                     //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('Indicates if this configuration activated. Disabled configurations cannot be
-                                                       used to login into GLPI and will NOT be shown on the login page.', PLUGIN_NAME),
+        return array_merge([ConfigItem::FORMEXPLAIN   => __('Indicates if this configuration activated. Disabled configurations cannot be used to login into GLPI and will NOT be shown on the login page.', PLUGIN_NAME),
                             ConfigItem::FORMTITLE     => __('IS ACTIVE', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -411,10 +388,7 @@ class ConfigItem    //NOSONAR
 
     protected function enforce_sso(mixed $var): array                   //NOSONAR 
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled PHPSAML will replace the default GLPI login screen with a version
-                                                       that does not have the default GLPI login options and only allows the user to
-                                                       authenticate using the configured SAML2 idps. This setting can be bypassed using
-                                                       a bypass URI parameter', PLUGIN_NAME),
+        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled PHPSAML will replace the default GLPI login screen with a version that does not have the default GLPI login options and only allows the user to authenticate using the configured SAML2 idps. This setting can be bypassed using a bypass URI parameter', PLUGIN_NAME),
                             ConfigItem::FORMTITLE     => __('ENFORCED', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -432,10 +406,7 @@ class ConfigItem    //NOSONAR
 
     protected function strict(mixed $var): array
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled the OneLogin PHPSAML Toolkit will reject unsigned or unencrypted
-                                                       messages if it expects them to be signed or encrypted. Also it will reject the
-                                                       messages if the SAML standard is not strictly followed: Destination, NameId,
-                                                       Conditions are validated too. Strongly advised in production environments.', PLUGIN_NAME),
+        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled the OneLogin PHPSAML Toolkit will reject unsigned or unencrypted messages if it expects them to be signed or encrypted. Also it will reject the messages if the SAML standard is not strictly followed: Destination, NameId, Conditions are validated too. Strongly advised in production environments.', PLUGIN_NAME),
                             ConfigItem::FORMTITLE     => __('STRICT', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -444,9 +415,7 @@ class ConfigItem    //NOSONAR
 
     protected function debug(mixed $var): array
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled it will enforce OneLogin PHPSAML to print status and error messages.
-                                                       be aware that not all message\'s might be captured by samlSSO and might therefor
-                                                       not become visible.'),
+        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled it will enforce OneLogin PHPSAML to print status and error messages. Be aware that not all message\'s might be captured by samlSSO and might therefor not become visible.'),
                             ConfigItem::FORMTITLE     => __('DEBUG', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -455,9 +424,7 @@ class ConfigItem    //NOSONAR
 
     protected function user_jit(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled samlSSO will create new GLPI users on the fly and assign the properties
-                                                         defined in the samlSSO assignment rules. If disables users that do not have a valid
-                                                         GLPI user will not be able to login into GLPI until a user is manually created.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled samlSSO will create new GLPI users on the fly and assign the properties defined in the samlSSO assignment rules. If disables users that do not have a valid GLPI user will not be able to login into GLPI until a user is manually created.'),
                             ConfigItem::FORMTITLE     => __('JIT USER CREATION', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -466,9 +433,7 @@ class ConfigItem    //NOSONAR
 
     protected function security_nameidencrypted(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will encrypt the <samlp:logoutRequest> sent by
-                                                         this SP using the provided SP certificate and private key. This option will be toggled
-                                                         "off" automatically if no, or no valid SP certificate and key is provided.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will encrypt the <samlp:logoutRequest> sent by this SP using the provided SP certificate and private key. This option will be toggled "off" automatically if no, or no valid SP certificate and key is provided.'),
                             ConfigItem::FORMTITLE     => __('ENCRYPT NAMEID', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -477,9 +442,7 @@ class ConfigItem    //NOSONAR
 
     protected function security_authnrequestssigned(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> messages
-                                                         send by this SP. The IDP should consult the metadata to get the information required
-                                                         to validate the signatures.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> messages send by this SP. The IDP should consult the metadata to get the information required to validate the signatures.'),
                             ConfigItem::FORMTITLE     => __('SIGN AUTHN REQUEST', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -488,8 +451,7 @@ class ConfigItem    //NOSONAR
 
     protected function security_logoutrequestsigned(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> messages
-                                                         send by this SP.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> messages send by this SP.'),
                             ConfigItem::FORMTITLE     => __('SIGN LOGOUT REQUEST', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -498,8 +460,7 @@ class ConfigItem    //NOSONAR
 
     protected function security_logoutresponsesigned(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutResponse> messages
-                                                         send by this SP.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutResponse> messages send by this SP.'),
                             ConfigItem::FORMTITLE     => __('SIGN LOGOUT RESPONSE', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -536,8 +497,7 @@ class ConfigItem    //NOSONAR
 
     protected function validate_destination(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled, SAMLResponses with an empty value at its
-                                                       Destination attribute will not be rejected for this fact.'),
+        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled, SAMLResponses with an empty value at its Destination attribute will not be rejected for this fact.'),
                             ConfigItem::FORMTITLE     => __('RELAX DEST VALIDATION', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -546,9 +506,7 @@ class ConfigItem    //NOSONAR
 
     protected function lowercase_url_encoding(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('ADFS URL-Encodes SAML data as lowercase, and the OneLogin PHPSAML
-                                                       toolkit by default uses uppercase. Enable this setting for ADFS
-                                                       compatibility on signature verification'),
+        return array_merge([ConfigItem::FORMEXPLAIN   => __('ADFS URL-Encodes SAML data as lowercase, and the OneLogin PHPSAML toolkit by default uses uppercase. Enable this setting for ADFS compatibility on signature verification'),
                             ConfigItem::FORMTITLE     => __('LOWER CASE ENCODING', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],

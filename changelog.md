@@ -3,6 +3,8 @@
 - Added `.php` to excludes path in `Config.php` to make sure the 'add' button shows.
 - Altered `getConfigIdByEmailDomain()` to handle multiple domains per IDP using comma seperated domain lists i.e. `domain1.com,domain1.nl,domain1.org`
 - Added basics in `performSamlSSO()` and `doAuth()` for Subject hinting, but this isnt supported by Entra. Maybe make this a configurable option in the future for IDPs that do support Subject hinting.
+- Add acs exclusion in doAuth flow https://github.com/DonutsNL/samlsso/issues/29
+- Remove excessive state inits in authFlow object.
 
 
 **V1.2.2**
