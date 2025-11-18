@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.2
+ *  @version    1.2.3
  *  @author     Denis Ollier
  *  @copyright  Copyright (c) 2025 by Denis Ollier
  *  @license    GPLv3+
