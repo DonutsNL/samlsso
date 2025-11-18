@@ -1,7 +1,7 @@
 <root>
 <name>samlsso</name>
 <key>samlsso</key>
-<state>test-release</state>
+<state>stable</state>
 <logo>https://raw.githubusercontent.com/DonutsNL/samlsso/refs/heads/main/templates/images/quinquies.jpeg</logo>
 <description>
     <short>

@@ -480,10 +480,6 @@ class LoginFlow extends CommonDBTM
         // IDP in addition to logging out of GLPI.
         if( $configEntity->getField(ConfigEntity::IDP_SLO_URL)  &&
             $this->state->isSamlAuthed()                        ){
-           
-            // Make sure the GLPI session is cleaned
-            // user is logged out of GLPI.
-            Session::cleanOnLogout();
             
             // Define static translatable elements
             $tplVars = [
@@ -502,6 +498,10 @@ class LoginFlow extends CommonDBTM
             echo TemplateRenderer::getInstance()->render('@samlsso/logout.html.twig',  $tplVars);
             // print nullFooter
             Html::nullFooter();
+
+            // Make sure the GLPI session is cleaned
+            // https://github.com/DonutsNL/samlsso/issues/35
+            Session::cleanOnLogout();
             exit;
         } // else silently ignore and continue GLPI logout.
     }

@@ -5,6 +5,8 @@
 - Added basics in `performSamlSSO()` and `doAuth()` for Subject hinting, but this isnt supported by Entra. Maybe make this a configurable option in the future for IDPs that do support Subject hinting.
 - Add acs exclusion in doAuth flow https://github.com/DonutsNL/samlsso/issues/29
 - Remove excessive state inits in authFlow object.
+- Fix issue in logout method causing warnings to be logged by Html object. https://github.com/DonutsNL/samlsso/issues/35
+
 
 
 **V1.2.2**
