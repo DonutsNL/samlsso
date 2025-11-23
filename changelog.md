@@ -1,4 +1,4 @@
-**V1.2.3**
+**V1.2.4**
 - Added webhook.php to excludes https://github.com/DonutsNL/samlsso/issues/32
 - Added `.php` to excludes path in `Config.php` to make sure the 'add' button shows.
 - Altered `getConfigIdByEmailDomain()` to handle multiple domains per IDP using comma seperated domain lists i.e. `domain1.com,domain1.nl,domain1.org`
