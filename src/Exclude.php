@@ -405,6 +405,17 @@ class Exclude extends CommonDropdown
             SQL;
             $DB->doQuery($query) or die($DB->error());
         }
+
+        // https://github.com/DonutsNL/samlsso/issues/36
+        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/api.php']]) or die($DB->error());
+        if(!$result->numrows() > 0){
+             $query = <<<SQL
+                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
+                VALUES('Bypass api.php', '', '1', '', '/api.php');
+            SQL;
+            $DB->doQuery($query) or die($DB->error());
+        }
+
         Session::addMessageAfterRedirect("🆗 Inserted default excludes.");
     }
 

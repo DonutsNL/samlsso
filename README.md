@@ -7,6 +7,7 @@ PRODUCTION RELEASE
 # Current Focus
 * Adding functionality
 * hardening the plugin
+* Translations : https://app.transifex.com/quinquies/glpisaml/
 
 # Support
 Want to support my work?
@@ -30,13 +31,12 @@ Have coding experience (or are learning to code) and want to add meaningfull cha
 - Twig language support;
 
 # Credits
-Special credits go to:
-- Derrick Smith (creating the initial version PHPSaml)
-- Raul, @gambware for their support to the OSS community (& buying me coffee), cheers!
+Honor when honours are due:
+- Raul, @gambware, Koen, Marc-henri, Vijay Nayani, Fabio Grasso, for supporting  the OSS-community.
 - @MikeDevresse for providing fixes to the codebase.
 - @SpyK-01 for licensing and sharing the logo via https://elements.envato.com/letter-shield-gradient-colorful-logo-XZ7LYCM.
-- @dollierp for adding a clean task
-- @CTparental for working on translations
+- @dollierp for adding a cleanup task
+- @CTparental, Alan Lehoux (sp), Achraf Chico (fr), Eduardo Peres (us), Jonathan Ronquillo (sp), Achraf Oueldelferraga (fr), Joaquin Etchegaray (sp), Soporte Infrastructura (sp) for working on translations
 
 # Get an idea where im going with this:
 https://github.com/DonutsNL/phpsaml2/wiki/Plugin-Logic-and-Structure-Scratchboard
