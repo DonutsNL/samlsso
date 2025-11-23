@@ -4,6 +4,11 @@ This plugin is a full rewrite by Chris Gralike of Derrick Smith's initial PHPSAM
 ## Feedback
 Im very interrested in your challanges and ideas. Want to contribute those? Look for issues with the label 'Public feedback wanted' or create a FB issue yourself. Love to engage with you guys!
 
+## Current Focus
+* Adding functionality
+* hardening the plugin
+* Translations : https://app.transifex.com/quinquies/glpisaml/
+
 ## Documentation
 * Officially supported by Teclib: https://glpi-plugins.readthedocs.io/en/latest/saml/requirements.html
 * Further documentation see wiki: https://github.com/DonutsNL/samlsso/wiki.
@@ -41,9 +46,12 @@ Have coding experience (or are learning to code) and want to add meaningfull cha
 - Twig language support;
 
 # Credits
-Special credits go to:
-- Raul, Gambware, Koen, Marc-henri, Vijay Nayani for their support (buying me coffee), cheers and very appreciated ❤️
+Honor when honours are due:
+- Raul, @gambware, Koen, Marc-henri, Vijay Nayani, Fabio Grasso, for supporting the OSS-community cheers and very much appreciated ❤️.
 - @MikeDevresse for providing fixes to the codebase.
-- @dollierp for adding a nice state table clean task
-- @CTparental for working on translations (not sure where we are at with that).
+- @SpyK-01 for licensing and sharing the logo via https://elements.envato.com/letter-shield-gradient-colorful-logo-XZ7LYCM.
+- @dollierp for adding a cleanup task
+- Translations: @CTparental, Alan Lehoux (sp), Achraf Chico (fr), Eduardo Peres (us), Jonathan Ronquillo (sp), Achraf Oueldelferraga (fr), Joaquin Etchegaray (sp), Soporte Infrastructura (sp).
 - Number of downloads so far: https://hanadigital.github.io/grev/?user=DonutsNL&repo=samlsso (not counting codeberg downloads +3K)
+
+
