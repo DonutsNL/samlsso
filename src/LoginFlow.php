@@ -189,8 +189,10 @@ class LoginFlow extends CommonDBTM
         // have a new sessionId that wont align with existing entries
         // and need to use the samlRequestId to populate the stateobj.
         // https://github.com/DonutsNL/samlsso/issues/29
-        if(strpos($_SERVER['REQUEST_URI'], 'front/acs') !== false){
-            return;
+        // https://github.com/DonutsNL/samlsso/issues/38
+        if(PHP_SAPI != 'cli'                                      &&
+           strpos($_SERVER['REQUEST_URI'], 'front/acs') !== false ){
+                return;
         }
 
         // If we hit an excluded file, we return and do nothing, not even log the

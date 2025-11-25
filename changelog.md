@@ -9,7 +9,8 @@
 - Fix issue in logout method causing warnings to be logged by Html object. https://github.com/DonutsNL/samlsso/issues/35
 - Updated the credits in the Readme.md (long overdue sorry for that)
 - Updated all the translation projects in https://app.transifex.com/quinquies/glpisaml/
-- Added /api.php to excludes as requested by https://github.com/DonutsNL/samlsso/issues/36
+- Added /api.php to excludes as requested by https://github.com/DonutsNL/samlsso/issues/36**
+- Quick bugfix existing version https://github.com/DonutsNL/samlsso/issues/38.
 
 
 **V1.2.2**
