@@ -1,6 +1,6 @@
 #!/bin/bash
-OLDVERSION='1.2.3'
-NEWVERSION='1.2.4'
+OLDVERSION='1.2.4'
+NEWVERSION='1.2.5'
 
 # Figure out what the GLPIpath is.
 FULLPATH=$(readlink -f "$0")

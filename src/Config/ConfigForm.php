@@ -49,6 +49,7 @@ namespace GlpiPlugin\Samlsso\Config;
 use Html;
 use Search;
 use Session;
+use Plugin;
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginState;
 use Glpi\Application\View\TemplateRenderer;

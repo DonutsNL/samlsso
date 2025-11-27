@@ -1,3 +1,7 @@
+**V1.2.5**
+- Provide bugfix for critical bug https://github.com/DonutsNL/samlsso/issues/38.
+- Fix incorrect plugin paths issue https://github.com/DonutsNL/samlsso/issues/41
+
 **V1.2.4**
 - Added webhook.php to excludes https://github.com/DonutsNL/samlsso/issues/32
 - Added `.php` to excludes path in `Config.php` to make sure the 'add' button shows.
@@ -10,7 +14,7 @@
 - Updated the credits in the Readme.md (long overdue sorry for that)
 - Updated all the translation projects in https://app.transifex.com/quinquies/glpisaml/
 - Added /api.php to excludes as requested by https://github.com/DonutsNL/samlsso/issues/36**
-- Quick bugfix existing version https://github.com/DonutsNL/samlsso/issues/38.
+
 
 
 **V1.2.2**

@@ -55,12 +55,16 @@ global $CFG_GLPI;
 
 // PLUGIN CONSTANTS
 define('PLUGIN_NAME', 'samlsso');                                                               // Plugin name
-define('PLUGIN_SAMLSSO_VERSION', '1.2.4');                                                      // Plugin version
+define('PLUGIN_SAMLSSO_VERSION', '1.2.5');                                                      // Plugin version
 define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.0');                                                    // Min required GLPI version
 define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.99');                                                   // Max GLPI compat version
 define('PLUGIN_SAMLSSO_LOGEVENTS','events');                                                    // specifies log extention
 define('PLUGIN_SAMLSSO_SRCDIR', __DIR__ . '/src');                                              // Location of the main classes
-define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .'/plugins/'.PLUGIN_NAME.'/');            // Make sure we dont use this messy code everywhere
+
+// Deal with GLPI ability to place plugin in multiple locations.
+// https://github.com/DonutsNL/samlsso/issues/41
+$pLoc = (strpos(Plugin::getPhpDir('samlsso'), 'marketplace') === false) ? '/plugins/' : '/marketplace/';
+define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] .$pLoc.PLUGIN_NAME.'/');            // Make sure we dont use this messy code everywhere
 
 
 // METHODS
