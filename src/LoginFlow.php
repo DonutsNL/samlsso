@@ -188,7 +188,7 @@ class LoginFlow extends CommonDBTM
         // https://github.com/DonutsNL/samlsso/issues/38
         // TODO remove all other SAPI = cli validations in the code
         // as this renders them useless.
-        if(PHP_SAPI != 'cli') {
+        if(PHP_SAPI == 'cli') {
             // Do nothing.
             return;
         }

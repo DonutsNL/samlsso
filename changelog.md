@@ -1,4 +1,7 @@
-**V1.2.5**
+**V1.2.6**
+- Improve generation scripts in tools directory to include more info.
+
+**V1.2.5 - BUGFIX RELEASE**
 - Provide bugfix for critical bug https://github.com/DonutsNL/samlsso/issues/38.
 - Fix incorrect plugin paths issue https://github.com/DonutsNL/samlsso/issues/41
 
