@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.4
+ *  @version    1.2.5
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -49,6 +49,7 @@ namespace GlpiPlugin\Samlsso\Config;
 use Html;
 use Search;
 use Session;
+use Plugin;
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginState;
 use Glpi\Application\View\TemplateRenderer;

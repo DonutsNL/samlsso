@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    Samlsso
- *  @version    1.2.4
+ *  @version    1.2.5
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -184,13 +184,22 @@ class LoginFlow extends CommonDBTM
      */
     public function doAuth()                         //NOSONAR - complexity by design
     {
+        // The plugin should remain dormant with all CLI calls.
+        // https://github.com/DonutsNL/samlsso/issues/38
+        // TODO remove all other SAPI = cli validations in the code
+        // as this renders them useless.
+        if(PHP_SAPI != 'cli') {
+            // Do nothing.
+            return;
+        }
+
         // Dont process anything if we are handling an ACS call.
         // Generating a state in this phase will taint it because we
         // have a new sessionId that wont align with existing entries
         // and need to use the samlRequestId to populate the stateobj.
         // https://github.com/DonutsNL/samlsso/issues/29
-        if(strpos($_SERVER['REQUEST_URI'], 'front/acs') !== false){
-            return;
+        if(strpos($_SERVER['REQUEST_URI'], 'front/acs') !== false ){
+                return;
         }
 
         // If we hit an excluded file, we return and do nothing, not even log the
