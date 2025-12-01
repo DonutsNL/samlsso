@@ -89,21 +89,21 @@ class ConfigForm    //NOSONAR complexity by design.
         $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;     // Assign the ID if any
         $options['template'] = ( $request->get('template') &&                   // iF set URI?template={template}
                                  ctype_alpha($request->get('update')) ) ?       // iF template only contains alpha txt
-                                 $request->get('update') :                      // THEN set it to requested template
-                                 'default';                                     // Else fallback to default.
+                                 $request->get('update') :                     // THEN set it to requested template
+                                 'default';                                         // Else fallback to default.
                                  
         // Add using template
         if( !$inputBag->has('update')     &&
-            !$inputBag->has('delete')     ){                                    // IF the update is empy load a given template for initial form.
+            !$inputBag->has('delete')     ){                                // IF the update is empy load a given template for initial form.
 
             $this->displayUIHeader();
-            return $this->showForm($id, $options);                              // Return the form
+            return $this->showForm($id, $options);                  // Return the form
     
         // Add new item
-        }elseif($inputBag->has('update')  &&                                    // IF we received an update
+        }elseif($inputBag->has('update')  &&                                // IF we received an update
                 $id == -1                 ){                                    // AND ID param is empty
             $this->displayUIHeader();
-            return $this->addSamlConfig($inputBag->getIterator());              // Call Create handler
+            return $this->addSamlConfig($inputBag->getIterator());  // Call Create handler
 
         // Update an item
         }elseif($inputBag->has('update')  &&                                    // IF update is set
