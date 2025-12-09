@@ -202,6 +202,23 @@ class LoginFlow extends CommonDBTM
                 return;
         }
 
+        // Perform SLO logout with idp
+        // Called by $this->performLogOff()
+        if(isset($_GET[self::SLOLOGOUT])                                    &&          // SLO was triggered and we need to process it.
+           $configEntity = new ConfigEntity($this->state->getIdpId())       ){          // Get the config so we can generate IDP logout request.
+            // We can assume GLPI session was allready destroyed and we
+            // can continue here. In worst if forced manuallu the IDP will
+            // be logged out while GLPI still has a valid session that
+            // will then be invalidated by the GLPI session manager
+            // because of the redirects performed tainting the cookie
+            // resulting in an invalid session error from GLPI.
+            $samlAuth = new samlAuth($configEntity->getPhpSamlConfig());
+            // Get the (signed) logout url.
+            $sloUrl = $samlAuth->logout();
+            header('location:'.$sloUrl);
+            exit;
+        }
+
         // If we hit an excluded file, we return and do nothing, not even log the
         // event. Possibly we want to enable the user to perform SIEM calls by
         // implementing this functionality prior to this validation.
@@ -240,28 +257,9 @@ class LoginFlow extends CommonDBTM
         if(isset($_SERVER['REQUEST_URI'])                                   &&          // Request URI available (non CLI)
           (strpos($_SERVER['REQUEST_URI'], 'front/logout') !== false)       ){          // font/logout part of the request URI
 
-                // Stop GLPI from processing cookie based auto login.
-                $this->state->addLoginFlowTrace(['logoutPressed' => true]);
                 $this->performLogOff();
                 // If we reach this then GLPI should handle the logoff not us.
                 return;
-        }
-
-        // Perform SLO logout with idp
-        // Called by $this->performLogOff()
-        if(isset($_GET[self::SLOLOGOUT])                                    &&          // SLO was triggered and we need to process it.
-           $configEntity = new ConfigEntity($this->state->getIdpId())       ){          // Get the config so we can generate IDP logout request.
-            // We can assume GLPI session was allready destroyed and we
-            // can continue here. In worst if forced manuallu the IDP will
-            // be logged out while GLPI still has a valid session that
-            // will then be invalidated by the GLPI session manager
-            // because of the redirects performed tainting the cookie
-            // resulting in an invalid session error from GLPI.
-            $samlAuth = new samlAuth($configEntity->getPhpSamlConfig());
-            // Get the (signed) logout url.
-            $sloUrl = $samlAuth->logout();
-            header('location:'.$sloUrl);
-            exit;
         }
 
         // Do nothing if glpi is trying to impersonate someone
@@ -475,6 +473,9 @@ class LoginFlow extends CommonDBTM
     protected function performLogOff(): void
     {
         global $CFG_GLPI;
+
+        // Update flowtrace field.
+        $this->state->addLoginFlowTrace(['logoutPressed' => true]);
 
         // Update the state indicating that logout has been pressed.
         $this->state->setPhase(LoginState::PHASE_LOGOFF);
