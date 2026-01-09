@@ -424,7 +424,7 @@ class ConfigItem    //NOSONAR
 
     protected function user_jit(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled samlSSO will create new GLPI users on the fly and assign the properties defined in the samlSSO assignment rules. If disables users that do not have a valid GLPI user will not be able to login into GLPI until a user is manually created.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled samlSSO will create new GLPI users on the fly and assign the properties defined in the samlSSO assignment rules. If disables users that do not have a valid GLPI user will not be able to login into GLPI until a user is manually created.')),
                             ConfigItem::FORMTITLE     => __('JIT USER CREATION', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
