@@ -433,7 +433,7 @@ class ConfigItem    //NOSONAR
 
     protected function security_nameidencrypted(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will encrypt the <samlp:logoutRequest> sent by this SP using the provided SP certificate and private key. This option will be toggled "off" automatically if no, or no valid SP certificate and key is provided.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will encrypt the <samlp:logoutRequest> sent by this SP using the provided SP certificate and private key. This option will be toggled "off" automatically if no, or no valid SP certificate and key is provided.')),
                             ConfigItem::FORMTITLE     => __('ENCRYPT NAMEID', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -442,7 +442,7 @@ class ConfigItem    //NOSONAR
 
     protected function security_authnrequestssigned(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> messages send by this SP. The IDP should consult the metadata to get the information required to validate the signatures.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> messages send by this SP. The IDP should consult the metadata to get the information required to validate the signatures.')),
                             ConfigItem::FORMTITLE     => __('SIGN AUTHN REQUEST', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -451,7 +451,7 @@ class ConfigItem    //NOSONAR
 
     protected function security_logoutrequestsigned(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> messages send by this SP.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> messages send by this SP.')),
                             ConfigItem::FORMTITLE     => __('SIGN LOGOUT REQUEST', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
@@ -460,7 +460,7 @@ class ConfigItem    //NOSONAR
 
     protected function security_logoutresponsesigned(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutResponse> messages send by this SP.'),
+        return array_merge([ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutResponse> messages send by this SP.')),
                             ConfigItem::FORMTITLE     => __('SIGN LOGOUT RESPONSE', PLUGIN_NAME),
                             ConfigItem::FIELD         => __function__,
                             ConfigItem::VALIDATOR     => __method__,],
