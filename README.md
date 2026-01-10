@@ -7,7 +7,7 @@ Im very interrested in your challanges and ideas. Want to contribute those? Look
 ## Current Focus
 * Adding functionality
 * hardening the plugin
-* Translations : https://app.transifex.com/quinquies/glpisaml/
+* Translations : https://app.transifex.com/quinquies/samlsso/
 
 ## Documentation
 * Officially supported by Teclib: https://glpi-plugins.readthedocs.io/en/latest/saml/requirements.html
