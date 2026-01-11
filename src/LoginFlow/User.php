@@ -278,18 +278,6 @@ class User
             }else{
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT didnt find to be assigned profile(s) to be recursive.'."\n"));
             }
-
-            // Delete all default profile assignments
-            Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT remove all existing and default profiles from newly created user:'."\n"));
-            $profileUser = new Profile_User();
-            if($pid = $profileUser->getForUser($update[User::USERSID])){
-                foreach($pid as $key => $data){
-                    $profileUser->delete(['id' => $key]);
-                }
-                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Done'."\n"));
-            }else{
-                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('failed'."\n"));
-            }
             
 
             // Assign collected Rights
@@ -297,6 +285,18 @@ class User
             if(!$profileUser->add($rights)){
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT was not able to assign profile with config:'.var_export($rights, true)."\n\n" . "\n", true));
             }else{
+                // Delete all default profile assignments
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT remove all default profiles from newly created user:'."\n"));
+                $profileUser = new Profile_User();
+                if($pid = $profileUser->getForUser($update[User::USERSID])){
+                    unset($pid[$rights[User::PROFILESID]]);
+                    foreach($pid as $key => $data){
+                        $profileUser->delete(['id' => $key]);
+                    }
+                    Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Done'."\n"));
+                } else {
+                    Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('failed'."\n"));
+                }
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT assigned profile with config:'.var_export($rights, true)."\n\n" . "\n", true));
             }
         }
