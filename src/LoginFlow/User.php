@@ -155,7 +155,7 @@ class User
         // User IS NOT found.
 
             // Try to perform Just In Time (JIT) user creation;
-            return $this->performJIT($userFields);
+            $user = $this->performJIT($userFields);
 
         }else{
         // User is found, check if we are allowed to use it.
@@ -173,11 +173,16 @@ class User
                 LoginFlow::PrintFatalLoginError(__("User with GlpiUserid: ".$user->fields[User::USERID]." is disabled. Please contact your GLPI administrator and request him to
                                             reactivate your account.", PLUGIN_NAME));
             }
-
-            // User can be used to login, so return the user to the LoginFlow object
-            // for session initialization!.
-            return $user;
         }
+
+        // Check if the user has any profiles assigned
+        if (count(Profile_User::getForUser($user->fields['id'])) === 0) {
+            LoginFlow::PrintFatalLoginError(__("Your SSO login was successful, but no GLPI Profile was assigned to your account. Please contact your GLPI administrator to assign a profile to your account or create a JIT rule to auto assign a GLPI profile.", PLUGIN_NAME));
+        }
+
+        // User can be used to login, so return the user to the LoginFlow object
+        // for session initialization!.
+        return $user;
     }
 
     private function performJIT(array $userFields): glpiUser {
