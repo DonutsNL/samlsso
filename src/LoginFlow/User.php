@@ -221,10 +221,6 @@ class User
             // Return the freshly created user!
             $user = new glpiUser();
             if($user->getFromDB($id)){
-                // Check if the user has any profiles assigned
-                if (count(Profile_User::getForUser($id)) === 0) {
-                    LoginFlow::PrintFatalLoginError(__("Your SSO login was successful and a GLPI user was created, but no GLPI Profile was assigned to your account. Please contact your GLPI administrator to assign a profile to your account or create a JIT rule to auto assign a GLPI profile.", PLUGIN_NAME));
-                }
                 Session::addMessageAfterRedirect('Dynamically created GLPI user for:'.$userFields[User::EMAIL]['0']);
                 return $user;
             }else{
