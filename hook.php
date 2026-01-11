@@ -128,6 +128,25 @@ function plugin_samlsso_install() : bool                                        
     // Report the version we are installing
     Session::addMessageAfterRedirect(__('🆗 Installing version:'.PLUGIN_SAMLSSO_VERSION));
 
+    // Check memory_limit
+    $memory_limit = ini_get('memory_limit');
+    if ($memory_limit && $memory_limit != -1) {
+        $value = trim($memory_limit);
+        if ($value !== '') {
+            $last = strtolower($value[strlen($value)-1]);
+            $bytes = (int)$value;
+            switch($last) {
+                case 'g': $bytes *= 1024;
+                case 'm': $bytes *= 1024;
+                case 'k': $bytes *= 1024;
+            }
+
+            if ($bytes < 536870912) {
+                 Session::addMessageAfterRedirect(__('⚠️ PHP memory_limit is less than 512M. This may cause crashes during SAML Login. See: ', PLUGIN_NAME) . ' <a href="https://github.com/DonutsNL/samlsso/wiki/Container-crashes-during-SAML-Login" target="_blank">Wiki</a>', false, WARNING);
+            }
+        }
+    }
+
     // openssl is nice to have therefore it is not included in the prerequisites.
     if ( !function_exists('openssl_x509_parse') ) {
         Session::addMessageAfterRedirect( __('⚠️ OpenSSL not available, cant verify provided certificates') );
