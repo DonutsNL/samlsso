@@ -459,6 +459,18 @@ class LoginFlow extends CommonDBTM
         // This tells GLPI a valid GLPI user was logged in.
         Session::init($auth);
 
+        if (!empty($auth->getErrors())) {
+            echo TemplateRenderer::getInstance()->render(
+                    'pages/login_error.html.twig',
+                    [
+                        'errors'    => $auth->getErrors(),
+                        'title'     => __('Access denied'),
+                        'login_url' => $CFG_GLPI["root_doc"] . '/front/logout.php?noAUTO=1&redirect=' . $state->getRedirect(),
+                    ]
+                );
+            exit;
+        }
+
         // Update the samlState table with the new sessionId.
         // so we can keep tracking it after the next redirect.
         // https://github.com/DonutsNL/samlsso/issues/26
