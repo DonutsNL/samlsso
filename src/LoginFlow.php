@@ -428,6 +428,8 @@ class LoginFlow extends CommonDBTM
      */
     protected function performGlpiLogin(Response $response, LoginState $state): void
     {
+        global $CFG_GLPI;
+
         // Push the state into this objects property just in case.
         $this->state = $state;
         
