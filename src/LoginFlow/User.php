@@ -317,14 +317,14 @@ class User
             // Do we need to set a specific default entity?
             if(isset($update[User::ENTITY_DEFAULT])){
                 $userDefaults[User::ENTITY_ID] = $update[User::ENTITY_DEFAULT];
-                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found default entityID:'.$update[User::GROUP_DEFAULT].'for userId:'.$update['users_id']."\n"));
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found default entityID:'.$update[User::ENTITY_DEFAULT].'for userId:'.$update['users_id']."\n"));
             }else{
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Jit didnt find a default EntityId to assign, skipping'."\n"));
             }
             // Do we need to set a specific profile?
             if(isset($update[User::PROFILE_DEFAULT])){
                 $userDefaults[User::PROFILESID] = $update[User::PROFILE_DEFAULT];
-                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found default profileID:'.$update[User::GROUP_DEFAULT].'for userId:'.$update['users_id']."\n"));
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found default profileID:'.$update[User::PROFILE_DEFAULT].'for userId:'.$update['users_id']."\n"));
             }else{
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Jit didnt find a default ProfileId to assign, skipping'."\n"));
             }
