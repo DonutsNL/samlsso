@@ -159,20 +159,7 @@ class User
 
         }else{
         // User is found, check if we are allowed to use it.
-
-            // Verify the found user is not deleted (in trashcan)
-            if($user->fields[User::DELETED]){
-                LoginFlow::PrintFatalLoginError(__("User with GlpiUserid: ".$user->fields[User::USERID]." is marked deleted but still exists in the GLPI database. Because of
-                                           this we cannot log you in as this would violate GLPI its security policies. Please contact the GLPI administrator
-                                           to restore the user with provided ID or purge the user to allow the Just in Time (JIT) user creation to create a
-                                           new user with the idp provided claims.", PLUGIN_NAME));
-            }
-
-            // Verify the found user is not disabled by the admin;
-            if($user->fields[User::ACTIVE] == 0){
-                LoginFlow::PrintFatalLoginError(__("User with GlpiUserid: ".$user->fields[User::USERID]." is disabled. Please contact your GLPI administrator and request him to
-                                            reactivate your account.", PLUGIN_NAME));
-            }
+            // @see Session::init
 
             // User can be used to login, so return the user to the LoginFlow object
             // for session initialization!.
