@@ -289,9 +289,10 @@ class User
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT remove all default profiles from newly created user:'."\n"));
                 $profileUser = new Profile_User();
                 if($pid = $profileUser->getForUser($update[User::USERSID])){
-                    unset($pid[$rights[User::PROFILESID]]);
                     foreach($pid as $key => $data){
-                        $profileUser->delete(['id' => $key]);
+                        if ($data['profiles_id'] != $rights[User::PROFILESID]) {
+                            $profileUser->delete(['id' => $key]);
+                        }
                     }
                     Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Done'."\n"));
                 } else {
