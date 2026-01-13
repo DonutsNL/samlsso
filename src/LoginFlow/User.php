@@ -278,18 +278,6 @@ class User
             }else{
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT didnt find to be assigned profile(s) to be recursive.'."\n"));
             }
-
-            // Delete all default profile assignments
-            Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT remove all existing and default profiles from newly created user:'."\n"));
-            $profileUser = new Profile_User();
-            if($pid = $profileUser->getForUser($update[User::USERSID])){
-                foreach($pid as $key => $data){
-                    $profileUser->delete(['id' => $key]);
-                }
-                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Done'."\n"));
-            }else{
-                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('failed'."\n"));
-            }
             
 
             // Assign collected Rights
@@ -297,6 +285,19 @@ class User
             if(!$profileUser->add($rights)){
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT was not able to assign profile with config:'.var_export($rights, true)."\n\n" . "\n", true));
             }else{
+                // Delete all default profile assignments
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT remove all default profiles from newly created user:'."\n"));
+                $profileUser = new Profile_User();
+                if($pid = $profileUser->getForUser($update[User::USERSID])){
+                    foreach($pid as $key => $data){
+                        if ($data['profiles_id'] != $rights[User::PROFILESID]) {
+                            $profileUser->delete(['id' => $key]);
+                        }
+                    }
+                    Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Done'."\n"));
+                } else {
+                    Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('failed'."\n"));
+                }
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT assigned profile with config:'.var_export($rights, true)."\n\n" . "\n", true));
             }
         }
@@ -317,14 +318,14 @@ class User
             // Do we need to set a specific default entity?
             if(isset($update[User::ENTITY_DEFAULT])){
                 $userDefaults[User::ENTITY_ID] = $update[User::ENTITY_DEFAULT];
-                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found default entityID:'.$update[User::GROUP_DEFAULT].'for userId:'.$update['users_id']."\n"));
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found default entityID:'.$update[User::ENTITY_DEFAULT].'for userId:'.$update['users_id']."\n"));
             }else{
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Jit didnt find a default EntityId to assign, skipping'."\n"));
             }
             // Do we need to set a specific profile?
             if(isset($update[User::PROFILE_DEFAULT])){
                 $userDefaults[User::PROFILESID] = $update[User::PROFILE_DEFAULT];
-                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found default profileID:'.$update[User::GROUP_DEFAULT].'for userId:'.$update['users_id']."\n"));
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found default profileID:'.$update[User::PROFILE_DEFAULT].'for userId:'.$update['users_id']."\n"));
             }else{
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Jit didnt find a default ProfileId to assign, skipping'."\n"));
             }
