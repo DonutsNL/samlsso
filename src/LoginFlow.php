@@ -647,8 +647,6 @@ class LoginFlow extends CommonDBTM
         echo TemplateRenderer::getInstance()->render('@samlsso/errorScreen.html.twig',  $tplVars);
         // print footer
         Html::nullFooter();
-
-        throw new BadRequestHttpException();
         
         // Make sure php execution is stopped.
         exit;
