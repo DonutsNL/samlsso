@@ -1,5 +1,12 @@
 **V1.2.6**
 - Improve generation scripts in tools directory to include more info.
+- Improvement: Added index to logging table via installation/upgrade as suggested 
+- Improvement: Reviewed and added completed es_AR translation
+- Fix: Alter logout location preventing it from being processed to early
+- Improvement: Added a warning about PHP memory_limit - by @eduardomozart
+- Improvement: JIT handling: Remove default profiles only if profiles have been successfully assigned - by @eduardomozart
+- Fix: Update User.php fix ENTITY_DEFAULT and PROFILE_DEFAULT variables undefined key warinings - by @eduardomozart
+- Fix: Corrected constant name of entity for prepared not yet implemented reaply JIT function `src/LoginFlow/LoginFlowItem.php`:210 - by @eduardomozart
 
 **V1.2.5 - BUGFIX RELEASE**
 - Provide bugfix for critical bug https://github.com/DonutsNL/samlsso/issues/38.

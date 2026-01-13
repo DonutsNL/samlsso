@@ -474,6 +474,13 @@ class LoginFlow extends CommonDBTM
     {
         global $CFG_GLPI;
 
+        // Make sure we are looking at a logged in session
+        // before showing this.
+        if(!array_key_exists('glpiID', $_SESSION) || empty($_SESSION["glpiID"])){
+            // Ignore the call.
+            return;
+        }
+
         // Update flowtrace field.
         $this->state->addLoginFlowTrace(['logoutPressed' => true]);
 
