@@ -65,9 +65,6 @@ use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\LoginFlow\User;
 use GlpiPlugin\Samlsso\LoginFlow\Auth as glpiAuth;
 
-use Glpi\Exception\Http\AccessDeniedHttpException;
-use Glpi\Exception\Http\BadRequestHttpException;
-
 /**
  * This object brings it all together. It is responsible to handle the
  * main logic concerned with the Saml login and logout flows.
