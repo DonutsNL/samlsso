@@ -80,7 +80,7 @@ function plugin_samlsso_boot(): void {
         SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/front/slo/#');             // Register the logout service as stateless (prevent csrf checking)
 }
 
-/** 
+/**
  * @param void
  * @return void
  * @see https://glpi-developer-documentation.readthedocs.io/en/master/plugins/requirements.html

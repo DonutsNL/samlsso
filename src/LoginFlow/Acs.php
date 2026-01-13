@@ -256,7 +256,7 @@ class Acs extends LoginFlow
             // Generate error and log state and response into the errorlog.
             $this->printError(__("GLPI did not expect an assertion from this Idp. The most likely reason is a race condition
                                   causing an inconsistant loginState in the database or software bug. Please login again via the
-                                  GLPI-interface. Sorry for the inconvenience. See: https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php
+                                  GLPI-interface. Sorry for the inconvenience. See: https://github.com/DonutsNL/samlsso/wiki/Unsollicited-%E2%80%90-IdP-initiated-login-flows
                                   for more information", PLUGIN_NAME),
                               __('samlResponse assertion'),
                                   Acs::EXTENDED_HEADER.

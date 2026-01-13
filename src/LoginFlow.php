@@ -188,7 +188,7 @@ class LoginFlow extends CommonDBTM
         // https://github.com/DonutsNL/samlsso/issues/38
         // TODO remove all other SAPI = cli validations in the code
         // as this renders them useless.
-        if(PHP_SAPI != 'cli') {
+        if(PHP_SAPI == 'cli') {
             // Do nothing.
             return;
         }
@@ -231,22 +231,6 @@ class LoginFlow extends CommonDBTM
             $this->printError(__("Loading login state failed with: $e", PLUGIN_NAME));
         }
 
-        // Store any redirects passed to GLPI in the state,
-        // so we can process them after the auth redirects.
-        $this->state->setRedirect();
-
-        // Is the LOGOUT button PRESSED?
-        // https://codeberg.org/QuinQuies/glpisaml/issues/18
-        if(isset($_SERVER['REQUEST_URI'])                                   &&          // Request URI available (non CLI)
-          (strpos($_SERVER['REQUEST_URI'], 'front/logout') !== false)       ){          // font/logout part of the request URI
-
-                // Stop GLPI from processing cookie based auto login.
-                $this->state->addLoginFlowTrace(['logoutPressed' => true]);
-                $this->performLogOff();
-                // If we reach this then GLPI should handle the logoff not us.
-                return;
-        }
-
         // Perform SLO logout with idp
         // Called by $this->performLogOff()
         if(isset($_GET[self::SLOLOGOUT])                                    &&          // SLO was triggered and we need to process it.
@@ -262,6 +246,20 @@ class LoginFlow extends CommonDBTM
             $sloUrl = $samlAuth->logout();
             header('location:'.$sloUrl);
             exit;
+        }
+
+        // Store any redirects passed to GLPI in the state,
+        // so we can process them after the auth redirects.
+        $this->state->setRedirect();
+
+        // Is the LOGOUT button PRESSED?
+        // https://codeberg.org/QuinQuies/glpisaml/issues/18
+        if(isset($_SERVER['REQUEST_URI'])                                   &&          // Request URI available (non CLI)
+          (strpos($_SERVER['REQUEST_URI'], 'front/logout') !== false)       ){          // font/logout part of the request URI
+
+                $this->performLogOff();
+                // If we reach this then GLPI should handle the logoff not us.
+                return;
         }
 
         // Do nothing if glpi is trying to impersonate someone
@@ -475,6 +473,16 @@ class LoginFlow extends CommonDBTM
     protected function performLogOff(): void
     {
         global $CFG_GLPI;
+
+        // Make sure we are looking at a logged in session
+        // before showing this.
+        if(!array_key_exists('glpiID', $_SESSION) || empty($_SESSION["glpiID"])){
+            // Ignore the call.
+            return;
+        }
+
+        // Update flowtrace field.
+        $this->state->addLoginFlowTrace(['logoutPressed' => true]);
 
         // Update the state indicating that logout has been pressed.
         $this->state->setPhase(LoginState::PHASE_LOGOFF);
