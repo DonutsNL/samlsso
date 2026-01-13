@@ -202,23 +202,6 @@ class LoginFlow extends CommonDBTM
                 return;
         }
 
-        // Perform SLO logout with idp
-        // Called by $this->performLogOff()
-        if(isset($_GET[self::SLOLOGOUT])                                    &&          // SLO was triggered and we need to process it.
-           $configEntity = new ConfigEntity($this->state->getIdpId())       ){          // Get the config so we can generate IDP logout request.
-            // We can assume GLPI session was allready destroyed and we
-            // can continue here. In worst if forced manuallu the IDP will
-            // be logged out while GLPI still has a valid session that
-            // will then be invalidated by the GLPI session manager
-            // because of the redirects performed tainting the cookie
-            // resulting in an invalid session error from GLPI.
-            $samlAuth = new samlAuth($configEntity->getPhpSamlConfig());
-            // Get the (signed) logout url.
-            $sloUrl = $samlAuth->logout();
-            header('location:'.$sloUrl);
-            exit;
-        }
-
         // If we hit an excluded file, we return and do nothing, not even log the
         // event. Possibly we want to enable the user to perform SIEM calls by
         // implementing this functionality prior to this validation.
@@ -246,6 +229,23 @@ class LoginFlow extends CommonDBTM
             }// We loaded a valid state from the database, do nothing more.
         } catch(Throwable $e){
             $this->printError(__("Loading login state failed with: $e", PLUGIN_NAME));
+        }
+
+        // Perform SLO logout with idp
+        // Called by $this->performLogOff()
+        if(isset($_GET[self::SLOLOGOUT])                                    &&          // SLO was triggered and we need to process it.
+           $configEntity = new ConfigEntity($this->state->getIdpId())       ){          // Get the config so we can generate IDP logout request.
+            // We can assume GLPI session was allready destroyed and we
+            // can continue here. In worst if forced manuallu the IDP will
+            // be logged out while GLPI still has a valid session that
+            // will then be invalidated by the GLPI session manager
+            // because of the redirects performed tainting the cookie
+            // resulting in an invalid session error from GLPI.
+            $samlAuth = new samlAuth($configEntity->getPhpSamlConfig());
+            // Get the (signed) logout url.
+            $sloUrl = $samlAuth->logout();
+            header('location:'.$sloUrl);
+            exit;
         }
 
         // Store any redirects passed to GLPI in the state,

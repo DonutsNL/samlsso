@@ -777,6 +777,7 @@ class LoginState extends CommonDBTM
         // ALTER TABLE glpi_plugin_samlsso_loginstates ADD INDEX sessionId_idx (sessionId);
         if ($DB->tableExists($table)) {
             // Use the GLPI DB object to check for the index existence properly
+            // prevent ERROR 1061 (42000): Duplicate key name errors.
             $index_exists = $DB->request([
                 'SELECT' => 'INDEX_NAME',
                 'FROM'   => 'information_schema.STATISTICS',
@@ -786,11 +787,11 @@ class LoginState extends CommonDBTM
                     'COLUMN_NAME'  => 'sessionId'
                 ]
             ]);
-
+            // if no index exists create one.
             if ($index_exists->count() == 0) {
-                // Use ALTER TABLE, not UPDATE
+                // Create statement
                 $query = "ALTER TABLE `$table` ADD INDEX `sessionId_idx` (`sessionId`)";
-                
+                // Perform the query.
                 if ($DB->query($query)) {
                     Session::addMessageAfterRedirect("🆗 Added index to: $table");
                 } else {
@@ -798,6 +799,7 @@ class LoginState extends CommonDBTM
                     Session::addMessageAfterRedirect("⚠️ Failed to add index: " . $DB->error(), false, ERROR);
                 }
             } else {
+                // Do nothing
                 Session::addMessageAfterRedirect("🆗 Index already exists, skipping.");
             }
         }
