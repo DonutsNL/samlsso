@@ -598,7 +598,7 @@ class LoginFlow extends CommonDBTM
         $tplVars['error']       = htmlentities((string) $errorMsg);
         $tplVars['returnPath']  = $CFG_GLPI["url_base"] .'/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
-        
+
         // print header
         http_response_code(403); // AccessDeniedHttpException
         Html::nullHeader("Login",  $CFG_GLPI["url_base"] . '/');
