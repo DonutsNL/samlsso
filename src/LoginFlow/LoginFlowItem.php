@@ -207,7 +207,7 @@ class LoginFlowItem    //NOSONAR
                             LoginFlowItem::FORMTITLE     => __('APPLY RULES ON AUTH', PLUGIN_NAME),
                             LoginFlowItem::FIELD         => __function__,
                             LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEDOMAIN));
+                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::RULESONAUTH));
     }
 
     // Make sure we always return the correct boolean datatype.
