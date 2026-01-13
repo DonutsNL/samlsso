@@ -1,6 +1,6 @@
 **V1.2.6**
 - Improve generation scripts in tools directory to include more info.
-- Improvement: Added index to logging table via installation/upgrade as suggested 
+- Improvement: Added index to logging table via installation/upgrade as suggested by @Neozlag
 - Improvement: Reviewed and added completed es_AR translation
 - Fix: Alter logout location preventing it from being processed to early
 - Improvement: Added a warning about PHP memory_limit - by @eduardomozart
