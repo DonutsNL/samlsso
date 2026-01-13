@@ -598,15 +598,15 @@ class LoginFlow extends CommonDBTM
         $tplVars['error']       = htmlentities((string) $errorMsg);
         $tplVars['returnPath']  = $CFG_GLPI["url_base"] .'/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
+        
         // print header
+        http_response_code(403); // AccessDeniedHttpException
         Html::nullHeader("Login",  $CFG_GLPI["url_base"] . '/');
         // Render twig template
         // https://codeberg.org/QuinQuies/glpisaml/issues/12
         echo TemplateRenderer::getInstance()->render('@samlsso/loginError.html.twig',  $tplVars);
         // print footer
         Html::nullFooter();
-
-        throw new AccessDeniedHttpException();
 
         // Make sure php execution is stopped.
         exit;
@@ -641,6 +641,7 @@ class LoginFlow extends CommonDBTM
         $tplVars['returnPath']  = $CFG_GLPI["url_base"] .'/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
         // print header
+        http_response_code(400); // BadRequestHttpException
         Html::nullHeader("Login",  $CFG_GLPI["url_base"] . '/');
         // Render twig template
         echo TemplateRenderer::getInstance()->render('@samlsso/errorScreen.html.twig',  $tplVars);
