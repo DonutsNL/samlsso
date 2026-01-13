@@ -48,7 +48,7 @@ Have coding experience (or are learning to code) and want to add meaningfull cha
 # Credits
 OSS depends on community effort! So honor where honours are due 🫶:
 - Raul, @gambware, Koen, Marc-henri, Vijay Nayani, Fabio Grasso, for supporting  the OSS-community.
-- @MikeDevresse for providing fixes to the codebase.
+- @MikeDevresse, @eduardomozart, @Neozlag for providing fixes to the codebase.
 - @andreaPress for figuring out and sharing the docker config needed.
 - @SpyK-01 for licensing and sharing the logo via https://elements.envato.com/letter-shield-gradient-colorful-logo-XZ7LYCM.
 - @dollierp for adding a cleanup task
