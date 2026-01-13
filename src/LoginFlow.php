@@ -65,6 +65,9 @@ use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\LoginFlow\User;
 use GlpiPlugin\Samlsso\LoginFlow\Auth as glpiAuth;
 
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use Glpi\Exception\Http\BadRequestHttpException;
+
 /**
  * This object brings it all together. It is responsible to handle the
  * main logic concerned with the Saml login and logout flows.
@@ -462,15 +465,7 @@ class LoginFlow extends CommonDBTM
         Session::init($auth);
 
         if (!empty($auth->getErrors())) {
-            echo TemplateRenderer::getInstance()->render(
-                    'pages/login_error.html.twig',
-                    [
-                        'errors'    => $auth->getErrors(),
-                        'title'     => __('Access denied'),
-                        'login_url' => $CFG_GLPI["root_doc"] . '/front/logout.php?noAUTO=1&redirect=' . $state->getRedirect(),
-                    ]
-                );
-            exit;
+            LoginFlow::PrintFatalLoginError(implode("<br />",$auth->getErrors()));
         }
 
         // Update the samlState table with the new sessionId.
@@ -591,8 +586,10 @@ class LoginFlow extends CommonDBTM
     {
         global $CFG_GLPI;
 
+        $ip = getenv("HTTP_X_FORWARDED_FOR") ?: getenv("REMOTE_ADDR");
+        
         // Log in file
-        Toolbox::logInFile(PLUGIN_NAME."-errors", 'FATAL SAML LOGIN ERROR:'. $errorMsg . "\n", true);
+        Toolbox::logInFile(PLUGIN_NAME."-errors", 'FATAL SAML LOGIN ERROR:'. $errorMsg . " (IP: " . $ip . ")\n", true);
 
         // Define static translatable elements
         $tplVars['header']      = __('⚠️ Sorry we are unable to log you in', PLUGIN_NAME);
@@ -608,6 +605,8 @@ class LoginFlow extends CommonDBTM
         echo TemplateRenderer::getInstance()->render('@samlsso/loginError.html.twig',  $tplVars);
         // print footer
         Html::nullFooter();
+
+        throw new AccessDeniedHttpException();
 
         // Make sure php execution is stopped.
         exit;
@@ -647,6 +646,8 @@ class LoginFlow extends CommonDBTM
         echo TemplateRenderer::getInstance()->render('@samlsso/errorScreen.html.twig',  $tplVars);
         // print footer
         Html::nullFooter();
+
+        throw new BadRequestHttpException();
         
         // Make sure php execution is stopped.
         exit;
