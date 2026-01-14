@@ -220,7 +220,7 @@ class ConfigEntity extends ConfigItem
     private function evaluateItem(string $field, mixed $value, $invalidate = false): array
     {
         // TODO: Clean up using class extend instead of external static call. //NOSONAR
-        // TODO: We want coders to be forced to always use configEntity and not create loopholes.   //NOSONAR 
+        // TODO: We want coders to be forced to always use configEntity and not create loopholes.   //NOSONAR
         $evaluatedItem = (method_exists(get_parent_class($this), $field)) ? $this->$field($value) : $this->noMethod($field, $value);
 
         if(isset($evaluatedItem[ConfigItem::EVAL])      &&
@@ -382,7 +382,7 @@ class ConfigEntity extends ConfigItem
     public function getField(string $fieldName): string|bool
     {
         if(key_exists($fieldName, $this->fields) &&
-           is_int($this->fields[$fieldName])     ){
+           is_numeric($this->fields[$fieldName])     ){
             return (bool) $this->fields[$fieldName];
         }elseif (key_exists($fieldName, $this->fields)){
             return (string) $this->fields[$fieldName];
@@ -556,4 +556,3 @@ class ConfigEntity extends ConfigItem
         }
     }
 }
-
