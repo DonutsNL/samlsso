@@ -356,8 +356,6 @@ class LoginFlow extends CommonDBTM
      */
     protected function performSamlIdpRequest(): void
     {
-        global $CFG_GLPI;
-        
         // Fetch the correct configEntity GLPI
         if($configEntity = new ConfigEntity($this->state->getIdpId())){ // Get the configEntity object using our stored ID
             $samlConfig = $configEntity->getPhpSamlConfig();      // Get the correctly formatted SamlConfig array
@@ -426,6 +424,8 @@ class LoginFlow extends CommonDBTM
      */
     protected function performGlpiLogin(Response $response, LoginState $state): void
     {
+        global $CFG_GLPI;
+
         // Push the state into this objects property just in case.
         $this->state = $state;
         
@@ -456,6 +456,10 @@ class LoginFlow extends CommonDBTM
         // Re populate Glpi session with the populated GlpiAuth object
         // This tells GLPI a valid GLPI user was logged in.
         Session::init($auth);
+
+        if (!empty($auth->getErrors())) {
+            LoginFlow::PrintFatalLoginError(implode("<br />",$auth->getErrors()));
+        }
 
         // Update the samlState table with the new sessionId.
         // so we can keep tracking it after the next redirect.
@@ -585,8 +589,10 @@ class LoginFlow extends CommonDBTM
     {
         global $CFG_GLPI;
 
+        $ip = getenv("HTTP_X_FORWARDED_FOR") ?: getenv("REMOTE_ADDR");
+        
         // Log in file
-        Toolbox::logInFile(PLUGIN_NAME."-errors", 'FATAL SAML LOGIN ERROR:'. $errorMsg . "\n", true);
+        Toolbox::logInFile(PLUGIN_NAME."-errors", 'FATAL SAML LOGIN ERROR:'. $errorMsg . " (IP: " . $ip . ")\n", true);
 
         // Define static translatable elements
         $tplVars['header']      = __('⚠️ Sorry we are unable to log you in', PLUGIN_NAME);
@@ -595,7 +601,9 @@ class LoginFlow extends CommonDBTM
         $tplVars['error']       = htmlentities((string) $errorMsg);
         $tplVars['returnPath']  = $CFG_GLPI["url_base"] .'/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
+
         // print header
+        http_response_code(403); // AccessDeniedHttpException
         Html::nullHeader("Login",  $CFG_GLPI["url_base"] . '/');
         // Render twig template
         // https://codeberg.org/QuinQuies/glpisaml/issues/12
@@ -636,6 +644,7 @@ class LoginFlow extends CommonDBTM
         $tplVars['returnPath']  = $CFG_GLPI["url_base"] .'/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
         // print header
+        http_response_code(400); // BadRequestHttpException
         Html::nullHeader("Login",  $CFG_GLPI["url_base"] . '/');
         // Render twig template
         echo TemplateRenderer::getInstance()->render('@samlsso/errorScreen.html.twig',  $tplVars);
