@@ -7,6 +7,7 @@
 - Improvement: JIT handling: Remove default profiles only if profiles have been successfully assigned - by @eduardomozart
 - Fix: Update User.php fix ENTITY_DEFAULT and PROFILE_DEFAULT variables undefined key warinings - by @eduardomozart
 - Fix: Corrected constant name of entity for prepared not yet implemented reaply JIT function `src/LoginFlow/LoginFlowItem.php`:210 - by @eduardomozart
+- Improvement: Check for numeric srtings too instead of pure int - by @tomas321. 
 
 **V1.2.5 - BUGFIX RELEASE**
 - Provide bugfix for critical bug https://github.com/DonutsNL/samlsso/issues/38.
