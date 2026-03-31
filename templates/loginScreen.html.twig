@@ -24,14 +24,11 @@
     </div>
 </div>
 {% endif %}
-<!-- Add CSS to hide certain login buttons
-     Will be used as configurable option in 
-     version 1.2.0
+{#
+    CSS to hide default login form, if configuration option enforced is set to true
+#}
 {% if enforced == true %}
 <style>
-    .mb-4:has(#login_password){ display:none; }
-    .mb-2:has(#login_remember){ display:none; }
-    .mb-3:has(.select2){ display:none; }
+    .col-md-5:has(#login_name,#login_password) { display: none; }
 </style>
 {% endif %}
--->
