@@ -243,8 +243,12 @@ class Exclude extends CommonDropdown
         // Get the excludes from the database.
         $excludes = Exclude::getExcludes();
         // Process configured excluded URIs and agents.
+        $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+        if (!is_string($requestPath)) {
+            $requestPath = '';
+        }
         foreach($excludes as $exclude){
-            if (strpos($_SERVER['REQUEST_URI'], $exclude[Exclude::EXCLUDEPATH]) !== false) {
+            if (strpos($requestPath, $exclude[Exclude::EXCLUDEPATH]) !== false) {
                 // Do we need to validate client agent?
                 if(!empty($exclude[Exclude::CLIENTAGENT])                                        &&         //NOSONAR - Maybe fix verbosity in future.
                    strpos($_SERVER['HTTP_USER_AGENT'], $exclude[Exclude::CLIENTAGENT]) !== false ){
@@ -296,16 +300,20 @@ class Exclude extends CommonDropdown
         if (PHP_SAPI != 'cli'){
             // https://codeberg.org/QuinQuies/glpisaml/issues/18#issuecomment-1785444
             // $_SERVER['REQUEST_URI'] obviously isn't populated in 'CLI' mode.
-            if( isset($_SERVER['REQUEST_URI'])                               &&         // Make sure REQ URI is available
-              ( strpos($_SERVER['REQUEST_URI'], 'acs.php') !== false         ||         // do not process acs
-                strpos($_SERVER['REQUEST_URI'], 'common.tabs.php') !== false ||         // do not process common.tabs
-                strpos($_SERVER['REQUEST_URI'], 'dashboard.php') !== false   ||         // do not process dashboard
-                Exclude::ProcessExcludes()                                   ))
-            {
-                return $_SERVER['REQUEST_URI'];
-            } else {
-                return false;
+            if( isset($_SERVER['REQUEST_URI']) ) {
+                $requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+                if (!is_string($requestPath)) {
+                    $requestPath = '';
+                }
+                if ( strpos($requestPath, 'acs.php') !== false         ||         // do not process acs
+                     strpos($requestPath, 'common.tabs.php') !== false ||         // do not process common.tabs
+                     strpos($requestPath, 'dashboard.php') !== false   ||         // do not process dashboard
+                     Exclude::ProcessExcludes()                                   )
+                {
+                    return $_SERVER['REQUEST_URI'];
+                }
             }
+            return false;
         }else{
             global $argv;
             $command = '';

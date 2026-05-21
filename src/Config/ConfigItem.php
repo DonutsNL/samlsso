@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
@@ -42,6 +43,7 @@ declare(strict_types=1);
  *  @since      1.0.0
  * ------------------------------------------------------------------------
  **/
+
 namespace GlpiPlugin\Samlsso\Config;
 
 use DateTime;
@@ -54,6 +56,7 @@ use Plugin;
  * assigning them to the configEntity or invalidates the passed value with an
  * understandable translatable errormessage.
  */
+
 class ConfigItem    //NOSONAR
 {
     public const FIELD      = 'field';                                  // Name of the database field
@@ -67,7 +70,7 @@ class ConfigItem    //NOSONAR
     public const ERRORS     = 'errors';                                 // Encountered problems notnull will prevent DB update/inserts
     public const VALIDATE   = 'validate';                               // Could either be string or array
     public const CONSTANT   = 'itemconstant';                           // What class constant is used for item
-    public const FORMEXPLAIN= 'formexplain';                            // Field explanation
+    public const FORMEXPLAIN = 'formexplain';                            // Field explanation
     public const FORMTITLE  = 'formtitle';                              // Form title to use with field
     public const VALIDATOR  = 'validator';                              // What validator was used
 
@@ -75,12 +78,14 @@ class ConfigItem    //NOSONAR
 
     protected function noMethod(string $field, string $value): array
     {
-        return [ConfigItem::FORMEXPLAIN => ConfigItem::INVALID,
-                ConfigItem::VALUE     => $value,
-                ConfigItem::FIELD     => $field,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::EVAL      => false,
-                ConfigItem::ERRORS    => __("⭕ Undefined or no type validation found in ConfigValidate for item: $field", PLUGIN_NAME)];
+        return [
+            ConfigItem::FORMEXPLAIN => ConfigItem::INVALID,
+            ConfigItem::VALUE     => $value,
+            ConfigItem::FIELD     => $field,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::EVAL      => false,
+            ConfigItem::ERRORS    => __("⭕ Undefined or no type validation found in ConfigValidate for item: $field", PLUGIN_NAME)
+        ];
     }
 
 
@@ -89,19 +94,22 @@ class ConfigItem    //NOSONAR
     {
         // Do some validation
         $error = false;
-        if($var               &&
+        if (
+            $var               &&
             $var != -1        &&
-            !is_numeric($var) ){
+            !is_numeric($var)
+        ) {
             $error = __('⭕ ID must be a positive numeric value!');
         }
 
-        return [ConfigItem::FORMEXPLAIN => __('Unique identifier for this configuration', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('CONFIG ID', PLUGIN_NAME),
-                ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-                ConfigItem::VALUE     => $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($error) ? $error : false,
+        return [
+            ConfigItem::FORMEXPLAIN => __('Unique identifier for this configuration', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('CONFIG ID', PLUGIN_NAME),
+            ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE     => $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => ($error) ? $error : false,
         ];
     }
 
@@ -109,13 +117,15 @@ class ConfigItem    //NOSONAR
 
     protected function name(mixed $var): array
     {
-        return [ConfigItem::FORMEXPLAIN => __('This name is shown with the login button on the login page. Try to keep this name short en to the point.', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('FRIENDLY NAME', PLUGIN_NAME),
-                ConfigItem::EVAL      => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($var) ? false : __('⭕ Name is a required field', PLUGIN_NAME)];
+        return [
+            ConfigItem::FORMEXPLAIN => __('This name is shown with the login button on the login page. Try to keep this name short en to the point.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('FRIENDLY NAME', PLUGIN_NAME),
+            ConfigItem::EVAL      => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => ($var) ? false : __('⭕ Name is a required field', PLUGIN_NAME)
+        ];
     }
 
 
@@ -123,13 +133,15 @@ class ConfigItem    //NOSONAR
     protected function conf_domain(mixed $var): array //NOSONAR
     {
         $error = '';
-        return [ConfigItem::FORMEXPLAIN => __(trim('Setting this value with the expected domain.tld, for example: with "google.com" will allow a user to trigger this IDP by providing their whatever@[google.com] username in the default GLPI username field. Setting this field to: youruserdomain.tld or to nothing disables this feature. Configuring this field will hide the IDP button from the login screen. Use a comma seperated list if you want to link multiple domains. i.e. domain1.com,domain1.org,domain1.edu'), PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('USERDOMAIN', PLUGIN_NAME),
-                ConfigItem::EVAL      => ConfigItem::VALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => (!$error) ? false : __('⭕ '.$error, PLUGIN_NAME)];
+        return [
+            ConfigItem::FORMEXPLAIN => __(trim('Setting this value with the expected domain.tld, for example: with "google.com" will allow a user to trigger this IDP by providing their whatever@[google.com] username in the default GLPI username field. Setting this field to: youruserdomain.tld or to nothing disables this feature. Configuring this field will hide the IDP button from the login screen. Use a comma seperated list if you want to link multiple domains. i.e. domain1.com,domain1.org,domain1.edu'), PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('USERDOMAIN', PLUGIN_NAME),
+            ConfigItem::EVAL      => ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => (!$error) ? false : __('⭕ ' . $error, PLUGIN_NAME)
+        ];
     }
 
 
@@ -139,23 +151,26 @@ class ConfigItem    //NOSONAR
         // Certificate is not required, if missing the ConfigEntity will toggle
         // depending security options false if there is an error. Provided certificate
         // string (if any) should be valid.
-         $e = false;
-        if((!empty($var))                                     &&
-           ($certificate = ConfigItem::parseX509Certificate($var)) &&
-           (!array_key_exists('subject', $certificate))      ){
+        $e = false;
+        if ((!empty($var))                                     &&
+            ($certificate = ConfigItem::parseX509Certificate($var)) &&
+            (!array_key_exists('subject', $certificate))
+        ) {
 
             $e = __('⭕ Provided certificate does not like look a valid (base64 encoded) certificate', PLUGIN_NAME);
-        }else{
+        } else {
             $certificate = '';
         }
-        return [ConfigItem::FORMEXPLAIN => __('The base64 encoded x509 service provider certificate. Used to sign and encrypt messages send by the service provider to the identity provider. Required for most of the security options', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('SP CERTIFICATE', PLUGIN_NAME),
-                ConfigItem::EVAL      => ConfigItem::VALID,
-                ConfigItem::VALUE     => $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($e) ? $e : false,
-                ConfigItem::VALIDATE  => $certificate];
+        return [
+            ConfigItem::FORMEXPLAIN => __('The base64 encoded x509 service provider certificate. Used to sign and encrypt messages send by the service provider to the identity provider. Required for most of the security options', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('SP CERTIFICATE', PLUGIN_NAME),
+            ConfigItem::EVAL      => ConfigItem::VALID,
+            ConfigItem::VALUE     => $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => ($e) ? $e : false,
+            ConfigItem::VALIDATE  => $certificate
+        ];
     }
 
 
@@ -164,38 +179,44 @@ class ConfigItem    //NOSONAR
     {
         // Private is not required, if missing or invalid the ConfigEntity will toggle
         // depending security options to false.
-        return [ConfigItem::FORMEXPLAIN => __('The base64 encoded x509 service providers private key. Should match the modulus of the provided X509 service provider certificate', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('SP PRIVATE KEY', PLUGIN_NAME),
-                ConfigItem::EVAL      => ConfigItem::VALID,
-                ConfigItem::VALUE     => $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,];
+        return [
+            ConfigItem::FORMEXPLAIN => __('The base64 encoded x509 service providers private key. Should match the modulus of the provided X509 service provider certificate', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('SP PRIVATE KEY', PLUGIN_NAME),
+            ConfigItem::EVAL      => ConfigItem::VALID,
+            ConfigItem::VALUE     => $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+        ];
     }
 
 
 
     protected function sp_nameid_format(mixed $var): array //NOSONAR
     {
-        return [ConfigItem::FORMEXPLAIN => __('The Service Provider nameid format specifies the constraints on the name identifier to be used to represent the requested subject.', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('NAMEID FORMAT', PLUGIN_NAME),
-                ConfigItem::EVAL   => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
-                ConfigItem::VALUE  => (string) $var,
-                ConfigItem::FIELD  => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS => ($var) ? false : __('Service provider name id is a required field', PLUGIN_NAME)];
+        return [
+            ConfigItem::FORMEXPLAIN => __('The Service Provider nameid format specifies the constraints on the name identifier to be used to represent the requested subject.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('NAMEID FORMAT', PLUGIN_NAME),
+            ConfigItem::EVAL   => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
+            ConfigItem::VALUE  => (string) $var,
+            ConfigItem::FIELD  => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS => ($var) ? false : __('Service provider name id is a required field', PLUGIN_NAME)
+        ];
     }
 
 
 
     protected function idp_entity_id(mixed $var): array //NOSONAR
     {
-        return [ConfigItem::FORMEXPLAIN => __('Identifier of the IdP entity which is an URL provided by the SAML2 Identity Provider (IdP)', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('ENTITY ID', PLUGIN_NAME),
-                ConfigItem::EVAL   => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
-                ConfigItem::VALUE  => (string) $var,
-                ConfigItem::FIELD  => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS => ($var) ? false : __('⭕ Identity provider entity id is a required field', PLUGIN_NAME)];
+        return [
+            ConfigItem::FORMEXPLAIN => __('Identifier of the IdP entity which is an URL provided by the SAML2 Identity Provider (IdP)', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('ENTITY ID', PLUGIN_NAME),
+            ConfigItem::EVAL   => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
+            ConfigItem::VALUE  => (string) $var,
+            ConfigItem::FIELD  => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS => ($var) ? false : __('⭕ Identity provider entity id is a required field', PLUGIN_NAME)
+        ];
     }
 
     /**
@@ -207,26 +228,28 @@ class ConfigItem    //NOSONAR
     {
         $error = '';
         // This setting is required for SAML to function
-        if(empty($var)){
+        if (empty($var)) {
             $error .= __('⭕ The IdP SSO URL is a required field!<br>', PLUGIN_NAME);
         }
         // The value should look like a valid URL
         $options = [FILTER_FLAG_PATH_REQUIRED];
-        if(!filter_var($var, FILTER_VALIDATE_URL, $options)){
+        if (!filter_var($var, FILTER_VALIDATE_URL, $options)) {
             $error .= __('⭕ Invalid IdP SSO URL, use: scheme://host.domain.tld/path/', PLUGIN_NAME);
         }
         // Maybe add actual web call here to validate if the URL is accessible
         // if its not, show a warning that the validity of the url could not be validated
         // Accessibility by the server is not a requirement given its the client browser
         // that needs to access the provided resource not the webserver itself.
-        
-        return [ConfigItem::FORMEXPLAIN => __('Single Sign On Service endpoint of the IdP. URL Target of the IdP where the Authentication Request Message will be sent. OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('SSO URL', PLUGIN_NAME),
-                ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($error) ? $error : false];
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Single Sign On Service endpoint of the IdP. URL Target of the IdP where the Authentication Request Message will be sent. OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('SSO URL', PLUGIN_NAME),
+            ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => ($error) ? $error : false
+        ];
     }
 
     /**
@@ -242,17 +265,19 @@ class ConfigItem    //NOSONAR
         // SLO when the glpi Logoff is triggered. It will allow the user to 're-login' by
         // pressing the correct button.
         $options = [FILTER_FLAG_PATH_REQUIRED];
-        if(!empty($var) && !filter_var($var, FILTER_VALIDATE_URL, $options)){
+        if (!empty($var) && !filter_var($var, FILTER_VALIDATE_URL, $options)) {
             $error = __('⭕ Invalid Idp SLO URL, use: scheme://host.domain.tld/path/', PLUGIN_NAME);
         }
 
-        return [ConfigItem::FORMEXPLAIN  => __('Single Logout service endpoint of the IdP. URL Location of the IdP where SLO Request will be sent.OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('SLO URL', PLUGIN_NAME),
-                ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($error) ? $error : false];
+        return [
+            ConfigItem::FORMEXPLAIN  => __('Single Logout service endpoint of the IdP. URL Location of the IdP where SLO Request will be sent.OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('SLO URL', PLUGIN_NAME),
+            ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => ($error) ? $error : false
+        ];
     }
 
     // Im not yet happy with the structure and complexity.
@@ -261,23 +286,26 @@ class ConfigItem    //NOSONAR
     {
         // Is a required field!
         $e = false;
-        if(($certificate = ConfigItem::parseX509Certificate($var)) &&
-           (!array_key_exists('subject', $certificate))      ){
-            if(array_key_exists('validations', $certificate)){
+        if (($certificate = ConfigItem::parseX509Certificate($var)) &&
+            (!array_key_exists('subject', $certificate))
+        ) {
+            if (array_key_exists('validations', $certificate)) {
                 $e = $certificate['validations'];
-            }else{
+            } else {
                 $e = __('⭕ Valid Idp X509 certificate is required! (base64 encoded)', PLUGIN_NAME);
             }
         }
 
-        return [ConfigItem::FORMEXPLAIN  => __('The Public Base64 encoded x509 certificate used by the IdP. Fingerprinting can be used, but is not recommended. Fingerprinting requires you to manually alter the Saml Config array located in ConfigEntity.php and provide the required configuration options', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('X509 CERTIFICATE', PLUGIN_NAME),
-                ConfigItem::EVAL      => ($e) ? ConfigItem::INVALID : ConfigItem::VALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($e) ? $e : false,
-                ConfigItem::VALIDATE  => $certificate];
+        return [
+            ConfigItem::FORMEXPLAIN  => __('The Public Base64 encoded x509 certificate used by the IdP. Fingerprinting can be used, but is not recommended. Fingerprinting requires you to manually alter the Saml Config array located in ConfigEntity.php and provide the required configuration options', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('X509 CERTIFICATE', PLUGIN_NAME),
+            ConfigItem::EVAL      => ($e) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => ($e) ? $e : false,
+            ConfigItem::VALIDATE  => $certificate
+        ];
     }
 
 
@@ -286,231 +314,309 @@ class ConfigItem    //NOSONAR
         // Normalize multiselect for database insert, form will pass an array
         // Database field expects a string.
         $val = '';
-        if(is_array($var)){
-            $j = (count($var)-1);
-            for($i = 0; $i <= $j; $i++){
-                $val .= ($i == $j) ? $var[$i] : $var[$i].':';
+        if (is_array($var)) {
+            $j = (count($var) - 1);
+            for ($i = 0; $i <= $j; $i++) {
+                $val .= ($i == $j) ? $var[$i] : $var[$i] . ':';
             }
-        }else{
+        } else {
             $val = $var;
         }
         $val = (empty($val)) ? 'none' : $val;
 
-        return [ConfigItem::FORMEXPLAIN => __('Authentication context needs to be satisfied by the IdP in order to allow Saml login. Set to "none" and OneLogin PHPSAML will not send an AuthContext in the AuthNRequest. Or, select one or more options using the "control+click" combination.', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('REQ AUTHN CONTEXT', PLUGIN_NAME),
-                ConfigItem::EVAL      => ($val) ? ConfigItem::VALID : ConfigItem::INVALID,
-                ConfigItem::VALUE     => (string) $val,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($val) ? false : __('⭕ Requested authN context is a required field', PLUGIN_NAME)];
+        return [
+            ConfigItem::FORMEXPLAIN => __('Authentication context needs to be satisfied by the IdP in order to allow Saml login. Set to "none" and OneLogin PHPSAML will not send an AuthContext in the AuthNRequest. Or, select one or more options using the "control+click" combination.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('REQ AUTHN CONTEXT', PLUGIN_NAME),
+            ConfigItem::EVAL      => ($val) ? ConfigItem::VALID : ConfigItem::INVALID,
+            ConfigItem::VALUE     => (string) $val,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => ($val) ? false : __('⭕ Requested authN context is a required field', PLUGIN_NAME)
+        ];
     }
 
     protected function requested_authn_context_comparison(mixed $var): array  //NOSONAR
     {
-        return [ConfigItem::FORMEXPLAIN => __('AUTHN Comparison attribute value', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('AUTHN COMPARISON', PLUGIN_NAME),
-                ConfigItem::EVAL      => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::ERRORS    => ($var) ? false : __('⭕ Requested authN context comparison is a required field', PLUGIN_NAME)];
+        return [
+            ConfigItem::FORMEXPLAIN => __('AUTHN Comparison attribute value', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('AUTHN COMPARISON', PLUGIN_NAME),
+            ConfigItem::EVAL      => ($var) ? ConfigItem::VALID : ConfigItem::INVALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => ($var) ? false : __('⭕ Requested authN context comparison is a required field', PLUGIN_NAME)
+        ];
     }
 
     protected function conf_icon(mixed $var): array                     //NOSONAR
     {
-        return [ConfigItem::FORMEXPLAIN => __('The FontAwesome (https://fontawesome.com/) icon to show on the button on the login page.', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('LOGIN ICON', PLUGIN_NAME),
-                ConfigItem::EVAL      => ConfigItem::VALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::ERRORS    => ($var) ? false : __('⭕ Configuration icon is a required field', PLUGIN_NAME)];
+        return [
+            ConfigItem::FORMEXPLAIN => __('The FontAwesome (https://fontawesome.com/) icon to show on the button on the login page.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('LOGIN ICON', PLUGIN_NAME),
+            ConfigItem::EVAL      => ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::ERRORS    => ($var) ? false : __('⭕ Configuration icon is a required field', PLUGIN_NAME)
+        ];
     }
 
     protected function comment(mixed $var): array                       //NOSONAR
     {
-        return [ConfigItem::FORMEXPLAIN => __('The comments', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('COMMENTS', PLUGIN_NAME),
-                ConfigItem::EVAL      => ConfigItem::VALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::ERRORS      => false];
+        return [
+            ConfigItem::FORMEXPLAIN => __('The comments', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('COMMENTS', PLUGIN_NAME),
+            ConfigItem::EVAL      => ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::ERRORS      => false
+        ];
     }
 
     // Might cast it into an EPOCH date with invalid values.
     protected function date_creation(mixed $var): array                 //NOSONAR
     {
-        return [ConfigItem::FORMEXPLAIN => __('The date this configuration item was created', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('CREATE DATE', PLUGIN_NAME),
-                ConfigItem::EVAL      => ConfigItem::VALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::RICHVALUE => new DateTime($var),
-                ConfigItem::ERRORS    => false];
+        return [
+            ConfigItem::FORMEXPLAIN => __('The date this configuration item was created', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('CREATE DATE', PLUGIN_NAME),
+            ConfigItem::EVAL      => ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::RICHVALUE => new DateTime($var),
+            ConfigItem::ERRORS    => false
+        ];
     }
 
     // Might cast it into an EPOCH date with invalid values.
     protected function date_mod(mixed $var): array                      //NOSONAR
     {
-        return [ConfigItem::FORMEXPLAIN => __('The date this config was modified', PLUGIN_NAME),
-                ConfigItem::FORMTITLE => __('MODIFICATION DATE', PLUGIN_NAME),
-                ConfigItem::EVAL      => ConfigItem::VALID,
-                ConfigItem::VALUE     => (string) $var,
-                ConfigItem::FIELD     => __function__,
-                ConfigItem::VALIDATOR => __method__,
-                ConfigItem::RICHVALUE => new DateTime($var),
-                ConfigItem::ERRORS    => false];
+        return [
+            ConfigItem::FORMEXPLAIN => __('The date this config was modified', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('MODIFICATION DATE', PLUGIN_NAME),
+            ConfigItem::EVAL      => ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::RICHVALUE => new DateTime($var),
+            ConfigItem::ERRORS    => false
+        ];
     }
 
     // BOOLEANS, We accept mixed, normalize in the handleAsBool function.
     // non ints are defaulted to boolean false.
     protected function is_deleted(mixed $var): array                    //NOSONAR
     {
-        if(empty($var)){ $var = '0'; }
+        if (empty($var)) {
+            $var = '0';
+        }
 
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('Is this configuration marked as deleted by GLPI', PLUGIN_NAME),
-                            ConfigItem::FORMTITLE     => __('IS DELETED', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, 'is_deleted'),);
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('Is this configuration marked as deleted by GLPI', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('IS DELETED', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, 'is_deleted'),
+        );
     }
 
     protected function is_active(mixed $var): array                     //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('Indicates if this configuration activated. Disabled configurations cannot be used to login into GLPI and will NOT be shown on the login page.', PLUGIN_NAME),
-                            ConfigItem::FORMTITLE     => __('IS ACTIVE', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::IS_ACTIVE));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('Indicates if this configuration activated. Disabled configurations cannot be used to login into GLPI and will NOT be shown on the login page.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('IS ACTIVE', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::IS_ACTIVE)
+        );
     }
 
     protected function enforce_sso(mixed $var): array                   //NOSONAR 
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled PHPSAML will replace the default GLPI login screen with a version that does not have the default GLPI login options and only allows the user to authenticate using the configured SAML2 idps. This setting can be bypassed using a bypass URI parameter', PLUGIN_NAME),
-                            ConfigItem::FORMTITLE     => __('ENFORCED', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::ENFORCE_SSO));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled PHPSAML will replace the default GLPI login screen with a version that does not have the default GLPI login options and only allows the user to authenticate using the configured SAML2 idps. This setting can be bypassed using a bypass URI parameter', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('ENFORCED', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::ENFORCE_SSO)
+        );
     }
 
     protected function proxied(mixed $var): array
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('Is GLPI positioned behind a proxy that alters the SAML response scheme?', PLUGIN_NAME),
-                            ConfigItem::FORMTITLE     => __('REQUESTS PROXIED', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::PROXIED));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('Is GLPI positioned behind a proxy that alters the SAML response scheme?', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('REQUESTS PROXIED', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::PROXIED)
+        );
     }
 
     protected function strict(mixed $var): array
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled the OneLogin PHPSAML Toolkit will reject unsigned or unencrypted messages if it expects them to be signed or encrypted. Also it will reject the messages if the SAML standard is not strictly followed: Destination, NameId, Conditions are validated too. Strongly advised in production environments.', PLUGIN_NAME),
-                            ConfigItem::FORMTITLE     => __('STRICT', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::STRICT));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled the OneLogin PHPSAML Toolkit will reject unsigned or unencrypted messages if it expects them to be signed or encrypted. Also it will reject the messages if the SAML standard is not strictly followed: Destination, NameId, Conditions are validated too. Strongly advised in production environments.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('STRICT', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::STRICT)
+        );
     }
 
     protected function debug(mixed $var): array
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled it will enforce OneLogin PHPSAML to print status and error messages. Be aware that not all message\'s might be captured by samlSSO and might therefor not become visible.'),
-                            ConfigItem::FORMTITLE     => __('DEBUG', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::DEBUG));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled it will enforce OneLogin PHPSAML to print status and error messages. Be aware that not all message\'s might be captured by samlSSO and might therefor not become visible.'),
+                ConfigItem::FORMTITLE     => __('DEBUG', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::DEBUG)
+        );
     }
 
     protected function user_jit(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled samlSSO will create new GLPI users on the fly and assign the properties defined in the samlSSO assignment rules. If disables users that do not have a valid GLPI user will not be able to login into GLPI until a user is manually created.'),
-                            ConfigItem::FORMTITLE     => __('JIT USER CREATION', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::USER_JIT));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN     => __('If enabled samlSSO will create new GLPI users on the fly and assign the properties defined in the samlSSO assignment rules. If disables users that do not have a valid GLPI user will not be able to login into GLPI until a user is manually created.'),
+                ConfigItem::FORMTITLE     => __('JIT USER CREATION', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::USER_JIT)
+        );
     }
 
     protected function security_nameidencrypted(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will encrypt the <samlp:logoutRequest> sent by this SP using the provided SP certificate and private key. This option will be toggled "off" automatically if no, or no valid SP certificate and key is provided.')),
-                            ConfigItem::FORMTITLE     => __('ENCRYPT NAMEID', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::ENCRYPT_NAMEID));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will encrypt the <samlp:logoutRequest> sent by this SP using the provided SP certificate and private key. This option will be toggled "off" automatically if no, or no valid SP certificate and key is provided.')),
+                ConfigItem::FORMTITLE     => __('ENCRYPT NAMEID', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::ENCRYPT_NAMEID)
+        );
     }
 
     protected function security_authnrequestssigned(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> messages send by this SP. The IDP should consult the metadata to get the information required to validate the signatures.')),
-                            ConfigItem::FORMTITLE     => __('SIGN AUTHN REQUEST', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::SIGN_AUTHN));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> messages send by this SP. The IDP should consult the metadata to get the information required to validate the signatures.')),
+                ConfigItem::FORMTITLE     => __('SIGN AUTHN REQUEST', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SIGN_AUTHN)
+        );
     }
 
     protected function security_logoutrequestsigned(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> messages send by this SP.')),
-                            ConfigItem::FORMTITLE     => __('SIGN LOGOUT REQUEST', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::SIGN_SLO_REQ));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> messages send by this SP.')),
+                ConfigItem::FORMTITLE     => __('SIGN LOGOUT REQUEST', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SIGN_SLO_REQ)
+        );
     }
 
     protected function security_logoutresponsesigned(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutResponse> messages send by this SP.')),
-                            ConfigItem::FORMTITLE     => __('SIGN LOGOUT RESPONSE', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::SIGN_SLO_RES));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutResponse> messages send by this SP.')),
+                ConfigItem::FORMTITLE     => __('SIGN LOGOUT RESPONSE', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SIGN_SLO_RES)
+        );
     }
 
     protected function compress_requests(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the authentication requests send to the IdP will be compressed by the SP.'),
-                            ConfigItem::FORMTITLE     => __('COMPRESS REQUESTS', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::COMPRESS_REQ));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN     => __('If enabled the authentication requests send to the IdP will be compressed by the SP.'),
+                ConfigItem::FORMTITLE     => __('COMPRESS REQUESTS', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::COMPRESS_REQ)
+        );
     }
 
     protected function compress_responses(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN     => __('If enabled the SP expects responses send by the IdP to be compressed.'),
-                            ConfigItem::FORMTITLE     => __('COMPRESS RESPONSES', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::COMPRESS_RES));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN     => __('If enabled the SP expects responses send by the IdP to be compressed.'),
+                ConfigItem::FORMTITLE     => __('COMPRESS RESPONSES', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::COMPRESS_RES)
+        );
     }
 
     protected function validate_xml(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled the SP will validate all received XMLs. In order to validate the XML
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled the SP will validate all received XMLs. In order to validate the XML
                                                         "strict" security setting must be true.'),
-                            ConfigItem::FORMTITLE     => __('VALIDATE XML', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::XML_VALIDATION));
+                ConfigItem::FORMTITLE     => __('VALIDATE XML', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::XML_VALIDATION)
+        );
     }
 
     protected function validate_destination(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('If enabled, SAMLResponses with an empty value at its Destination attribute will not be rejected for this fact.'),
-                            ConfigItem::FORMTITLE     => __('RELAX DEST VALIDATION', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::DEST_VALIDATION));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled, SAMLResponses with an empty value at its Destination attribute will not be rejected for this fact.'),
+                ConfigItem::FORMTITLE     => __('RELAX DEST VALIDATION', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::DEST_VALIDATION)
+        );
     }
 
     protected function lowercase_url_encoding(mixed $var): array //NOSONAR
     {
-        return array_merge([ConfigItem::FORMEXPLAIN   => __('ADFS URL-Encodes SAML data as lowercase, and the OneLogin PHPSAML toolkit by default uses uppercase. Enable this setting for ADFS compatibility on signature verification'),
-                            ConfigItem::FORMTITLE     => __('LOWER CASE ENCODING', PLUGIN_NAME),
-                            ConfigItem::FIELD         => __function__,
-                            ConfigItem::VALIDATOR     => __method__,],
-                            ConfigItem::handleAsBool($var, ConfigEntity::LOWERCASE_URL));
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('ADFS URL-Encodes SAML data as lowercase, and the OneLogin PHPSAML toolkit by default uses uppercase. Enable this setting for ADFS compatibility on signature verification'),
+                ConfigItem::FORMTITLE     => __('LOWER CASE ENCODING', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::LOWERCASE_URL)
+        );
     }
 
     // Make sure we always return the correct boolean datatype.
@@ -519,9 +625,11 @@ class ConfigItem    //NOSONAR
         // Default to false if no or an impropriate value is provided.
         $error = (!empty($var) && !preg_match('/[0-1]/', (string) $var)) ? __("⭕ $field can only be 1 or 0", PLUGIN_NAME) : false;
 
-        return [ConfigItem::EVAL   => (is_numeric($var)) ? ConfigItem::VALID : ConfigItem::INVALID,
-                ConfigItem::VALUE  => (!$error) ? $var : '0',
-                ConfigItem::ERRORS => $error];
+        return [
+            ConfigItem::EVAL   => (is_numeric($var)) ? ConfigItem::VALID : ConfigItem::INVALID,
+            ConfigItem::VALUE  => (!$error) ? $var : '0',
+            ConfigItem::ERRORS => $error
+        ];
     }
 
     // Certificate string should have certain properties to be recognized correctly
@@ -551,28 +659,32 @@ class ConfigItem    //NOSONAR
                 // Format the born date to days between.
                 $born = $born->format('%R%a');
                 // Get the certificate's common name property.
-                $cn= $parsedCertificate['subject']['CN'];
+                $cn = $parsedCertificate['subject']['CN'];
                 // Validate if we got a negative sign in the calculated ValidTo days.
-                if(strpos($aged,'-') !== false){
+                if (strpos($aged, '-') !== false) {
                     $validations['validTo'] = __("⚠️ Warning, certificate with Common Name (CN): $cn is expired: $aged days", PLUGIN_NAME);
                 }
                 // Validate if we got a negative sign in the calculated validFrom days.
-                if(strpos($born,'-') !== false){
+                if (strpos($born, '-') !== false) {
                     $validations['validFrom'] = __("⚠️ Warning, certificate with Common Name (CN): $cn issued in the future ($born days)", PLUGIN_NAME);
                 }
-                if($cn == 'withlove.from.donuts.nl'){
+                if ($cn == 'withlove.from.donuts.nl') {
                     $validations['validFrom'] = __("⚠️ Warning, do not use the 'withlove.from.donuts.nl' example certificates. They offer no additional protection.", PLUGIN_NAME);
                 }
                 $parsedCertificate['validations'] = $validations;
                 return $parsedCertificate;
-            }else{
+            } else {
                 // Base64 encoded certificates should have these tags (see rfc7468 chap 2)
-                if(strpos($certificate, '-----BEGIN CERTIFICATE-----') === false ||
-                   strpos($certificate, '-----END CERTIFICATE-----') === false   ){
+                if (
+                    strpos($certificate, '-----BEGIN CERTIFICATE-----') === false ||
+                    strpos($certificate, '-----END CERTIFICATE-----') === false
+                ) {
                     return ['validations'   => __('⭕ Certificate must be wrapped in valid BEGIN CERTIFICATE and END CERTIFICATE tags', PLUGIN_NAME)];
                 }
-                // Certificates texts should not have SMTP special meaning characters only <LF> (see rfc1421 referenced by rfc7468)
-                if(strpos($certificate, chr(13)) === true){
+                // While RFC1421/7468 permit CRLF, we explicitly forbid carriage returns [\r] to prevent
+                // XML Canonicalization (C14N) issues. Literal [\r] characters in stored certificates
+                // can lead to signature validation failures during SAML processing.
+                if (strpos($certificate, chr(13)) !== false) {
                     return ['validations'   => __('⭕ Certificate should not contain "carriage returns" [<CR>]', PLUGIN_NAME)];
                 }
             }
@@ -585,12 +697,11 @@ class ConfigItem    //NOSONAR
 
     protected function validateCertKeyPairModulus(string $certificate, string $privateKey): bool         //NOSONAR - Maybe fix complexity in the future
     {
-        if (function_exists('openssl_x509_parse') && function_exists('openssl_x509_check_private_key')){
+        if (function_exists('openssl_x509_parse') && function_exists('openssl_x509_check_private_key')) {
             return (openssl_x509_check_private_key($certificate, [$privateKey, ''])) ? true : false;
-        }else{
+        } else {
             // Cannot validate always return true;
             return true;
         }
     }
-
 }

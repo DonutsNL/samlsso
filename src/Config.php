@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
@@ -43,12 +44,13 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  **/
 
- /**
+/**
  * Be careful with PSR4 Namespaces when extending common GLPI objects.
  * Only Characters are allowed in namespaces extending glpi Objects.
  * @see https://github.com/pluginsGLPI/example/issues/51
  * @see https://github.com/DonutsNL/phpsaml2/issues/6
  */
+
 namespace GlpiPlugin\Samlsso;
 
 use Session;
@@ -140,12 +142,13 @@ class Config extends CommonDBTM
      * @return array    Array containing requested interface links
      * @see             CommonGLPI::getAdditionalMenuLinks()
      **/
-    public static function getAdditionalMenuLinks() {
+    public static function getAdditionalMenuLinks()
+    {
         global $CFG_GLPI;
         // Using fancy URLs hides the add button for CommonDropDowns so we add .php as a workaround.
-        $links[__('Excluded paths', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::EXCLUDE_ROUTE.'.php';
+        $links[__('Excluded paths', PLUGIN_NAME)] = '/plugins/' . PLUGIN_NAME . '/' . SamlSsoController::EXCLUDE_ROUTE . '.php';
         // Fancy urls can be used with rules for some weird reason.
-        $links[__('JIT import rules', PLUGIN_NAME)] = '/plugins/'.PLUGIN_NAME.'/'.SamlSsoController::RULES_ROUTE;
+        $links[__('JIT import rules', PLUGIN_NAME)] = '/plugins/' . PLUGIN_NAME . '/' . SamlSsoController::RULES_ROUTE;
         return $links;
     }
 
@@ -194,25 +197,26 @@ class Config extends CommonDBTM
         // Lets not be as verbose as default GLPI objects when we do not need to.
         // continue tabId index where we left off.
         $index = 5;
-        foreach((new ConfigEntity())->getFields() as $field)
-        {
+        foreach ((new ConfigEntity())->getFields() as $field) {
             $field['list'] = false;
-           // skip the following fields
-            if($field[ConfigItem::FIELD] != ConfigEntity::ID            &&
-               $field[ConfigItem::FIELD] != ConfigEntity::NAME          &&
-               $field[ConfigItem::FIELD] != ConfigEntity::IDP_ENTITY_ID &&
-               $field[ConfigItem::FIELD] != ConfigEntity::IS_ACTIVE     &&
-               $field[ConfigItem::FIELD] != ConfigEntity::IS_DELETED    ){
+            // skip the following fields
+            if (
+                $field[ConfigItem::FIELD] != ConfigEntity::ID            &&
+                $field[ConfigItem::FIELD] != ConfigEntity::NAME          &&
+                $field[ConfigItem::FIELD] != ConfigEntity::IDP_ENTITY_ID &&
+                $field[ConfigItem::FIELD] != ConfigEntity::IS_ACTIVE     &&
+                $field[ConfigItem::FIELD] != ConfigEntity::IS_DELETED
+            ) {
                 // Remap DB fields to Search dataTypes
-                if(strstr($field[ConfigItem::TYPE], 'varchar') ){
+                if (strstr($field[ConfigItem::TYPE], 'varchar')) {
                     $field[ConfigItem::TYPE] = 'string';
-                }elseif($field[ConfigItem::TYPE] == 'tinyint' ){
+                } elseif ($field[ConfigItem::TYPE] == 'tinyint') {
                     $field[ConfigItem::TYPE] = 'bool';
-                }elseif($field[ConfigItem::TYPE] == 'text' ){
+                } elseif ($field[ConfigItem::TYPE] == 'text') {
                     $field[ConfigItem::TYPE] = 'text';
-                }elseif($field[ConfigItem::TYPE] == 'timestamp' ){
+                } elseif ($field[ConfigItem::TYPE] == 'timestamp') {
                     $field[ConfigItem::TYPE] = 'date';
-                }elseif(strstr($field[ConfigItem::TYPE], 'int') ){
+                } elseif (strstr($field[ConfigItem::TYPE], 'int')) {
                     $field[ConfigItem::TYPE] = 'number';
                 }
                 // Build tab array
@@ -239,11 +243,10 @@ class Config extends CommonDBTM
      * @return array    Array containing configured login buttons
      * @see             src/LoginFlow/showLoginScreen()
      * @since           1.0.0
-     * @todo            TODO: !$configEntity->getConfigDomain() must be moved to generic config
      */
     public static function getLoginButtons(int $length): array
     {
-        
+
         global $DB;         // Get global DB object to query the configTable.
         $tplvars = [];      // Define the array used to store the buttons (if any)
 
@@ -251,18 +254,21 @@ class Config extends CommonDBTM
         $length = (is_numeric($length)) ? $length : 255;
 
         // Iterate through the IDP config rows and generate the buttons for twig template.
-        foreach( $DB->request(['FROM' => Config::getTable(), 'WHERE' => ['is_deleted'  => 0]]) as $value)
-        {
+        foreach ($DB->request(['FROM' => Config::getTable(), 'WHERE' => ['is_deleted'  => 0]]) as $value) {
             // Only populate buttons that are considered valid by ConfigEntity;
             $configEntity = new ConfigEntity($value[ConfigEntity::ID]);
 
-            if( $configEntity->isValid()         &&     // Must be valid
+            if (
+                $configEntity->isValid()         &&     // Must be valid
                 $configEntity->isActive()        &&     // Must be active
-                !$configEntity->getConfigDomain()){     // Must not have a domain configured
-                  // Populate the button we found in the array.
-                  $tplvars['buttons'][] = ['id'      => $value[ConfigEntity::ID],
-                                           'icon'    => $value[ConfigEntity::CONF_ICON],
-                                           'name'    => sprintf( "%.".$length."s", $value[ConfigEntity::NAME]) ];
+                !$configEntity->getConfigDomain()
+            ) {     // Must not have a domain configured
+                // Populate the button we found in the array.
+                $tplvars['buttons'][] = [
+                    'id'      => $value[ConfigEntity::ID],
+                    'icon'    => $value[ConfigEntity::CONF_ICON],
+                    'name'    => sprintf("%." . $length . "s", $value[ConfigEntity::NAME])
+                ];
             }
         }
 
@@ -270,7 +276,7 @@ class Config extends CommonDBTM
         return $tplvars;
     }
 
-     /**
+    /**
      * Returns true if any of the configured IdPs is set to enforced.
      * this will hide the password and database fields from the login
      * page.
@@ -278,15 +284,14 @@ class Config extends CommonDBTM
      * @return bool
      * @see             src/LoginFlow/showLoginScreen()
      * @since           1.0.0
-     * @todo            IsEnforced must be moved to generic config in version 1.2.0
      */
     public static function getIsEnforced(): bool
     {
         // Get global DB object to query the configTable.
         global $DB;
-        
+
         // Return true if we have more then one row that enforces the config
-        return (count($DB->request(['FROM' => Config::getTable(),'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
+        return (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
     }
 
     /**
@@ -295,7 +300,6 @@ class Config extends CommonDBTM
      * @return  bool
      * @see             src/LoginFlow/doAuth()
      * @since           1.1.5
-     * @todo            Replace this logic with a config ID that we can configure in the generic config.
      */
     public static function getIsOnlyOneConfig(): int
     {
@@ -303,17 +307,20 @@ class Config extends CommonDBTM
         global $DB;
 
         // Query table glpi_plugin_samlsso_configs where is_deleted = 0 and is_active = 1.
-        $res = $DB->request(['FROM' => Config::getTable(),
-                             'WHERE' => [ConfigEntity::IS_DELETED  => 0,
-                                         ConfigEntity::IS_ACTIVE => 1],
-                            ]);
+        $res = $DB->request([
+            'FROM' => Config::getTable(),
+            'WHERE' => [
+                ConfigEntity::IS_DELETED  => 0,
+                ConfigEntity::IS_ACTIVE => 1
+            ],
+        ]);
         // If we only get exactly one row, return the found ID
-        if ( count($res) == 1 ){
+        if (count($res) == 1) {
             // Assign the result to a var
             $row = $res->current();
             return (is_numeric($row[ConfigEntity::ID])) ? $row[ConfigEntity::ID] : 0;
-        // If we find more then one row return 0
-        // because we cant enforce multiple idps
+            // If we find more then one row return 0
+            // because we cant enforce multiple idps
         } else {
             return 0;
         }
@@ -332,7 +339,7 @@ class Config extends CommonDBTM
         // Get global DB object to query the configTable.
         global $DB;
         // VALIDATE EMAIL AND EXTRACT DOMAIN
-        if( !$upn = filter_var($fielda, FILTER_VALIDATE_EMAIL) ){
+        if (!$upn = filter_var($fielda, FILTER_VALIDATE_EMAIL)) {
             // Username is not formatted as an email address, return 0
             return 0;
         }
@@ -353,13 +360,15 @@ class Config extends CommonDBTM
         // VALIDATE DATABASE REQUEST
         // In strict mode, we can't assume $DB->request() always returns an iterable object.
         // If the query fails, it might return false or null.
-        if (!$req) { return 0; }
+        if (!$req) {
+            return 0;
+        }
         // PROCESS ROWS
         // If $req is an empty iterator, this loop is safely skipped.
         foreach ($req as $row) {
             // VALIDATION: Ensure the row data is a valid string before exploding.
             // This prevents errors if the row or field is malformed.
-            if ( !empty($row[ConfigEntity::CONF_DOMAIN]) && is_string($row[ConfigEntity::CONF_DOMAIN]) ) {
+            if (!empty($row[ConfigEntity::CONF_DOMAIN]) && is_string($row[ConfigEntity::CONF_DOMAIN])) {
                 // Create domain array from the database result.
                 $confDomainsArray = explode(',', $row[ConfigEntity::CONF_DOMAIN]);
                 // Trim whitespace from each domain in the array
@@ -367,13 +376,13 @@ class Config extends CommonDBTM
                 // Search the array for our userDomain.
                 if (in_array($userDomain, $configured_domains_array)) {
                     // FINAL VALIDATION: Ensure the ID is valid before returning.
-                    if (!empty($row[ConfigEntity::ID])) {
+                    if (!empty($row[ConfigEntity::ID])) {      //NOSONAR BY DESIGN
                         return (int) $row[ConfigEntity::ID];
                     }
                     // If ID is bad, continue loop just in case of duplicate domain
-                }// If no match continue to the next row.
-            }// If row data is not a string, this row is skipped, preventing errors.
-        }// foreach Loop.
+                } // If no match continue to the next row.
+            } // If row data is not a string, this row is skipped, preventing errors.
+        } // foreach Loop.
         return 0;
     }
 
@@ -389,22 +398,27 @@ class Config extends CommonDBTM
     {
         // Get global DB object to query the configTable.
         global $DB;
-        
-        // Verify there is at least 'one' domain.tld configured.
-        $req = $DB->request(['SELECT'   =>  ConfigEntity::CONF_DOMAIN,
-                             'FROM'     =>  Config::getTable(),
-                             'WHERE' => ['NOT' => [ConfigEntity::CONF_DOMAIN => ['youruserdomain.tld', '']]
-                            ]]);
 
-        if($req->numrows() > 0){
+        // Verify there is at least 'one' domain.tld configured.
+        $req = $DB->request([
+            'SELECT'   =>  ConfigEntity::CONF_DOMAIN,
+            'FROM'     =>  Config::getTable(),
+            'WHERE' => [
+                'NOT' => [ConfigEntity::CONF_DOMAIN => ['youruserdomain.tld', '']]
+            ]
+        ]);
+
+        if ($req->numrows() > 0) {
             // Dont hide if we are trying to bypass
-            if(isset($_GET[LoginFlow::SAMLBYPASS])  &&  // Is ?bypass=1 set in our uri
-               $_GET[LoginFlow::SAMLBYPASS] == 1    ){
+            if (
+                isset($_GET[LoginFlow::SAMLBYPASS])  &&  // Is ?bypass=1 set in our uri
+                $_GET[LoginFlow::SAMLBYPASS] == 1
+            ) {
                 return 0;
             }
             // More then one result, hide the password fields.
             return 1;
-        }else{
+        } else {
             // Dont hide.
             return 0;
         }
@@ -417,7 +431,6 @@ class Config extends CommonDBTM
      * @param   Migration   $migration Plugin migration information;
      * @return  void
      * @see                 GLPISaml/hook.php
-     * @todo                Move enforce_sso, debug to generic config.
      */
     public static function install(Migration $migration): void
     {
@@ -478,7 +491,7 @@ class Config extends CommonDBTM
         }
 
         // Alter column width for conf_domain
-        if($DB->tableExists($table)){
+        if ($DB->tableExists($table)) {
             $migration->displayMessage("Updating table layout for $table");
             $query = <<<SQL
                 ALTER TABLE $table

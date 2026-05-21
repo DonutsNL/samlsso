@@ -91,6 +91,8 @@ class ConfigForm    //NOSONAR complexity by design.
                                  ctype_alpha($request->get('update')) ) ?       // iF template only contains alpha txt
                                  $request->get('update') :                     // THEN set it to requested template
                                  'default';                                         // Else fallback to default.
+        $options['search'] = (string)$request->get('search', '');
+        $options['page'] = !empty($request->get('page')) ? (int)$request->get('page') : 1;
                                  
         // Add using template
         if( !$inputBag->has('update')     &&
@@ -242,7 +244,7 @@ class ConfigForm    //NOSONAR complexity by design.
     {
         if($id === -1 || $id > 0){
             // Generate form using a template
-            return new Response($this->generateForm(new ConfigEntity($id, $options)));
+            return new Response($this->generateForm(new ConfigEntity($id, $options), $options));
         }else{
             // Invalid id used redirect back to origin
             return new RedirectResponse(__('Invalid request, redirecting back', PLUGIN_NAME));
@@ -319,7 +321,7 @@ class ConfigForm    //NOSONAR complexity by design.
      * @since                               1.0.0
      * @see https://codeberg.org/QuinQuies/glpisaml/issues/17
      */
-    private function generateForm(ConfigEntity $configEntity)
+    private function generateForm(ConfigEntity $configEntity, array $options = [])
     {
         global $CFG_GLPI;
         $fields = $configEntity->getFields();
@@ -332,10 +334,23 @@ class ConfigForm    //NOSONAR complexity by design.
 
         // get the logging entries, but only if the object already exists
         // https://codeberg.org/QuinQuies/glpisaml/issues/15#issuecomment-1785284
-        if(is_numeric($fields[ConfigEntity::ID]['value'])){
-            $logging = LoginState::getLoggingEntries((int) $fields[ConfigEntity::ID]['value']);
-        }else{
+        $search = (string)($options['search'] ?? '');
+        $page = !empty($options['page']) ? (int)$options['page'] : 1;
+        $limit = 20;
+
+        if (is_numeric($fields[ConfigEntity::ID]['value'])) {
+            $idpId = (int)$fields[ConfigEntity::ID]['value'];
+            $totalCount = LoginState::getLoggingEntriesCount($idpId, $search);
+            $totalPages = (int)max(1, ceil($totalCount / $limit));
+            if ($page > $totalPages) {
+                $page = $totalPages;
+            }
+            $logging = LoginState::getLoggingEntries($idpId, $search, $page, $limit);
+        } else {
             $logging = [];
+            $totalCount = 0;
+            $totalPages = 1;
+            $page = 1;
         }
         
         // Define static field translations
@@ -347,6 +362,10 @@ class ConfigForm    //NOSONAR complexity by design.
             'inputfields'               =>  $fields,
             'buttonsHiddenWarn'         =>  ($configEntity->getConfigDomain()) ? true : false,
             'loggingfields'             =>  $logging,
+            'logging_search'            =>  $search,
+            'logging_page'              =>  $page,
+            'logging_total_pages'       =>  $totalPages,
+            'logging_total_count'       =>  $totalCount,
             'entityID'                  =>  $CFG_GLPI['url_base'].'/',
             'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::ACS_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::META_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
