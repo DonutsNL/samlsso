@@ -25,15 +25,11 @@ GLPIPATH="${FULLPATH%$KNOWN_SUFFIX}"
 
 # Verify GLPIPATH points to an directory.
 if [ -d "$GLPIPATH" ]; then
-	# Update the versions in headers and files
-	sed -i 's/'$OLDVERSION'/'$NEWVERSION'/g' $GLPIPATH/samlsso/*.php
-	sed -i 's/*  @version    '$OLDVERSION'/*  @version    '$NEWVERSION'/g' $GLPIPATH/samlsso/src/*.php
-	sed -i 's/*  @version    '$OLDVERSION'/*  @version    '$NEWVERSION'/g' $GLPIPATH/samlsso/src/Config/*.php
-	sed -i 's/*  @version    '$OLDVERSION'/*  @version    '$NEWVERSION'/g' $GLPIPATH/samlsso/src/LoginFlow/*.php
+	find "$GLPIPATH/samlsso" -type f -name "*.php" -not -path "*/vendor/*" -exec sed -i "s/$OLDVERSION/$NEWVERSION/g" {} +
 
 	# Remove old zipfiles
-	if [ -f "$GLPIPATH/plugins/samlsso.zip" ]; then
-		rm -y $GLPIPATH/plugins/samlsso/release/samlsso.zip
+	if [ -f "$GLPIPATH/samlsso/release/samlsso.zip" ]; then
+		rm -f $GLPIPATH/samlsso/release/samlsso.zip
 	fi
 	
 	cd $GLPIPATH;
