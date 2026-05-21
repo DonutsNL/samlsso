@@ -12,6 +12,7 @@ Im very interrested in your challanges and ideas. Want to contribute those? Look
 ## Documentation
 * Officially supported by Teclib: https://glpi-plugins.readthedocs.io/en/latest/saml/requirements.html
 * Further documentation see wiki: https://github.com/DonutsNL/samlsso/wiki.
+* [Contributing & Agentic Maintenance](CONTRIBUTING.md)
 
 ## Current Focus
 * Translations
@@ -70,5 +71,3 @@ OAuth/OIDC historically suffered from token theft risks in client-side browsers 
 
 **Best for GLPI imho:** 
 GLPI is fundamentally a classic, server-side monolithic (php) application, not a distributed microservice architecture. It does not (yet) require the lightweight JSON token passing that makes OIDC shine in modern apps. Because GLPI handles its logic and sessions almost entirely on the backend, the server-side processing model of SAML is a natural fit. Furthermore, for an internal IT service management tool where stability and strict security controls are paramount, the rigidity of the SAML protocol is an asset, not a drawback. It provides a mature, "locked-down" authentication mechanism that aligns perfectly with GLPI's monolithic architecture and use cases, without the complexity of navigating modern OAuth security flow or advanced mTLS/PKI configurations.
-
-Other thoughts on the subject, im always open to learn and realign my reasoning 😊

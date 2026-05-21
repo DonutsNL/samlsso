@@ -1,4 +1,12 @@
 **V1.2.6**
+- Security Fix: Resolved critical authentication bypass vulnerability in exclude path matching logic by parsing URL path component before matching.
+- Security Fix: Implemented strict "Open Redirect" protection. The `redirect` parameter is now validated to allow only relative paths, preventing attackers from using GLPI as an open relay.
+- Security Fix: Hardened error logs by implementing conditional redaction. Sensitive SAML data is now redacted by default unless "Debug" is explicitly enabled in the IDP configuration.
+- Fix: Replaced non-existent `DBConnection::getDefaultDatabase()` with `$DB->dbdefault` for compatibility with GLPI 10.0+.
+- Architecture: Added ADR 0002 documenting the rationale for LoginState hardening and DB compatibility fixes.
+- Architecture: Added ADR 0003 documenting the new Integration Testing Strategy.
+- Testing: Implemented a lightweight test harness in `tests/` with shims for GLPI core, allowing validation of core logic paths (Enforced redirect, Domain selection, Bypass) without a full GLPI environment.
+- Documentation: Created `WIKI_UPDATES.md` and `PROPOSED_ISSUE_TESTABILITY.md` to guide future improvements.
 - Improve generation scripts in tools directory to include more info.
 - Improvement: Added index to logging table via installation/upgrade as suggested by @Neozlag
 - Improvement: Reviewed and added completed es_AR translation

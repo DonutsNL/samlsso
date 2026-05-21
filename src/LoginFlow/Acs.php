@@ -81,7 +81,7 @@ class Acs extends LoginFlow
      * Stores the loginState object.
      * @since 1.0.0
      */
-    private $state          = null;
+    protected ?LoginState $state = null;
 
     /**
      * Stores the debug param.
@@ -155,10 +155,10 @@ class Acs extends LoginFlow
 
                 // GET POPULATED PHPSAML SETTINGS OBJECT
                 // Or show error!
+                $samlSettings = null;
                 try { $samlSettings = new Settings($this->configEntity->getPhpSamlConfig()); } catch(Throwable $e) {
                     $extended = ($this->debug) ? Acs::EXTENDED_HEADER.
-                                Acs::ERRORS.var_export($samlSettings->getErrors(), true)."\n\n".
-                                Acs::STATE_OBJ.var_export($this->state, true)."\n\n".
+                                Acs::STATE_OBJ.var_export($this->state->getSafeStateForLogging($this->debug), true)."\n\n".
                                 Acs::EXTENDED_FOOTER : '';
 
                     $this->printError($e->getMessage(),
@@ -167,12 +167,13 @@ class Acs extends LoginFlow
                 }
 
                 // PROCESS THE SAMLRESPONSE
+                /** @var Settings $samlSettings */
                 try { $this->samlResponse = new Response($samlSettings, $samlResponse); } catch(Throwable $e) {
                     $extended = '';
                     //if($this->debug){
                         $extended = Acs::EXTENDED_HEADER.
                                     Acs::ERRORS.var_export($samlSettings->getErrors(), true)."\n\n".
-                                    Acs::STATE_OBJ.var_export($this->state, true)."\n\n".
+                                    Acs::STATE_OBJ.var_export($this->state->getSafeStateForLogging($this->debug), true)."\n\n".
                                     Acs::EXTENDED_FOOTER;
                     //}
                     $this->printError(__('Could not process samlResponse with Error:').$e->getMessage(),
@@ -216,13 +217,26 @@ class Acs extends LoginFlow
      */
     public function assertSaml() : void                // NOSONAR method complexity by design.
     {
-        // If we fetched the state, the fetched state should not (yet) have a
-        // samlResponseId registered. If so, it should be considered a replayed
-        // response and we need to register this and invalidate the login and
-        // generate a meaningfull error. In addition the found response ID should
-        // not exist in the database (anywhere)
-        if(!$this->state->getSamlResponseId() == 0                        &&
-           !$this->state->checkResponseIdUnique($this->samlResponse->getId())   ){
+        // 1. Perform validation by phpSaml library
+        // This MUST be the first thing we do to prevent DoS attacks where an attacker
+        // triggers phase changes or response registrations without a valid signature.
+        // We pass the expected RequestID to allow phpSaml to validate the InResponseTo attribute.
+        try{
+            if (!$this->samlResponse->isValid($this->state->getSamlRequestId())) {
+                 $this->printError(__("Validation of the samlResponse document failed. Review the saml log for more details", PLUGIN_NAME),
+                                     'LoginState',
+                                     "The following errors were reported: " . implode(', ', $this->samlResponse->getErrors()) .
+                                     "\nReason: " . $this->samlResponse->getLastErrorReason());
+            }
+        } catch(Throwable $e) {
+            $this->printError(__("Validation of the samlResponse document failed with a critical error. Review the saml log for more details", PLUGIN_NAME),
+                                 'LoginState', "The following error was reported: $e");
+        }
+
+        $currentResponseId = $this->samlResponse->getId();
+        if($this->state->getPhase() != LoginState::PHASE_SAML_ACS ||
+           !empty($this->state->getSamlResponseId()) ||
+           !$this->state->checkResponseIdUnique($currentResponseId)){
             $this->printError(__("It looks like this samlResponse has already been used to authenticate a different user.
                                  Maybe an error occurred and you pressed F5 and accidently resend the samlResponse that is
                                  already registered as processed. For security reasons we can not allow processed samlResponses
@@ -234,14 +248,14 @@ class Acs extends LoginFlow
                                  "samlResponse with registered ID was replayed in acs.php. Possibly the user pressed F5 when encountering
                                   a different error or the response was send successively to the acs\n\n".
                                  Acs::SERVER_OBJ.var_export($_SERVER, true)."\n\n".
-                                 Acs::STATE_OBJ.var_export($this->state, true)."\n\n".
+                                 Acs::STATE_OBJ.var_export($this->state->getSafeStateForLogging($this->debug), true)."\n\n".
                                  Acs::STATE_OBJ.var_export($this->samlResponse->getXMLDocument(), true)."\n\n".
                                  Acs::EXTENDED_FOOTER."\n");
         }else{
             // The response is unique, register it in the database
             // to prevent future replays of this document.
             try{
-                $this->state->setSamlResponseId($this->samlResponse->getId());
+                $this->state->setSamlResponseId($currentResponseId);
             } catch(Throwable $e ) {
                 $this->printError(__("An error occured while trying to update the samlResponseId into the LoginState database. Review the saml log for more details", PLUGIN_NAME),
                                      'LoginState', "The following error was reported: $e");
@@ -262,7 +276,7 @@ class Acs extends LoginFlow
                                   Acs::EXTENDED_HEADER.
                               __("Unexpected assertion triggered while session was in a different phase then expected (2). This error was triggered by external source
                                   with address:{$_SERVER['REMOTE_ADDR']}. Possible causes include race-conditions or parallel calls using the same samlResponse.\n").
-                                  Acs::STATE_OBJ.var_export($this->state, true)."\n\n".
+                                  Acs::STATE_OBJ.var_export($this->state->getSafeStateForLogging($this->debug), true)."\n\n".
                                   Acs::EXTENDED_FOOTER."\n");
         }
 
@@ -275,13 +289,7 @@ class Acs extends LoginFlow
                                   Review the saml log for more details", PLUGIN_NAME), 'LoginState', "The following error was reported: $e");
         }
 
-        // Perform validation by phpSaml library
-        try{
-            $this->samlResponse->isValid();
-        } catch(Throwable $e) {
-            $this->printError(__("Validation of the samlResponse document failed. Review the saml log for more details", PLUGIN_NAME),
-                                 'LoginState', "The following error was reported: $e");
-        }
+        // Perform validation check moved to top of method for security.
 
         // Call the performGlpiLogin from the LoginFlow object
         // We include the state because this session is still stateless (from GLPIs perspective).
