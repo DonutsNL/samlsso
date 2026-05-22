@@ -1,3 +1,7 @@
+**V1.2.7**
+- Bugfix for regression bug in `acs.php:228` where method getErrors didnt exist https://github.com/DonutsNL/samlsso/issues/104
+
+
 **V1.2.6**
 - Security Fix: Resolved critical authentication bypass vulnerability in exclude path matching logic by parsing URL path component before matching.
 - Security Fix: Implemented strict "Open Redirect" protection. The `redirect` parameter is now validated to allow only relative paths, preventing attackers from using GLPI as an open relay.
