@@ -1,5 +1,55 @@
 <?php
+/**
+ *  ------------------------------------------------------------------------
+ *  samlSSO
+ *
+ *  samlSSO was inspired by the initial work of Derrick Smith's
+ *  PhpSaml. This project's intend is to address some structural issues
+ *  caused by the gradual development of GLPI and the broad amount of
+ *  wishes expressed by the community.
+ *
+ *  Copyright (C) 2024 by Chris Gralike
+ *  ------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of samlSSO plugin for GLPI.
+ *
+ * samlSSO plugin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * samlSSO is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with samlSSO. If not, see <http://www.gnu.org/licenses/> or
+ * https://choosealicense.com/licenses/gpl-3.0/
+ *
+ * ------------------------------------------------------------------------
+ *
+ *  @package    samlSSO
+ *  @version    1.2.7
+ *  @author     Chris Gralike
+ *  @copyright  Copyright (c) 2024 by Chris Gralike
+ *  @license    GPLv3+
+ *  @see        https://github.com/DonutsNL/samlSSO/readme.md
+ *  @link       https://github.com/DonutsNL/samlSSO
+ *  @since      1.0.0
+ * ------------------------------------------------------------------------
+ **/
+
 declare(strict_types=1);
+
+/**
+ * ConfigIntegrityTest.php
+ * 
+ * Unit tests validating schema definitions, configuration field mapping,
+ * validator existence, and identifying dead configuration fields.
+ */
 
 namespace GlpiPlugin\Samlsso\Tests {
 
@@ -15,8 +65,17 @@ namespace GlpiPlugin\Samlsso\Tests {
     use DBConnection;
     use Migration;
 
+    /**
+     * ConfigIntegrityTest class.
+     * Evaluates configuration schemas, validator presence, and references.
+     */
     class ConfigIntegrityTest extends TestHarness {
 
+        /**
+         * Test that the captured database schema matches constants, environmental mocks, and data types.
+         *
+         * @throws \Exception if capturing schema fails or if mismatched types are found.
+         */
         public function testSchemaVsConstants(): void {
             global $DB;
             
@@ -29,7 +88,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             DBConnection::$defaultPrimaryKeySignOption = $customSign;
             
             $this->db->mockTableExists = false;
-            $migration = new Migration();
+            $migration = new Migration('1.0.0');
             
             Config::install($migration);
             
@@ -39,9 +98,15 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Failed to capture CREATE TABLE statement.");
             }
 
-            if (!str_contains($sql, $customCharset)) throw new \Exception("SQL missing custom charset: $customCharset");
-            if (!str_contains($sql, $customCollation)) throw new \Exception("SQL missing custom collation: $customCollation");
-            if (!str_contains($sql, $customSign)) throw new \Exception("SQL missing custom PK sign: $customSign");
+            if (!str_contains($sql, $customCharset)) {
+                throw new \Exception("SQL missing custom charset: $customCharset");
+            }
+            if (!str_contains($sql, $customCollation)) {
+                throw new \Exception("SQL missing custom collation: $customCollation");
+            }
+            if (!str_contains($sql, $customSign)) {
+                throw new \Exception("SQL missing custom PK sign: $customSign");
+            }
 
             if (!preg_match('/\((.*)\)/s', $sql, $matches)) {
                 throw new \Exception("Could not parse fields from SQL.");
@@ -61,8 +126,12 @@ namespace GlpiPlugin\Samlsso\Tests {
             $metaConstants = $itemReflection->getConstants();
 
             foreach ($constants as $name => $field) {
-                if ($name === 'class' || !is_string($field)) continue;
-                if (array_key_exists($name, $metaConstants)) continue;
+                if ($name === 'class' || !is_string($field)) {
+                    continue;
+                }
+                if (array_key_exists($name, $metaConstants)) {
+                    continue;
+                }
                 
                 if (!isset($dbFields[$field])) {
                     throw new \Exception("ConfigEntity constant '$name' refers to field '$field' which is NOT in the captured database schema.");
@@ -71,11 +140,17 @@ namespace GlpiPlugin\Samlsso\Tests {
                 $actualType = $dbFields[$field];
                 
                 if ($field === 'id') {
-                    if ($actualType !== 'INT') throw new \Exception("Field 'id' should be INT, found $actualType");
+                    if ($actualType !== 'INT') {
+                        throw new \Exception("Field 'id' should be INT, found $actualType");
+                    }
                 } elseif (str_starts_with($field, 'date_')) {
-                    if ($actualType !== 'TIMESTAMP') throw new \Exception("Field '$field' should be TIMESTAMP, found $actualType");
+                    if ($actualType !== 'TIMESTAMP') {
+                        throw new \Exception("Field '$field' should be TIMESTAMP, found $actualType");
+                    }
                 } elseif (in_array($field, ['sp_certificate', 'sp_private_key', 'idp_certificate', 'requested_authn_context', 'comment'])) {
-                    if ($actualType !== 'TEXT') throw new \Exception("Field '$field' should be TEXT, found $actualType");
+                    if ($actualType !== 'TEXT') {
+                        throw new \Exception("Field '$field' should be TEXT, found $actualType");
+                    }
                 } elseif (in_array($actualType, ['TINYINT', 'INT', 'VARCHAR', 'TEXT', 'TIMESTAMP'])) {
                     $boolPrefixes = ['enforce_', 'proxied', 'strict', 'debug', 'user_jit', 'security_', 'compress_', 'validate_', 'lowercase_', 'is_'];
                     foreach ($boolPrefixes as $prefix) {
@@ -88,19 +163,29 @@ namespace GlpiPlugin\Samlsso\Tests {
             echo "✅ Deep Schema Integrity: Constants, Environmental Mocks, and Datatypes validated\n";
         }
 
+        /**
+         * Test that validator methods exist in ConfigItem for each defined ConfigEntity constant field.
+         *
+         * @throws \Exception if a validator method is missing.
+         */
         public function testValidatorsExistence(): void {
             $reflection = new \ReflectionClass(ConfigEntity::class);
             $constants = $reflection->getConstants();
             
-            // Validators are PROTECTED methods in ConfigItem named EXACTLY like the field
+            /**
+             * Validators are methods in ConfigItem named exactly like the corresponding database field.
+             */
             $itemReflection = new \ReflectionClass(ConfigItem::class);
             $metaConstants = $itemReflection->getConstants();
 
             foreach ($constants as $name => $field) {
-                if ($name === 'class' || !is_string($field)) continue;
-                if (array_key_exists($name, $metaConstants)) continue;
+                if ($name === 'class' || !is_string($field)) {
+                    continue;
+                }
+                if (array_key_exists($name, $metaConstants)) {
+                    continue;
+                }
                 
-                // Check for method named like the field
                 if (!$itemReflection->hasMethod($field)) {
                     throw new \Exception("Field '$field' (ConfigEntity::$name) missing validator method '$field()' in ConfigItem.");
                 }
@@ -108,6 +193,11 @@ namespace GlpiPlugin\Samlsso\Tests {
             echo "✅ Configuration field validator existence\n";
         }
 
+        /**
+         * Test that all configuration fields defined in ConfigEntity are used/referenced in the codebase.
+         *
+         * @throws \Exception if a configuration field is dead/unreferenced.
+         */
         public function testDeadConfigDetection(): void {
             $reflection = new \ReflectionClass(ConfigEntity::class);
             $constants = $reflection->getConstants();
@@ -116,12 +206,18 @@ namespace GlpiPlugin\Samlsso\Tests {
             $pluginDir = GLPI_ROOT . '/plugins/samlsso';
             $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($pluginDir));
             foreach ($constants as $name => $field) {
-                if ($name === 'class' || !is_string($field) || $field === 'id') continue;
-                if (array_key_exists($name, $metaConstants)) continue;
+                if ($name === 'class' || !is_string($field) || $field === 'id') {
+                    continue;
+                }
+                if (array_key_exists($name, $metaConstants)) {
+                    continue;
+                }
                 
                 $found = false;
                 foreach ($files as $file) {
-                    if ($file->isDir() || str_contains($file->getPathname(), '/tests/')) continue;
+                    if ($file->isDir() || str_contains($file->getPathname(), '/tests/')) {
+                        continue;
+                    }
                     $content = file_get_contents($file->getPathname());
                     if (str_contains($content, "ConfigEntity::$name") || str_contains($content, "'$field'")) {
                         $found = true;
@@ -138,6 +234,9 @@ namespace GlpiPlugin\Samlsso\Tests {
 }
 
 namespace {
+    /**
+     * Executes the ConfigIntegrityTest test suite.
+     */
     $test = new GlpiPlugin\Samlsso\Tests\ConfigIntegrityTest();
     try {
         $test->testSchemaVsConstants();
