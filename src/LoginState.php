@@ -765,6 +765,65 @@ class LoginState extends CommonDBTM
     }
 
     /**
+     * Returns a validated redirect path.
+     * 
+     * An 'Open Redirect' vulnerability occurs when an application takes a user-provided 
+     * URL and redirects the user to it without sufficient validation. This can be used 
+     * by attackers to trick victims into visiting malicious sites while appearing to 
+     * stay on a trusted domain.
+     * 
+     * To mitigate this, we only allow 'relative' paths. A relative path (e.g., '/front/ticket.php') 
+     * stays within the same domain, whereas an 'absolute' URL (e.g., 'http://evil.com') 
+     * can lead anywhere.
+     * 
+     * @return string
+     * @since 1.2.7
+     */
+    public function getSafeRedirect(): string
+    {
+        $redirect = $this->getRedirect();
+        if (empty($redirect)) {
+            return '';
+        }
+
+        // Block protocol-relative (//) and absolute (scheme://) URLs.
+        if (!preg_match('/^(\/\/|\w+:\/\/)/', $redirect) && (str_starts_with($redirect, '/') || preg_match('/^\w+/', $redirect))) {
+            return $redirect;
+        }
+
+        return '';
+    }
+
+    /**
+     * Returns a sanitized array of the state for logging.
+     * If debug is disabled, sensitive SAML fields are redacted to prevent 
+     * accidental exposure in logs.
+     * 
+     * @param bool $debug If true, preserves full context.
+     * @return array
+     * @since 1.2.7
+     */
+    public function getSafeStateForLogging(bool $debug = false): array
+    {
+        $safeState = $this->state;
+        if ($debug) {
+            return $safeState;
+        }
+        $sensitiveFields = [
+            self::SAML_REQUEST,
+            self::SAML_RESPONSE,
+            'serverParams',
+            'requestParams'
+        ];
+        foreach ($sensitiveFields as $field) {
+            if (isset($safeState[$field])) {
+                $safeState[$field] = '[REDACTED - Enable IDP Debug in SamlSSO configuration to view this context]';
+            }
+        }
+        return $safeState;
+    }
+
+    /**
      * Install the LoginState DB table
      * @param   Migration $obj
      * @return  void
@@ -929,64 +988,5 @@ class LoginState extends CommonDBTM
         $table = LoginState::getTable();
         $migration->dropTable($table);
         Session::addMessageAfterRedirect("🆗 Removed: $table.");
-    }
-
-    /**
-     * Returns a validated redirect path.
-     * 
-     * An 'Open Redirect' vulnerability occurs when an application takes a user-provided 
-     * URL and redirects the user to it without sufficient validation. This can be used 
-     * by attackers to trick victims into visiting malicious sites while appearing to 
-     * stay on a trusted domain.
-     * 
-     * To mitigate this, we only allow 'relative' paths. A relative path (e.g., '/front/ticket.php') 
-     * stays within the same domain, whereas an 'absolute' URL (e.g., 'http://evil.com') 
-     * can lead anywhere.
-     * 
-     * @return string
-     * @since 1.2.7
-     */
-    public function getSafeRedirect(): string
-    {
-        $redirect = $this->getRedirect();
-        if (empty($redirect)) {
-            return '';
-        }
-
-        // Block protocol-relative (//) and absolute (scheme://) URLs.
-        if (!preg_match('/^(\/\/|\w+:\/\/)/', $redirect) && (str_starts_with($redirect, '/') || preg_match('/^\w+/', $redirect))) {
-            return $redirect;
-        }
-
-        return '';
-    }
-
-    /**
-     * Returns a sanitized array of the state for logging.
-     * If debug is disabled, sensitive SAML fields are redacted to prevent 
-     * accidental exposure in logs.
-     * 
-     * @param bool $debug If true, preserves full context.
-     * @return array
-     * @since 1.2.7
-     */
-    public function getSafeStateForLogging(bool $debug = false): array
-    {
-        $safeState = $this->state;
-        if ($debug) {
-            return $safeState;
-        }
-        $sensitiveFields = [
-            self::SAML_REQUEST,
-            self::SAML_RESPONSE,
-            'serverParams',
-            'requestParams'
-        ];
-        foreach ($sensitiveFields as $field) {
-            if (isset($safeState[$field])) {
-                $safeState[$field] = '[REDACTED - Enable IDP Debug in SamlSSO configuration to view this context]';
-            }
-        }
-        return $safeState;
     }
 }
