@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    Samlsso
- *  @version    1.2.5
+ *  @version    1.2.6
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -376,6 +376,8 @@ class LoginFlow extends CommonDBTM
      */
     protected function performSamlIdpRequest(): void
     {
+        global $CFG_GLPI;
+
         // Fetch the correct configEntity GLPI
         if ($configEntity = new ConfigEntity($this->state->getIdpId())) { // Get the configEntity object using our stored ID
             $samlConfig = $configEntity->getPhpSamlConfig();      // Get the correctly formatted SamlConfig array
@@ -479,7 +481,7 @@ class LoginFlow extends CommonDBTM
         Session::init($auth);
 
         if (!empty($auth->getErrors())) {
-            LoginFlow::PrintFatalLoginError(implode("<br />",$auth->getErrors()));
+            LoginFlow::PrintFatalLoginError(implode("<br />", $auth->getErrors()));
         }
 
         // Update the samlState table with the new sessionId.
@@ -619,7 +621,7 @@ class LoginFlow extends CommonDBTM
         global $CFG_GLPI;
 
         $ip = getenv("HTTP_X_FORWARDED_FOR") ?: getenv("REMOTE_ADDR");
-        
+
         // Log in file
         Toolbox::logInFile(PLUGIN_NAME . "-errors", 'FATAL SAML LOGIN ERROR:' . $errorMsg . "\n", true);
 

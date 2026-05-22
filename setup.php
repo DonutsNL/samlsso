@@ -33,7 +33,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.5
+ *  @version    1.2.6
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
