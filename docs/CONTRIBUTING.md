@@ -20,6 +20,7 @@ This repository is maintained with an "AI-First" mindset. Whether you are a huma
 - **Wiki Updates**: If a change modifies a functional behavior, configuration option, or endpoint, you **MUST** update the corresponding [Project Wiki](https://github.com/DonutsNL/samlsso/wiki) pages to reflect the new state.
 
 ### 4. Code Standards
+- **Document every method and major logic block** with detailed docblocks explaining what the method does, what parameters it takes, what it returns, and what exceptions it throws. Also add comments to major logic blocks explaining why the code is there and what it does.
 - **PSR Compliance**: Follow PSR-12 coding standards.
 - **Native GLPI Components**: Always use native GLPI core components (e.g., `CommonDBTM`, `Session`, `Html`, `Toolbox`) where possible for maximum compatibility.
 - **Sanitization**: Never trust external input. Always use GLPI's `Sanitizer` or native filter functions.

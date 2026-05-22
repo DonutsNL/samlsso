@@ -1,4 +1,46 @@
 <?php
+/**
+ *  ------------------------------------------------------------------------
+ *  samlSSO
+ *
+ *  samlSSO was inspired by the initial work of Derrick Smith's
+ *  PhpSaml. This project's intend is to address some structural issues
+ *  caused by the gradual development of GLPI and the broad amount of
+ *  wishes expressed by the community.
+ *
+ *  Copyright (C) 2024 by Chris Gralike
+ *  ------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of samlSSO plugin for GLPI.
+ *
+ * samlSSO plugin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * samlSSO is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with samlSSO. If not, see <http://www.gnu.org/licenses/> or
+ * https://choosealicense.com/licenses/gpl-3.0/
+ *
+ * ------------------------------------------------------------------------
+ *
+ *  @package    samlSSO
+ *  @version    1.2.7
+ *  @author     Chris Gralike
+ *  @copyright  Copyright (c) 2024 by Chris Gralike
+ *  @license    GPLv3+
+ *  @see        https://github.com/DonutsNL/samlSSO/readme.md
+ *  @link       https://github.com/DonutsNL/samlSSO
+ *  @since      1.0.0
+ * ------------------------------------------------------------------------
+ **/
 
 declare(strict_types=1);
 
@@ -14,41 +56,194 @@ namespace {
 }
 
 namespace OneLogin\Saml2 {
+    /**
+     * Mock OneLogin\Saml2\Response class for testing SAML response parsing.
+     */
     if (!class_exists('OneLogin\Saml2\Response')) {
         class Response
         {
+            /** @var bool Mocks response validity status. */
+            public static bool $mockValid = true;
+            /** @var string Mocks SAML response identifier. */
+            public static string $mockId = 'MOCK_RESPONSE_ID_123';
+            /** @var string Mocks requestId matching (InResponseTo attribute). */
+            public static string $mockInResponseTo = 'ONELOGIN_12345';
+
+            /**
+             * Response constructor.
+             *
+             * @param \OneLogin\Saml2\Settings|array $settings SAML Settings.
+             * @param string $assertion The base64-encoded assertion.
+             */
             public function __construct(\OneLogin\Saml2\Settings|array $settings, string $assertion) {}
-            public function isValid(): bool
+
+            /**
+             * Mocks checking response validity.
+             *
+             * @param string|null $requestId Original request ID.
+             * @return bool Response validity.
+             */
+            public function isValid(?string $requestId = null): bool
             {
-                return true;
+                return self::$mockValid;
             }
+
+            /**
+             * Mocks getting parsed attributes.
+             *
+             * @return array Mock user attributes.
+             */
             public function getAttributes(): array
             {
                 return ['email' => ['test@example.com']];
             }
+
+            /**
+             * Mocks getting user Name ID.
+             *
+             * @return string Mock name ID.
+             */
             public function getNameId(): string
             {
                 return 'testuser';
             }
+
+            /**
+             * Mocks getting response ID.
+             *
+             * @return string Mock response ID.
+             */
+            public function getId(): string
+            {
+                return self::$mockId;
+            }
+
+            /**
+             * Mocks getting validation error message.
+             *
+             * @param bool $escape Whether to HTML escape.
+             * @return string Mock error message.
+             */
+            public function getError(bool $escape = true): string
+            {
+                return 'Mock Response Error';
+            }
+
+            /**
+             * Mocks getting the XML Document object.
+             *
+             * @return object Mock XML document structure.
+             */
+            public function getXMLDocument(): object
+            {
+                $inResponseTo = self::$mockInResponseTo;
+                return new class($inResponseTo) {
+                    /** @var object Document root element wrapper. */
+                    public $documentElement;
+
+                    /**
+                     * Inner XML document constructor.
+                     *
+                     * @param string $inResponseTo InResponseTo value.
+                     */
+                    public function __construct(string $inResponseTo) {
+                        $this->documentElement = new class($inResponseTo) {
+                            /** @var string InResponseTo value. */
+                            private string $inResponseTo;
+
+                            /**
+                             * Inner document element constructor.
+                             *
+                             * @param string $inResponseTo InResponseTo value.
+                             */
+                            public function __construct(string $inResponseTo) {
+                                $this->inResponseTo = $inResponseTo;
+                            }
+
+                            /**
+                             * Mock retrieving attribute value.
+                             *
+                             * @param string $name Attribute name.
+                             * @return string Attribute value.
+                             */
+                            public function getAttribute(string $name): string {
+                                if ($name === 'InResponseTo') {
+                                    return $this->inResponseTo;
+                                }
+                                return '';
+                            }
+                        };
+                    }
+                };
+            }
         }
     }
+
+    /**
+     * Mock OneLogin\Saml2\Auth class for handling SAML flows.
+     */
     if (!class_exists('OneLogin\Saml2\Auth')) {
         class Auth
         {
-            public function __construct(array $settings) {}
+            /** @var array Settings store. */
+            private array $settings;
+
+            /**
+             * Auth constructor.
+             *
+             * @param array $settings Configuration settings.
+             */
+            public function __construct(array $settings) {
+                $this->settings = $settings;
+            }
+
+            /**
+             * Mock processing the SAML Response.
+             */
             public function processResponse(): void {}
+
+            /**
+             * Mock getting last request ID.
+             *
+             * @return string Last request ID.
+             */
             public function getLastRequestID(): string
             {
                 return 'ONELOGIN_12345';
             }
+
+            /**
+             * Mock getting errors.
+             *
+             * @return array List of errors.
+             */
             public function getErrors(): array
             {
                 return [];
             }
+
+            /**
+             * Mock getting last error reason.
+             *
+             * @return string Error reason.
+             */
             public function getLastErrorReason(): string
             {
                 return '';
             }
+
+            /**
+             * Mock generating login redirect URL.
+             *
+             * @param string|null $returnTo Redirect target.
+             * @param array $parameters URL parameters.
+             * @param bool $forceAuthn Force re-authentication.
+             * @param bool $isPassive Passive authentication.
+             * @param bool $stay Stay on page.
+             * @param bool $setNameIdPolicy Specify name ID policy.
+             * @param string|null $nameIdValueReq Specific name ID.
+             * @return string Redirect URL.
+             */
             public function login(
                 ?string $returnTo = null,
                 array $parameters = array(),
@@ -58,8 +253,23 @@ namespace OneLogin\Saml2 {
                 bool $setNameIdPolicy = true,
                 ?string $nameIdValueReq = null
             ): string {
-                return '/plugins/samlsso/front/sso.php?idp=5';
+                $id = $this->settings['idp_id'] ?? 5;
+                return "/plugins/samlsso/front/sso.php?idp=" . $id;
             }
+
+            /**
+             * Mock generating logout redirect URL.
+             *
+             * @param string|null $returnTo Redirect target.
+             * @param array $parameters URL parameters.
+             * @param string|null $nameId Name ID.
+             * @param string|null $sessionIndex Session index.
+             * @param bool $stay Stay on page.
+             * @param string|null $nameIdFormat Name ID format.
+             * @param string|null $nameIdNameQualifier Qualifier.
+             * @param string|null $nameIdSPNameQualifier SP Qualifier.
+             * @return string Redirect URL.
+             */
             public function logout(
                 ?string $returnTo = null,
                 array $parameters = array(),
@@ -77,8 +287,20 @@ namespace OneLogin\Saml2 {
 }
 
 namespace OneLogin\Saml2\Utils {
+    /**
+     * Mock functions under OneLogin\Saml2\Utils namespace.
+     */
     if (!function_exists('OneLogin\Saml2\Utils\setProxyVars')) {
+        /**
+         * Mock setting proxy environment variables.
+         */
         function setProxyVars(): void {}
+
+        /**
+         * Mock getting the self URL host.
+         *
+         * @return string Host name.
+         */
         function getSelfURLhost(): string
         {
             return 'glpi.local';
@@ -87,17 +309,40 @@ namespace OneLogin\Saml2\Utils {
 }
 
 namespace Glpi\Application\View {
-    if (!class_exists('Glpi\Application\View\TemplateRenderer')) {
+    /**
+     * Mock GLPI TemplateRenderer for rendering pages and error views.
+     */
+    if (!class_exists('Glpi\Application\View\TemplateRenderer', false)) {
         class TemplateRenderer
         {
+            /**
+             * Get TemplateRenderer instance singleton.
+             *
+             * @return self Instance.
+             */
             public static function getInstance(): self
             {
                 return new self();
             }
+
+            /**
+             * Mocks rendering a Twig template.
+             *
+             * @param string $template Template path.
+             * @param array $vars Template variables.
+             * @return string Rendered output string.
+             */
             public function render(string $template, array $vars): string
             {
                 return "Rendered: $template" . (isset($vars['error']) ? " (Error: {$vars['error']})" : "");
             }
+
+            /**
+             * Mocks displaying/echoing a Twig template.
+             *
+             * @param string $template Template path.
+             * @param array $vars Template variables.
+             */
             public function display(string $template, array $vars): void
             {
                 echo "Displayed: $template" . (isset($vars['error']) ? " (Error: {$vars['error']})" : "");
@@ -107,38 +352,60 @@ namespace Glpi\Application\View {
 }
 
 namespace GlpiPlugin\Samlsso\LoginFlow {
-    if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\MockLoginFlowUser')) {
+    /**
+     * Mock class for database user lookup in LoginFlow namespace.
+     */
+    if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\MockLoginFlowUser', false)) {
         class MockLoginFlowUser
         {
+            /**
+             * Mocks searching for a user in the database by field.
+             *
+             * @param string $field Database field.
+             * @param string $value Search value.
+             * @return bool True if found.
+             */
             public function getFromDBByField(string $field, string $value): bool
             {
                 return true;
             }
         }
     }
-    if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\User')) {
+
+    if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\User', false)) {
         class_alias('GlpiPlugin\Samlsso\LoginFlow\MockLoginFlowUser', 'GlpiPlugin\Samlsso\LoginFlow\User');
     }
 
-    if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\MockAuth')) {
+    /**
+     * Mock class for authenticating users.
+     */
+    if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\MockAuth', false)) {
         class MockAuth
         {
+            /**
+             * Mocks logging in a user by username/password.
+             *
+             * @param string $user Username.
+             * @param string $pass Password.
+             * @return bool True if successful.
+             */
             public function login(string $user, string $pass): bool
             {
                 return true;
             }
         }
     }
-    if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\Auth')) {
+
+    if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\Auth', false)) {
         class_alias('GlpiPlugin\Samlsso\LoginFlow\MockAuth', 'GlpiPlugin\Samlsso\LoginFlow\Auth');
     }
 }
 
 namespace GlpiPlugin\Samlsso\Config {
     /**
-     * Includes all constants from the real ConfigEntity to support static access.
+     * Mock config entity class containing field mappings and constants.
      */
-    if (!class_exists('GlpiPlugin\Samlsso\Config\MockConfigEntity')) {
+    if (!class_exists('GlpiPlugin\Samlsso\Config\MockConfigEntity', false)) {
         class MockConfigEntity
         {
             public const ID              = 'id';
@@ -174,75 +441,174 @@ namespace GlpiPlugin\Samlsso\Config {
             public const CREATE_DATE     = 'date_creation';
             public const MOD_DATE        = 'date_mod';
 
+            /** @var array Mocks configuration field storage. */
             public static array $mockFields = [];
-            public function __construct(int $id = -1) {}                         //NOSONAR Mocked function for tests 
+            /** @var int Identity ID. */
+            private int $id = -1;
+
+            /**
+             * ConfigEntity constructor.
+             *
+             * @param int $id Entity ID.
+             */
+            public function __construct(int $id = -1) {
+                $this->id = $id;
+            }
+
+            /**
+             * Retrieves a config field value.
+             *
+             * @param string $field Field name.
+             * @return mixed Field value.
+             */
             public function getField(string $field): mixed
-            {                     //NOSONAR Mocked function for tests
+            {
                 return self::$mockFields[$field] ?? null;
             }
+
+            /**
+             * Retrieves all config fields.
+             *
+             * @return array List of fields.
+             */
             public function getFields(): array
             {
                 return [];
-            }                    //NOSONAR Mocked function for tests
+            }
+
+            /**
+             * Checks if entity config parameters are valid.
+             *
+             * @return bool True if valid.
+             */
             public function isValid(): bool
             {
                 return true;
-            }                     //NOSONAR Mocked function for tests
+            }
+
+            /**
+             * Checks if configuration is active.
+             *
+             * @return bool True if active.
+             */
             public function isActive(): bool
             {
                 return true;
-            }                    //NOSONAR Mocked function for tests
+            }
+
+            /**
+             * Gets configuration domain constraint.
+             *
+             * @return string|null Domain string or null.
+             */
             public function getConfigDomain(): ?string
             {
                 return null;
-            }          //NOSONAR Mocked function for tests
+            }
+
+            /**
+             * Transforms entity parameters into a php-saml config array structure.
+             *
+             * @return array Saml config array.
+             */
             public function getPhpSamlConfig(): array
             {
-                return [];
-            }             //NOSONAR Mocked function for tests
+                return ['idp_id' => $this->id];
+            }
         }
     }
-    if (!class_exists('GlpiPlugin\Samlsso\Config\ConfigEntity')) {
+
+    if (!class_exists('GlpiPlugin\Samlsso\Config\ConfigEntity', false)) {
         class_alias('GlpiPlugin\Samlsso\Config\MockConfigEntity', 'GlpiPlugin\Samlsso\Config\ConfigEntity');
     }
 }
 
 namespace GlpiPlugin\Samlsso {
-    if (!class_exists('GlpiPlugin\Samlsso\samlAuth')) {
-        class samlAuth extends \OneLogin\Saml2\Auth {} //NOSONAR Mocked class
+    /**
+     * Wrapper class for OneLogin Auth.
+     */
+    if (!class_exists('GlpiPlugin\Samlsso\samlAuth', false)) {
+        class samlAuth extends \OneLogin\Saml2\Auth {}
     }
 
     /**
-     * Mock Config that replaces the production one for testing logic paths.
+     * Mock plugin configuration system.
      */
-    if (!class_exists('GlpiPlugin\Samlsso\MockConfig')) {
+    if (!class_exists('GlpiPlugin\Samlsso\MockConfig', false)) {
         class MockConfig
         {
+            /** @var array Storage for plugin config parameters. */
             public static array $mockConfig = [];
+
+            /**
+             * Resolve configuration ID by user email domain.
+             *
+             * @param string $email User email address.
+             * @return int|null Config ID or null.
+             */
             public static function getConfigIdByEmailDomain(string $email): ?int
-            {  //NOSONAR Mocked function for tests
+            {
                 return self::$mockConfig['domain_map'][$email] ?? null;
             }
+
+            /**
+             * Determines if there is exactly one active configuration.
+             *
+             * @return int|null Config ID if single, otherwise null.
+             */
             public static function getIsOnlyOneConfig(): ?int
-            {                     //NOSONAR Mocked function for tests
+            {
                 return self::$mockConfig['only_one_id'] ?? null;
             }
+
+            /**
+             * Check if SSO is strictly enforced.
+             *
+             * @return bool True if SSO enforced.
+             */
             public static function getIsEnforced(): bool
-            {                          //NOSONAR Mocked function for tests
+            {
                 return self::$mockConfig['enforced'] ?? false;
             }
+
+            /**
+             * Check if traditional login fields should be hidden.
+             *
+             * @return bool True if hidden.
+             */
             public static function getHideLoginFields(): bool
-            {                     //NOSONAR Mocked function for tests
+            {
                 return self::$mockConfig['hide_login_fields'] ?? false;
             }
+
+            /**
+             * Retrieve configured IDP login buttons.
+             *
+             * @param int $limit Maximum buttons count.
+             * @return array Configured buttons metadata.
+             */
             public static function getLoginButtons(int $limit = 12): array
-            {        //NOSONAR Mocked function for tests, not used in samlsso
+            {
                 return self::$mockConfig['login_buttons'] ?? [];
             }
+
+            /**
+             * Check if debug logging is enabled for an IDP.
+             *
+             * @param int $idpId IDP identifier.
+             * @return bool True if debug enabled.
+             */
             public static function getIsDebug(int $idpId): bool
-            {                   //NOSONAR Mocked function for tests, not used in samlsso
+            {
                 return self::$mockConfig['debug'] ?? false;
             }
+
+            /**
+             * Retrieve the config table name.
+             *
+             * @param string|null $classname Class name.
+             * @return string Table name.
+             */
             public static function getTable(?string $classname = null): string
             {
                 return 'glpi_plugin_samlsso_configs';
@@ -250,110 +616,332 @@ namespace GlpiPlugin\Samlsso {
         }
     }
 
-    if (!class_exists('GlpiPlugin\Samlsso\Config')) {
+    if (!class_exists('GlpiPlugin\Samlsso\Config', false)) {
         class_alias('GlpiPlugin\Samlsso\MockConfig', 'GlpiPlugin\Samlsso\Config');
     }
 
-    if (!class_exists('GlpiPlugin\Samlsso\Exclude')) {
-        class Exclude
-        {
-            public static function isExcluded(): bool
+    /**
+     * Exclude handler mock or require production file.
+     */
+    if (defined('LOAD_REAL_EXCLUDE') && constant('LOAD_REAL_EXCLUDE')) {
+        if (!class_exists('GlpiPlugin\Samlsso\Exclude', false)) {
+            require_once dirname(__DIR__) . '/src/Exclude.php';
+        }
+    } else {
+        if (!class_exists('GlpiPlugin\Samlsso\Exclude', false)) {
+            class Exclude
             {
-                return false;
+                /**
+                 * Mock checks if the request is excluded from SSO rules.
+                 *
+                 * @return bool True if request excluded.
+                 */
+                public static function isExcluded(): bool
+                {
+                    return false;
+                }
             }
         }
     }
 
     /**
-     * Mock Loginstate that replaces the production one for testing logic paths.
+     * Mock login state machine to track steps during mock authentication.
      */
-    if (!class_exists('GlpiPlugin\Samlsso\Loginstate')) {
+    if (!class_exists('GlpiPlugin\Samlsso\Loginstate', false)) {
         class Loginstate
         {
-            public const PHASE_INITIAL = 1;
-            public const PHASE_SAML_ACS = 2;
-            public const PHASE_SAML_AUTH = 3;
-            public const PHASE_GLPI_AUTH = 4;
-            public const PHASE_RESERVED = 5;
-            public const PHASE_FORCE_LOG = 6;
-            public const PHASE_TIMED_OUT = 7;
-            public const PHASE_LOGOFF = 8;
+            public const SESSION_GLPI_NAME_ACCESSOR = 'glpiname';
+            public const SESSION_VALID_ID_ACCESSOR  = 'valid_id';
+            public const STATE_ID                   = 'id';
+            public const USER_ID                    = 'userId';
+            public const USER_NAME                  = 'userName';
+            public const SESSION_ID                 = 'sessionId';
+            public const SESSION_NAME               = 'sessionName';
+            public const GLPI_AUTHED                = 'glpiAuthed';
+            public const SAML_AUTHED                = 'samlAuthed';
+            public const LOCATION                   = 'location';
+            public const REDIRECT                   = 'redirect';
+            public const IDP_ID                     = 'idpId';
+            public const LOGIN_DATETIME             = 'loginTime';
+            public const LAST_ACTIVITY              = 'lastClickTime';
+            public const ENFORCE_LOGOFF             = 'enforceLogoff';
+            public const SAML_RESPONSE              = 'serverParams';
+            public const SAML_REQUEST               = 'requestParams';
+            public const SAML_REQUEST_ID            = 'requestId';
+            public const SAML_UNSOLICITED           = 'requesUnsol';
+            public const SAML_RESPONSE_ID           = 'responseId';
+            public const LOGIN_FLOW_TRACE           = 'loginFlowTrace';
+            public const PHASE                      = 'phase';
+            public const DATABASE                   = 'database';
+            public const PHASE_INITIAL              = 1;
+            public const PHASE_SAML_ACS             = 2;
+            public const PHASE_SAML_AUTH            = 3;
+            public const PHASE_GLPI_AUTH            = 4;
+            public const PHASE_RESERVED             = 5;
+            public const PHASE_FORCE_LOG            = 6;
+            public const PHASE_TIMED_OUT            = 7;
+            public const PHASE_LOGOFF               = 8;
 
+            /**
+             * Gets database table name.
+             *
+             * @param string|null $classname Class name.
+             * @return string Table name.
+             */
+            public static function getTable(?string $classname = null): string
+            {
+                return 'glpi_plugin_samlsso_loginstates';
+            }
+
+            /** @var Loginstate|null Tracking last created instance. */
             public static $lastInstance = null;
+            /** @var array Array to collect trace checkpoints. */
             public $trace = [];
+            /** @var int Execution flow phase. */
             public $phase = 1;
+            /** @var int Associated IDP identifier. */
             public $idpId = 0;
+            /** @var string Request identifier. */
+            public $requestId = '';
+            /** @var bool Active SAML authentication state. */
+            public $samlAuthed = false;
+            /** @var string Active SAML Response identifier. */
+            public $samlResponseId = '';
 
-            public function __construct(int $id = -1)
+            /**
+             * Loginstate constructor.
+             *
+             * @param string $id Config identifier.
+             */
+            public function __construct($id = '')
             {
                 self::$lastInstance = $this;
             }
+
+            /**
+             * Gets mock state ID.
+             *
+             * @return int State ID.
+             */
             public function getStateId(): int
             {
                 return 1;
             }
+
+            /**
+             * Gets the active phase.
+             *
+             * @return int Active phase.
+             */
             public function getPhase(): int
             {
                 return $this->phase;
             }
+
+            /**
+             * Transition login flow to a new phase.
+             *
+             * @param int $phase Target phase.
+             * @return bool True if transitioned.
+             */
             public function setPhase(int $phase): bool
             {
                 $this->phase = $phase;
                 return true;
             }
+
+            /**
+             * Add an event to the login flow trace.
+             *
+             * @param array $entry Event dictionary.
+             * @return bool True if added.
+             */
             public function addLoginFlowTrace(array $entry): bool
             {
                 $this->trace[] = $entry;
                 return true;
             }
+
+            /**
+             * Retrieve the complete event trace log.
+             *
+             * @return array Event list.
+             */
             public function getTrace(): array
             {
                 return $this->trace;
             }
+
+            /**
+             * Write current state parameters.
+             *
+             * @return bool True if written.
+             */
             public function writeState(): bool
             {
                 return true;
             }
+
+            /**
+             * Store redirect URL.
+             *
+             * @param string $redirect Target URL.
+             * @return bool True if updated.
+             */
             public function setRedirect(string $redirect = ''): bool
             {
                 return true;
             }
-            public $requestId = '';
-            public $samlAuthed = false;
 
+            /**
+             * Gets associated IDP identifier.
+             *
+             * @return int IDP identifier.
+             */
             public function getIdpId(): int
             {
                 return $this->idpId;
             }
+
+            /**
+             * Set associated IDP identifier.
+             *
+             * @param int $id IDP identifier.
+             * @return bool True if updated.
+             */
             public function setIdpId(int $id): bool
             {
                 $this->idpId = $id;
                 return true;
             }
+
+            /**
+             * Set request identifier.
+             *
+             * @param string $requestId Request ID.
+             * @return bool True if updated.
+             */
             public function setRequestId(string $requestId): bool
             {
                 $this->requestId = $requestId;
                 return true;
             }
+
+            /**
+             * Asserts that SAML authentication succeeded.
+             *
+             * @return bool True if updated.
+             */
             public function setSamlAuthTrue(): bool
             {
                 $this->samlAuthed = true;
                 return true;
             }
+
+            /**
+             * Checks if SAML authentication is flagged as successful.
+             *
+             * @return bool True if authenticated.
+             */
             public function isSamlAuthed(): bool
             {
                 return $this->samlAuthed;
             }
+
+            /**
+             * Gets the recorded SAML response ID.
+             *
+             * @return string Response ID.
+             */
+            public function getSamlResponseId(): string
+            {
+                return $this->samlResponseId;
+            }
+
+            /**
+             * Set response identifier.
+             *
+             * @param string $id Response ID.
+             * @return bool True if updated.
+             */
+            public function setSamlResponseId(string $id): bool
+            {
+                $this->samlResponseId = $id;
+                return true;
+            }
+
+            /**
+             * Gets the recorded SAML request ID.
+             *
+             * @return string Request ID.
+             */
+            public function getSamlRequestId(): string
+            {
+                return $this->requestId;
+            }
+
+            /**
+             * Validates whether a response ID is unique (i.e. not replayed).
+             *
+             * @param string $id Response ID.
+             * @return bool True if unique.
+             */
+            public function checkResponseIdUnique(string $id): bool
+            {
+                return $this->samlResponseId !== $id;
+            }
+
+            /**
+             * Obtains safe state parameters for database and logging operations.
+             *
+             * @param bool $debug Debug flag.
+             * @return array Sanitized state list.
+             */
+            public function getSafeStateForLogging(bool $debug): array
+            {
+                return ['id' => 1, 'phase' => $this->phase];
+            }
         }
     }
 
-    if (!class_exists('GlpiPlugin\Samlsso\RuleSamlCollection')) {
+    /**
+     * Mock Rule engine collection.
+     */
+    if (!class_exists('GlpiPlugin\Samlsso\RuleSamlCollection', false)) {
         class RuleSamlCollection
         {
+            /** @var array|null Stores last processed match parameters. */
             public static $lastMatchInput = null;
+
+            /**
+             * Process SAML rules against a user context.
+             *
+             * @param array $matchInput Match attributes.
+             * @param array $params Parameter criteria.
+             * @param array $options Additional options.
+             */
             public function processAllRules(array $matchInput, array $params, array $options): void
             {
                 self::$lastMatchInput = $matchInput;
+            }
+        }
+    }
+
+    /**
+     * Mock header redirection function.
+     */
+    if (!function_exists('GlpiPlugin\Samlsso\header')) {
+        /**
+         * Emulates PHP header command and intercepts location redirects as exceptions.
+         *
+         * @param string $header HTTP header statement.
+         * @param bool $replace Replace existing headers.
+         * @param int $response_code HTTP response code.
+         * @throws \Exception to intercept redirection paths.
+         */
+        function header(string $header, bool $replace = true, int $response_code = 0): void {
+            if (preg_match('/^[Ll]ocation:\s*(.*)$/', $header, $matches)) {
+                throw new \Exception("Redirect to: " . trim($matches[1]));
             }
         }
     }
@@ -364,52 +952,174 @@ namespace GlpiPlugin\Samlsso\Tests {
     use GlpiPlugin\Samlsso\Loginstate;
 
     /**
-     * Mock Database for GLPI
+     * Mock database client to intercept and validate query parameters.
      */
     class MockDB
     {
+        /** @var string Database name. */
         public string $dbdefault = 'glpi_test';
+        /** @var string Last intercepted query. */
         public string $lastQuery = '';
+        /** @var bool Emulate target table existence status. */
         public bool $mockTableExists = true;
+        /** @var array Mock database responses by table name. */
         private array $responses = [];
+        /** @var array Tracking deleted records. */
+        public array $deletedRows = [];
 
+        /**
+         * Configure a mock response structure for a given table name.
+         *
+         * @param string $table Database table name.
+         * @param array $data Set of mock rows.
+         */
         public function setResponse(string $table, array $data): void
         {
             $this->responses[$table] = $data;
         }
 
+        /**
+         * Intercept request query structure and return an Iterator mapping Mock row records.
+         *
+         * @param array $params Request parameters.
+         * @return object Iterator structure representing query results.
+         */
         public function request(array $params): object
         {
-            return new class([]) {
-                public function count(): int
-                {
-                    return 0;
+            $table = $params['FROM'] ?? '';
+            $data = $this->responses[$table] ?? [];
+            return new class($data) implements \Iterator, \Countable {
+                /** @var array Results storage. */
+                private array $data;
+                /** @var int Array iteration index. */
+                private int $position = 0;
+
+                /**
+                 * Inner iterator constructor.
+                 *
+                 * @param array $data Dataset.
+                 */
+                public function __construct(array $data) {
+                    $this->data = $data;
                 }
-                public function current(): array
-                {
-                    return [];
+
+                /**
+                 * Rewind iteration index.
+                 */
+                public function rewind(): void {
+                    $this->position = 0;
                 }
-                public function numrows(): int
-                {
-                    return 0;
+
+                /**
+                 * Retrieve current record.
+                 *
+                 * @return mixed Row dictionary.
+                 */
+                public function current(): mixed {
+                    return $this->data[$this->position];
+                }
+
+                /**
+                 * Retrieve active index key.
+                 *
+                 * @return mixed Key index.
+                 */
+                public function key(): mixed {
+                    return $this->position;
+                }
+
+                /**
+                 * Proceed to next index position.
+                 */
+                public function next(): void {
+                    ++$this->position;
+                }
+
+                /**
+                 * Validates if active index is set.
+                 *
+                 * @return bool True if valid index.
+                 */
+                public function valid(): bool {
+                    return isset($this->data[$this->position]);
+                }
+
+                /**
+                 * Retrieve database records count.
+                 *
+                 * @return int Row count.
+                 */
+                public function count(): int {
+                    return count($this->data);
+                }
+
+                /**
+                 * Retrieve database records count.
+                 *
+                 * @return int Row count.
+                 */
+                public function numrows(): int {
+                    return count($this->data);
                 }
             };
         }
 
+        /**
+         * Intercept records deletion queries.
+         *
+         * @param string $table Table name.
+         * @param array $where Filter parameters.
+         * @return bool Always returns true.
+         */
+        public function delete(string $table, array $where): bool
+        {
+            $this->deletedRows[] = [
+                'table' => $table,
+                'where' => $where
+            ];
+            return true;
+        }
+
+        /**
+         * Intercept plain query commands.
+         *
+         * @param string $query SQL string.
+         * @return bool Always returns true.
+         */
         public function query(string $query): bool
         {
             $this->lastQuery = $query;
             return true;
         }
+
+        /**
+         * Intercept direct SQL queries.
+         *
+         * @param string $query SQL string.
+         * @return bool Always returns true.
+         */
         public function doQuery(string $query): bool
         {
             $this->lastQuery = $query;
             return true;
         }
+
+        /**
+         * Check if table exists in mock DB.
+         *
+         * @param string $table Table name.
+         * @return bool True if table exists.
+         */
         public function tableExists(string $table): bool
         {
             return $this->mockTableExists;
         }
+
+        /**
+         * Retrieve last query error.
+         *
+         * @return string Empty string for mock.
+         */
         public function error(): string
         {
             return '';
@@ -417,14 +1127,24 @@ namespace GlpiPlugin\Samlsso\Tests {
     }
 
     /**
-     * Mock GLPI User object
+     * Mock GLPI User object mapper.
      */
     class TestableGlpiUser
     {
+        /** @var array|null Mock user fields. */
         public $mockUserData = null;
+        /** @var array|null Created user fields. */
         public $createdUserData = null;
+        /** @var int User identifier to mock return. */
         public $mockIdToReturn = 999;
 
+        /**
+         * Retrieve user fields by username and bind to instance.
+         *
+         * @param string $name Username.
+         * @param object $instance Target active record.
+         * @return bool True if found.
+         */
         public function getFromDBbyName(string $name, $instance): bool
         {
             if ($this->mockUserData && $this->mockUserData['name'] === $name) {
@@ -433,6 +1153,14 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             return false;
         }
+
+        /**
+         * Retrieve user fields by email and bind to instance.
+         *
+         * @param string $email User email.
+         * @param object $instance Target active record.
+         * @return bool True if found.
+         */
         public function getFromDBbyEmail(string $email, $instance): bool
         {
             if ($this->mockUserData && $this->mockUserData['email'] === $email) {
@@ -441,6 +1169,14 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             return false;
         }
+
+        /**
+         * Retrieve user fields by ID and bind to instance.
+         *
+         * @param int $id User identifier.
+         * @param object $instance Target active record.
+         * @return bool True if found.
+         */
         public function getFromDB(int $id, $instance): bool
         {
             if ($this->createdUserData && $this->createdUserData['id'] === $id) {
@@ -449,6 +1185,15 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             return false;
         }
+
+        /**
+         * Create a new user record.
+         *
+         * @param array $input User fields.
+         * @param array $options Additional options.
+         * @param bool $history Keep history logs.
+         * @return int Created user ID.
+         */
         public function add(array $input, array $options = [], bool $history = true): int
         {
             return $this->mockIdToReturn;
@@ -456,23 +1201,29 @@ namespace GlpiPlugin\Samlsso\Tests {
     }
 
     /**
-     * TestHarness Base Class
+     * TestHarness base class setup.
+     * Resets global variables and buffers output for cleaner CLI output execution.
      */
     class TestHarness
     {
+        /** @var MockDB Mock database object reference. */
         protected MockDB $db;
 
+        /**
+         * TestHarness constructor.
+         * Initializes GLPI globals and setups clean output buffers.
+         */
         public function __construct()
         {
             global $DB, $CFG_GLPI, $GLPI_IS_COMMAND_LINE;
 
-            // Ensure $_SERVER has REQUEST_URI for production logic
             if (!isset($_SERVER['REQUEST_URI'])) {
                 $_SERVER['REQUEST_URI'] = '/';
             }
 
-            // Start output buffering
-            if (ob_get_level() == 0) ob_start();
+            if (ob_get_level() == 0) {
+                ob_start();
+            }
 
             $this->db = new MockDB();
             $DB = $this->db;
@@ -482,18 +1233,33 @@ namespace GlpiPlugin\Samlsso\Tests {
             Loginstate::$lastInstance = null;
         }
 
+        /**
+         * TestHarness destructor.
+         * Flushes the active output buffer cleanly.
+         */
         public function __destruct()
         {
-            if (ob_get_level() > 0) ob_end_flush();
+            if (ob_get_level() > 0) {
+                ob_end_flush();
+            }
         }
 
+        /**
+         * Asserts that the login state trace collection contains a specific value pattern.
+         *
+         * @param Loginstate|null $state LoginState instance to inspect.
+         * @param string $key Event key.
+         * @param string $valueSnippet Value substring.
+         * @throws \Exception if pattern was not recorded in state traces.
+         * @return bool True if found.
+         */
         public function assertTraceContains(?Loginstate $state, string $key, string $valueSnippet): bool
         {
             if ($state === null) {
                 throw new \Exception("Trace validation failed: State object is null.");
             }
             foreach ($state->getTrace() as $entry) {
-                if (isset($entry[$key]) && str_contains($entry[$key], $valueSnippet)) {
+                if (isset($entry[$key]) && str_contains((string)$entry[$key], $valueSnippet)) {
                     return true;
                 }
             }
