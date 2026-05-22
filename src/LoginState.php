@@ -939,7 +939,8 @@ class LoginState extends CommonDBTM
                 // Create statement
                 $query = "ALTER TABLE `$table` ADD INDEX `sessionId_idx` (`sessionId`)";
                 // Perform the query.
-                if ($DB->query($query)) {
+                // https://github.com/DonutsNL/samlsso/issues/102
+                if ($DB->doQuery($query)) {
                     Session::addMessageAfterRedirect("🆗 Added index to: $table");
                 } else {
                     // Handle error without killing the whole application
