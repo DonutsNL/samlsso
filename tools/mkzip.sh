@@ -27,6 +27,16 @@ GLPIPATH="${FULLPATH%$KNOWN_SUFFIX}"
 if [ -d "$GLPIPATH" ]; then
 	find "$GLPIPATH/samlsso" -type f -name "*.php" -not -path "*/vendor/*" -exec sed -i "s/$OLDVERSION/$NEWVERSION/g" {} +
 
+	# Run automated tests and verify success before release
+	echo "Running automated test suite..."
+	php "$GLPIPATH/samlsso/tests/RunAllTests.php"
+	TEST_RESULT=$?
+	if [ $TEST_RESULT -ne 0 ]; then
+		echo "❌ Automated test suite failed! Release package will not be created."
+		exit $TEST_RESULT
+	fi
+	echo "✅ Automated test suite passed successfully."
+
 	# Remove old zipfiles
 	if [ -f "$GLPIPATH/samlsso/release/samlsso.zip" ]; then
 		rm -f $GLPIPATH/samlsso/release/samlsso.zip

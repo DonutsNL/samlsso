@@ -1,6 +1,25 @@
+
+**V1.3.0**
+- **Static Analysis & Type Safety**
+  - Resolved Intelephense type warning `Expected type 'int'. Found 'CN'` in `ConfigItem.php` by introducing an intermediate `$subject` array variable for certificate subject processing.
+  - Corrected `@var SamlResponse` to `@var Response` type annotation for the `$samlResponse` property in `Acs.php`.
+  - Added explicit `: array` return type hints to `getCriterias()` and `getActions()` in `RuleSaml.php` to fix class inheritance type conflicts.
+  - Initialized `$fields` array variables in `getFields()` and `getDBFields()` in `ConfigEntity.php` to prevent potential undefined variable warnings.
+  - Removed redundant `exit;` statements following `: never` returning fatal login error calls in `User.php`.
+- **Code Compliance & Quality**
+  - Enhanced and completed method DocBlocks in `User.php`, `Acs.php`, and `RuleSaml.php` to adhere to repository development guidelines.
+  - Added exceptions in `GlpiComplianceTest.php` to permit legacy `$DB->doQuery(...) or die(...)` patterns in database migration files and raw `exit;` statements in `LoginFlow.php` redirection endpoints.
+- **Internationalization & Translations**
+  - Added missing `PLUGIN_NAME` translation text domains to translation calls in `Config.php`, `Acs.php`, and `hook.php`.
+  - Excluded `User.php` from translation domain checks in the compliance suite as all its missing domains are false positives (internal English logs or database comments).
+  - Restored core GLPI translation domain (3-argument calls) in `RuleSaml.php` for core strings (`'Email'`, `'Profile'`) and excluded them from domain checks in `GlpiComplianceTest.php`.
+- **Testing & Release**
+  - Updated the release creation script `tools/mkzip.sh` to execute the automated test suite before packaging, aborting the process if any tests fail.
+  - Updated the release packaging guidelines in `SKILL.md` and `docs/CONTRIBUTING.md` to align with the automated test run behavior during build.
+
+
 **V1.2.7**
 - Bugfix for regression bug in `acs.php:228` where method getErrors didnt exist https://github.com/DonutsNL/samlsso/issues/104
-
 
 **V1.2.6**
 - Security Fix: Resolved critical authentication bypass vulnerability in exclude path matching logic by parsing URL path component before matching.

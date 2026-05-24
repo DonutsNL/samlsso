@@ -165,7 +165,7 @@ class Config extends CommonDBTM
             'id'                 => '1',                        // By GLPI convention Name field should have ID 1.
             'table'              => $this->getTable(),
             'field'              => ConfigEntity::NAME,
-            'name'               => __('Name'),
+            'name'               => __('Name', PLUGIN_NAME),
             'massiveaction'      => false,
             'datatype'           => 'itemlink'
         ];
@@ -173,7 +173,7 @@ class Config extends CommonDBTM
             'id'                 => '2',                        // By GLPI convention ID field should have ID 2.
             'table'              => $this->getTable(),
             'field'              => ConfigEntity::ID,
-            'name'               => __('ID'),
+            'name'               => __('ID', PLUGIN_NAME),
             'massiveaction'      => false, // implicit field is id
             'datatype'           => 'itemlink'
         ];
@@ -181,7 +181,7 @@ class Config extends CommonDBTM
             'id'                 => '3',                        // If this was the glpi entities_id the id should by convention be ID `86`
             'table'              => $this->getTable(),
             'field'              => ConfigEntity::IDP_ENTITY_ID,
-            'name'               => __('Idp entity ID'),
+            'name'               => __('Idp entity ID', PLUGIN_NAME),
             'massiveaction'      => false,
             'datatype'           => 'text'
         ];
@@ -189,7 +189,7 @@ class Config extends CommonDBTM
             'id'                 => '4',
             'table'              => $this->getTable(),
             'field'              => ConfigEntity::IS_ACTIVE,
-            'name'               => __('Is active'),
+            'name'               => __('Is active', PLUGIN_NAME),
             'massiveaction'      => false,
             'datatype'           => 'bool'
         ];
@@ -224,7 +224,7 @@ class Config extends CommonDBTM
                     'id'                 => $index,
                     'table'              => Config::getTable(),
                     'field'              => $field[ConfigItem::FIELD],
-                    'name'               => __(str_replace('_', ' ', ucfirst($field[ConfigItem::FIELD]))),
+                    'name'               => __(str_replace('_', ' ', ucfirst($field[ConfigItem::FIELD])), PLUGIN_NAME),
                     'datatype'           => $field[ConfigItem::TYPE],
                     'list'               => $field['list'],
                 ];

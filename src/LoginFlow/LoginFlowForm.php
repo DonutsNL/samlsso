@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
@@ -66,10 +67,12 @@ class LoginFlowForm    //NOSONAR complexity by design.
      */
     public function init(): void
     {
-        Html::header(__('Identity providers'),
-                     SamlSsoController::FLOWFORM_ROUTE,
-                     SamlSsoController::FLOWFORM_PNAME,
-                     LoginFlow::class);
+        Html::header(
+            __('Identity providers', PLUGIN_NAME),
+            SamlSsoController::FLOWFORM_ROUTE,
+            SamlSsoController::FLOWFORM_PNAME,
+            LoginFlow::class
+        );
         Search::show(LoginFlow::class);
     }
 
@@ -86,7 +89,7 @@ class LoginFlowForm    //NOSONAR complexity by design.
         // Populate configEntity using post;
         $loginFlowEntity = new LoginFlowEntity(1, ['template' => 'post', 'postData' => $postData]);
         // Validate configEntity
-        if($loginFlowEntity->isValid()){
+        if ($loginFlowEntity->isValid()) {
             // Get the normalized database fields
             $fields = $loginFlowEntity->getDBFields([loginFlowEntity::CREATE_DATE, loginFlowEntity::IS_DELETED]);
             // Add the cross site request forgery token to the fields
@@ -94,17 +97,19 @@ class LoginFlowForm    //NOSONAR complexity by design.
             // Get instance of SamlConfig for db update.
             $config = new LoginFlow();
             // Perform database update using fields.
-            if( $config->canUpdate()     &&
-                $config->update($fields) ){
+            if (
+                $config->canUpdate()     &&
+                $config->update($fields)
+            ) {
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::FLOWFORM_ROUTE.'/'.$postData['id']);
+                Html::redirect(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::FLOWFORM_ROUTE . '/' . $postData['id']);
             } else {
                 // Leave a failed message
                 Session::addMessageAfterRedirect(__('Configuration update failed, check your update rights or error logging', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::FLOWFORM_ROUTE.'/'.$postData['id']);
+                Html::redirect(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::FLOWFORM_ROUTE . '/' . $postData['id']);
             }
-        }else{
+        } else {
             // Leave an error message and reload the form with provided values and errors
             Session::addMessageAfterRedirect(__('Configuration invalid please correct all ⭕ errors first', PLUGIN_NAME));
             return $this->generateForm($loginFlowEntity);
@@ -120,10 +125,10 @@ class LoginFlowForm    //NOSONAR complexity by design.
      */
     public function showForm(int $id, array $options = []): string
     {
-        if($id === -1 || $id > 0){
+        if ($id === -1 || $id > 0) {
             // Generate form using a template
             return $this->generateForm(new LoginFlowEntity($id, $options));
-        }else{
+        } else {
             // Invalid id used redirect back to origin
             Session::addMessageAfterRedirect(__('Invalid request, redirecting back', PLUGIN_NAME));
             Html::back();
@@ -147,43 +152,51 @@ class LoginFlowForm    //NOSONAR complexity by design.
         $fields = $loginFlowEntity->getFields();
         // Get warnings tabs
         $tplVars  = [];
-       
+
         // Get AuthN context as array
         //$fields[ConfigEntity::AUTHN_CONTEXT][ConfigItem::VALUE] = $configEntity->getRequestedAuthnContextArray();
 
         // get the logging entries, but only if the object already exists
         // https://codeberg.org/QuinQuies/glpisaml/issues/15#issuecomment-1785284
-        if(is_numeric($fields[LoginFlowEntity::ID]['value'])){
+        if (is_numeric($fields[LoginFlowEntity::ID]['value'])) {
             $logging = LoginState::getLoggingEntries($fields[LoginFlowEntity::ID]['value']);
-        }else{
+        } else {
             $logging = [];
         }
-       
+
         // Define static field translations
         $tplVars = array_merge($tplVars, [
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
-            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::FLOWFORM_ROUTE.'?id='.$fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
+            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::FLOWFORM_ROUTE . '?id=' . $fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
             'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
             'inputfields'               =>  $fields,
             'loggingfields'             =>  $logging,
-            'entityID'                  =>  $CFG_GLPI['url_base'].'/',
-            'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::ACS_ROUTE.'?id='.$fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
-            'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::META_ROUTE.'?id='.$fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
-            'inputOptionsBool'          =>  [ 1                                 => __('Yes', PLUGIN_NAME),
-                                              0                                 => __('No', PLUGIN_NAME)],
-            'inputOptionsNameFormat'    =>  [Saml2Const::NAMEID_UNSPECIFIED     => __('Unspecified', PLUGIN_NAME),
-                                             Saml2Const::NAMEID_EMAIL_ADDRESS   => __('Email Address', PLUGIN_NAME),
-                                             Saml2Const::NAMEID_TRANSIENT       => __('Transient', PLUGIN_NAME),
-                                             Saml2Const::NAMEID_PERSISTENT      => __('Persistent', PLUGIN_NAME)],
-            'inputOptionsAuthnContext'  =>  ['PasswordProtectedTransport'   => __('PasswordProtectedTransport', PLUGIN_NAME),
-                                             'Password'                     => __('Password', PLUGIN_NAME),
-                                             'X509'                         => __('X509', PLUGIN_NAME),
-                                             'none'                         => __('none', PLUGIN_NAME)],
-            'inputOptionsAuthnCompare'  =>  ['exact'                        => __('Exact', PLUGIN_NAME),
-                                             'minimum'                      => __('Minimum', PLUGIN_NAME),
-                                             'maximum'                      => __('Maximum', PLUGIN_NAME),
-                                             'better'                       => __('Better', PLUGIN_NAME)],
+            'entityID'                  =>  $CFG_GLPI['url_base'] . '/',
+            'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::ACS_ROUTE . '?id=' . $fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
+            'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::META_ROUTE . '?id=' . $fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
+            'inputOptionsBool'          =>  [
+                1                                 => __('Yes', PLUGIN_NAME),
+                0                                 => __('No', PLUGIN_NAME)
+            ],
+            'inputOptionsNameFormat'    =>  [
+                Saml2Const::NAMEID_UNSPECIFIED     => __('Unspecified', PLUGIN_NAME),
+                Saml2Const::NAMEID_EMAIL_ADDRESS   => __('Email Address', PLUGIN_NAME),
+                Saml2Const::NAMEID_TRANSIENT       => __('Transient', PLUGIN_NAME),
+                Saml2Const::NAMEID_PERSISTENT      => __('Persistent', PLUGIN_NAME)
+            ],
+            'inputOptionsAuthnContext'  =>  [
+                'PasswordProtectedTransport'   => __('PasswordProtectedTransport', PLUGIN_NAME),
+                'Password'                     => __('Password', PLUGIN_NAME),
+                'X509'                         => __('X509', PLUGIN_NAME),
+                'none'                         => __('none', PLUGIN_NAME)
+            ],
+            'inputOptionsAuthnCompare'  =>  [
+                'exact'                        => __('Exact', PLUGIN_NAME),
+                'minimum'                      => __('Minimum', PLUGIN_NAME),
+                'maximum'                      => __('Maximum', PLUGIN_NAME),
+                'better'                       => __('Better', PLUGIN_NAME)
+            ],
         ]);
 
         // https://codeberg.org/QuinQuies/glpisaml/issues/12

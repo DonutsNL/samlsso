@@ -134,7 +134,7 @@ class User
      * into GLPI. So make sure not to return anything from this method unless
      * you actually intend to allow login.
      *
-     * @param   array       Containing user attributes found in Saml claim
+     * @param   array       $userFields Containing user attributes found in Saml claim
      * @return  glpiUser    GlpiUser object with populated fields.
      * @since               1.0.0
      */
@@ -185,6 +185,13 @@ class User
         }
     }
 
+    /**
+     * Performs Just-In-Time (JIT) user creation dynamically.
+     *
+     * @param array $userFields User attributes from SAML claims.
+     * @return glpiUser Freshly created or fetched GLPI user.
+     * @since 1.0.0
+     */
     private function performJIT(array $userFields): glpiUser {
         $user = new glpiUser();
 
@@ -227,13 +234,11 @@ class User
                                                     we failed to assign one dynamically using Just In Time user creation. Please
                                                     request a GLPI administrator to review the logs and correct the problem or
                                                     request the administrator to assign a GLPI profile manually.", PLUGIN_NAME));
-                    exit; // Unreachable but prevents linting errors.
                 }
                 Session::addMessageAfterRedirect('Dynamically created GLPI user for:'.$userFields[User::EMAIL]['0']);
                 return $user;
             }else{
                 LoginFlow::PrintFatalLoginError(__("Critical error: samlSSO was unable to fetch newly created user from the database!", PLUGIN_NAME));
-                exit; // Unreachable but prevents linting errors.
             }
         }else{
             // Show a nice login Error
@@ -242,10 +247,16 @@ class User
             LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but there is no matching GLPI user account. In addition the Just-in-time user creation
                                           is disabled for: $idpName. Please contact your GLPI administrator and request an account to be created matching the
                                           provided email claim: $email or login using a local user account.", PLUGIN_NAME));
-            exit; // Unreachable but prevents linting errors.
         }
     }
 
+    /**
+     * Updates user rights, groups, and profiles based on rule matching output.
+     *
+     * @param array $params Contains the rule output mapping details.
+     * @return void
+     * @since 1.0.0
+     */
     public function updateUserRights(array $params): void       //NOSONAR - Complexity by design
     {
         // Log that we are applying JIT.
@@ -358,7 +369,7 @@ class User
      * passed to the Auth object in the loginFlow object. If a critical error
      * is found, processing is stopped and an error shown.
      *
-     * @param    Response  Response object with the samlResponse attributes.
+     * @param    Response  $response Response object with the samlResponse attributes.
      * @return   array     user->add input fields array with properties.
      * @since    1.0.0
      */

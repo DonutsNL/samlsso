@@ -87,24 +87,28 @@ class Acs extends LoginFlow
     /**
      * Stores the debug param.
      * @since 1.0.0
+     * @var bool
      */
     private $debug          = null;
 
     /**
      * Stores the idpId.
      * @since 1.2.0
+     * @var int
      */
     private $idpId          = null;
 
     /**
      * Stores the samlResponse.
      * @since 1.2.0
+     * @var Response
      */
     private $samlResponse   = null;
 
     /**
      * Stores the idp configuration.
      * @since 1.2.0
+     * @var ConfigEntity
      */
     private $configEntity   = null;
 
@@ -112,6 +116,8 @@ class Acs extends LoginFlow
     /**
      * Init pre fetches loginState or fails.
      *
+     * @param Request $request Incoming HTTP request
+     * @return void
      * @since 1.0.0
      */
     public function init(Request $request)             #NOSONAR Yes TLDR not fixing it.
@@ -154,7 +160,7 @@ class Acs extends LoginFlow
                 } catch (Throwable $e) {
                     $this->printError(
                         $e->getMessage(),
-                        __('phpSaml::Settings->init'),
+                        __('phpSaml::Settings->init', PLUGIN_NAME),
                         'Could not enable required phpsaml proxyVars'
                     );
                 }
@@ -172,7 +178,7 @@ class Acs extends LoginFlow
 
                 $this->printError(
                     $e->getMessage(),
-                    __('phpSaml::Settings->init'),
+                    __('phpSaml::Settings->init', PLUGIN_NAME),
                     $extended
                 );
             }
@@ -190,8 +196,8 @@ class Acs extends LoginFlow
                     Acs::EXTENDED_FOOTER;
                 //}
                 $this->printError(
-                    __('Could not process samlResponse with Error:') . $e->getMessage(),
-                    __('Saml::Response->init'),
+                    __('Could not process samlResponse with Error:', PLUGIN_NAME) . $e->getMessage(),
+                    __('Saml::Response->init', PLUGIN_NAME),
                     $extended
                 );
             }
@@ -207,7 +213,7 @@ class Acs extends LoginFlow
             } catch (Throwable $e) {
                 $this->printError(
                     __("Could not fetch loginState from database with error: <br><br>$e<br><br>See: https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php for more information.", PLUGIN_NAME),
-                    __('LoginState')
+                    __('LoginState', PLUGIN_NAME)
                 );
             }
 
@@ -218,7 +224,7 @@ class Acs extends LoginFlow
             //https://github.com/DonutsNL/samlsso/issues/5
             $this->printError(
                 __('The received idp response did not contain the required samlResponse POST body or idpId to authenticate the user, see: https://codeberg.org/QuinQuies/glpisaml/wiki/ACS.php for more information', PLUGIN_NAME),
-                __('Acs assertion'),
+                __('Acs assertion', PLUGIN_NAME),
                 Acs::EXTENDED_HEADER .
                     Acs::SERVER_OBJ . var_export($_SERVER, true) . "\n\n" .
                     Acs::EXTENDED_FOOTER . "\n"
@@ -231,6 +237,7 @@ class Acs extends LoginFlow
      * and perform a callback to the loginFlow to authorize
      * the user if the samlResponse is valid.
      *
+     * @return void
      * @since 1.0.0
      */
     public function assertSaml(): void                // NOSONAR method complexity by design.
@@ -244,14 +251,14 @@ class Acs extends LoginFlow
             if (!$this->samlResponse->isValid($this->state->getSamlRequestId())) {
                 $this->printError(
                     __("Validation of the samlResponse document failed. Review the saml log for more details", PLUGIN_NAME),
-                    'LoginState',
+                    __('LoginState', PLUGIN_NAME),
                     "The following error was reported: " . $this->samlResponse->getError(false)
                 );
             }
         } catch (Throwable $e) {
             $this->printError(
                 __("Validation of the samlResponse document failed with a critical error. Review the saml log for more details", PLUGIN_NAME),
-                'LoginState',
+                __('LoginState', PLUGIN_NAME),
                 "The following error was reported: $e"
             );
         }
@@ -269,7 +276,7 @@ class Acs extends LoginFlow
                                  to be processed again. Please login again to generate a new samlResponse. Sorry for any inconvenience.
                                  If the problem presists, then please contact your administrator.
                                  See: https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php for more information", PLUGIN_NAME),
-                'LoginState',
+                __('LoginState', PLUGIN_NAME),
                 Acs::EXTENDED_HEADER .
                     "samlResponse with registered ID was replayed in acs.php. Possibly the user pressed F5 when encountering
                                   a different error or the response was send successively to the acs\n\n" .
@@ -286,7 +293,7 @@ class Acs extends LoginFlow
             } catch (Throwable $e) {
                 $this->printError(
                     __("An error occured while trying to update the samlResponseId into the LoginState database. Review the saml log for more details", PLUGIN_NAME),
-                    'LoginState',
+                    __('LoginState', PLUGIN_NAME),
                     "The following error was reported: $e"
                 );
             }
@@ -303,10 +310,10 @@ class Acs extends LoginFlow
                                   causing an inconsistant loginState in the database or software bug. Please login again via the
                                   GLPI-interface. Sorry for the inconvenience. See: https://github.com/DonutsNL/samlsso/wiki/Unsollicited-%E2%80%90-IdP-initiated-login-flows
                                   for more information", PLUGIN_NAME),
-                __('samlResponse assertion'),
+                __('samlResponse assertion', PLUGIN_NAME),
                 Acs::EXTENDED_HEADER .
                     __("Unexpected assertion triggered while session was in a different phase then expected (2). This error was triggered by external source
-                                  with address:{$_SERVER['REMOTE_ADDR']}. Possible causes include race-conditions or parallel calls using the same samlResponse.\n") .
+                                  with address:{$_SERVER['REMOTE_ADDR']}. Possible causes include race-conditions or parallel calls using the same samlResponse.\n", PLUGIN_NAME) .
                     Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
                     Acs::EXTENDED_FOOTER . "\n"
             );
@@ -318,7 +325,7 @@ class Acs extends LoginFlow
             $this->state->setPhase(LoginState::PHASE_SAML_AUTH);
         } catch (Throwable $e) {
             $this->printError(__("An error occured while trying to update the login phase to LoginState::PHASE_SAML_AUTH  into the LoginState database.
-                                  Review the saml log for more details", PLUGIN_NAME), 'LoginState', "The following error was reported: $e");
+                                  Review the saml log for more details", PLUGIN_NAME), __('LoginState', PLUGIN_NAME), "The following error was reported: $e");
         }
 
         // Perform validation check moved to top of method for security.

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
@@ -72,8 +73,8 @@ class Exclude extends CommonDropdown
 
 
     public static $rightname = 'config';
-    
-     /**
+
+    /**
      * getTypeName(int nb) : string -
      * Method called by pre_item_add hook validates the object and passes
      * it to the RegEx Matching then decides what to do.
@@ -81,7 +82,7 @@ class Exclude extends CommonDropdown
      * @param  int      $nb     number of items.
      * @return void
      */
-    public static function getTypeName($nb = 0) : string
+    public static function getTypeName($nb = 0): string
     {
         return __('Excluded paths', PLUGIN_NAME);
     }
@@ -114,22 +115,24 @@ class Exclude extends CommonDropdown
      *
      * @return string   $icon
      */
-    public static function getIcon() : string
+    public static function getIcon(): string
     {
         return 'fa-regular fa-eye-slash';
     }
 
     public function invoke()
     {
-        Html::header(__('samlSSO Excludes'),
-        SamlSsoController::EXCLUDE_ROUTE,
-        SamlSsoController::EXCLUDE_PNAME,
-        self::class);
-        
+        Html::header(
+            __('samlSSO Excludes', PLUGIN_NAME),
+            SamlSsoController::EXCLUDE_ROUTE,
+            SamlSsoController::EXCLUDE_PNAME,
+            self::class
+        );
+
         Search::show(Exclude::class);
         Html::footer();
     }
-    
+
 
     /**
      * getAdditionalFields(): array
@@ -168,7 +171,7 @@ class Exclude extends CommonDropdown
      *
      * @return array   $rawSearchOptions
      */
-    public function rawSearchOptions() : array
+    public function rawSearchOptions(): array
     {
         $tab = parent::rawSearchOptions();
 
@@ -206,14 +209,16 @@ class Exclude extends CommonDropdown
         $excludes = [];
         $dropdown = new Exclude();
         $table = $dropdown::getTable();
-        
-        foreach($DB->request(['FROM' => $table]) as $row){
-            $excludes[] = [Exclude::NAME                => $row[Exclude::NAME],
-                           Exclude::ACTION              => $row[Exclude::ACTION],
-                           Exclude::DATE_CREATION       => $row[Exclude::DATE_CREATION],
-                           Exclude::DATE_MOD            => $row[Exclude::DATE_MOD],
-                           Exclude::CLIENTAGENT         => $row[Exclude::CLIENTAGENT],
-                           Exclude::EXCLUDEPATH         => $row[Exclude::EXCLUDEPATH]];
+
+        foreach ($DB->request(['FROM' => $table]) as $row) {
+            $excludes[] = [
+                Exclude::NAME                => $row[Exclude::NAME],
+                Exclude::ACTION              => $row[Exclude::ACTION],
+                Exclude::DATE_CREATION       => $row[Exclude::DATE_CREATION],
+                Exclude::DATE_MOD            => $row[Exclude::DATE_MOD],
+                Exclude::CLIENTAGENT         => $row[Exclude::CLIENTAGENT],
+                Exclude::EXCLUDEPATH         => $row[Exclude::EXCLUDEPATH]
+            ];
         }
         return $excludes;
     }
@@ -232,12 +237,14 @@ class Exclude extends CommonDropdown
         // @see  https://github.com/glpi-project/glpi-agent/blob/77f7cdda24aa6d14ba8800f6bb71a18b98f4526d/lib/GLPI/Agent.pm#L28
         // @see  https://github.com/glpi-project/glpi/blob/26997c8dbff582c63d407f5599ad2dd69c50f847/index.php#L91
         // @see  https://codeberg.org/QuinQuies/glpisaml/issues/92
-        if($_SERVER['REQUEST_METHOD'] == 'POST'                       &&     // The glpi agent uses POST method to send data to the server
-           !empty($_SERVER['HTTP_USER_AGENT'])                        &&     // The user-agent field must not be empty
-           (strpos($_SERVER['HTTP_USER_AGENT'], 'Agent_v') !== false) ){     // The user-agent field must contain the 'Agent-v' substring
+        if (
+            $_SERVER['REQUEST_METHOD'] == 'POST'                       &&     // The glpi agent uses POST method to send data to the server
+            !empty($_SERVER['HTTP_USER_AGENT'])                        &&     // The user-agent field must not be empty
+            (strpos($_SERVER['HTTP_USER_AGENT'], 'Agent_v') !== false)
+        ) {     // The user-agent field must contain the 'Agent-v' substring
             // Dont log, dont register, these may include thousands of calls per period and
             // will be logged by apache's access logging.
-           return true;
+            return true;
         } // else continue processing
 
         // Get the excludes from the database.
@@ -247,13 +254,15 @@ class Exclude extends CommonDropdown
         if (!is_string($requestPath)) {
             $requestPath = '';
         }
-        foreach($excludes as $exclude){
+        foreach ($excludes as $exclude) {
             if (strpos($requestPath, $exclude[Exclude::EXCLUDEPATH]) !== false) {
                 // Do we need to validate client agent?
-                if(!empty($exclude[Exclude::CLIENTAGENT])                                        &&         //NOSONAR - Maybe fix verbosity in future.
-                   strpos($_SERVER['HTTP_USER_AGENT'], $exclude[Exclude::CLIENTAGENT]) !== false ){
+                if (
+                    !empty($exclude[Exclude::CLIENTAGENT])                                        &&         //NOSONAR - Maybe fix verbosity in future.
+                    strpos($_SERVER['HTTP_USER_AGENT'], $exclude[Exclude::CLIENTAGENT]) !== false
+                ) {
                     return ($exclude[Exclude::ACTION]) ? true : false;
-                }else{
+                } else {
                     // return configured action true for bypass, false for auth.
                     return ($exclude[Exclude::ACTION]) ? true : false;
                 }
@@ -274,12 +283,12 @@ class Exclude extends CommonDropdown
         // Get all the excluded objects from the database
         $excludes = Exclude::getExcludes();
         // Process configured excluded URIs and agents.
-        foreach($excludes as $exclude){
+        foreach ($excludes as $exclude) {
             if (strpos($excluded, $exclude[Exclude::EXCLUDEPATH]) !== false) {
                 // Do we need to validate client agent?
-                if( $agent  && strpos($agent, $exclude[Exclude::CLIENTAGENT]) !== false ){ //NOSONAR - additional 'if branch' by design
+                if ($agent  && strpos($agent, $exclude[Exclude::CLIENTAGENT]) !== false) { //NOSONAR - additional 'if branch' by design
                     return ($exclude[Exclude::ACTION]) ? true : false;
-                }else{
+                } else {
                     // return configured action true for bypass, false for auth.
                     return ($exclude[Exclude::ACTION]) ? true : false;
                 }
@@ -297,30 +306,31 @@ class Exclude extends CommonDropdown
     {
         //https://github.com/derricksmith/phpsaml/issues/159
         // Do not perform auth on CLI, asserter service and manually excluded files.
-        if (PHP_SAPI != 'cli'){
+        if (PHP_SAPI != 'cli') {
             // https://codeberg.org/QuinQuies/glpisaml/issues/18#issuecomment-1785444
             // $_SERVER['REQUEST_URI'] obviously isn't populated in 'CLI' mode.
-            if( isset($_SERVER['REQUEST_URI']) ) {
+            if (isset($_SERVER['REQUEST_URI'])) {
                 $requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
                 if (!is_string($requestPath)) {
                     $requestPath = '';
                 }
-                if ( strpos($requestPath, 'acs.php') !== false         ||         // do not process acs
-                     strpos($requestPath, 'common.tabs.php') !== false ||         // do not process common.tabs
-                     strpos($requestPath, 'dashboard.php') !== false   ||         // do not process dashboard
-                     Exclude::ProcessExcludes()                                   )
-                {
+                if (
+                    strpos($requestPath, 'acs.php') !== false         ||         // do not process acs
+                    strpos($requestPath, 'common.tabs.php') !== false ||         // do not process common.tabs
+                    strpos($requestPath, 'dashboard.php') !== false   ||         // do not process dashboard
+                    Exclude::ProcessExcludes()
+                ) {
                     return $_SERVER['REQUEST_URI'];
                 }
             }
             return false;
-        }else{
+        } else {
             global $argv;
             $command = '';
-            foreach ($argv as $value){
-                $command .= $value .' ';
+            foreach ($argv as $value) {
+                $command .= $value . ' ';
             }
-            return 'Saml auth skipped, CLI executed command: '.$command;
+            return 'Saml auth skipped, CLI executed command: ' . $command;
         }
     }
 
@@ -331,7 +341,7 @@ class Exclude extends CommonDropdown
      * @return void
      * @see             hook.php:plugin_GLPISaml_install()
      */
-    public static function install(Migration $migration) : void
+    public static function install(Migration $migration): void
     {
         global $DB;
         $default_charset = DBConnection::getDefaultCharset();
@@ -392,7 +402,7 @@ class Exclude extends CommonDropdown
                 VALUES('Bypass all fusioninventory files', '', '1', '', '/fusioninventory/');
             SQL;
             $DB->doQuery($query) or die($DB->error());
-            
+
 
             // insert default excludes;
             // https://codeberg.org/QuinQuies/glpisaml/issues/36
@@ -406,8 +416,8 @@ class Exclude extends CommonDropdown
         // Version 1.2.3 add exclude for GLPI11
         // https://github.com/DonutsNL/samlsso/issues/32
         $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/ajax/webhook.php']]) or die($DB->error());
-        if(!$result->numrows() > 0){
-             $query = <<<SQL
+        if (!$result->numrows() > 0) {
+            $query = <<<SQL
                 INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
                 VALUES('Bypass webhook.php', '', '1', '', '/ajax/webhook.php');
             SQL;
@@ -416,8 +426,8 @@ class Exclude extends CommonDropdown
 
         // https://github.com/DonutsNL/samlsso/issues/36
         $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/api.php']]) or die($DB->error());
-        if(!$result->numrows() > 0){
-             $query = <<<SQL
+        if (!$result->numrows() > 0) {
+            $query = <<<SQL
                 INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
                 VALUES('Bypass api.php', '', '1', '', '/api.php');
             SQL;
@@ -434,7 +444,7 @@ class Exclude extends CommonDropdown
      * @return void
      * @see             hook.php:plugin_GLPISaml_uninstall()
      */
-    public static function uninstall(Migration $migration) : void
+    public static function uninstall(Migration $migration): void
     {
         $table = Exclude::getTable();
         Session::addMessageAfterRedirect("🆗 Removed: $table");

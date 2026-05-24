@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 /**
  *  ------------------------------------------------------------------------
@@ -42,6 +43,7 @@ declare(strict_types=1);
  *  @since      1.0.0
  * ------------------------------------------------------------------------
  **/
+
 namespace GlpiPlugin\Samlsso\LoginFlow;
 
 /*
@@ -49,6 +51,7 @@ namespace GlpiPlugin\Samlsso\LoginFlow;
  * assigning them to the configEntity or invalidates the passed value with an
  * understandable translatable errormessage.
  */
+
 class LoginFlowItem    //NOSONAR
 {
     public const FIELD      = 'field';                                  // Name of the database field
@@ -62,7 +65,7 @@ class LoginFlowItem    //NOSONAR
     public const ERRORS     = 'errors';                                 // Encountered problems notnull will prevent DB update/inserts
     public const VALIDATE   = 'validate';                               // Could either be string or array
     public const CONSTANT   = 'itemconstant';                           // What class constant is used for item
-    public const FORMEXPLAIN= 'formexplain';                            // Field explanation
+    public const FORMEXPLAIN = 'formexplain';                            // Field explanation
     public const FORMTITLE  = 'formtitle';                              // Form title to use with field
     public const VALIDATOR  = 'validator';                              // What validator was used
 
@@ -70,12 +73,14 @@ class LoginFlowItem    //NOSONAR
 
     protected function noMethod(string $field, string $value): array
     {
-        return [LoginFlowItem::FORMEXPLAIN => LoginFlowItem::INVALID,
-                LoginFlowItem::VALUE     => $value,
-                LoginFlowItem::FIELD     => $field,
-                LoginFlowItem::VALIDATOR => __method__,
-                LoginFlowItem::EVAL      => false,
-                LoginFlowItem::ERRORS    => __("⭕ Undefined or no type validation found in ConfigValidate for item: $field", PLUGIN_NAME)];
+        return [
+            LoginFlowItem::FORMEXPLAIN => LoginFlowItem::INVALID,
+            LoginFlowItem::VALUE     => $value,
+            LoginFlowItem::FIELD     => $field,
+            LoginFlowItem::VALIDATOR => __method__,
+            LoginFlowItem::EVAL      => false,
+            LoginFlowItem::ERRORS    => __("⭕ Undefined or no type validation found in ConfigValidate for item: $field", PLUGIN_NAME)
+        ];
     }
 
 
@@ -84,19 +89,22 @@ class LoginFlowItem    //NOSONAR
     {
         // Do some validation
         $error = false;
-        if($var               &&
+        if (
+            $var               &&
             $var != -1        &&
-            !is_numeric($var) ){
-            $error = __('⭕ ID must be a positive numeric value!');
+            !is_numeric($var)
+        ) {
+            $error = __('⭕ ID must be a positive numeric value!', PLUGIN_NAME);
         }
 
-        return [LoginFlowItem::FORMEXPLAIN => __('Unique identifier for this configuration', PLUGIN_NAME),
-                LoginFlowItem::FORMTITLE => __('CONFIG ID', PLUGIN_NAME),
-                LoginFlowItem::EVAL      => ($error) ? LoginFlowItem::INVALID : LoginFlowItem::VALID,
-                LoginFlowItem::VALUE     => (int) $var,
-                LoginFlowItem::FIELD     => __function__,
-                LoginFlowItem::VALIDATOR => __method__,
-                LoginFlowItem::ERRORS    => ($error) ? $error : null,
+        return [
+            LoginFlowItem::FORMEXPLAIN => __('Unique identifier for this configuration', PLUGIN_NAME),
+            LoginFlowItem::FORMTITLE => __('CONFIG ID', PLUGIN_NAME),
+            LoginFlowItem::EVAL      => ($error) ? LoginFlowItem::INVALID : LoginFlowItem::VALID,
+            LoginFlowItem::VALUE     => (int) $var,
+            LoginFlowItem::FIELD     => __function__,
+            LoginFlowItem::VALIDATOR => __method__,
+            LoginFlowItem::ERRORS    => ($error) ? $error : null,
         ];
     }
 
@@ -104,19 +112,22 @@ class LoginFlowItem    //NOSONAR
     {
         // Do some validation
         $error = false;
-        if($var               &&
+        if (
+            $var               &&
             $var != -1        &&
-            !is_numeric($var) ){
-            $error = __('⭕ IDP ID must be a positive numeric value!');
+            !is_numeric($var)
+        ) {
+            $error = __('⭕ IDP ID must be a positive numeric value!', PLUGIN_NAME);
         }
 
-        return [LoginFlowItem::FORMEXPLAIN => __('What IDP ID should be enforced?', PLUGIN_NAME),
-                LoginFlowItem::FORMTITLE => __('ENFORCED IDP ID', PLUGIN_NAME),
-                LoginFlowItem::EVAL      => ($error) ? LoginFlowItem::INVALID : LoginFlowItem::VALID,
-                LoginFlowItem::VALUE     => (int) $var,
-                LoginFlowItem::FIELD     => __function__,
-                LoginFlowItem::VALIDATOR => __method__,
-                LoginFlowItem::ERRORS    => ($error) ? $error : null,
+        return [
+            LoginFlowItem::FORMEXPLAIN => __('What IDP ID should be enforced?', PLUGIN_NAME),
+            LoginFlowItem::FORMTITLE => __('ENFORCED IDP ID', PLUGIN_NAME),
+            LoginFlowItem::EVAL      => ($error) ? LoginFlowItem::INVALID : LoginFlowItem::VALID,
+            LoginFlowItem::VALUE     => (int) $var,
+            LoginFlowItem::FIELD     => __function__,
+            LoginFlowItem::VALIDATOR => __method__,
+            LoginFlowItem::ERRORS    => ($error) ? $error : null,
         ];
     }
 
@@ -124,90 +135,138 @@ class LoginFlowItem    //NOSONAR
     // non ints are defaulted to boolean false.
     protected function debug(mixed $var): array
     {
-        if(empty($var)){ $var = '0'; }
+        if (empty($var)) {
+            $var = '0';
+        }
 
-        return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Debug enabled?', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('DEBUG', PLUGIN_NAME),
-                            LoginFlowItem::FIELD         => __function__,
-                            LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::DEBUG));
+        return array_merge(
+            [
+                LoginFlowItem::FORMEXPLAIN   => __('Debug enabled?', PLUGIN_NAME),
+                LoginFlowItem::FORMTITLE     => __('DEBUG', PLUGIN_NAME),
+                LoginFlowItem::FIELD         => __function__,
+                LoginFlowItem::VALIDATOR     => __method__,
+            ],
+            LoginFlowItem::handleAsBool($var, LoginFlowEntity::DEBUG)
+        );
     }
 
     protected function enforced(mixed $var): array
     {
-        if(empty($var)){ $var = '0'; }
+        if (empty($var)) {
+            $var = '0';
+        }
 
-        return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Should SAML SSO be enforced. This option can be bypassed by the bypass var and value', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('ENFORCE SSO', PLUGIN_NAME),
-                            LoginFlowItem::FIELD         => __function__,
-                            LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENFORCED));
+        return array_merge(
+            [
+                LoginFlowItem::FORMEXPLAIN   => __('Should SAML SSO be enforced. This option can be bypassed by the bypass var and value', PLUGIN_NAME),
+                LoginFlowItem::FORMTITLE     => __('ENFORCE SSO', PLUGIN_NAME),
+                LoginFlowItem::FIELD         => __function__,
+                LoginFlowItem::VALIDATOR     => __method__,
+            ],
+            LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENFORCED)
+        );
     }
 
     protected function enableDomainLogin(mixed $var): array
     {
-        if(empty($var)){ $var = '0'; }
+        if (empty($var)) {
+            $var = '0';
+        }
 
-        return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Try to match domain in username for IDP selection', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('ENABLE DOMAIN BASED SSO', PLUGIN_NAME),
-                            LoginFlowItem::FIELD         => __function__,
-                            LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEDOMAIN));
+        return array_merge(
+            [
+                LoginFlowItem::FORMEXPLAIN   => __('Try to match domain in username for IDP selection', PLUGIN_NAME),
+                LoginFlowItem::FORMTITLE     => __('ENABLE DOMAIN BASED SSO', PLUGIN_NAME),
+                LoginFlowItem::FIELD         => __function__,
+                LoginFlowItem::VALIDATOR     => __method__,
+            ],
+            LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEDOMAIN)
+        );
     }
 
     protected function enableGetterLogin(mixed $var): array
     {
-        if(empty($var)){ $var = '0'; }
+        if (empty($var)) {
+            $var = '0';
+        }
 
-        return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Allow the ?idpId=[val] URI to pre select IDP from URLs', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('Enable getter login', PLUGIN_NAME),
-                            LoginFlowItem::FIELD         => __function__,
-                            LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEIDPGETTER));
+        return array_merge(
+            [
+                LoginFlowItem::FORMEXPLAIN   => __('Allow the ?idpId=[val] URI to pre select IDP from URLs', PLUGIN_NAME),
+                LoginFlowItem::FORMTITLE     => __('Enable getter login', PLUGIN_NAME),
+                LoginFlowItem::FIELD         => __function__,
+                LoginFlowItem::VALIDATOR     => __method__,
+            ],
+            LoginFlowItem::handleAsBool($var, LoginFlowEntity::ENABLEIDPGETTER)
+        );
     }
 
     protected function hideGlpiLogin(mixed $var): array
     {
-        if(empty($var)){ $var = '0'; }
+        if (empty($var)) {
+            $var = '0';
+        }
 
-        return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Hide the default GLPI login options. This option can be bypassed using the bypass var and value.', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('HIDE GLPI LOGIN', PLUGIN_NAME),
-                            LoginFlowItem::FIELD         => __function__,
-                            LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::HIDEGLPILOGIN));
+        return array_merge(
+            [
+                LoginFlowItem::FORMEXPLAIN   => __('Hide the default GLPI login options. This option can be bypassed using the bypass var and value.', PLUGIN_NAME),
+                LoginFlowItem::FORMTITLE     => __('HIDE GLPI LOGIN', PLUGIN_NAME),
+                LoginFlowItem::FIELD         => __function__,
+                LoginFlowItem::VALIDATOR     => __method__,
+            ],
+            LoginFlowItem::handleAsBool($var, LoginFlowEntity::HIDEGLPILOGIN)
+        );
     }
 
     protected function hideSamlButtons(mixed $var): array
     {
-        if(empty($var)){ $var = '0'; }
+        if (empty($var)) {
+            $var = '0';
+        }
 
-        return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Hides Saml Buttons. This option cannot be used together with the Hide GLPI login.', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('Hide Saml Buttons', PLUGIN_NAME),
-                            LoginFlowItem::FIELD         => __function__,
-                            LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::HIDEBUTTONS));
+        return array_merge(
+            [
+                LoginFlowItem::FORMEXPLAIN   => __('Hides Saml Buttons. This option cannot be used together with the Hide GLPI login.', PLUGIN_NAME),
+                LoginFlowItem::FORMTITLE     => __('Hide Saml Buttons', PLUGIN_NAME),
+                LoginFlowItem::FIELD         => __function__,
+                LoginFlowItem::VALIDATOR     => __method__,
+            ],
+            LoginFlowItem::handleAsBool($var, LoginFlowEntity::HIDEBUTTONS)
+        );
     }
 
     protected function hidePassword(mixed $var): array
     {
-        if(empty($var)){ $var = '0'; }
+        if (empty($var)) {
+            $var = '0';
+        }
 
-        return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Hide the GLPI password field. To be used with Enable Domain Login.', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('HIDE PASSWORD FIELD', PLUGIN_NAME),
-                            LoginFlowItem::FIELD         => __function__,
-                            LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::HIDEPASSWORD));
+        return array_merge(
+            [
+                LoginFlowItem::FORMEXPLAIN   => __('Hide the GLPI password field. To be used with Enable Domain Login.', PLUGIN_NAME),
+                LoginFlowItem::FORMTITLE     => __('HIDE PASSWORD FIELD', PLUGIN_NAME),
+                LoginFlowItem::FIELD         => __function__,
+                LoginFlowItem::VALIDATOR     => __method__,
+            ],
+            LoginFlowItem::handleAsBool($var, LoginFlowEntity::HIDEPASSWORD)
+        );
     }
 
     protected function reApplyRulesOnAuth(mixed $var): array
     {
-        if(empty($var)){ $var = '0'; }
+        if (empty($var)) {
+            $var = '0';
+        }
 
-        return array_merge([LoginFlowItem::FORMEXPLAIN   => __('Forces samlSSO to (re)apply the rules on each succesfull auth.', PLUGIN_NAME),
-                            LoginFlowItem::FORMTITLE     => __('APPLY RULES ON AUTH', PLUGIN_NAME),
-                            LoginFlowItem::FIELD         => __function__,
-                            LoginFlowItem::VALIDATOR     => __method__,],
-                            LoginFlowItem::handleAsBool($var, LoginFlowEntity::RULESONAUTH));
+        return array_merge(
+            [
+                LoginFlowItem::FORMEXPLAIN   => __('Forces samlSSO to (re)apply the rules on each succesfull auth.', PLUGIN_NAME),
+                LoginFlowItem::FORMTITLE     => __('APPLY RULES ON AUTH', PLUGIN_NAME),
+                LoginFlowItem::FIELD         => __function__,
+                LoginFlowItem::VALIDATOR     => __method__,
+            ],
+            LoginFlowItem::handleAsBool($var, LoginFlowEntity::RULESONAUTH)
+        );
     }
 
     // Make sure we always return the correct boolean datatype.
@@ -218,8 +277,10 @@ class LoginFlowItem    //NOSONAR
 
         // Value is intentionally typed as string is it might be shown as a value in the form fields,
         // The return value should be casted to the correct type in receiving methods if so required.
-        return [LoginFlowItem::EVAL   => (is_numeric($var)) ? LoginFlowItem::VALID : LoginFlowItem::INVALID,
-                LoginFlowItem::VALUE  => (!$error) ? "$var" : '0',
-                LoginFlowItem::ERRORS => $error];
+        return [
+            LoginFlowItem::EVAL   => (is_numeric($var)) ? LoginFlowItem::VALID : LoginFlowItem::INVALID,
+            LoginFlowItem::VALUE  => (!$error) ? "$var" : '0',
+            LoginFlowItem::ERRORS => $error
+        ];
     }
 }

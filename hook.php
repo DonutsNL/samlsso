@@ -1,4 +1,5 @@
 <?php
+
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -50,6 +51,7 @@ use GlpiPlugin\Samlsso\LoginFlow;
 use GlpiPlugin\Samlsso\LoginFlow\User;
 
 // METHODS
+
 /**
  * This function is hooked by rule engine if an user import rule matches configured criteria.
  * it will call the implementation with the params passed by the ruleEngine.
@@ -65,7 +67,7 @@ function updateUser(array $params): void
 {
     // RuleEngine does not discriminate rulesets on execution
     // so validate sub_type is correct class before executing.
-    if( $params['sub_type'] == RuleSaml::class ){
+    if ($params['sub_type'] == RuleSaml::class) {
         // Pass the params to the updateUserRight method non statically.
         (new User)->updateUserRights($params);
     }
@@ -78,10 +80,10 @@ function updateUser(array $params): void
  * @param void
  * @return array [ClassName => __('Menu label') ]
  */
-function plugin_samlsso_getDropdown() : array                                      // NOSONAR - Default GLPI naming
+function plugin_samlsso_getDropdown(): array                                      // NOSONAR - Default GLPI naming
 {
-   // Tell GLPI to add Excludes to Setup>dropdowns
-   return [Exclude::class => __("samlSSO exclusions", PLUGIN_NAME)];
+    // Tell GLPI to add Excludes to Setup>dropdowns
+    return [Exclude::class => __("samlSSO exclusions", PLUGIN_NAME)];
 }
 
 
@@ -92,7 +94,7 @@ function plugin_samlsso_getDropdown() : array                                   
  * @param void
  * @return void
  */
-function plugin_samlsso_evalAuth() : void                                          // NOSONAR - Default GLPI naming
+function plugin_samlsso_evalAuth(): void                                          // NOSONAR - Default GLPI naming
 {
     // Call the evalAuth hook;
     (new LoginFlow())->doAuth();
@@ -106,7 +108,7 @@ function plugin_samlsso_evalAuth() : void                                       
  * @param void
  * @return void
  */
-function plugin_samlsso_displaylogin() : void                                      // NOSONAR - Default GLPI naming
+function plugin_samlsso_displaylogin(): void                                      // NOSONAR - Default GLPI naming
 {
     // Call the showLoginScreen method
     (new LoginFlow())->showLoginScreen();
@@ -119,47 +121,50 @@ function plugin_samlsso_displaylogin() : void                                   
  * @param void
  * @return boolean
  */
-function plugin_samlsso_install() : bool                                           // NOSONAR - Default GLPI naming
+function plugin_samlsso_install(): bool                                           // NOSONAR - Default GLPI naming
 {
     // Init the migration object
     $version   = plugin_version_samlsso();
     $migration = new Migration($version['version']);
 
     // Report the version we are installing
-    Session::addMessageAfterRedirect(__('🆗 Installing version:'.PLUGIN_SAMLSSO_VERSION));
+    Session::addMessageAfterRedirect(__('🆗 Installing version:' . PLUGIN_SAMLSSO_VERSION, PLUGIN_NAME));
 
     // Check memory_limit
     $memory_limit = ini_get('memory_limit');
     if ($memory_limit && $memory_limit != -1) {
         $value = trim($memory_limit);
         if ($value !== '') {
-            $last = strtolower($value[strlen($value)-1]);
+            $last = strtolower($value[strlen($value) - 1]);
             $bytes = (int)$value;
-            switch($last) {
-                case 'g': $bytes *= 1024;
-                case 'm': $bytes *= 1024;
-                case 'k': $bytes *= 1024;
+            switch ($last) {
+                case 'g':
+                    $bytes *= 1024;
+                case 'm':
+                    $bytes *= 1024;
+                case 'k':
+                    $bytes *= 1024;
             }
 
             if ($bytes < 536870912) {
-                 Session::addMessageAfterRedirect(__('⚠️ PHP memory_limit is less than 512M. This may cause crashes during SAML Login. See: ', PLUGIN_NAME) . ' <a href="https://github.com/DonutsNL/samlsso/wiki/Container-crashes-during-SAML-Login" target="_blank">Wiki</a>', false, WARNING);
+                Session::addMessageAfterRedirect(__('⚠️ PHP memory_limit is less than 512M. This may cause crashes during SAML Login. See: ', PLUGIN_NAME) . ' <a href="https://github.com/DonutsNL/samlsso/wiki/Container-crashes-during-SAML-Login" target="_blank">Wiki</a>', false, WARNING);
             }
         }
     }
 
     // openssl is nice to have therefore it is not included in the prerequisites.
-    if ( !function_exists('openssl_x509_parse') ) {
-        Session::addMessageAfterRedirect( __('⚠️ OpenSSL not available, cant verify provided certificates') );
+    if (!function_exists('openssl_x509_parse')) {
+        Session::addMessageAfterRedirect(__('⚠️ OpenSSL not available, cant verify provided certificates', PLUGIN_NAME));
     } else {
-        Session::addMessageAfterRedirect( __('🆗 OpenSSL found!') );
+        Session::addMessageAfterRedirect(__('🆗 OpenSSL found!', PLUGIN_NAME));
     }
 
     // Traverse pkugin files and call install methods if they exist within the class.
-    if( $files = plugin_samlsso_getSrcClasses() ){
-        if( is_array($files) ){                                                      // NOSONAR - For readability ifs nested.
-            foreach( $files as $name ){
+    if ($files = plugin_samlsso_getSrcClasses()) {
+        if (is_array($files)) {                                                      // NOSONAR - For readability ifs nested.
+            foreach ($files as $name) {
                 $class = "GlpiPlugin\\Samlsso\\" . basename($name, '.php');
-                if( method_exists($class, 'install') ){
+                if (method_exists($class, 'install')) {
                     $class::install($migration);
                 }
             }
@@ -175,13 +180,13 @@ function plugin_samlsso_install() : bool                                        
  * @return boolean
  * @see https://codeberg.org/QuinQuies/glpisaml/issues/65
  */
-function plugin_samlsso_uninstall() : bool                                         // NOSONAR - Default GLPI naming
+function plugin_samlsso_uninstall(): bool                                         // NOSONAR - Default GLPI naming
 {
-    if( $files = plugin_samlsso_getSrcClasses() ) {
-        if( is_array($files) ){                                                     // NOSONAR - For readability ifs nested.
-            foreach( $files as $name ){
+    if ($files = plugin_samlsso_getSrcClasses()) {
+        if (is_array($files)) {                                                     // NOSONAR - For readability ifs nested.
+            foreach ($files as $name) {
                 $class = "GlpiPlugin\\Samlsso\\" . basename($name, '.php');
-                if( method_exists($class, 'install') ){
+                if (method_exists($class, 'install')) {
                     $version   = plugin_version_samlsso();
                     $migration = new Migration($version['version']);
                     $class::uninstall($migration);
@@ -198,14 +203,14 @@ function plugin_samlsso_uninstall() : bool                                      
  *
  * @return array
  */
-function plugin_samlsso_getSrcClasses() : array                                    // NOSONAR - Default GLPI naming
+function plugin_samlsso_getSrcClasses(): array                                    // NOSONAR - Default GLPI naming
 {
-    if( is_dir(PLUGIN_SAMLSSO_SRCDIR) && is_readable(PLUGIN_SAMLSSO_SRCDIR) ){
-        return array_filter(scandir(PLUGIN_SAMLSSO_SRCDIR, SCANDIR_SORT_NONE), function($item) {
-            return !is_dir(PLUGIN_SAMLSSO_SRCDIR.'/'.$item);
+    if (is_dir(PLUGIN_SAMLSSO_SRCDIR) && is_readable(PLUGIN_SAMLSSO_SRCDIR)) {
+        return array_filter(scandir(PLUGIN_SAMLSSO_SRCDIR, SCANDIR_SORT_NONE), function ($item) {
+            return !is_dir(PLUGIN_SAMLSSO_SRCDIR . '/' . $item);
         });
     } else {
-        echo "The directory". PLUGIN_SAMLSSO_SRCDIR . "Is not accessible, Plugin installation failed!";
+        echo "The directory" . PLUGIN_SAMLSSO_SRCDIR . "Is not accessible, Plugin installation failed!";
         return [];
     }
 }
