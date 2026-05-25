@@ -17,6 +17,8 @@ You MUST follow these rules when performing any changes in this repository.
 - **Issue-First**: A formal GitHub Issue must exist before any code changes are allowed. If none exists, create a new issue on GitHub describing the intended change and reasoning, and reference it in the changelog and ADRs.
 - **Change Traceability**: Record every single change (no matter how small) in `changelog.md` under the appropriate version header. Always group the changes clearly by subject (e.g., Static Analysis, Bugfixes, Translation, Quality/Code Standards) in a clean list format.
 - **Wiki Updates**: If changing functional behavior, configuration, or endpoints, suggest updates to the corresponding Wiki pages.
+- **Twig Template Cache**: The GLPI cache must be cleaned whenever Twig templates are changed (e.g., by executing `php bin/console cache:clear` from the GLPI root directory) to ensure updates are loaded successfully.
+
 
 ## 💻 Code Standards & Cleanliness
 - **DocBlocks**: Document every method and major logic block with detailed docblocks (description, `@param`, `@return`, `@throws`). Do not use inline comments (`//`); use DocBlocks instead.
@@ -36,6 +38,8 @@ You MUST follow these rules when performing any changes in this repository.
 - **Return Values**: Ensure all code paths return a value. If a code path is theoretically unreachable, return an empty string or the appropriate default value to satisfy static analysis.
 - **PluginContext**: Always use `PluginContext::get()` for global plugin configuration.
 - **ADRs**: Document the rationale, alternatives, pros, and cons of your changes in an ADR under `ADRS/`.
+- **Never Use Sudo**: Never use `sudo` to bypass permission or security issues during development, testing, or operations (such as cache clearing). If a permission issue is encountered, ask the user/administrator to correct it instead of using elevated privileges.
+
 
 ## 🧪 Testing & Releases
 - **Add Tests**: When adding new functionality, you MUST add new tests to the `tests/` folder. Ensure they pass successfully before proposing any change.

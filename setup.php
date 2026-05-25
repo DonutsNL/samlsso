@@ -33,7 +33,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -56,7 +56,7 @@ global $CFG_GLPI;
 
 // PLUGIN CONSTANTS
 define('PLUGIN_NAME', 'samlsso');                                                               // Plugin name
-define('PLUGIN_SAMLSSO_VERSION', '1.2.7');                                                      // Plugin version
+define('PLUGIN_SAMLSSO_VERSION', '1.3.0');                                                      // Plugin version
 define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.0');                                                    // Min required GLPI version
 define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.99');                                                   // Max GLPI compat version
 define('PLUGIN_SAMLSSO_LOGEVENTS', 'events');                                                    // specifies log extention

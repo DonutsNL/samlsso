@@ -1,0 +1,12 @@
+# Okta Claim Mapping Preset
+username: "username"
+email: "email"
+realname: "lastName"
+firstname: "firstName"
+phone: "primaryPhone"
+mobile: "mobilePhone"
+jobtitle: "title"
+country: "countryCode"
+city: "city"
+street: "streetAddress"
+groups: "groups"

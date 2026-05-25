@@ -15,8 +15,8 @@
 # This script requires zip to be installed.
 # in debian install it via apt install zip first.
 
-OLDVERSION='1.2.6'
-NEWVERSION='1.2.7'
+OLDVERSION='1.2.7'
+NEWVERSION='1.3.0'
 
 # Figure out what the GLPIpath is.
 FULLPATH=$(readlink -f "$0")

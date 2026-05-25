@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -157,6 +157,11 @@ class ConfigForm    //NOSONAR complexity by design.
             $config = new Config();
             // Perform database insert using db fields.
             if($id = $config->add($fields)) {
+                // Save claim mappings if present in postData
+                if (isset($postData['claim_map']) && is_array($postData['claim_map'])) {
+                    $claimMapEntity = new ClaimMapEntity((int)$id);
+                    $claimMapEntity->save($postData['claim_map']);
+                }
                 // Leave succes message for user and redirect
                 Session::addMessageAfterRedirect(__('Successfully added new samlSSO configuration.', PLUGIN_NAME));
                 return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$id);
@@ -194,6 +199,11 @@ class ConfigForm    //NOSONAR complexity by design.
             // Perform database update using fields.
             if($config->canUpdate()       &&
                $config->update($fields) ){
+                // Save claim mappings if present in postData
+                if (isset($postData['claim_map']) && is_array($postData['claim_map'])) {
+                    $claimMapEntity = new ClaimMapEntity((int)$postData['id']);
+                    $claimMapEntity->save($postData['claim_map']);
+                }
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
                 return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
@@ -338,8 +348,24 @@ class ConfigForm    //NOSONAR complexity by design.
         $page = !empty($options['page']) ? (int)$options['page'] : 1;
         $limit = 20;
 
-        if (is_numeric($fields[ConfigEntity::ID]['value'])) {
-            $idpId = (int)$fields[ConfigEntity::ID]['value'];
+        $idpId = is_numeric($fields[ConfigEntity::ID]['value']) ? (int)$fields[ConfigEntity::ID]['value'] : -1;
+        $claimMapEntity = new ClaimMapEntity($idpId);
+        $claimMappings = $claimMapEntity->getMappings();
+        $observedClaims = $claimMapEntity->getObservedClaims();
+        $presets = ClaimMapEntity::getPresets();
+
+        $claimWarnings = [];
+        $hasClaimWarning = false;
+        if ($idpId > 0 && !empty($observedClaims)) {
+            foreach ($claimMappings as $field => $claim) {
+                if ($claim !== '' && !in_array($claim, $observedClaims, true)) {
+                    $claimWarnings[$field] = __('This claim key has not been observed in any SAML responses yet.', PLUGIN_NAME);
+                    $hasClaimWarning = true;
+                }
+            }
+        }
+
+        if ($idpId > 0) {
             $totalCount = LoginState::getLoggingEntriesCount($idpId, $search);
             $totalPages = (int)max(1, ceil($totalCount / $limit));
             if ($page > $totalPages) {
@@ -355,6 +381,12 @@ class ConfigForm    //NOSONAR complexity by design.
         
         // Define static field translations
         $tplVars = array_merge($tplVars, [
+            'claim_mappings'            =>  $claimMappings,
+            'observed_claims'           =>  $observedClaims,
+            'mapping_presets'           =>  $presets,
+            'claim_fields'              =>  ClaimMapItem::ALLOWED_GLPI_FIELDS,
+            'claim_warnings'            =>  $claimWarnings,
+            'claim_tab_warning'         =>  $hasClaimWarning ? '⚠️' : '',
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
             'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],

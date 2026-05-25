@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -187,6 +187,28 @@ namespace {
             public static function getPluralNumber(): int { 
                 return 2; 
             }
+
+            /**
+             * Mocks Session destroy.
+             */
+            public static function destroy(): void {}
+
+            /**
+             * Mocks Session start.
+             */
+            public static function start(): void {}
+
+            /**
+             * Mocks Session initialization with Auth.
+             *
+             * @param mixed $auth Auth instance.
+             */
+            public static function init($auth): void {}
+
+            /**
+             * Mocks Session cleanOnLogout.
+             */
+            public static function cleanOnLogout(): void {}
         }
     }
 

@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -373,7 +373,7 @@ class User
      * @return   array     user->add input fields array with properties.
      * @since    1.0.0
      */
-    public static function getUserInputFieldsFromSamlClaim(Response $response): array     //NOSONAR - Complexity by design.
+    public static function getUserInputFieldsFromSamlClaim(Response $response, int $idpId = -1): array     //NOSONAR - Complexity by design.
     {
         
         // https://codeberg.org/QuinQuies/glpisaml/issues/28
@@ -386,22 +386,37 @@ class User
         // limit ourself to essential properties in the glpi
         // userObj.
 
-        // properties to search for
-        // glpi_users->name         => nameId
-        // glpi_users->groups       => via_rules
-        // glpi_users_groups        => schema_groups (⚠️ be aware Entra only emits object identifiers, not friendly names)
-        // glpi_users->profiles     => via_rules
-        // glpi_users->email        => schema_emailaddress
-        // glpi_users->firstname    => schema_firstname
-        // glpi_users->lastname     => schema_surname
-        // glpi_users->mobile       => schema_mobilephone
-        // glpi_users_titles        => schema_jobtitle
+        // getAttributes might throw an error causing a white screen.
+        // https://github.com/DonutsNL/samlsso/issues/3
+        try {
+           $claims = $response->getAttributes();
+        }catch (Throwable $e) {
+           LoginFlow::PrintFatalLoginError($e);
+        }
 
+        if ($idpId > 0 && is_array($claims)) {
+            foreach (array_keys($claims) as $claimKey) {
+                \GlpiPlugin\Samlsso\ObservedClaim::trackClaim($idpId, (string)$claimKey);
+            }
+        }
+
+        $claimMapEntity = null;
+        if ($idpId > 0) {
+            $claimMapEntity = new \GlpiPlugin\Samlsso\Config\ClaimMapEntity($idpId);
+        }
 
         // Validate nameId claim from provided samlResponse.
         // NameId should be formatted as set by NAMEID FORMAT.
         // This should be tested by the OneLogin plugin.
-        if(!$user[User::NAME] = $response->getNameId()) {
+        $usernameClaimKey = ($claimMapEntity !== null) ? $claimMapEntity->getMapping('username') : null;
+        $usernameVal = null;
+        if ($usernameClaimKey !== null && isset($claims[$usernameClaimKey][0]) && !empty($claims[$usernameClaimKey][0])) {
+            $usernameVal = $claims[$usernameClaimKey][0];
+        } else {
+            $usernameVal = $response->getNameId();
+        }
+
+        if(!$user[User::NAME] = $usernameVal) {
             LoginFlow::printError(__('NameId attribute is missing in samlResponse', PLUGIN_NAME),
                                 'getUserInputFieldsFromSamlClaim',
                                 var_export($response, true));
@@ -419,14 +434,6 @@ class User
                                       var_export($response, true));
         }
 
-        // getAttributes might throw an error causing a white screen.
-        // https://github.com/DonutsNL/samlsso/issues/3
-        try {
-           $claims = $response->getAttributes();
-        }catch (Throwable $e) {
-           LoginFlow::PrintFatalLoginError($e);
-        }
-        
         // Fetch additional claims from the samlResponse.
         if(is_array($claims)){
             // Assign the available claims.
@@ -434,10 +441,14 @@ class User
             // This is a optional field.
             // https://codeberg.org/QuinQuies/glpisaml/issues/115
             // Add not empty test to validation.
-            if(isset($claims[User::SCHEMA_EMAILADDRESS][0]) &&
-               !empty($claims[User::SCHEMA_EMAILADDRESS][0])){
-                if(filter_var($claims[User::SCHEMA_EMAILADDRESS][0], FILTER_VALIDATE_EMAIL) ){
-                    $user[User::EMAIL]  = [$claims[User::SCHEMA_EMAILADDRESS][0]];
+            $emailClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('email') !== null) 
+                ? $claimMapEntity->getMapping('email') 
+                : User::SCHEMA_EMAILADDRESS;
+
+            if(isset($claims[$emailClaimKey][0]) &&
+               !empty($claims[$emailClaimKey][0])){
+                if(filter_var($claims[$emailClaimKey][0], FILTER_VALIDATE_EMAIL) ){
+                    $user[User::EMAIL]  = [$claims[$emailClaimKey][0]];
                 }else{
                     // Try userName as fallback
                     // https://codeberg.org/QuinQuies/glpisaml/issues/115
@@ -448,7 +459,7 @@ class User
                                           the corresponding GLPI user or create it (with JIT enabled). For this purpose make
                                           sure either the IDP provided NameId property is populated with the email address format,
                                           or configure the IDP to add the users email address in the samlResponse claims using
-                                          the designated schema property key:'.User::SCHEMA_EMAILADDRESS, PLUGIN_NAME),
+                                          the designated schema property key:'.$emailClaimKey, PLUGIN_NAME),
                                          'getUserInputFieldsFromSamlClaim',
                                           var_export($response, true));
                     }
@@ -458,13 +469,30 @@ class User
             }
 
             // Groups to be passed to the rules engine
-            $user[User::SAMLGROUPS] = isset($claims[User::SCHEMA_GROUPS]) ? $claims[User::SCHEMA_GROUPS] : [];
+            $groupsClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('groups') !== null)
+                ? $claimMapEntity->getMapping('groups')
+                : User::SCHEMA_GROUPS;
+            $user[User::SAMLGROUPS] = isset($claims[$groupsClaimKey]) ? $claims[$groupsClaimKey] : [];
 
             // Firstname
-            if(isset($claims[User::SCHEMA_FIRSTNAME][0]) ||
-               isset($claims[User::SCHEMA_GIVENNAME][0]) ){
-                // check and assign the value
-                $firstname = (isset($claims[User::SCHEMA_FIRSTNAME][0])) ? $claims[User::SCHEMA_FIRSTNAME][0] : $claims[User::SCHEMA_GIVENNAME][0];
+            $firstnameClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('firstname') !== null)
+                ? $claimMapEntity->getMapping('firstname')
+                : null;
+            
+            $firstname = null;
+            if ($firstnameClaimKey !== null) {
+                if (isset($claims[$firstnameClaimKey][0])) {
+                    $firstname = $claims[$firstnameClaimKey][0];
+                }
+            } else {
+                if (isset($claims[User::SCHEMA_FIRSTNAME][0])) {
+                    $firstname = $claims[User::SCHEMA_FIRSTNAME][0];
+                } elseif (isset($claims[User::SCHEMA_GIVENNAME][0])) {
+                    $firstname = $claims[User::SCHEMA_GIVENNAME][0];
+                }
+            }
+
+            if ($firstname !== null) {
                 if(strlen($firstname) <= 255){
                     $user[User::FIRSTNAME] = $firstname ;
                 }else{
@@ -475,9 +503,13 @@ class User
             }
 
             // Surname
-            if(isset($claims[User::SCHEMA_SURNAME][0])){
-                if(strlen($claims[User::SCHEMA_SURNAME][0]) <= 255){
-                    $user[User::REALNAME] = $claims[User::SCHEMA_SURNAME][0];
+            $realnameClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('realname') !== null)
+                ? $claimMapEntity->getMapping('realname')
+                : User::SCHEMA_SURNAME;
+
+            if(isset($claims[$realnameClaimKey][0])){
+                if(strlen($claims[$realnameClaimKey][0]) <= 255){
+                    $user[User::REALNAME] = $claims[$realnameClaimKey][0];
                 }else{
                     LoginFlow::printError(__('Provided surname claim exceeded 255 characters. This claim should not be longer than 255 characters',
                                              'getUserInputFieldsFromSamlClaim',
@@ -488,9 +520,13 @@ class User
             }
 
             // jobTitle
-            if(isset($claims[User::SCHEMA_JOBTITLE][0])){
-                if(strlen($claims[User::SCHEMA_JOBTITLE][0]) <= 255){
-                    $user[User::SAMLJOBTITLE] = $claims[User::SCHEMA_JOBTITLE][0];
+            $jobtitleClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('jobtitle') !== null)
+                ? $claimMapEntity->getMapping('jobtitle')
+                : User::SCHEMA_JOBTITLE;
+
+            if(isset($claims[$jobtitleClaimKey][0])){
+                if(strlen($claims[$jobtitleClaimKey][0]) <= 255){
+                    $user[User::SAMLJOBTITLE] = $claims[$jobtitleClaimKey][0];
                 }else{
                     LoginFlow::printError(__('Provided job title claim exceeded 255 characters. This claim should not be longer than 255 characters',
                                              'getUserInputFieldsFromSamlClaim',
@@ -501,9 +537,13 @@ class User
             }
 
             // Mobile Phone
-            if(isset($claims[User::SCHEMA_MOBILE][0])){
-                if(strlen($claims[User::SCHEMA_MOBILE][0]) <= 255){
-                    $user[User::MOBILE] = $claims[User::SCHEMA_MOBILE][0];
+            $mobileClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('mobile') !== null)
+                ? $claimMapEntity->getMapping('mobile')
+                : User::SCHEMA_MOBILE;
+
+            if(isset($claims[$mobileClaimKey][0])){
+                if(strlen($claims[$mobileClaimKey][0]) <= 255){
+                    $user[User::MOBILE] = $claims[$mobileClaimKey][0];
                 }else{
                     LoginFlow::printError(__('Provided mobile phone number claim exceeded 255 characters. This claim should not be longer than 255 characters',
                                              'getUserInputFieldsFromSamlClaim',
@@ -514,9 +554,13 @@ class User
             }
 
             // Telephone number
-            if(isset($claims[User::SCHEMA_PHONE][0])){
-                if(strlen($claims[User::SCHEMA_PHONE][0]) <= 255){
-                    $user[User::PHONE] = $claims[User::SCHEMA_PHONE][0];
+            $phoneClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('phone') !== null)
+                ? $claimMapEntity->getMapping('phone')
+                : User::SCHEMA_PHONE;
+
+            if(isset($claims[$phoneClaimKey][0])){
+                if(strlen($claims[$phoneClaimKey][0]) <= 255){
+                    $user[User::PHONE] = $claims[$phoneClaimKey][0];
                 }else{
                     LoginFlow::printError(__('Provided telephone phone number claim exceeded 255 characters. This claim should not be longer than 255 characters',
                                              'getUserInputFieldsFromSamlClaim',
@@ -527,9 +571,13 @@ class User
             }
 
             // Country
-            if(isset($claims[User::SCHEMA_COUNTRY][0])){
-                if(strlen($claims[User::SCHEMA_COUNTRY][0]) <= 255){
-                    $user[User::SAMLCOUNTRY] = $claims[User::SCHEMA_COUNTRY][0];
+            $countryClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('country') !== null)
+                ? $claimMapEntity->getMapping('country')
+                : User::SCHEMA_COUNTRY;
+
+            if(isset($claims[$countryClaimKey][0])){
+                if(strlen($claims[$countryClaimKey][0]) <= 255){
+                    $user[User::SAMLCOUNTRY] = $claims[$countryClaimKey][0];
                 }else{
                     LoginFlow::printError(__('Provided country claim exceeded 255 characters. This claim should not be longer than 255 characters',
                                                 'getUserInputFieldsFromSamlClaim',
@@ -540,9 +588,13 @@ class User
             }
 
             // CITY
-            if(isset($claims[User::SCHEMA_CITY][0])){
-                if(strlen($claims[User::SCHEMA_CITY][0]) <= 255){
-                    $user[User::SAMLCITY] = $claims[User::SCHEMA_CITY][0];
+            $cityClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('city') !== null)
+                ? $claimMapEntity->getMapping('city')
+                : User::SCHEMA_CITY;
+
+            if(isset($claims[$cityClaimKey][0])){
+                if(strlen($claims[$cityClaimKey][0]) <= 255){
+                    $user[User::SAMLCITY] = $claims[$cityClaimKey][0];
                 }else{
                     LoginFlow::printError(__('Provided city claim exceeded 255 characters. This claim should not be longer than 255 characters',
                                                 'getUserInputFieldsFromSamlClaim',
@@ -553,9 +605,13 @@ class User
             }
 
             // STREET
-            if(isset($claims[User::SCHEMA_STREET][0])){
-                if(strlen($claims[User::SCHEMA_STREET][0]) <= 255){
-                    $user[User::SAMLSTREET] = $claims[User::SCHEMA_STREET][0];
+            $streetClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('street') !== null)
+                ? $claimMapEntity->getMapping('street')
+                : User::SCHEMA_STREET;
+
+            if(isset($claims[$streetClaimKey][0])){
+                if(strlen($claims[$streetClaimKey][0]) <= 255){
+                    $user[User::SAMLSTREET] = $claims[$streetClaimKey][0];
                 }else{
                     LoginFlow::printError(__('Provided street address claim exceeded 255 characters. This claim should not be longer than 255 characters',
                                                 'getUserInputFieldsFromSamlClaim',

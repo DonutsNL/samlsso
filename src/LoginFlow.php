@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    Samlsso
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -94,6 +94,7 @@ class LoginFlow extends CommonDBTM
     public const GETFIELD    = 'samlIdpId';
     public const SAMLBYPASS  = 'bypass';
     public const SLOLOGOUT   = 'sloLogout';
+    public const LOCALLOGOUT = 'localLogout';
 
     /**
      * Holds the state object
@@ -236,22 +237,34 @@ class LoginFlow extends CommonDBTM
             $this->printError(__("Loading login state failed with: $e", PLUGIN_NAME));
         }
 
+        if (isset($_GET[self::LOCALLOGOUT])) {
+            $this->state->setPhase(LoginState::PHASE_LOGOFF);
+            return;
+        }
+
         // Perform SLO logout with idp
         // Called by $this->performLogOff()
-        if (
-            isset($_GET[self::SLOLOGOUT])                                    &&          // SLO was triggered and we need to process it.
-            $configEntity = new ConfigEntity($this->state->getIdpId())
-        ) {          // Get the config so we can generate IDP logout request.
-            // We can assume GLPI session was allready destroyed and we
-            // can continue here. In worst if forced manuallu the IDP will
-            // be logged out while GLPI still has a valid session that
-            // will then be invalidated by the GLPI session manager
-            // because of the redirects performed tainting the cookie
-            // resulting in an invalid session error from GLPI.
-            $samlAuth = new samlAuth($configEntity->getPhpSamlConfig());
-            // Get the (signed) logout url.
-            $sloUrl = $samlAuth->logout();
-            header('location:' . $sloUrl);
+        if (isset($_GET[self::SLOLOGOUT])) {
+            $idpId = $this->state->getIdpId();
+            if ($idpId > 0) {
+                $configEntity = new ConfigEntity($idpId);
+                if ($configEntity->isValid() && $configEntity->isActive()) {
+                    $samlConfig = $configEntity->getPhpSamlConfig();
+                    if (!empty($samlConfig)) {
+                        $this->state->setPhase(LoginState::PHASE_LOGOFF);
+                        Session::cleanOnLogout();
+                        $samlAuth = new samlAuth($samlConfig);
+                        // Get the (signed) logout url.
+                        $sloUrl = $samlAuth->logout();
+                        header('location:' . $sloUrl);
+                        exit;
+                    }
+                }
+            }
+            // Fallback: if SLO configuration is not valid/active, clear local session and redirect to home
+            $this->state->setPhase(LoginState::PHASE_LOGOFF);
+            Session::cleanOnLogout();
+            header('Location: ' . $CFG_GLPI['url_base'] . '/');
             exit;
         }
 
@@ -265,7 +278,8 @@ class LoginFlow extends CommonDBTM
         if (!is_string($requestPath)) {
             $requestPath = '';
         }
-        if (strpos($requestPath, 'front/logout') !== false) {
+
+        if (strpos($requestPath, 'front/logout') !== false && !isset($_GET[self::LOCALLOGOUT])) {
 
             $this->performLogOff();
             // If we reach this then GLPI should handle the logoff not us.
@@ -455,7 +469,7 @@ class LoginFlow extends CommonDBTM
         // Validate samlResponse and extract provided attributes (saml claims).
         // This validation will print and exit(!) on errors because user information is mandatory
         // after this step.
-        $userFields = User::getUserInputFieldsFromSamlClaim($response);
+        $userFields = User::getUserInputFieldsFromSamlClaim($response, $state->getIdpId());
 
         // Try to populate GLPI Auth using the fetched samlResponse attributes;
         try {
@@ -511,9 +525,6 @@ class LoginFlow extends CommonDBTM
         // Update flowtrace field.
         $this->state->addLoginFlowTrace(['logoutPressed' => true]);
 
-        // Update the state indicating that logout has been pressed.
-        $this->state->setPhase(LoginState::PHASE_LOGOFF);
-
         // Get IdpConfiguration if any and figure out if we
         // need to handle some sort of logout at the IDP or
         // just ignore the logout request and let GLPI handle it.
@@ -527,14 +538,32 @@ class LoginFlow extends CommonDBTM
             $this->state->isSamlAuthed()
         ) {
 
+            $isEnforced = (bool) $configEntity->getField(ConfigEntity::ENFORCE_SSO);
+            $idpName = htmlentities((string) $configEntity->getField(ConfigEntity::NAME));
+
+            if ($isEnforced) {
+                $infoText = sprintf(
+                    __('You have been authenticated using the SAML2 identity provider: <b>%1$s</b>.<br><br>Because SAML authentication is enforced, logging out of GLPI locally will automatically log you back in immediately.<br><br>To sign out completely, please select <b>\'Log out everywhere\'</b>. Note that this will also terminate your active sessions in all other applications connected to this Identity Provider.<br><br>If you want to leave GLPI, just close this browser tab.', PLUGIN_NAME),
+                    $idpName
+                );
+            } else {
+                $infoText = sprintf(
+                    __('You have been authenticated using the SAML2 identity provider: <b>%1$s</b>.<br><br>You can log out permanently by also logging out with the IDP by pressing <b>\'Log out everywhere\'</b> (which terminates active sessions in all other applications depending on it), or perform a local logout from GLPI only by pressing <b>\'Continue GLPI logout\'</b>.', PLUGIN_NAME),
+                    $idpName
+                );
+            }
+
             // Define static translatable elements
             $tplVars = [
-                'header'        => __('⚠️ Are you sure?', PLUGIN_NAME),
+                'header'        => __('🤔 How do you like to proceed?', PLUGIN_NAME),
                 'idpName'       => $configEntity->getField(ConfigEntity::NAME),
-                'returnLabel'   => __('Continue GLPI logout', PLUGIN_NAME),
-                'returnPath'    => $CFG_GLPI["url_base"] . '/',
+                'infoText'      => $infoText,
+                'returnLabel'   => $isEnforced ? __('Go back to GLPI', PLUGIN_NAME) : __('Continue with local logout', PLUGIN_NAME),
+                'returnPath'    => $isEnforced ? $CFG_GLPI["url_base"] . '/' : $CFG_GLPI["url_base"] . '/front/logout.php?' . self::LOCALLOGOUT . '=1&noAUTO=1',
+                'closeLabel'    => __('Close tab', PLUGIN_NAME),
                 'sloLabel'      => __('Log out everywhere', PLUGIN_NAME),
-                'sloPath'       =>  $CFG_GLPI["url_base"] . '/?' . self::SLOLOGOUT . '=1',
+                'sloPath'       =>  $CFG_GLPI["url_base"] . '/front/logout.php?' . self::SLOLOGOUT . '=1',
+                'isEnforced'    => $isEnforced,
             ];
 
             // print GLPI headers
@@ -545,9 +574,7 @@ class LoginFlow extends CommonDBTM
             // print nullFooter
             Html::nullFooter();
 
-            // Make sure the GLPI session is cleaned
-            // https://github.com/DonutsNL/samlsso/issues/35
-            Session::cleanOnLogout();
+            // Note: GLPI session is NOT cleared here; it will be cleared once the user selects localLogout or sloLogout.
             exit;
         } else {
             Session::cleanOnLogout();

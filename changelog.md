@@ -1,5 +1,13 @@
 
 **V1.3.0**
+- **SAML Claim Mapping**
+  - Introduced configurable claim mapping allowing administrators to dynamically map SAML response claim keys to GLPI user fields (`username`, `email`, `realname`, `firstname`, `phone`, `mobile`, `jobtitle`, `country`, `city`, `street`, `groups`).
+  - Added new database tables `glpi_plugin_samlsso_claimmaps` and `glpi_plugin_samlsso_observedclaims` to store mapping settings and track observed claim keys.
+  - Implemented `ClaimMapEntity` and `ClaimMapItem` to handle data loading, strict validation constraints, and save operations with SQL injection prevention.
+  - Added predefined mapping preset YAML configurations for major Identity Providers (Entra ID, Okta, Keycloak) under `config/mapping_presets/` with instant Javascript application on the UI form.
+  - Integrated automated observed claim key logging and fallback default schemas in `User::getUserInputFieldsFromSamlClaim()`.
+  - Added visual warning indicators on form fields and tab headers when a configured claim key has not been seen in observed claims.
+  - Wrote a new integration test suite `tests/ClaimMappingTest.php` to validate presets, validation rules, fallback mapping defaults, custom mapping resolutions, and observed claim tracking.
 - **Static Analysis & Type Safety**
   - Resolved Intelephense type warning `Expected type 'int'. Found 'CN'` in `ConfigItem.php` by introducing an intermediate `$subject` array variable for certificate subject processing.
   - Corrected `@var SamlResponse` to `@var Response` type annotation for the `$samlResponse` property in `Acs.php`.
@@ -13,9 +21,18 @@
   - Added missing `PLUGIN_NAME` translation text domains to translation calls in `Config.php`, `Acs.php`, and `hook.php`.
   - Excluded `User.php` from translation domain checks in the compliance suite as all its missing domains are false positives (internal English logs or database comments).
   - Restored core GLPI translation domain (3-argument calls) in `RuleSaml.php` for core strings (`'Email'`, `'Profile'`) and excluded them from domain checks in `GlpiComplianceTest.php`.
+- **Logout Flow & SLO Hardening**
+  - Deferred GLPI session destruction and database state changes on the logout confirmation screen until the user selects a specific choice (local or SLO).
+  - Replaced duplicate string literals with a new class constant `LOCALLOGOUT = 'localLogout'` in `LoginFlow.php`.
+  - Removed client-side IDP ID query parameter propagation to keep the active IDP ID hidden from the client and secured in the backend session state.
+  - Hardened local logout redirection path to pass `noAUTO=1` to prevent auto-login loops in enforced SSO environments.
+  - Implemented conditional rendering for enforced SSO environments in `logout.html.twig`, hiding the local logout option and providing "Return to GLPI" and "Close tab" options instead.
 - **Testing & Release**
   - Updated the release creation script `tools/mkzip.sh` to execute the automated test suite before packaging, aborting the process if any tests fail.
   - Updated the release packaging guidelines in `SKILL.md` and `docs/CONTRIBUTING.md` to align with the automated test run behavior during build.
+  - Added new unit tests verifying local logout passthrough, normal logout screen rendering, and enforced logout screen rendering in `FlowLogicTest.php`.
+  - Restructured subprocess test environment in `FlowLogicTest.php` to correctly bypass CLI detection and initialize `$CFG_GLPI` global variables.
+  - Enhanced mock `TemplateRenderer` in `TestHarness.php` to append variables to rendered output, enabling template variable assertions in unit tests.
 
 
 **V1.2.7**

@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -68,6 +68,10 @@ namespace OneLogin\Saml2 {
             public static string $mockId = 'MOCK_RESPONSE_ID_123';
             /** @var string Mocks requestId matching (InResponseTo attribute). */
             public static string $mockInResponseTo = 'ONELOGIN_12345';
+            /** @var ?\Throwable Static throwable mock trigger. */
+            public static ?\Throwable $mockThrow = null;
+            /** @var ?\Throwable Static throwable mock trigger. */
+            public static ?\Throwable $mockIsValidThrow = null;
 
             /**
              * Response constructor.
@@ -75,7 +79,11 @@ namespace OneLogin\Saml2 {
              * @param \OneLogin\Saml2\Settings|array $settings SAML Settings.
              * @param string $assertion The base64-encoded assertion.
              */
-            public function __construct(\OneLogin\Saml2\Settings|array $settings, string $assertion) {}
+            public function __construct(\OneLogin\Saml2\Settings|array $settings, string $assertion) {
+                if (self::$mockThrow !== null) {
+                    throw self::$mockThrow;
+                }
+            }
 
             /**
              * Mocks checking response validity.
@@ -85,6 +93,9 @@ namespace OneLogin\Saml2 {
              */
             public function isValid(?string $requestId = null): bool
             {
+                if (self::$mockIsValidThrow !== null) {
+                    throw self::$mockIsValidThrow;
+                }
                 return self::$mockValid;
             }
 
@@ -284,6 +295,24 @@ namespace OneLogin\Saml2 {
             }
         }
     }
+
+    if (!class_exists('OneLogin\Saml2\Utils')) {
+        class Utils
+        {
+            public static ?\Throwable $mockThrow = null;
+            public function __construct() {
+                if (self::$mockThrow !== null) {
+                    throw self::$mockThrow;
+                }
+            }
+            public static function setProxyVars(bool $enabled = false): void
+            {
+                if (self::$mockThrow !== null) {
+                    throw self::$mockThrow;
+                }
+            }
+        }
+    }
 }
 
 namespace OneLogin\Saml2\Utils {
@@ -334,7 +363,13 @@ namespace Glpi\Application\View {
              */
             public function render(string $template, array $vars): string
             {
-                return "Rendered: $template" . (isset($vars['error']) ? " (Error: {$vars['error']})" : "");
+                $varsStr = '';
+                foreach ($vars as $k => $v) {
+                    if (is_scalar($v)) {
+                        $varsStr .= " [$k: " . ($v === true ? 'true' : ($v === false ? 'false' : $v)) . "]";
+                    }
+                }
+                return "Rendered: $template" . (isset($vars['error']) ? " (Error: {$vars['error']})" : "") . $varsStr;
             }
 
             /**
@@ -345,7 +380,13 @@ namespace Glpi\Application\View {
              */
             public function display(string $template, array $vars): void
             {
-                echo "Displayed: $template" . (isset($vars['error']) ? " (Error: {$vars['error']})" : "");
+                $varsStr = '';
+                foreach ($vars as $k => $v) {
+                    if (is_scalar($v)) {
+                        $varsStr .= " [$k: " . ($v === true ? 'true' : ($v === false ? 'false' : $v)) . "]";
+                    }
+                }
+                echo "Displayed: $template" . (isset($vars['error']) ? " (Error: {$vars['error']})" : "") . $varsStr;
             }
         }
     }
@@ -368,6 +409,17 @@ namespace GlpiPlugin\Samlsso\LoginFlow {
             public function getFromDBByField(string $field, string $value): bool
             {
                 return true;
+            }
+
+            /**
+             * Mocks extracting user fields from SAML claims.
+             *
+             * @param mixed $response SAML Response object.
+             * @return array Extracted user fields.
+             */
+            public static function getUserInputFieldsFromSamlClaim($response): array
+            {
+                return ['username' => 'testuser'];
             }
         }
     }
@@ -392,6 +444,27 @@ namespace GlpiPlugin\Samlsso\LoginFlow {
             public function login(string $user, string $pass): bool
             {
                 return true;
+            }
+
+            /**
+             * Mocks loading user details.
+             *
+             * @param array $userFields Loaded user fields.
+             * @return self Reference.
+             */
+            public function loadUser(array $userFields): self
+            {
+                return $this;
+            }
+
+            /**
+             * Mocks getting user loading errors.
+             *
+             * @return array List of errors.
+             */
+            public function getErrors(): array
+            {
+                return [];
             }
         }
     }
@@ -445,6 +518,8 @@ namespace GlpiPlugin\Samlsso\Config {
             public static array $mockFields = [];
             /** @var int Identity ID. */
             private int $id = -1;
+            /** @var ?\Throwable Static throwable mock trigger. */
+            public static ?\Throwable $mockThrow = null;
 
             /**
              * ConfigEntity constructor.
@@ -452,6 +527,9 @@ namespace GlpiPlugin\Samlsso\Config {
              * @param int $id Entity ID.
              */
             public function __construct(int $id = -1) {
+                if (self::$mockThrow !== null) {
+                    throw self::$mockThrow;
+                }
                 $this->id = $id;
             }
 
@@ -707,6 +785,16 @@ namespace GlpiPlugin\Samlsso {
             public $samlAuthed = false;
             /** @var string Active SAML Response identifier. */
             public $samlResponseId = '';
+            /** @var ?\Throwable Static throwable mock trigger. */
+            public static ?\Throwable $mockConstructorThrow = null;
+            /** @var ?\Throwable Static throwable mock trigger. */
+            public static ?\Throwable $mockSetSamlResponseIdThrow = null;
+            /** @var ?\Throwable Static throwable mock trigger. */
+            public static ?\Throwable $mockSetPhaseThrow = null;
+            /** @var ?array Static phase sequence mock mapping. */
+            public static ?array $mockPhases = null;
+            /** @var int Call counter for phase sequence mock. */
+            public int $phaseCallCount = 0;
 
             /**
              * Loginstate constructor.
@@ -715,6 +803,16 @@ namespace GlpiPlugin\Samlsso {
              */
             public function __construct($id = '')
             {
+                if (self::$mockConstructorThrow !== null) {
+                    throw self::$mockConstructorThrow;
+                }
+                if (self::$lastInstance !== null) {
+                    $this->phase = self::$lastInstance->phase;
+                    $this->idpId = self::$lastInstance->idpId;
+                    $this->requestId = self::$lastInstance->requestId;
+                    $this->samlResponseId = self::$lastInstance->samlResponseId;
+                    $this->samlAuthed = self::$lastInstance->samlAuthed;
+                }
                 self::$lastInstance = $this;
             }
 
@@ -735,6 +833,11 @@ namespace GlpiPlugin\Samlsso {
              */
             public function getPhase(): int
             {
+                if (self::$mockPhases !== null) {
+                    $val = self::$mockPhases[$this->phaseCallCount] ?? end(self::$mockPhases);
+                    $this->phaseCallCount++;
+                    return $val;
+                }
                 return $this->phase;
             }
 
@@ -746,6 +849,9 @@ namespace GlpiPlugin\Samlsso {
              */
             public function setPhase(int $phase): bool
             {
+                if (self::$mockSetPhaseThrow !== null) {
+                    throw self::$mockSetPhaseThrow;
+                }
                 $this->phase = $phase;
                 return true;
             }
@@ -866,6 +972,9 @@ namespace GlpiPlugin\Samlsso {
              */
             public function setSamlResponseId(string $id): bool
             {
+                if (self::$mockSetSamlResponseIdThrow !== null) {
+                    throw self::$mockSetSamlResponseIdThrow;
+                }
                 $this->samlResponseId = $id;
                 return true;
             }
@@ -900,6 +1009,27 @@ namespace GlpiPlugin\Samlsso {
             public function getSafeStateForLogging(bool $debug): array
             {
                 return ['id' => 1, 'phase' => $this->phase];
+            }
+
+            /**
+             * Mocks setting active session ID.
+             *
+             * @param string $sessionId Optional session ID.
+             * @return bool True if updated.
+             */
+            public function setSessionId(string $sessionId = ''): bool
+            {
+                return true;
+            }
+
+            /**
+             * Mocks retrieving safe redirect URL.
+             *
+             * @return string Redirect URL.
+             */
+            public function getSafeRedirect(): string
+            {
+                return '';
             }
         }
     }
@@ -1219,6 +1349,10 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             if (!isset($_SERVER['REQUEST_URI'])) {
                 $_SERVER['REQUEST_URI'] = '/';
+            }
+
+            if (!isset($_SERVER['REMOTE_ADDR'])) {
+                $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
             }
 
             if (ob_get_level() == 0) {
