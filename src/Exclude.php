@@ -72,7 +72,7 @@ class Exclude extends CommonDropdown
 
 
     public static $rightname = 'config';
-    
+
      /**
      * getTypeName(int nb) : string -
      * Method called by pre_item_add hook validates the object and passes
@@ -125,11 +125,11 @@ class Exclude extends CommonDropdown
         SamlSsoController::EXCLUDE_ROUTE,
         SamlSsoController::EXCLUDE_PNAME,
         self::class);
-        
+
         Search::show(Exclude::class);
         Html::footer();
     }
-    
+
 
     /**
      * getAdditionalFields(): array
@@ -206,7 +206,11 @@ class Exclude extends CommonDropdown
         $excludes = [];
         $dropdown = new Exclude();
         $table = $dropdown::getTable();
-        
+
+        if (!$DB->tableExists($table)) {
+            return $excludes;
+        }
+
         foreach($DB->request(['FROM' => $table]) as $row){
             $excludes[] = [Exclude::NAME                => $row[Exclude::NAME],
                            Exclude::ACTION              => $row[Exclude::ACTION],
@@ -392,7 +396,7 @@ class Exclude extends CommonDropdown
                 VALUES('Bypass all fusioninventory files', '', '1', '', '/fusioninventory/');
             SQL;
             $DB->doQuery($query) or die($DB->error());
-            
+
 
             // insert default excludes;
             // https://codeberg.org/QuinQuies/glpisaml/issues/36
@@ -403,28 +407,30 @@ class Exclude extends CommonDropdown
             $DB->doQuery($query) or die($DB->error());
         }
 
-        // Version 1.2.3 add exclude for GLPI11
-        // https://github.com/DonutsNL/samlsso/issues/32
-        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/ajax/webhook.php']]) or die($DB->error());
-        if(!$result->numrows() > 0){
-             $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass webhook.php', '', '1', '', '/ajax/webhook.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
-        }
+        if ($DB->tableExists($table)) {
+            // Version 1.2.3 add exclude for GLPI11
+            // https://github.com/DonutsNL/samlsso/issues/32
+            $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/ajax/webhook.php']]);
+            if (!$result->numrows()) {
+                $query = <<<SQL
+                    INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
+                    VALUES('Bypass webhook.php', '', '1', '', '/ajax/webhook.php');
+                SQL;
+                $DB->doQuery($query) or die($DB->error());
+            }
 
-        // https://github.com/DonutsNL/samlsso/issues/36
-        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/api.php']]) or die($DB->error());
-        if(!$result->numrows() > 0){
-             $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass api.php', '', '1', '', '/api.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
-        }
+            // https://github.com/DonutsNL/samlsso/issues/36
+            $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/api.php']]);
+            if (!$result->numrows()) {
+                $query = <<<SQL
+                    INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
+                    VALUES('Bypass api.php', '', '1', '', '/api.php');
+                SQL;
+                $DB->doQuery($query) or die($DB->error());
+            }
 
-        Session::addMessageAfterRedirect("🆗 Inserted default excludes.");
+            Session::addMessageAfterRedirect("🆗 Inserted default excludes.");
+        }
     }
 
     /**
