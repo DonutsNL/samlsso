@@ -76,6 +76,15 @@ namespace {
     if (!defined('PLUGIN_SAMLSSO_LOGEVENTS')) {
         define('PLUGIN_SAMLSSO_LOGEVENTS', '_events.log');
     }
+    if (!defined('PLUGIN_SAMLSSO_VERSION')) {
+        define('PLUGIN_SAMLSSO_VERSION', '1.3.0');
+    }
+    if (!defined('PLUGIN_SAMLSSO_SRCDIR')) {
+        define('PLUGIN_SAMLSSO_SRCDIR', dirname(__DIR__) . '/src');
+    }
+    if (!defined('PLUGIN_SAMLSSO_WEBDIR')) {
+        define('PLUGIN_SAMLSSO_WEBDIR', '/plugins/samlsso/');
+    }
     if (!defined('NS_PLUG')) {
         define('NS_PLUG', 'GlpiPlugin\\');
     }
@@ -120,6 +129,19 @@ namespace {
     if (!function_exists('_n')) {
         function _n(string $single, string $plural, int $nb): string {
             return ($nb > 1) ? $plural : $single;
+        }
+    }
+
+    /**
+     * Shim for GLPI's getTableForItemType function.
+     * Computes the table name for a given class.
+     *
+     * @param string $itemtype The class name.
+     * @return string The resolved table name.
+     */
+    if (!function_exists('getTableForItemType')) {
+        function getTableForItemType(string $itemtype): string {
+            return CommonDBTM::getTable($itemtype);
         }
     }
 
@@ -708,6 +730,17 @@ namespace Glpi\Toolbox {
             public static function sanitize(array $input): array { 
                 return $input; 
             }
+        }
+    }
+}
+
+namespace OneLogin\Saml2 {
+    if (!class_exists('OneLogin\Saml2\Constants', false)) {
+        class Constants {
+            public const NAMEID_EMAIL_ADDRESS = 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress';
+            public const NAMEID_UNSPECIFIED = 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified';
+            public const NAMEID_TRANSIENT = 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient';
+            public const NAMEID_PERSISTENT = 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent';
         }
     }
 }

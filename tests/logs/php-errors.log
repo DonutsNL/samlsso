@@ -1,0 +1,93 @@
+[2026-05-29 10:05:57] glpi.CRITICAL:   *** Uncaught Exception: MySQL query error: Unknown table 'glpi_dev_db.glpi_plugin_samlsso_observedclaims' (1051) in SQL query "DROP TABLE `glpi_plugin_samlsso_observedclaims`".
+  Backtrace :
+  ./src/DBmysql.php:416                              
+  ./src/DBmysql.php:1681                             DBmysql->doQuery()
+  ./src/Migration.php:584                            DBmysql->dropTable()
+  ./plugins/samlsso/src/ObservedClaim.php:110        Migration->dropTable()
+  ./plugins/samlsso/tools/reinstall.php:91           GlpiPlugin\Samlsso\ObservedClaim::uninstall()
+
+[2026-05-29 10:06:11] glpi.CRITICAL:   *** Uncaught Exception: MySQL query error: Unknown table 'glpi_dev_db.glpi_plugin_samlsso_claimmaps' (1051) in SQL query "DROP TABLE `glpi_plugin_samlsso_claimmaps`".
+  Backtrace :
+  ./src/DBmysql.php:416                              
+  ./src/DBmysql.php:1681                             DBmysql->doQuery()
+  ./src/Migration.php:584                            DBmysql->dropTable()
+  ./plugins/samlsso/src/ClaimMap.php:109             Migration->dropTable()
+  ./plugins/samlsso/tools/reinstall.php:92           GlpiPlugin\Samlsso\ClaimMap::uninstall()
+
+[2026-05-29 10:06:33] glpi.CRITICAL:   *** Uncaught Exception: MySQL query error: Table 'glpi_dev_db.glpi_plugin_samlsso_configs' doesn't exist (1146) in SQL query "    ALTER TABLE glpi_plugin_samlsso_configs
+    MODIFY COLUMN `conf_domain` varchar(255) null;".
+  Backtrace :
+  ./src/DBmysql.php:416                              
+  ./plugins/samlsso/src/Config.php:500               DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:112          GlpiPlugin\Samlsso\Config::install()
+
+[2026-05-29 10:06:52] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_claimmaps`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ClaimMap.php:93              DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ClaimMap::install()
+
+[2026-05-29 10:06:52] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_observedclaims`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ObservedClaim.php:94         DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ObservedClaim::install()
+
+[2026-05-29 10:07:28] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_claimmaps`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ClaimMap.php:100             DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ClaimMap::install()
+
+[2026-05-29 10:07:28] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_observedclaims`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ObservedClaim.php:94         DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ObservedClaim::install()
+
+[2026-05-29 10:12:58] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_claimmaps`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ClaimMap.php:100             DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ClaimMap::install()
+
+[2026-05-29 10:12:58] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_observedclaims`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ObservedClaim.php:94         DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ObservedClaim::install()
+
+[2026-05-29 21:32:44] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_claimmaps`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ClaimMap.php:100             DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ClaimMap::install()
+
+[2026-05-29 21:32:44] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_observedclaims`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ObservedClaim.php:94         DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ObservedClaim::install()
+
+[2026-05-29 21:33:05] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_claimmaps`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ClaimMap.php:100             DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ClaimMap::install()
+
+[2026-05-29 21:33:05] glpi.WARNING:   *** User Warning: Usage of signed integers in primary or foreign keys is discouraged, please use unsigned integers instead in `glpi_plugin_samlsso_observedclaims`.`configs_id`. at DBmysql.php line 2251
+  Backtrace :
+  ./src/DBmysql.php:2251                             
+  ./src/DBmysql.php:412                              DBmysql->checkForDeprecatedTableOptions()
+  ./plugins/samlsso/src/ObservedClaim.php:94         DBmysql->doQuery()
+  ./plugins/samlsso/tools/reinstall.php:113          GlpiPlugin\Samlsso\ObservedClaim::install()
+

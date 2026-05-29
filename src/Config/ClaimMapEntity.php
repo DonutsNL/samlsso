@@ -94,6 +94,12 @@ class ClaimMapEntity extends ClaimMapItem
      * @param int $configs_id The IDP configuration ID
      * @return void
      */
+    /**
+     * Load the claim mappings from the database for the given configs_id.
+     *
+     * @param int $configs_id The IDP configuration ID
+     * @return void
+     */
     private function loadFromDB(int $configs_id): void
     {
         global $DB;
@@ -105,10 +111,16 @@ class ClaimMapEntity extends ClaimMapItem
             ]
         ]);
 
+        $this->mappings = [];
         foreach ($iterator as $row) {
-            $field = (string)$row['glpi_field'];
-            $claim = (string)$row['saml_claim'];
-            $this->mappings[$field] = $claim;
+            $this->mappings[] = [
+                'id'            => (int)($row['id'] ?? 0),
+                'target_type'   => (string)($row['target_type'] ?? 'user_field'),
+                'glpi_field'    => (string)($row['glpi_field'] ?? ''),
+                'saml_claim'    => (string)($row['saml_claim'] ?? ''),
+                'default_value' => (string)($row['default_value'] ?? ''),
+                'is_required'   => (int)($row['is_required'] ?? 0)
+            ];
         }
     }
 
@@ -116,11 +128,94 @@ class ClaimMapEntity extends ClaimMapItem
      * Get the mapped claim for a GLPI field, or null if not configured.
      *
      * @param string $glpiField The GLPI user field
+     * @param string $targetType The target type ('user_field' or 'rule_field')
      * @return string|null The mapped claim, or null
      */
-    public function getMapping(string $glpiField): ?string
+    public function getMapping(string $glpiField, string $targetType = 'user_field'): ?string
     {
-        return isset($this->mappings[$glpiField]) ? $this->mappings[$glpiField] : null;
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['glpi_field'] === $glpiField && $mapping['target_type'] === $targetType) {
+                return $mapping['saml_claim'];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get the configured default value for a mapped GLPI field.
+     *
+     * @param string $glpiField The GLPI user field
+     * @param string $targetType The target type ('user_field' or 'rule_field')
+     * @return string The default value, or empty string
+     */
+    public function getDefault(string $glpiField, string $targetType = 'user_field'): string
+    {
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['glpi_field'] === $glpiField && $mapping['target_type'] === $targetType) {
+                return $mapping['default_value'];
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Check if a mapped GLPI field is required.
+     *
+     * @param string $glpiField The GLPI user field
+     * @param string $targetType The target type ('user_field' or 'rule_field')
+     * @return bool True if required
+     */
+    public function isRequired(string $glpiField, string $targetType = 'user_field'): bool
+    {
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['glpi_field'] === $glpiField && $mapping['target_type'] === $targetType) {
+                return $mapping['is_required'] === 1;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get all mapped rule fields that are not evaluated by any JIT rules.
+     *
+     * @return array List of unused rule fields
+     */
+    public function getUnusedRuleFields(): array
+    {
+        global $DB;
+        $unused = [];
+        $ruleFields = [];
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['target_type'] === 'rule_field') {
+                $ruleFields[] = $mapping['glpi_field'];
+            }
+        }
+
+        if (empty($ruleFields)) {
+            return [];
+        }
+
+        if (isset($DB) && method_exists($DB, 'tableExists') && $DB->tableExists('glpi_rulecriterias')) {
+            $iterator = $DB->request([
+                'SELECT'   => ['criteria'],
+                'DISTINCT' => true,
+                'FROM'     => 'glpi_rulecriterias',
+                'WHERE'    => [
+                    'criteria' => $ruleFields
+                ]
+            ]);
+            $usedFields = [];
+            foreach ($iterator as $row) {
+                $usedFields[] = (string)$row['criteria'];
+            }
+
+            foreach ($ruleFields as $field) {
+                if (!in_array($field, $usedFields, true)) {
+                    $unused[] = $field;
+                }
+            }
+        }
+        return $unused;
     }
 
     /**
@@ -130,7 +225,39 @@ class ClaimMapEntity extends ClaimMapItem
      */
     public function getMappings(): array
     {
-        return $this->mappings;
+        return self::sortMappings($this->mappings);
+    }
+
+    /**
+     * Sort mappings such that system-required fields (Username and Email)
+     * are always at the top, followed by all other manual mappings.
+     *
+     * @param array $mappings The mappings to sort
+     * @return array The sorted mappings
+     */
+    public static function sortMappings(array $mappings): array
+    {
+        $enforced = [];
+        $others = [];
+
+        foreach ($mappings as $mapping) {
+            $targetType = $mapping['target_type'] ?? '';
+            $glpiField  = $mapping['glpi_field'] ?? '';
+
+            $isEnforced = ($targetType === 'user_field' && in_array($glpiField, ['username', 'email'], true));
+
+            if ($isEnforced) {
+                if ($glpiField === 'username') {
+                    array_unshift($enforced, $mapping);
+                } else {
+                    $enforced[] = $mapping;
+                }
+            } else {
+                $others[] = $mapping;
+            }
+        }
+
+        return array_merge($enforced, $others);
     }
 
     /**
@@ -154,6 +281,111 @@ class ClaimMapEntity extends ClaimMapItem
     }
 
     /**
+     * Validate the mappings.
+     *
+     * @param array $newMappings The mappings to validate
+     * @return bool True if valid
+     */
+    public function validate(array $newMappings): bool
+    {
+        $this->isValid = true;
+        $this->errors = [];
+        $this->mappings = [];
+
+        $hasUsername = false;
+        $hasEmail = false;
+        $validatedMappings = [];
+        $seen = [];
+
+        foreach ($newMappings as $index => $mapping) {
+            $targetType   = $mapping['target_type'] ?? '';
+            $glpiField    = $mapping['glpi_field'] ?? '';
+            $samlClaim    = $mapping['saml_claim'] ?? '';
+            $defaultValue = $mapping['default_value'] ?? '';
+            $isRequired   = $mapping['is_required'] ?? 0;
+
+            if ($targetType === 'user_field') {
+                if ($glpiField === 'username') {
+                    if ($samlClaim === null || trim((string)$samlClaim) === '') {
+                        $this->isValid = false;
+                        $this->errors['mapping_' . $index] = __('SAML Claim key cannot be empty for Username mapping.', PLUGIN_NAME);
+                    }
+                    $hasUsername = true;
+                    $isRequired = 1;
+                }
+                if ($glpiField === 'email') {
+                    if ($samlClaim === null || trim((string)$samlClaim) === '') {
+                        $this->isValid = false;
+                        $this->errors['mapping_' . $index] = __('SAML Claim key cannot be empty for Email mapping.', PLUGIN_NAME);
+                    }
+                    $hasEmail = true;
+                    $isRequired = 1;
+                }
+            }
+
+            if ($samlClaim === null || trim((string)$samlClaim) === '') {
+                if ($glpiField !== 'username' && $glpiField !== 'email') {
+                    continue;
+                }
+            }
+
+            $targetTypeVal = $this->validateTargetType($targetType);
+            $fieldVal      = $this->validateGlpiField($glpiField, $targetTypeVal['value'] ?? 'user_field');
+            $claimVal      = $this->validateSamlClaim($samlClaim);
+            $defaultVal    = $this->validateDefaultValue($defaultValue);
+            $requiredVal   = $this->validateIsRequired($isRequired);
+
+            if (!$targetTypeVal['valid'] || !$fieldVal['valid'] || !$claimVal['valid'] || !$defaultVal['valid']) {
+                $this->isValid = false;
+                $rowError = '';
+                if (!$targetTypeVal['valid']) {
+                    $rowError .= $targetTypeVal['error'] . '; ';
+                }
+                if (!$fieldVal['valid']) {
+                    $rowError .= $fieldVal['error'] . '; ';
+                }
+                if (!$claimVal['valid']) {
+                    $rowError .= $claimVal['error'] . '; ';
+                }
+                if (!$defaultVal['valid']) {
+                    $rowError .= $defaultVal['error'] . '; ';
+                }
+                $this->errors['mapping_' . $index] = rtrim($rowError, '; ');
+            } else {
+                $uniqueKey = $targetTypeVal['value'] . ':' . $fieldVal['value'];
+                if (isset($seen[$uniqueKey])) {
+                    $this->isValid = false;
+                    $this->errors['mapping_' . $index] = sprintf(__('Duplicate mapping for %s: %s', PLUGIN_NAME), $targetTypeVal['value'], $fieldVal['value']);
+                } else {
+                    $seen[$uniqueKey] = true;
+                    $validatedMappings[] = [
+                        'target_type'   => $targetTypeVal['value'],
+                        'glpi_field'    => $fieldVal['value'],
+                        'saml_claim'    => $claimVal['value'],
+                        'default_value' => $defaultVal['value'],
+                        'is_required'   => $requiredVal['value']
+                    ];
+                }
+            }
+        }
+
+        if (!$hasUsername) {
+            $this->isValid = false;
+            $this->errors['username_required'] = __('Username mapping is required and cannot be removed.', PLUGIN_NAME);
+        }
+        if (!$hasEmail) {
+            $this->isValid = false;
+            $this->errors['email_required'] = __('Email mapping is required and cannot be removed.', PLUGIN_NAME);
+        }
+
+        if ($this->isValid) {
+            $this->mappings = self::sortMappings($validatedMappings);
+        }
+
+        return $this->isValid;
+    }
+
+    /**
      * Save/update the mappings.
      *
      * @param array $newMappings The mappings to save
@@ -162,9 +394,6 @@ class ClaimMapEntity extends ClaimMapItem
     public function save(array $newMappings): bool
     {
         global $DB;
-        $this->isValid = true;
-        $this->errors = [];
-        $this->mappings = [];
 
         $configsIdVal = $this->validateConfigsId($this->configs_id);
         if (!$configsIdVal['valid']) {
@@ -173,29 +402,7 @@ class ClaimMapEntity extends ClaimMapItem
             return false;
         }
 
-        $validatedMappings = [];
-        foreach ($newMappings as $field => $claim) {
-            if ($claim === null || trim((string)$claim) === '') {
-                continue;
-            }
-
-            $fieldVal = $this->validateGlpiField($field);
-            $claimVal = $this->validateSamlClaim($claim);
-
-            if (!$fieldVal['valid'] || !$claimVal['valid']) {
-                $this->isValid = false;
-                if (!$fieldVal['valid']) {
-                    $this->errors[$field] = $fieldVal['error'];
-                }
-                if (!$claimVal['valid']) {
-                    $this->errors[$field] = $claimVal['error'];
-                }
-            } else {
-                $validatedMappings[$fieldVal['value']] = $claimVal['value'];
-            }
-        }
-
-        if (!$this->isValid) {
+        if (!$this->validate($newMappings)) {
             return false;
         }
 
@@ -208,14 +415,16 @@ class ClaimMapEntity extends ClaimMapItem
         );
 
         $claimMap = new ClaimMap();
-        foreach ($validatedMappings as $field => $claim) {
+        foreach ($this->mappings as $mapping) {
             $input = [
-                'configs_id' => $this->configs_id,
-                'glpi_field' => $field,
-                'saml_claim' => $claim
+                'configs_id'    => $this->configs_id,
+                'target_type'   => $mapping['target_type'],
+                'glpi_field'    => $mapping['glpi_field'],
+                'saml_claim'    => $mapping['saml_claim'],
+                'default_value' => $mapping['default_value'],
+                'is_required'   => $mapping['is_required']
             ];
             $claimMap->add($input);
-            $this->mappings[$field] = $claim;
         }
 
         return true;

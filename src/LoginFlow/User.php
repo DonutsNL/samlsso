@@ -53,6 +53,7 @@ use Profile_User;
 use User as glpiUser;
 use Glpi\Toolbox\Sanitizer;
 use OneLogin\Saml2\Response;
+use OneLogin\Saml2\Constants as Saml2Const;
 use GlpiPlugin\Samlsso\LoginFlow;
 use GlpiPlugin\Samlsso\LoginState;
 use GlpiPlugin\Samlsso\RuleSamlCollection;
@@ -138,7 +139,7 @@ class User
      * @return  glpiUser    GlpiUser object with populated fields.
      * @since               1.0.0
      */
-    public function getOrCreateUser(array $userFields): glpiUser        //Not all paths have a return value error is by design.
+    public function getOrCreateUser(array $userFields, ConfigEntity $configEntity): glpiUser        //Not all paths have a return value error is by design.
     {
         // At this point the userFields should be present and validated (textually) by loginFlow.
         // https://codeberg.org/QuinQuies/glpisaml/issues/71
@@ -155,7 +156,7 @@ class User
         // User IS NOT found.
 
             // Try to perform Just In Time (JIT) user creation;
-            return $this->performJIT($userFields);
+            return $this->performJIT($userFields, $configEntity);
 
         }else{
         // User is found, check if we are allowed to use it.
@@ -192,15 +193,13 @@ class User
      * @return glpiUser Freshly created or fetched GLPI user.
      * @since 1.0.0
      */
-    private function performJIT(array $userFields): glpiUser {
+    private function performJIT(array $userFields, ConfigEntity $configEntity): glpiUser {
         $user = new glpiUser();
 
-        // Get current loginState and
-        // Fetch the correct configEntity using the idp found in our loginState.
-        if(!$configEntity = new ConfigEntity((new Loginstate())->getIdpId())){
-            LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but we where not able to fetch
-                                            the loginState from the database and could not continue to log
-                                            you into GLPI.", PLUGIN_NAME));
+        // Strictly validate configuration and database origin
+        $dbId = $configEntity->getField(ConfigEntity::ID);
+        if (!$configEntity->isValid() || !$configEntity->isActive() || empty($dbId) || (int)$dbId <= 0) {
+            LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but the identity provider configuration is invalid or disabled.", PLUGIN_NAME));
         }
 
         // Are we allowed to perform JIT user creation?
@@ -215,12 +214,31 @@ class User
                                                 request the administrator to create a GLPI user manually.", PLUGIN_NAME));
             }else{
                 $ruleCollection = new RuleSamlCollection();
-                $matchInput = [User::EMAIL          => $userFields[User::EMAIL],
-                               User::SAMLGROUPS     => $userFields[User::SAMLGROUPS],
-                               User::SAMLJOBTITLE   => $userFields[User::SAMLJOBTITLE],
-                               User::SAMLCOUNTRY    => $userFields[User::SAMLCOUNTRY],
-                               User::SAMLCITY       => $userFields[User::SAMLCITY],
-                               User::SAMLSTREET     => $userFields[User::SAMLSTREET]];
+                $matchInput = [
+                    User::EMAIL          => $userFields[User::EMAIL],
+                    User::SAMLGROUPS     => $userFields[User::SAMLGROUPS],
+                    User::SAMLJOBTITLE   => $userFields[User::SAMLJOBTITLE] ?? false,
+                    User::SAMLCOUNTRY    => $userFields[User::SAMLCOUNTRY] ?? false,
+                    User::SAMLCITY       => $userFields[User::SAMLCITY] ?? false,
+                    User::SAMLSTREET     => $userFields[User::SAMLSTREET] ?? false,
+                    'groups'             => $userFields[User::SAMLGROUPS],
+                ];
+
+                if (isset($userFields['_saml_rule_fields']) && is_array($userFields['_saml_rule_fields'])) {
+                    foreach ($userFields['_saml_rule_fields'] as $field => $val) {
+                        $matchInput[$field] = $val;
+                        if ($field === 'jobtitle') {
+                            $matchInput[User::SAMLJOBTITLE] = $val;
+                        } elseif ($field === 'country') {
+                            $matchInput[User::SAMLCOUNTRY] = $val;
+                        } elseif ($field === 'city') {
+                            $matchInput[User::SAMLCITY] = $val;
+                        } elseif ($field === 'street') {
+                            $matchInput[User::SAMLSTREET] = $val;
+                        }
+                    }
+                }
+
                 // Uses a hook to call $this->updateUser() if a rule was found.
                 $ruleCollection->processAllRules($matchInput, [User::USERSID => $id], []);
             }
@@ -329,7 +347,13 @@ class User
         // Do we need to update the user profile defaults?
         if(isset($update[User::GROUP_DEFAULT])   ||
            isset($update[User::ENTITY_DEFAULT]) ||
-           isset($update[User::PROFILE_DEFAULT]) ){
+           isset($update[User::PROFILE_DEFAULT]) ||
+           isset($update['is_active'])          ||
+           isset($update['timezone'])           ||
+           isset($update['locations_id'])       ||
+           isset($update['usercategories_id'])  ||
+           isset($update['usertitles_id'])      ||
+           isset($update['language'])           ){
             // Set the user Id.
             $userDefaults['id'] = $update['users_id'];
             // Do we need to set a default group?
@@ -353,6 +377,36 @@ class User
             }else{
                 Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('Jit didnt find a default ProfileId to assign, skipping'."\n"));
             }
+            // Do we need to set timezone?
+            if(isset($update['timezone'])){
+                $userDefaults['timezone'] = $update['timezone'];
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found timezone:'.$update['timezone'].'for userId:'.$update['users_id']."\n"));
+            }
+            // Do we need to set active state?
+            if(isset($update['is_active'])){
+                $userDefaults['is_active'] = $update['is_active'];
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found is_active:'.$update['is_active'].'for userId:'.$update['users_id']."\n"));
+            }
+            // Do we need to set location?
+            if(isset($update['locations_id'])){
+                $userDefaults['locations_id'] = $update['locations_id'];
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found locations_id:'.$update['locations_id'].'for userId:'.$update['users_id']."\n"));
+            }
+            // Do we need to set department?
+            if(isset($update['usercategories_id'])){
+                $userDefaults['usercategories_id'] = $update['usercategories_id'];
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found usercategories_id:'.$update['usercategories_id'].'for userId:'.$update['users_id']."\n"));
+            }
+            // Do we need to set user title?
+            if(isset($update['usertitles_id'])){
+                $userDefaults['usertitles_id'] = $update['usertitles_id'];
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found usertitles_id:'.$update['usertitles_id'].'for userId:'.$update['users_id']."\n"));
+            }
+            // Do we need to set language?
+            if(isset($update['language'])){
+                $userDefaults['language'] = $update['language'];
+                Toolbox::logInFile(PLUGIN_NAME.PLUGIN_SAMLSSO_LOGEVENTS, __('JIT found language:'.$update['language'].'for userId:'.$update['users_id']."\n"));
+            }
             // Update the user
             $user = new glpiUser();
             if(!$user->update($userDefaults)){
@@ -373,42 +427,31 @@ class User
      * @return   array     user->add input fields array with properties.
      * @since    1.0.0
      */
-    public static function getUserInputFieldsFromSamlClaim(Response $response, int $idpId = -1): array     //NOSONAR - Complexity by design.
+    public static function getUserInputFieldsFromSamlClaim(Response $response, int $idpId = -1): array
     {
-        
-        // https://codeberg.org/QuinQuies/glpisaml/issues/28
-        // https://codeberg.org/QuinQuies/glpisaml/issues/39
-        // https://codeberg.org/QuinQuies/glpisaml/issues/40
-
-        // In essence we should just capture the props shared
-        // and assign them to prefixed fields of the userObj.
-        // Issue 39 shows tons of properties, but we want to
-        // limit ourself to essential properties in the glpi
-        // userObj.
-
-        // getAttributes might throw an error causing a white screen.
-        // https://github.com/DonutsNL/samlsso/issues/3
         try {
            $claims = $response->getAttributes();
-        }catch (Throwable $e) {
+        } catch (Throwable $e) {
            LoginFlow::PrintFatalLoginError($e);
         }
 
-        if ($idpId > 0 && is_array($claims)) {
+        if (!is_array($claims)) {
+            $claims = [];
+        }
+
+        if ($idpId > 0) {
             foreach (array_keys($claims) as $claimKey) {
                 \GlpiPlugin\Samlsso\ObservedClaim::trackClaim($idpId, (string)$claimKey);
             }
+            \GlpiPlugin\Samlsso\ObservedClaim::trackClaim($idpId, 'NameId');
         }
 
-        $claimMapEntity = null;
-        if ($idpId > 0) {
-            $claimMapEntity = new \GlpiPlugin\Samlsso\Config\ClaimMapEntity($idpId);
-        }
+        $claimMapEntity = ($idpId > 0) ? new \GlpiPlugin\Samlsso\Config\ClaimMapEntity($idpId) : null;
 
-        // Validate nameId claim from provided samlResponse.
-        // NameId should be formatted as set by NAMEID FORMAT.
-        // This should be tested by the OneLogin plugin.
-        $usernameClaimKey = ($claimMapEntity !== null) ? $claimMapEntity->getMapping('username') : null;
+        $user = [];
+
+        // 1. Resolve username
+        $usernameClaimKey = ($claimMapEntity !== null) ? $claimMapEntity->getMapping('username', 'user_field') : null;
         $usernameVal = null;
         if ($usernameClaimKey !== null && isset($claims[$usernameClaimKey][0]) && !empty($claims[$usernameClaimKey][0])) {
             $usernameVal = $claims[$usernameClaimKey][0];
@@ -416,222 +459,210 @@ class User
             $usernameVal = $response->getNameId();
         }
 
-        if(!$user[User::NAME] = $usernameVal) {
+        // Apply fallback if username is missing/empty
+        if (empty($usernameVal)) {
+            $usernameVal = ($claimMapEntity !== null) ? $claimMapEntity->getDefault('username', 'user_field') : '';
+        }
+
+        // If still empty and required, abort
+        $isUsernameRequired = ($claimMapEntity !== null) ? $claimMapEntity->isRequired('username', 'user_field') : true;
+        if (empty($usernameVal) && $isUsernameRequired) {
             LoginFlow::printError(__('NameId attribute is missing in samlResponse', PLUGIN_NAME),
                                 'getUserInputFieldsFromSamlClaim',
                                 var_export($response, true));
         }
-            
-        // If the string #EXT# is found, a guest account is used thats not
-        // owned by the Entra IdP handling this request. This is not supported.
-        // https://github.com/derricksmith/phpsaml/issues/135
-        if(strstr($user[User::NAME], '#EXT#@')){
-            LoginFlow::printError(__('Detected a default guest user in samlResponse, this is not supported<br>
-                                      by glpiSAML. Please create a dedicated account for this user owned by your
-                                      tenant/identity provider.<br>
-                                      Also see: https://learn.microsoft.com/en-us/azure/active-directory/develop/saml-claims-customization', PLUGIN_NAME),
-                                     'getUserInputFieldsFromSamlClaim',
-                                      var_export($response, true));
+
+        if (!empty($usernameVal) && strstr($usernameVal, '#EXT#@')) {
+            LoginFlow::printError(__('Detected a default guest user in samlResponse, this is not supported by glpiSAML.', PLUGIN_NAME),
+                                 'getUserInputFieldsFromSamlClaim',
+                                  var_export($response, true));
         }
 
-        // Fetch additional claims from the samlResponse.
-        if(is_array($claims)){
-            // Assign the available claims.
-            // EmailAddress, if it is provided it should be a valid emailaddress.
-            // This is a optional field.
-            // https://codeberg.org/QuinQuies/glpisaml/issues/115
-            // Add not empty test to validation.
-            $emailClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('email') !== null) 
-                ? $claimMapEntity->getMapping('email') 
-                : User::SCHEMA_EMAILADDRESS;
+        $user[User::NAME] = $usernameVal;
 
-            if(isset($claims[$emailClaimKey][0]) &&
-               !empty($claims[$emailClaimKey][0])){
-                if(filter_var($claims[$emailClaimKey][0], FILTER_VALIDATE_EMAIL) ){
-                    $user[User::EMAIL]  = [$claims[$emailClaimKey][0]];
-                }else{
-                    // Try userName as fallback
-                    // https://codeberg.org/QuinQuies/glpisaml/issues/115
-                    if(filter_var( $user[User::NAME], FILTER_VALIDATE_EMAIL)){
-                        $user[User::EMAIL] = $user[User::NAME];
-                    }else{
-                        LoginFlow::printError(__('SamlResponse should have at least 1 valid email address for GLPI  to find
-                                          the corresponding GLPI user or create it (with JIT enabled). For this purpose make
-                                          sure either the IDP provided NameId property is populated with the email address format,
-                                          or configure the IDP to add the users email address in the samlResponse claims using
-                                          the designated schema property key:'.$emailClaimKey, PLUGIN_NAME),
-                                         'getUserInputFieldsFromSamlClaim',
-                                          var_export($response, true));
+        // 2. Resolve email
+        $emailClaimKey = ($claimMapEntity !== null) ? $claimMapEntity->getMapping('email', 'user_field') : null;
+        if ($emailClaimKey === null) {
+            $emailClaimKey = User::SCHEMA_EMAILADDRESS;
+        }
+
+        $emailVal = null;
+        if (isset($claims[$emailClaimKey][0]) && !empty($claims[$emailClaimKey][0])) {
+            $emailVal = $claims[$emailClaimKey][0];
+        }
+
+        // Validate email value
+        if ($emailVal !== null && !filter_var($emailVal, FILTER_VALIDATE_EMAIL)) {
+            $emailVal = null;
+        }
+
+        // Check NameID format
+        $nameIdFormat = null;
+        try {
+            $nameIdFormat = $response->getNameIdFormat();
+        } catch (\Throwable $t) {
+            // ignore
+        }
+
+        $isEmailFormat = ($nameIdFormat === Saml2Const::NAMEID_EMAIL_ADDRESS);
+        $usernameIsEmail = filter_var($usernameVal, FILTER_VALIDATE_EMAIL);
+
+        if ($isEmailFormat) {
+            if (!$usernameIsEmail) {
+                // If type requested is email but value observed doesn't have email type, show warning
+                \Session::addMessageAfterRedirect(
+                    __('Warning: SAML NameId format was requested as email but observed value is not a valid email. Falling back to configured email field.', PLUGIN_NAME),
+                    false,
+                    WARNING
+                );
+            } else {
+                if ($emailVal === null) {
+                    $emailVal = $usernameVal;
+                }
+            }
+        } else {
+            // Fallback email should only be used if NameId format requested is not emailaddress
+            if ($emailVal === null && $usernameIsEmail) {
+                $emailVal = $usernameVal;
+            }
+        }
+
+        // Apply fallback if still missing
+        if ($emailVal === null && $claimMapEntity !== null) {
+            $defaultEmail = $claimMapEntity->getDefault('email', 'user_field');
+            if (filter_var($defaultEmail, FILTER_VALIDATE_EMAIL)) {
+                $emailVal = $defaultEmail;
+            }
+        }
+
+        if (empty($emailVal)) {
+            LoginFlow::printError(__('invalid values where used to identify the user during auth', PLUGIN_NAME),
+                                 'getUserInputFieldsFromSamlClaim',
+                                  var_export($response, true));
+        }
+
+        $user[User::EMAIL] = [$emailVal];
+
+        // 3. Resolve other dynamic user_field mappings
+        $otherUserFields = ['realname', 'firstname', 'phone', 'mobile', 'jobtitle', 'country', 'city', 'street'];
+        foreach ($otherUserFields as $field) {
+            $claimKey = ($claimMapEntity !== null) ? $claimMapEntity->getMapping($field, 'user_field') : null;
+            if ($claimKey === null) {
+                $defaultSchemas = [
+                    'realname'  => [User::SCHEMA_SURNAME],
+                    'firstname' => [User::SCHEMA_FIRSTNAME, User::SCHEMA_GIVENNAME],
+                    'mobile'    => [User::SCHEMA_MOBILE],
+                    'phone'     => [User::SCHEMA_PHONE],
+                    'jobtitle'  => [User::SCHEMA_JOBTITLE],
+                    'country'   => [User::SCHEMA_COUNTRY],
+                    'city'      => [User::SCHEMA_CITY],
+                    'street'    => [User::SCHEMA_STREET]
+                ];
+                $possibleClaims = $defaultSchemas[$field] ?? [];
+                foreach ($possibleClaims as $pc) {
+                    if (isset($claims[$pc][0]) && !empty($claims[$pc][0])) {
+                        $claimKey = $pc;
+                        break;
                     }
                 }
-            }else{
-                $user[User::EMAIL] = [];
             }
 
-            // Groups to be passed to the rules engine
-            $groupsClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('groups') !== null)
-                ? $claimMapEntity->getMapping('groups')
-                : User::SCHEMA_GROUPS;
-            $user[User::SAMLGROUPS] = isset($claims[$groupsClaimKey]) ? $claims[$groupsClaimKey] : [];
-
-            // Firstname
-            $firstnameClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('firstname') !== null)
-                ? $claimMapEntity->getMapping('firstname')
-                : null;
-            
-            $firstname = null;
-            if ($firstnameClaimKey !== null) {
-                if (isset($claims[$firstnameClaimKey][0])) {
-                    $firstname = $claims[$firstnameClaimKey][0];
-                }
-            } else {
-                if (isset($claims[User::SCHEMA_FIRSTNAME][0])) {
-                    $firstname = $claims[User::SCHEMA_FIRSTNAME][0];
-                } elseif (isset($claims[User::SCHEMA_GIVENNAME][0])) {
-                    $firstname = $claims[User::SCHEMA_GIVENNAME][0];
-                }
+            $val = null;
+            if ($claimKey !== null && isset($claims[$claimKey][0])) {
+                $val = $claims[$claimKey][0];
             }
 
-            if ($firstname !== null) {
-                if(strlen($firstname) <= 255){
-                    $user[User::FIRSTNAME] = $firstname ;
-                }else{
-                    LoginFlow::printError(__('Provided firstname or givenname exceeded 255 characters. This claim should not be longer than 255 characters',
-                                             'getUserInputFieldsFromSamlClaim',
-                                              var_export($response, true)));
-                }
+            // If missing or exceeds length constraint (255 characters), use default value
+            if ($val === null || strlen((string)$val) > 255) {
+                $val = ($claimMapEntity !== null) ? $claimMapEntity->getDefault($field, 'user_field') : '';
             }
 
-            // Surname
-            $realnameClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('realname') !== null)
-                ? $claimMapEntity->getMapping('realname')
-                : User::SCHEMA_SURNAME;
-
-            if(isset($claims[$realnameClaimKey][0])){
-                if(strlen($claims[$realnameClaimKey][0]) <= 255){
-                    $user[User::REALNAME] = $claims[$realnameClaimKey][0];
-                }else{
-                    LoginFlow::printError(__('Provided surname claim exceeded 255 characters. This claim should not be longer than 255 characters',
-                                             'getUserInputFieldsFromSamlClaim',
-                                              var_export($response, true)));
-                }
-            }else{
-                $user[User::REALNAME] = false;
+            // Check if required
+            $isRequired = ($claimMapEntity !== null) ? $claimMapEntity->isRequired($field, 'user_field') : false;
+            if (empty($val) && $isRequired) {
+                LoginFlow::printError(sprintf(__('Required user field "%s" is missing or invalid in SAML response', PLUGIN_NAME), $field),
+                                     'getUserInputFieldsFromSamlClaim',
+                                      var_export($response, true));
             }
 
-            // jobTitle
-            $jobtitleClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('jobtitle') !== null)
-                ? $claimMapEntity->getMapping('jobtitle')
-                : User::SCHEMA_JOBTITLE;
-
-            if(isset($claims[$jobtitleClaimKey][0])){
-                if(strlen($claims[$jobtitleClaimKey][0]) <= 255){
-                    $user[User::SAMLJOBTITLE] = $claims[$jobtitleClaimKey][0];
-                }else{
-                    LoginFlow::printError(__('Provided job title claim exceeded 255 characters. This claim should not be longer than 255 characters',
-                                             'getUserInputFieldsFromSamlClaim',
-                                              var_export($response, true)));
-                }
-            }else{
-                $user[User::SAMLJOBTITLE] = false;
-            }
-
-            // Mobile Phone
-            $mobileClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('mobile') !== null)
-                ? $claimMapEntity->getMapping('mobile')
-                : User::SCHEMA_MOBILE;
-
-            if(isset($claims[$mobileClaimKey][0])){
-                if(strlen($claims[$mobileClaimKey][0]) <= 255){
-                    $user[User::MOBILE] = $claims[$mobileClaimKey][0];
-                }else{
-                    LoginFlow::printError(__('Provided mobile phone number claim exceeded 255 characters. This claim should not be longer than 255 characters',
-                                             'getUserInputFieldsFromSamlClaim',
-                                              var_export($response, true)));
-                }
-            }else{
-                $user[User::MOBILE] = false;
-            }
-
-            // Telephone number
-            $phoneClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('phone') !== null)
-                ? $claimMapEntity->getMapping('phone')
-                : User::SCHEMA_PHONE;
-
-            if(isset($claims[$phoneClaimKey][0])){
-                if(strlen($claims[$phoneClaimKey][0]) <= 255){
-                    $user[User::PHONE] = $claims[$phoneClaimKey][0];
-                }else{
-                    LoginFlow::printError(__('Provided telephone phone number claim exceeded 255 characters. This claim should not be longer than 255 characters',
-                                             'getUserInputFieldsFromSamlClaim',
-                                              var_export($response, true)));
-                }
-            }else{
-                $user[User::PHONE] = false;
-            }
-
-            // Country
-            $countryClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('country') !== null)
-                ? $claimMapEntity->getMapping('country')
-                : User::SCHEMA_COUNTRY;
-
-            if(isset($claims[$countryClaimKey][0])){
-                if(strlen($claims[$countryClaimKey][0]) <= 255){
-                    $user[User::SAMLCOUNTRY] = $claims[$countryClaimKey][0];
-                }else{
-                    LoginFlow::printError(__('Provided country claim exceeded 255 characters. This claim should not be longer than 255 characters',
-                                                'getUserInputFieldsFromSamlClaim',
-                                                var_export($response, true)));
-                }
-            }else{
-                $user[User::SAMLCOUNTRY] = false;
-            }
-
-            // CITY
-            $cityClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('city') !== null)
-                ? $claimMapEntity->getMapping('city')
-                : User::SCHEMA_CITY;
-
-            if(isset($claims[$cityClaimKey][0])){
-                if(strlen($claims[$cityClaimKey][0]) <= 255){
-                    $user[User::SAMLCITY] = $claims[$cityClaimKey][0];
-                }else{
-                    LoginFlow::printError(__('Provided city claim exceeded 255 characters. This claim should not be longer than 255 characters',
-                                                'getUserInputFieldsFromSamlClaim',
-                                                var_export($response, true)));
-                }
-            }else{
-                $user[User::SAMLCITY] = false;
-            }
-
-            // STREET
-            $streetClaimKey = ($claimMapEntity !== null && $claimMapEntity->getMapping('street') !== null)
-                ? $claimMapEntity->getMapping('street')
-                : User::SCHEMA_STREET;
-
-            if(isset($claims[$streetClaimKey][0])){
-                if(strlen($claims[$streetClaimKey][0]) <= 255){
-                    $user[User::SAMLSTREET] = $claims[$streetClaimKey][0];
-                }else{
-                    LoginFlow::printError(__('Provided street address claim exceeded 255 characters. This claim should not be longer than 255 characters',
-                                                'getUserInputFieldsFromSamlClaim',
-                                                var_export($response, true)));
-                }
-            }else{
-                $user[User::SAMLSTREET] = false;
-            }
+            $keyMap = [
+                'firstname' => User::FIRSTNAME,
+                'realname'  => User::REALNAME,
+                'mobile'    => User::MOBILE,
+                'phone'     => User::PHONE,
+                'jobtitle'  => User::SAMLJOBTITLE,
+                'country'   => User::SAMLCOUNTRY,
+                'city'      => User::SAMLCITY,
+                'street'    => User::SAMLSTREET
+            ];
+            $destKey = $keyMap[$field] ?? $field;
+            $user[$destKey] = $val !== '' ? $val : false;
         }
 
-        // Set additional user fields for user creation (if needed)
-        // These fields are used for user->add($input);
-        $user[User::COMMENT]    = __('Created by phpSaml Just-In-Time user creation on:'.date('Y-m-d H:i:s'));
+        // 4. Resolve dynamic rule_fields to pass to JIT Rules
+        $groupsClaimKey = ($claimMapEntity !== null) ? $claimMapEntity->getMapping('groups', 'rule_field') : null;
+        if ($groupsClaimKey === null) {
+            $groupsClaimKey = User::SCHEMA_GROUPS;
+        }
+        $groupsVal = isset($claims[$groupsClaimKey]) ? $claims[$groupsClaimKey] : null;
+        if (empty($groupsVal) && $claimMapEntity !== null) {
+            $defaultGroup = $claimMapEntity->getDefault('groups', 'rule_field');
+            $groupsVal = ($defaultGroup !== '') ? [$defaultGroup] : [];
+        }
+        $isGroupsRequired = ($claimMapEntity !== null) ? $claimMapEntity->isRequired('groups', 'rule_field') : false;
+        if (empty($groupsVal) && $isGroupsRequired) {
+            LoginFlow::printError(__('Required rule field "groups" is missing in SAML response', PLUGIN_NAME),
+                                 'getUserInputFieldsFromSamlClaim',
+                                  var_export($response, true));
+        }
+        $user[User::SAMLGROUPS] = is_array($groupsVal) ? $groupsVal : (array)$groupsVal;
+
+        $ruleFields = ['jobtitle', 'country', 'city', 'street'];
+        $user['_saml_rule_fields'] = [];
+        foreach ($ruleFields as $field) {
+            $claimKey = ($claimMapEntity !== null) ? $claimMapEntity->getMapping($field, 'rule_field') : null;
+            if ($claimKey === null) {
+                $defaultSchemas = [
+                    'jobtitle'  => [User::SCHEMA_JOBTITLE],
+                    'country'   => [User::SCHEMA_COUNTRY],
+                    'city'      => [User::SCHEMA_CITY],
+                    'street'    => [User::SCHEMA_STREET]
+                ];
+                $possibleClaims = $defaultSchemas[$field] ?? [];
+                foreach ($possibleClaims as $pc) {
+                    if (isset($claims[$pc][0]) && !empty($claims[$pc][0])) {
+                        $claimKey = $pc;
+                        break;
+                    }
+                }
+            }
+
+            $val = null;
+            if ($claimKey !== null && isset($claims[$claimKey][0])) {
+                $val = $claims[$claimKey][0];
+            }
+
+            if ($val === null || strlen((string)$val) > 255) {
+                $val = ($claimMapEntity !== null) ? $claimMapEntity->getDefault($field, 'rule_field') : '';
+            }
+
+            $isRequired = ($claimMapEntity !== null) ? $claimMapEntity->isRequired($field, 'rule_field') : false;
+            if (empty($val) && $isRequired) {
+                LoginFlow::printError(sprintf(__('Required rule field "%s" is missing or invalid in SAML response', PLUGIN_NAME), $field),
+                                     'getUserInputFieldsFromSamlClaim',
+                                      var_export($response, true));
+            }
+
+            $user['_saml_rule_fields'][$field] = $val;
+        }
+
+        $user[User::COMMENT]    = __('Created by phpSaml Just-In-Time user creation on:').date('Y-m-d H:i:s');
         $password = bin2hex(random_bytes(20));
         $user[User::PASSWORD]   = $password;
         $user[User::PASSWORDN]  = $password;
         $user[User::AUTHTYPE]   = 4;
         $user[User::SYNCDATE]   = date('Y-m-d H:i:s');
 
-        // Return the userArray.
         return $user;
    }
 }

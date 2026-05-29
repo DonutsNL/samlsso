@@ -348,7 +348,7 @@ class Exclude extends CommonDropdown
         $default_collation = DBConnection::getDefaultCollation();
         $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
 
-        $table = Exclude::getTable();
+        $table = getTableForItemType(static::class);
 
         // Create the base table if it does not yet exist;
         // Do not update this table for later versions, use the migration class;
@@ -446,7 +446,7 @@ class Exclude extends CommonDropdown
      */
     public static function uninstall(Migration $migration): void
     {
-        $table = Exclude::getTable();
+        $table = getTableForItemType(static::class);
         Session::addMessageAfterRedirect("🆗 Removed: $table");
         $migration->dropTable($table);
     }

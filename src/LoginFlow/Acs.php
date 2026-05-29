@@ -110,7 +110,7 @@ class Acs extends LoginFlow
      * @since 1.2.0
      * @var ConfigEntity
      */
-    private $configEntity   = null;
+    protected $configEntity = null;
 
 
     /**
@@ -284,6 +284,12 @@ class Acs extends LoginFlow
             // to prevent future replays of this document.
             try {
                 $this->state->setSamlResponseId($currentResponseId);
+
+                // Capture raw SAML response XML, anonymize it, and save its structure
+                $xml = $this->samlResponse->getXMLDocument()->saveXML();
+                $anonymizedXml = ConfigEntity::anonymizeXml($xml);
+                $this->configEntity->updateXmlStructure($anonymizedXml);
+
             } catch (Throwable $e) {
                 $this->printError(
                     __("An error occured while trying to update the samlResponseId into the LoginState database. Review the saml log for more details", PLUGIN_NAME),

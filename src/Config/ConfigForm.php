@@ -51,6 +51,7 @@ use Search;
 use Session;
 use Plugin;
 use GlpiPlugin\Samlsso\Config;
+use GlpiPlugin\Samlsso\ClaimMap;
 use GlpiPlugin\Samlsso\LoginState;
 use Glpi\Application\View\TemplateRenderer;
 use OneLogin\Saml2\Constants as Saml2Const;
@@ -68,12 +69,320 @@ class ConfigForm    //NOSONAR complexity by design.
      * Handles the form calls from the ConfigController and loads the
      * config idps listing (first screen before selecting a specific config)
      *
-     * @param Request   Drop in future? not needed here?
-     * @return string   String containing HTML form with values or redirect into added form.
+     * @param Request $request  Incoming HTTP request
+     * @return Response|RedirectResponse|void
      */
-    public function invoke(Request $request){
+    public function invoke(Request $request)
+    {
+        $action = (string) $request->get('action', '');
+
+        // Handle bulk export (download) action - no page rendering needed
+        if ($action === 'backup_all') {
+            return $this->exportAllConfigs();
+        }
+
+        // Handle bulk restore (upload) action
+        if ($action === 'restore_all' && $request->isMethod('POST')) {
+            return $this->restoreAllConfigs($request);
+        }
+
         $this->displayUIHeader();
+        $this->renderBackupRestoreCard();
         Search::show(Config::class);
+    }
+
+
+    /**
+     * Render the Backup & Restore card above the configuration listing.
+     * Uses an inline Bootstrap 5 card with a download link for export
+     * and a multipart POST form for restore.
+     *
+     * @return void
+     */
+    private function renderBackupRestoreCard(): void
+    {
+        $exportUrl   = PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE . '?action=backup_all';
+        $restoreUrl  = PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE . '?action=restore_all';
+        $csrfToken   = \Session::getNewCSRFToken();
+
+        echo <<<HTML
+<div class="container-fluid mb-2 d-flex justify-content-end" id="samlsso-backup-toggle-container">
+  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#samlsso-backup-collapse" aria-expanded="false" aria-controls="samlsso-backup-collapse">
+    <i class="fas fa-database me-2"></i>Backup / Restore
+  </button>
+</div>
+<div class="collapse container-fluid mb-3" id="samlsso-backup-collapse">
+  <div class="card card-body bg-light border-0 shadow-sm py-3">
+    <div class="row align-items-center g-3">
+      <div class="col">
+        <h6 class="mb-1 fw-bold text-dark">Configuration Backup &amp; Restore</h6>
+        <p class="text-muted mb-0" style="font-size: 0.85rem;">Export all IDP configurations to a JSON backup file, or restore from a previously exported backup.</p>
+      </div>
+      <div class="col-auto">
+        <a href="{$exportUrl}" id="samlsso-export-btn" class="btn btn-sm btn-outline-primary">
+          <i class="fas fa-download me-2"></i>Download Backup
+        </a>
+      </div>
+      <div class="col-auto">
+        <form method="POST" action="{$restoreUrl}" enctype="multipart/form-data" id="samlsso-restore-form" onsubmit="return samlssoConfirmRestore()">
+          <input type="hidden" name="_glpi_csrf_token" value="{$csrfToken}">
+          <div class="input-group input-group-sm">
+            <input type="file" name="restore_file" id="samlsso-restore-file" accept=".json,application/json" class="form-control form-control-sm" required onchange="document.getElementById('samlsso-restore-btn').disabled = false;">
+            <button class="btn btn-danger" type="submit" id="samlsso-restore-btn" disabled>
+              <i class="fas fa-upload me-2"></i>Restore
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function samlssoConfirmRestore() {
+    return confirm(
+        '⚠️  WARNING: This will permanently DELETE all current IDP configurations and restore from the backup file.\\n\\n' +
+        'This action cannot be undone. Make sure you have a recent backup before proceeding.\\n\\n' +
+        'Continue with restore?'
+    );
+}
+</script>
+HTML;
+    }
+
+
+    /**
+     * Export all IDP configurations and their claim mappings as a single JSON file download.
+     *
+     * @return Response
+     */
+    private function exportAllConfigs(): Response
+    {
+        global $DB;
+
+        $configs = [];
+        $configsTable   = Config::getTable();
+        $claimMapTable  = ClaimMap::getTable();
+        $exportFields   = [
+            ConfigEntity::ID, ConfigEntity::NAME, ConfigEntity::CONF_DOMAIN,
+            ConfigEntity::CONF_ICON, ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
+            ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT,
+            ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY, ConfigEntity::SP_NAME_FORMAT,
+            ConfigEntity::IDP_ENTITY_ID, ConfigEntity::IDP_SSO_URL, ConfigEntity::IDP_SLO_URL,
+            ConfigEntity::IDP_CERTIFICATE, ConfigEntity::AUTHN_CONTEXT, ConfigEntity::AUTHN_COMPARE,
+            ConfigEntity::ENCRYPT_NAMEID, ConfigEntity::SIGN_AUTHN, ConfigEntity::SIGN_SLO_REQ,
+            ConfigEntity::SIGN_SLO_RES, ConfigEntity::COMPRESS_REQ, ConfigEntity::COMPRESS_RES,
+            ConfigEntity::XML_VALIDATION, ConfigEntity::DEST_VALIDATION, ConfigEntity::LOWERCASE_URL,
+            ConfigEntity::COMMENT, ConfigEntity::IS_ACTIVE,
+        ];
+
+        // Fetch all non-deleted configurations
+        $cfgIterator = $DB->request([
+            'FROM'  => $configsTable,
+            'WHERE' => [ConfigEntity::IS_DELETED => 0],
+        ]);
+
+        foreach ($cfgIterator as $row) {
+            // Collect only known export fields
+            $configFields = [];
+            foreach ($exportFields as $field) {
+                $configFields[$field] = $row[$field] ?? null;
+            }
+
+            // Collect associated claim mappings for this config
+            $claimMappings = [];
+            $cmIterator = $DB->request([
+                'FROM'  => $claimMapTable,
+                'WHERE' => ['configs_id' => (int)$row['id']],
+            ]);
+            foreach ($cmIterator as $cmRow) {
+                $claimMappings[] = [
+                    'target_type'   => (string)($cmRow['target_type']   ?? 'user_field'),
+                    'glpi_field'    => (string)($cmRow['glpi_field']    ?? ''),
+                    'saml_claim'    => (string)($cmRow['saml_claim']    ?? ''),
+                    'default_value' => (string)($cmRow['default_value'] ?? ''),
+                    'is_required'   => (int)($cmRow['is_required']      ?? 0),
+                ];
+            }
+
+            $configs[] = [
+                'config'        => $configFields,
+                'claim_maps'    => $claimMappings,
+            ];
+        }
+
+        $payload = [
+            'schema_version'    => '1',
+            'plugin_version'    => PLUGIN_SAMLSSO_VERSION,
+            'exported_at'       => date('c'),
+            'configurations'    => $configs,
+        ];
+
+        $json     = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $filename = 'samlsso_backup_' . date('Ymd_His') . '.json';
+
+        // Note: do NOT send Content-Length — GLPI's response stack may gzip or buffer
+        // the body after this point, causing a mismatch that silently truncates the download.
+        return new Response($json, 200, [
+            'Content-Type'        => 'application/json; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+
+    /**
+     * Restore all IDP configurations from an uploaded JSON backup file.
+     * This is a clean restore: all existing configurations and claim mappings
+     * are removed before the backup data is recreated with original IDs.
+     *
+     * @param  Request $request Incoming HTTP request containing uploaded file
+     * @return RedirectResponse
+     */
+    private function restoreAllConfigs(Request $request): RedirectResponse
+    {
+        global $DB;
+
+        // --- 1. Read and parse the uploaded JSON file ---
+        $uploadedFile = $request->files->get('restore_file');
+        if ($uploadedFile === null || !$uploadedFile->isValid()) {
+            Session::addMessageAfterRedirect(__('Restore failed: no valid backup file was uploaded.', PLUGIN_NAME), false, ERROR);
+            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+        }
+
+        $json = file_get_contents($uploadedFile->getPathname());
+        if ($json === false || trim($json) === '') {
+            Session::addMessageAfterRedirect(__('Restore failed: unable to read the uploaded file.', PLUGIN_NAME), false, ERROR);
+            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+        }
+
+        // Strip UTF-8 BOM if present (some editors add it and json_decode rejects it)
+        if (str_starts_with($json, "\xEF\xBB\xBF")) {
+            $json = substr($json, 3);
+        }
+
+        // Attempt to decode the JSON as-is
+        $data = json_decode($json, true);
+
+        // Healing pass 1: strip literal CR bytes (0x0D).
+        // Occurs when PEM certificate values in the DB contain Windows CR+LF line endings that
+        // ended up as raw control characters inside JSON string values (invalid per RFC 8259).
+        // Stripping CR is safe: the JSON structure is unaffected and PEM certificates are
+        // valid with LF-only line endings.
+        if (!is_array($data) && json_last_error() !== JSON_ERROR_NONE) {
+            $healed = str_replace("\r", '', $json);
+            if ($healed !== $json) {
+                $data = json_decode($healed, true);
+            }
+        }
+
+        // Healing pass 2: attempt invalid UTF-8 byte sequence repair and retry
+        if (!is_array($data) && json_last_error() !== JSON_ERROR_NONE) {
+            $repaired = mb_convert_encoding($json, 'UTF-8', 'UTF-8');
+            if ($repaired !== false && $repaired !== $json) {
+                $data = json_decode($repaired, true);
+            }
+        }
+
+        if (!is_array($data) || !isset($data['configurations']) || !is_array($data['configurations']) || count($data['configurations']) === 0) {
+            $jsonError = json_last_error() !== JSON_ERROR_NONE
+                ? ' JSON error: ' . json_last_error_msg() . ' (code ' . json_last_error() . ')'
+                : ' Structure check failed: missing or empty configurations array.';
+            Session::addMessageAfterRedirect(
+                __('Restore failed: the backup file has an invalid or unrecognized format.', PLUGIN_NAME) . $jsonError,
+                false,
+                ERROR
+            );
+            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+        }
+
+        // --- 2. Purge existing data (clean restore) ---
+        $configsTable  = Config::getTable();
+        $claimMapTable = ClaimMap::getTable();
+
+        $DB->delete($claimMapTable, ['id' => ['>', 0]]);
+        $DB->delete($configsTable,  ['id' => ['>', 0]]);
+
+        // --- 3. Restore each configuration with original IDs ---
+        $exportFields = [
+            ConfigEntity::ID, ConfigEntity::NAME, ConfigEntity::CONF_DOMAIN,
+            ConfigEntity::CONF_ICON, ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
+            ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT,
+            ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY, ConfigEntity::SP_NAME_FORMAT,
+            ConfigEntity::IDP_ENTITY_ID, ConfigEntity::IDP_SSO_URL, ConfigEntity::IDP_SLO_URL,
+            ConfigEntity::IDP_CERTIFICATE, ConfigEntity::AUTHN_CONTEXT, ConfigEntity::AUTHN_COMPARE,
+            ConfigEntity::ENCRYPT_NAMEID, ConfigEntity::SIGN_AUTHN, ConfigEntity::SIGN_SLO_REQ,
+            ConfigEntity::SIGN_SLO_RES, ConfigEntity::COMPRESS_REQ, ConfigEntity::COMPRESS_RES,
+            ConfigEntity::XML_VALIDATION, ConfigEntity::DEST_VALIDATION, ConfigEntity::LOWERCASE_URL,
+            ConfigEntity::COMMENT, ConfigEntity::IS_ACTIVE,
+        ];
+
+        $restoredCount  = 0;
+        $errors         = [];
+        $now            = date('Y-m-d H:i:s');
+
+        foreach ($data['configurations'] as $index => $entry) {
+            if (!isset($entry['config']) || !is_array($entry['config'])) {
+                $errors[] = sprintf(__('Entry %d skipped: missing config block.', PLUGIN_NAME), $index);
+                continue;
+            }
+
+            $cfgData = $entry['config'];
+            $origId  = isset($cfgData[ConfigEntity::ID]) ? (int)$cfgData[ConfigEntity::ID] : 0;
+
+            if ($origId <= 0) {
+                $errors[] = sprintf(__('Entry %d skipped: missing or invalid id.', PLUGIN_NAME), $index);
+                continue;
+            }
+
+            // Build insert row; only use known fields that are present in export
+            $insertRow = [ConfigEntity::IS_DELETED => 0, 'date_creation' => $now, 'date_mod' => $now];
+            foreach ($exportFields as $field) {
+                if ($field === ConfigEntity::ID) {
+                    $insertRow['id'] = $origId;
+                    continue;
+                }
+                if (array_key_exists($field, $cfgData)) {
+                    $insertRow[$field] = $cfgData[$field];
+                }
+            }
+
+            // Direct DB insert to preserve original ID
+            if (!$DB->insert($configsTable, $insertRow)) {
+                $errors[] = sprintf(__('Entry %d (%s) could not be inserted into database.', PLUGIN_NAME), $index, $cfgData[ConfigEntity::NAME] ?? '?');
+                continue;
+            }
+
+            // --- 4. Restore claim mappings for this config ---
+            $claimMaps = isset($entry['claim_maps']) && is_array($entry['claim_maps'])
+                ? $entry['claim_maps']
+                : [];
+
+            $claimMapEntity = new ClaimMapEntity($origId);
+            if (!$claimMapEntity->save($claimMaps)) {
+                $errors[] = sprintf(__('Config %s restored but claim mappings had validation errors.', PLUGIN_NAME), $cfgData[ConfigEntity::NAME] ?? (string)$origId);
+            }
+
+            $restoredCount++;
+        }
+
+        // --- 5. Report results ---
+        if ($restoredCount > 0) {
+            Session::addMessageAfterRedirect(
+                sprintf(__('Restore successful: %d IDP configuration(s) restored.', PLUGIN_NAME), $restoredCount)
+            );
+        }
+
+        foreach ($errors as $err) {
+            Session::addMessageAfterRedirect($err, false, ERROR);
+        }
+
+        if ($restoredCount === 0) {
+            Session::addMessageAfterRedirect(__('Restore completed but no configurations were imported.', PLUGIN_NAME), false, WARNING);
+        }
+
+        return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
     }
 
     /**
@@ -149,8 +458,14 @@ class ConfigForm    //NOSONAR complexity by design.
     {
         // Populate configEntity using post;
         $configEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postData]);
-        // Validate configEntity
-        if($configEntity->isValid()){
+        
+        // Populate and validate claim mappings
+        $claimMap = isset($postData['claim_map']) && is_array($postData['claim_map']) ? $postData['claim_map'] : [];
+        $claimMapEntity = new ClaimMapEntity(-1);
+        $claimMapValid = $claimMapEntity->validate($claimMap);
+
+        // Validate configEntity and claim mappings
+        if($configEntity->isValid() && $claimMapValid){
             // Get the normalized database fields
             $fields = $configEntity->getDBFields([ConfigEntity::ID, ConfigEntity::CREATE_DATE, ConfigEntity::MOD_DATE]);
             // Get instance of SamlConfig for db update.
@@ -158,10 +473,8 @@ class ConfigForm    //NOSONAR complexity by design.
             // Perform database insert using db fields.
             if($id = $config->add($fields)) {
                 // Save claim mappings if present in postData
-                if (isset($postData['claim_map']) && is_array($postData['claim_map'])) {
-                    $claimMapEntity = new ClaimMapEntity((int)$id);
-                    $claimMapEntity->save($postData['claim_map']);
-                }
+                $claimMapEntity = new ClaimMapEntity((int)$id);
+                $claimMapEntity->save($claimMap);
                 // Leave succes message for user and redirect
                 Session::addMessageAfterRedirect(__('Successfully added new samlSSO configuration.', PLUGIN_NAME));
                 return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$id);
@@ -188,8 +501,14 @@ class ConfigForm    //NOSONAR complexity by design.
     {
         // Populate configEntity using post;
         $configEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postData]);
-        // Validate configEntity
-        if($configEntity->isValid()){
+        
+        // Populate and validate claim mappings
+        $claimMap = isset($postData['claim_map']) && is_array($postData['claim_map']) ? $postData['claim_map'] : [];
+        $claimMapEntity = new ClaimMapEntity((int)$postData['id']);
+        $claimMapValid = $claimMapEntity->validate($claimMap);
+
+        // Validate configEntity and claim mappings
+        if($configEntity->isValid() && $claimMapValid){
             // Get the normalized database fields
             $fields = $configEntity->getDBFields([ConfigEntity::CREATE_DATE, ConfigEntity::IS_DELETED]);
             // Add the cross site request forgery token to the fields
@@ -199,11 +518,8 @@ class ConfigForm    //NOSONAR complexity by design.
             // Perform database update using fields.
             if($config->canUpdate()       &&
                $config->update($fields) ){
-                // Save claim mappings if present in postData
-                if (isset($postData['claim_map']) && is_array($postData['claim_map'])) {
-                    $claimMapEntity = new ClaimMapEntity((int)$postData['id']);
-                    $claimMapEntity->save($postData['claim_map']);
-                }
+                // Save claim mappings
+                $claimMapEntity->save($claimMap);
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
                 return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
@@ -350,17 +666,36 @@ class ConfigForm    //NOSONAR complexity by design.
 
         $idpId = is_numeric($fields[ConfigEntity::ID]['value']) ? (int)$fields[ConfigEntity::ID]['value'] : -1;
         $claimMapEntity = new ClaimMapEntity($idpId);
-        $claimMappings = $claimMapEntity->getMappings();
+        
+        $claimErrors = [];
+        $claimMapValid = true;
+        if (isset($_POST['claim_map']) && is_array($_POST['claim_map'])) {
+            $claimMappings = $_POST['claim_map'];
+            $claimMapValid = $claimMapEntity->validate($claimMappings);
+            $claimErrors = $claimMapEntity->getErrors();
+            $claimMappings = ClaimMapEntity::sortMappings($claimMappings);
+        } else {
+            $claimMappings = $claimMapEntity->getMappings();
+        }
+
         $observedClaims = $claimMapEntity->getObservedClaims();
         $presets = ClaimMapEntity::getPresets();
 
         $claimWarnings = [];
         $hasClaimWarning = false;
-        if ($idpId > 0 && !empty($observedClaims)) {
-            foreach ($claimMappings as $field => $claim) {
-                if ($claim !== '' && !in_array($claim, $observedClaims, true)) {
-                    $claimWarnings[$field] = __('This claim key has not been observed in any SAML responses yet.', PLUGIN_NAME);
-                    $hasClaimWarning = true;
+        $unusedRuleFields = [];
+        if ($idpId > 0) {
+            $unusedRuleFields = $claimMapEntity->getUnusedRuleFields();
+            if (!empty($unusedRuleFields)) {
+                $hasClaimWarning = true;
+            }
+            if (!empty($observedClaims)) {
+                foreach ($claimMappings as $index => $mapping) {
+                    $claim = $mapping['saml_claim'] ?? '';
+                    if ($claim !== '' && !in_array($claim, $observedClaims, true)) {
+                        $claimWarnings[$index] = __('This claim key has not been observed in any SAML responses yet.', PLUGIN_NAME);
+                        $hasClaimWarning = true;
+                    }
                 }
             }
         }
@@ -382,11 +717,15 @@ class ConfigForm    //NOSONAR complexity by design.
         // Define static field translations
         $tplVars = array_merge($tplVars, [
             'claim_mappings'            =>  $claimMappings,
+            'claim_errors'              =>  $claimErrors,
             'observed_claims'           =>  $observedClaims,
             'mapping_presets'           =>  $presets,
-            'claim_fields'              =>  ClaimMapItem::ALLOWED_GLPI_FIELDS,
+            'allowed_user_fields'       =>  ClaimMapItem::ALLOWED_USER_FIELDS,
+            'allowed_rule_fields'       =>  ClaimMapItem::ALLOWED_RULE_FIELDS,
             'claim_warnings'            =>  $claimWarnings,
-            'claim_tab_warning'         =>  $hasClaimWarning ? '⚠️' : '',
+            'unused_rule_fields'        =>  $unusedRuleFields,
+            'claim_tab_warning'         =>  ($hasClaimWarning || !$claimMapValid) ? '⚠️' : '',
+            'saml_xml_structure'        =>  $fields[ConfigEntity::SAML_XML_STRUCTURE]['value'] ?? '',
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
             'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],

@@ -52,7 +52,7 @@ namespace GlpiPlugin\Samlsso\Config;
  */
 class ClaimMapItem
 {
-    public const ALLOWED_GLPI_FIELDS = [
+    public const ALLOWED_USER_FIELDS = [
         'username',
         'email',
         'realname',
@@ -62,8 +62,22 @@ class ClaimMapItem
         'jobtitle',
         'country',
         'city',
-        'street',
-        'groups'
+        'street'
+    ];
+
+    public const ALLOWED_RULE_FIELDS = [
+        'groups',
+        'username',
+        'email',
+        'realname',
+        'firstname',
+        'jobtitle',
+        'department',
+        'company',
+        'employee_type',
+        'location',
+        'locale',
+        'manager'
     ];
 
     /**
@@ -87,16 +101,38 @@ class ClaimMapItem
     }
 
     /**
-     * Validate glpi_field.
+     * Validate target_type.
      *
-     * @param mixed $value The glpi_field value
+     * @param mixed $value The target_type value
      * @return array Validation result
      */
-    protected function validateGlpiField(mixed $value): array
+    protected function validateTargetType(mixed $value): array
     {
         $error = false;
-        if (!is_string($value) || !in_array($value, self::ALLOWED_GLPI_FIELDS, true)) {
-            $error = __('Invalid GLPI user field selected', PLUGIN_NAME);
+        if (!is_string($value) || !in_array($value, ['user_field', 'rule_field'], true)) {
+            $error = __('Invalid mapping target type', PLUGIN_NAME);
+        }
+
+        return [
+            'valid' => !$error,
+            'value' => (string)$value,
+            'error' => $error
+        ];
+    }
+
+    /**
+     * Validate glpi_field based on target type.
+     *
+     * @param mixed $value The glpi_field value
+     * @param string $targetType The target_type value
+     * @return array Validation result
+     */
+    protected function validateGlpiField(mixed $value, string $targetType = 'user_field'): array
+    {
+        $error = false;
+        $allowed = ($targetType === 'rule_field') ? self::ALLOWED_RULE_FIELDS : self::ALLOWED_USER_FIELDS;
+        if (!is_string($value) || !in_array($value, $allowed, true)) {
+            $error = __('Invalid GLPI field selected for target type', PLUGIN_NAME);
         }
 
         return [
@@ -125,6 +161,43 @@ class ClaimMapItem
             'valid' => !$error,
             'value' => trim((string)$value),
             'error' => $error
+        ];
+    }
+
+    /**
+     * Validate default_value.
+     *
+     * @param mixed $value The default_value value
+     * @return array Validation result
+     */
+    protected function validateDefaultValue(mixed $value): array
+    {
+        $error = false;
+        if (!is_string($value)) {
+            $error = __('Default value must be a string', PLUGIN_NAME);
+        } elseif (strlen($value) > 255) {
+            $error = __('Default value cannot exceed 255 characters', PLUGIN_NAME);
+        }
+
+        return [
+            'valid' => !$error,
+            'value' => (string)$value,
+            'error' => $error
+        ];
+    }
+
+    /**
+     * Validate is_required.
+     *
+     * @param mixed $value The is_required value
+     * @return array Validation result
+     */
+    protected function validateIsRequired(mixed $value): array
+    {
+        return [
+            'valid' => true,
+            'value' => empty($value) ? 0 : 1,
+            'error' => false
         ];
     }
 }

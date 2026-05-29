@@ -836,7 +836,7 @@ class LoginState extends CommonDBTM
         $default_collation = DBConnection::getDefaultCollation();
         $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
 
-        $table = LoginState::getTable();
+        $table = getTableForItemType(static::class);
 
         // Create the base table if it does not yet exist;
         // Do not update this table for later versions, use the migration class;
@@ -855,7 +855,7 @@ class LoginState extends CommonDBTM
                 `lastClickTime`             timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 `location`                  longtext NOT NULL,
                 `enforceLogoff`             tinyint {$default_key_sign} NULL,
-                `idpId`                     int NULL,
+                `idpId`                     int {$default_key_sign} NULL,
                 `serverParams`              text NULL,
                 `requestParams`             text NULL,
                 `loggedOff`                 tinyint {$default_key_sign} NULL,
@@ -865,6 +865,17 @@ class LoginState extends CommonDBTM
             SQL;
             $DB->doQuery($query) or die($DB->error());
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
+        } else {
+            /**
+             * UPGRADE PATH: correct the sign of the idpId foreign key column
+             * for installations created before this fix was applied. GLPI 11 emits
+             * a deprecation warning for signed integer foreign keys; making it
+             * UNSIGNED aligns it with the primary key it references in
+             * glpi_plugin_samlsso_configs. The column is nullable because a
+             * LoginState row may exist before an IdP is selected.
+             */
+            $migration->changeField($table, 'idpId', 'idpId', "int {$default_key_sign} NULL");
+            $migration->migrationOneTable($table);
         }
 
         // Add new requestId field for version 1.1.2.
@@ -986,7 +997,7 @@ class LoginState extends CommonDBTM
      */
     public static function uninstall(Migration $migration): void
     {
-        $table = LoginState::getTable();
+        $table = getTableForItemType(static::class);
         $migration->dropTable($table);
         Session::addMessageAfterRedirect("🆗 Removed: $table.");
     }

@@ -185,6 +185,15 @@ namespace OneLogin\Saml2 {
                             }
                         };
                     }
+
+                    /**
+                     * Mock saving XML to string.
+                     *
+                     * @return string Mock XML string.
+                     */
+                    public function saveXML(): string {
+                        return '<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" InResponseTo="' . $this->documentElement->getAttribute('InResponseTo') . '"></samlp:Response>';
+                    }
                 };
             }
         }
@@ -450,9 +459,10 @@ namespace GlpiPlugin\Samlsso\LoginFlow {
              * Mocks loading user details.
              *
              * @param array $userFields Loaded user fields.
+             * @param \GlpiPlugin\Samlsso\Config\ConfigEntity $configEntity Associated configuration.
              * @return self Reference.
              */
-            public function loadUser(array $userFields): self
+            public function loadUser(array $userFields, \GlpiPlugin\Samlsso\Config\ConfigEntity $configEntity): self
             {
                 return $this;
             }
@@ -592,6 +602,80 @@ namespace GlpiPlugin\Samlsso\Config {
             public function getPhpSamlConfig(): array
             {
                 return ['idp_id' => $this->id];
+            }
+
+            public static function anonymizeXml(string $xml): string
+            {
+                if (empty($xml)) {
+                    return '';
+                }
+
+                $dom = new \DOMDocument();
+                $old_entity_loader = null;
+                if (\PHP_VERSION_ID < 80000) {
+                    $old_entity_loader = libxml_disable_entity_loader(true);
+                }
+                
+                $dom->preserveWhiteSpace = false;
+                $dom->formatOutput = true;
+
+                if (!@$dom->loadXML($xml, LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR | LIBXML_NOCDATA)) {
+                    if (\PHP_VERSION_ID < 80000 && $old_entity_loader !== null) {
+                        libxml_disable_entity_loader($old_entity_loader);
+                    }
+                    return 'Invalid XML response';
+                }
+                
+                if (\PHP_VERSION_ID < 80000 && $old_entity_loader !== null) {
+                    libxml_disable_entity_loader($old_entity_loader);
+                }
+
+                self::anonymizeNode($dom->documentElement);
+
+                return $dom->saveXML() ?: 'Error processing XML';
+            }
+
+            private static function anonymizeNode(\DOMNode $node): void
+            {
+                $cryptoTags = ['Signature', 'SignatureValue', 'DigestValue', 'X509Certificate', 'CipherValue', 'EncryptedData'];
+                
+                $toRemove = [];
+                foreach ($node->childNodes as $child) {
+                    if ($child->nodeType === XML_ELEMENT_NODE) {
+                        $localName = $child->localName ?: $child->nodeName;
+                        if (in_array($localName, $cryptoTags, true)) {
+                            $toRemove[] = $child;
+                        } else {
+                            self::anonymizeNode($child);
+                        }
+                    }
+                }
+
+                foreach ($toRemove as $child) {
+                    $node->removeChild($child);
+                }
+
+                $allowedAttributes = ['Name', 'FriendlyName', 'NameFormat', 'Format', 'Version'];
+                if ($node->attributes) {
+                    foreach ($node->attributes as $attr) {
+                        if (str_starts_with($attr->nodeName, 'xmlns') || in_array($attr->nodeName, $allowedAttributes, true)) {
+                            continue;
+                        }
+                        $attr->nodeValue = '[STRIPPED]';
+                    }
+                }
+
+                if ($node->childNodes->length === 1 && $node->firstChild->nodeType === XML_TEXT_NODE) {
+                    $val = trim($node->firstChild->nodeValue);
+                    if ($val !== '') {
+                        $node->firstChild->nodeValue = '[STRIPPED]';
+                    }
+                }
+            }
+
+            public function updateXmlStructure(string $anonymizedXml): void
+            {
+                self::$mockFields['saml_xml_structure'] = $anonymizedXml;
             }
         }
     }
@@ -1096,6 +1180,8 @@ namespace GlpiPlugin\Samlsso\Tests {
         private array $responses = [];
         /** @var array Tracking deleted records. */
         public array $deletedRows = [];
+        /** @var array Tracking inserted records. */
+        public array $insertedRows = [];
 
         /**
          * Configure a mock response structure for a given table name.
@@ -1253,6 +1339,32 @@ namespace GlpiPlugin\Samlsso\Tests {
         public function error(): string
         {
             return '';
+        }
+
+        /**
+         * Intercept records insertion queries.
+         *
+         * @param string $table Table name.
+         * @param array  $data  Data to insert.
+         * @return bool Always returns true.
+         */
+        public function insert(string $table, array $data): bool
+        {
+            $this->insertedRows[] = [
+                'table' => $table,
+                'data'  => $data
+            ];
+            return true;
+        }
+
+        /**
+         * Return last inserted ID (mocked as fixed value).
+         *
+         * @return int Always returns 1 for mocked inserts.
+         */
+        public function insertId(): int
+        {
+            return count($this->insertedRows ?? []);
         }
     }
 

@@ -443,7 +443,7 @@ class Config extends CommonDBTM
         $default_key_sign   = DBConnection::getDefaultPrimaryKeySignOption();
 
         // Get the class Table: glpi_plugin_samlsso_configs;
-        $table              = Config::getTable();
+        $table              = getTableForItemType(static::class);
 
         // Create the base table if it does not yet exist;
         // Do not update this table for later versions, use the migration class;
@@ -479,6 +479,7 @@ class Config extends CommonDBTM
             `validate_destination`          tinyint NOT NULL DEFAULT '0',
             `lowercase_url_encoding`        tinyint NOT NULL DEFAULT '0',
             `comment`                       text NULL,
+            `saml_xml_structure`            text NULL,
             `is_active`                     tinyint NOT NULL DEFAULT '0',
             `is_deleted`                    tinyint NOT NULL default '0',
             `date_creation`                 timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -499,6 +500,10 @@ class Config extends CommonDBTM
             SQL;
             $DB->doQuery($query) or die($DB->error());
 
+            if (!$DB->fieldExists($table, 'saml_xml_structure', false)) {
+                $migration->addField($table, 'saml_xml_structure', 'text', ['null' => true, 'after' => 'comment', 'update' => true]);
+            }
+
             Session::addMessageAfterRedirect("🆗 Updated: $table layout.");
         }
     }
@@ -511,7 +516,7 @@ class Config extends CommonDBTM
      */
     public static function uninstall(Migration $migration): void
     {
-        $table = Config::getTable();
+        $table = getTableForItemType(static::class);
         // Make this smarter in the future. Never create a backup
         // when the source table is empty and an existing table is
         // populated! Allow user to restore from backup table. Current

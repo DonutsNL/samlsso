@@ -103,6 +103,12 @@ class LoginFlow extends CommonDBTM
     protected ?LoginState $state;
 
     /**
+     * Support exception throwing in tests instead of exiting.
+     * @var bool
+     */
+    public static bool $throwOnError = false;
+
+    /**
      * Holds the captured user piripheral name if any.
      * @var string subject
      */
@@ -471,9 +477,12 @@ class LoginFlow extends CommonDBTM
         // after this step.
         $userFields = User::getUserInputFieldsFromSamlClaim($response, $state->getIdpId());
 
+        // Resolve the ConfigEntity to propagate down the authentication chain
+        $configEntity = ($this instanceof \GlpiPlugin\Samlsso\LoginFlow\Acs) ? $this->configEntity : new ConfigEntity($state->getIdpId());
+
         // Try to populate GLPI Auth using the fetched samlResponse attributes;
         try {
-            $auth = (new GlpiAuth())->loadUser($userFields);
+            $auth = (new GlpiAuth())->loadUser($userFields, $configEntity);
         } catch (Throwable $e) {
             $this->printError($e->getMessage(), 'doSamlLogin');
         }
@@ -652,6 +661,10 @@ class LoginFlow extends CommonDBTM
         // Log in file
         Toolbox::logInFile(PLUGIN_NAME . "-errors", 'FATAL SAML LOGIN ERROR:' . $errorMsg . "\n", true);
 
+        if (self::$throwOnError) {
+            throw new \Exception((string)$errorMsg);
+        }
+
         // Define static translatable elements
         $tplVars['header']      = __('⚠️ Sorry we are unable to log you in', PLUGIN_NAME);
         // https://github.com/DonutsNL/samlsso/issues/21
@@ -693,6 +706,10 @@ class LoginFlow extends CommonDBTM
         Toolbox::logInFile(PLUGIN_NAME . "-errors", $errorMsg . "\n", true);
         if ($extended) {
             Toolbox::logInFile(PLUGIN_NAME . "-errors", $extended . "\n", true);
+        }
+
+        if (self::$throwOnError) {
+            throw new \Exception($errorMsg);
         }
 
         // Define static translatable elements

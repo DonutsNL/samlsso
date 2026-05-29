@@ -51,6 +51,9 @@ use Group;
 use Entity;
 use Session;
 use Profile;
+use Location;
+use UserCategory;
+use UserTitle;
 
 class RuleSaml extends Rule
 {
@@ -116,10 +119,6 @@ class RuleSaml extends Rule
     }
 
 
-    /**
-     * @see Rule::getCriterias()
-     * @return array    returns available criteria
-     **/
     public function getCriterias(): array
     {
         static $criterias = [];
@@ -132,6 +131,30 @@ class RuleSaml extends Rule
             $criterias['_useremails']['linkfield']  = '';
             $criterias['_useremails']['virtual']    = true;
             $criterias['_useremails']['id']         = '_useremails';
+
+            global $DB;
+            if (isset($DB) && method_exists($DB, 'tableExists') && $DB->tableExists(ClaimMap::getTable())) {
+                $claimMapTable = ClaimMap::getTable();
+                $iterator = $DB->request([
+                    'SELECT'   => ['glpi_field'],
+                    'DISTINCT' => true,
+                    'FROM'     => $claimMapTable,
+                    'WHERE'    => [
+                        'target_type' => 'rule_field'
+                    ]
+                ]);
+                foreach ($iterator as $row) {
+                    $field = (string)$row['glpi_field'];
+                    $criterias[$field] = [
+                        'table'     => '',
+                        'field'     => '',
+                        'name'      => sprintf(__('SAML Claim: %s', PLUGIN_NAME), ucfirst($field)),
+                        'linkfield' => '',
+                        'virtual'   => true,
+                        'id'        => $field
+                    ];
+                }
+            }
         }
         return $criterias;
     }
@@ -185,6 +208,21 @@ class RuleSaml extends Rule
 
         $actions['timezone']['name']                          = __('Timezone', PLUGIN_NAME);
         $actions['timezone']['type']                          = 'timezone';
+
+        $actions['locations_id']['name']                      = Location::getTypeName(Session::getPluralNumber());
+        $actions['locations_id']['type']                      = 'dropdown';
+        $actions['locations_id']['table']                     = 'glpi_locations';
+
+        $actions['usercategories_id']['name']                  = UserCategory::getTypeName(Session::getPluralNumber());
+        $actions['usercategories_id']['type']                  = 'dropdown';
+        $actions['usercategories_id']['table']                 = 'glpi_usercategories';
+
+        $actions['usertitles_id']['name']                     = UserTitle::getTypeName(Session::getPluralNumber());
+        $actions['usertitles_id']['type']                     = 'dropdown';
+        $actions['usertitles_id']['table']                    = 'glpi_usertitles';
+
+        $actions['language']['name']                          = __('Language', PLUGIN_NAME);
+        $actions['language']['type']                          = 'language';
 
         return $actions;
     }

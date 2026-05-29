@@ -1,5 +1,4 @@
 # Keycloak Claim Mapping Preset
-username: "username"
 email: "email"
 realname: "lastName"
 firstname: "firstName"

@@ -375,6 +375,19 @@ class ConfigItem    //NOSONAR
         ];
     }
 
+    protected function saml_xml_structure(mixed $var): array
+    {
+        return [
+            ConfigItem::FORMEXPLAIN => __('The anonymized SAML response XML structure', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('SAML Response XML Structure', PLUGIN_NAME),
+            ConfigItem::EVAL      => ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => false
+        ];
+    }
+
     // Might cast it into an EPOCH date with invalid values.
     protected function date_creation(mixed $var): array                 //NOSONAR
     {

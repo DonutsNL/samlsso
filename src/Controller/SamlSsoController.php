@@ -115,7 +115,11 @@ final class SamlSsoController extends AbstractController
     #[Route(self::CONFIG_FILE, name: self::CONFIG_NAME.'_file')]        // Decorator to register old route to handle GLPI generated menu's
     public function config(Request $request): Response                  // What to do if route is invoked.
     {
-        return new Response((new ConfigForm)->invoke($request));        // Call the form handler.
+        $res = (new ConfigForm)->invoke($request);
+        if ($res instanceof Response) {
+            return $res;
+        }
+        return new Response((string)$res);
     }
 
     // ConfigForm routes

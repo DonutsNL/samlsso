@@ -33,17 +33,218 @@
     }
     
     var mappingPresets = {{ mapping_presets|json_encode|raw }};
+    const allowedUserFields = {{ allowed_user_fields|json_encode|raw }};
+    const allowedRuleFields = {{ allowed_rule_fields|json_encode|raw }};
+    const observedClaims = {{ observed_claims|json_encode|raw }};
+
     function applyPreset(presetName) {
         if (!presetName || !mappingPresets[presetName]) {
             return;
         }
         var preset = mappingPresets[presetName];
+        var tbody = document.getElementById('claim_mapping_tbody');
+        tbody.innerHTML = '';
+        rowCounter = 0;
+
+        // username always remains NameId and is added manually
+        addRow('user_field', 'username', 'NameId', '', 1);
+
         for (var field in preset) {
-            var input = document.getElementById('claim_map_' + field);
-            if (input) {
-                input.value = preset[field];
+            if (field === 'username') {
+                continue; // Skip updating username mapping
+            }
+            var targetType = (field === 'groups') ? 'rule_field' : 'user_field';
+            addRow(targetType, field, preset[field], '', (field === 'email') ? 1 : 0);
+        }
+        document.getElementById('preset_selector').value = '';
+    }
+
+    function updateGlpiFields(selectElem) {
+        const row = selectElem.closest('tr');
+        const glpiSelect = row.querySelector('.glpi-field-select');
+        const targetType = selectElem.value;
+        
+        if (!targetType) {
+            glpiSelect.innerHTML = '';
+            glpiSelect.classList.add('d-none');
+            return;
+        }
+        
+        glpiSelect.innerHTML = '';
+        const fields = targetType === 'rule_field' ? allowedRuleFields : allowedUserFields;
+        
+        fields.forEach(field => {
+            const opt = document.createElement('option');
+            opt.value = field;
+            opt.textContent = field.charAt(0).toUpperCase() + field.slice(1);
+            glpiSelect.appendChild(opt);
+        });
+
+        glpiSelect.classList.remove('d-none');
+
+        const unusedBadge = row.querySelector('.unused-rule-badge');
+        if (unusedBadge) {
+            if (targetType !== 'rule_field') {
+                unusedBadge.classList.add('d-none');
+            } else {
+                unusedBadge.classList.remove('d-none');
             }
         }
+    }
+
+    let rowCounter = 0;
+
+    function addRow(targetType = '', glpiField = '', samlClaim = '', defaultValue = '', isRequired = 0) {
+        const tbody = document.getElementById('claim_mapping_tbody');
+        const index = rowCounter++;
+        
+        const tr = document.createElement('tr');
+        tr.className = 'claim-mapping-row';
+        tr.setAttribute('data-index', index);
+        
+        const fields = targetType === 'rule_field' ? allowedRuleFields : allowedUserFields;
+        let glpiOptions = '';
+        if (targetType) {
+            fields.forEach(field => {
+                const selected = field === glpiField ? 'selected' : '';
+                glpiOptions += `<option value="${field}" ${selected}>${field.charAt(0).toUpperCase() + field.slice(1)}</option>`;
+            });
+        }
+
+        const isObserved = observedClaims.includes(samlClaim);
+        const isUsernameLocked = targetType === 'user_field' && glpiField === 'username';
+        const isSystemRequired = targetType === 'user_field' && (glpiField === 'username' || glpiField === 'email');
+        const disabledAttr = isSystemRequired ? 'disabled' : '';
+        const checkedAttr = (isSystemRequired || isRequired) ? 'checked' : '';
+        
+        const hiddenInputs = `
+            ${isSystemRequired ? `
+                <input type="hidden" name="claim_map[${index}][target_type]" value="${targetType}">
+                <input type="hidden" name="claim_map[${index}][glpi_field]" value="${glpiField}">
+                <input type="hidden" name="claim_map[${index}][is_required]" value="1">
+            ` : ''}
+            ${isUsernameLocked ? `
+                <input type="hidden" name="claim_map[${index}][saml_claim]" value="NameId">
+            ` : ''}
+        `;
+        
+        const deleteButton = isSystemRequired ? '' : `
+            <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteRow(this)">
+                <i class="fas fa-trash"></i> Delete
+            </button>
+        `;
+
+        let dropdownHtml = '';
+        if (!isUsernameLocked && observedClaims.length > 0) {
+            dropdownHtml += `
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false"></button>
+                <ul class="dropdown-menu dropdown-menu-end" style="max-height: 200px; overflow-y: auto;">
+            `;
+            observedClaims.forEach(claim => {
+                dropdownHtml += `<li><a class="dropdown-item" href="#" onclick="selectClaim(this, '${claim}'); return false;">${claim}</a></li>`;
+            });
+            dropdownHtml += `</ul>`;
+        }
+        
+        tr.innerHTML = `
+            <td>
+                ${hiddenInputs}
+                <select name="claim_map[${index}][target_type]" class="form-select target-type-select" onchange="updateGlpiFields(this)" ${disabledAttr}>
+                    <option value="" ${targetType === '' ? 'selected' : ''}>-- Select Target Type --</option>
+                    <option value="user_field" ${targetType === 'user_field' ? 'selected' : ''}>User Field</option>
+                    <option value="rule_field" ${targetType === 'rule_field' ? 'selected' : ''}>Rule Field</option>
+                </select>
+            </td>
+            <td>
+                <select name="claim_map[${index}][glpi_field]" class="form-select glpi-field-select ${targetType === '' ? 'd-none' : ''}" ${disabledAttr}>
+                    ${glpiOptions}
+                </select>
+            </td>
+            <td>
+                <div class="input-group">
+                    <input type="text" name="claim_map[${index}][saml_claim]" value="${isUsernameLocked ? 'NameId' : samlClaim}" class="form-control saml-claim-input" oninput="checkObserved(this)" ${isUsernameLocked ? 'disabled' : 'list="observed_claims_list"'}>
+                    ${dropdownHtml}
+                </div>
+            </td>
+            <td>
+                <input type="text" name="claim_map[${index}][default_value]" value="${defaultValue}" class="form-control">
+            </td>
+            <td class="text-center">
+                <input type="checkbox" name="claim_map[${index}][is_required]" value="1" class="form-check-input" ${checkedAttr} ${disabledAttr}>
+            </td>
+            <td>
+                <div class="status-indicators d-flex align-items-center gap-2">
+                    <span class="badge bg-success observed-badge ${((isUsernameLocked || samlClaim) && (isUsernameLocked || isObserved)) ? '' : 'd-none'}">✅ Observed</span>
+                    <span class="badge bg-warning unobserved-badge ${(!isUsernameLocked && samlClaim && !isObserved) ? '' : 'd-none'}">⚠️ Unobserved</span>
+                </div>
+            </td>
+            <td>
+                ${deleteButton}
+            </td>
+        `;
+        
+        tbody.appendChild(tr);
+    }
+
+    function selectClaim(linkElem, claimValue) {
+        const input = linkElem.closest('.input-group').querySelector('.saml-claim-input');
+        input.value = claimValue;
+        checkObserved(input);
+    }
+
+    function checkObserved(inputElem) {
+        const row = inputElem.closest('tr');
+        const val = inputElem.value.trim();
+        const observedBadge = row.querySelector('.observed-badge');
+        const unobservedBadge = row.querySelector('.unobserved-badge');
+        
+        if (val === '') {
+            observedBadge.classList.add('d-none');
+            unobservedBadge.classList.add('d-none');
+            return;
+        }
+        
+        if (observedClaims.includes(val) || val === 'NameId') {
+            observedBadge.classList.remove('d-none');
+            unobservedBadge.classList.add('d-none');
+        } else {
+            observedBadge.classList.add('d-none');
+            unobservedBadge.classList.remove('d-none');
+        }
+    }
+
+    function deleteRow(btnElem) {
+        btnElem.closest('tr').remove();
+    }
+
+    function highlightXml(xml) {
+        if (!xml) return '';
+        let escaped = xml
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // Highlight XML comments first so they don't get matched by tag highlights
+        let comments = [];
+        escaped = escaped.replace(/&lt;!--[\s\S]*?--&gt;/g, function(match) {
+            comments.push(match);
+            return '___COMMENT_PLACEHOLDER_' + (comments.length - 1) + '___';
+        });
+
+        // Highlight tags, attributes, and values
+        escaped = escaped.replace(/(&lt;\/?[a-zA-Z0-9_:-]+)([\s\S]*?)((\/?&gt;)|(&gt;))/g, function(match, tagName, attrs, tagEnd) {
+            let highlightedAttrs = attrs.replace(/([a-zA-Z0-9_:-]+)=("([^"]*)"|'([^']*)')/g, function(attrMatch, attrName, attrVal) {
+                return ' <span class="xml-attr">' + attrName + '</span>=<span class="xml-val">' + attrVal + '</span>';
+            });
+            return '<span class="xml-tag">' + tagName + '</span>' + highlightedAttrs + '<span class="xml-tag">' + tagEnd + '</span>';
+        });
+
+        // Restore comments
+        escaped = escaped.replace(/___COMMENT_PLACEHOLDER_(\d+)___/g, function(match, index) {
+            return '<span class="xml-comment">' + comments[parseInt(index, 10)] + '</span>';
+        });
+
+        return escaped;
     }
 </script>
 
@@ -817,22 +1018,65 @@
             <!-- ################################################################################-->
             <!-- Claim Mapping details -->
             <div class="tab-pane fade" id="claim_mapping" role="tabpanel" aria-labelledby="claim-mapping-tab">
+                <style>
+                    #xml_highlighted_code { color: #24292e; }
+                    .xml-tag { color: #d73a49; font-weight: bold; }
+                    .xml-attr { color: #6f42c1; }
+                    .xml-val { color: #032f62; }
+                    .xml-comment { color: #6a737d; font-style: italic; }
+                </style>
                 <div class="card-body">
-                    <h5 class="card-title">{{ __('SAML Claim Mapping', plugin) }}</h5>
-                    <p class="text-muted">
-                        {{ __('Map SAML response claim keys to GLPI user profile fields. Leaving a field blank will fall back to its default claim key schema.', plugin) }}
-                    </p>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">{{ __('SAML Claim Mapping', plugin) }}</h5>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#samlsso-mapping-tools-collapse" aria-expanded="false" aria-controls="samlsso-mapping-tools-collapse">
+                            <i class="fas fa-tools me-1"></i>{{ __('Mapping Tools', plugin) }}
+                        </button>
+                    </div>
 
-                    <!-- Preset selection -->
-                    <div class="row mb-4 align-items-center">
-                        <label class="col-sm-3 col-form-label"><b>{{ __('Apply Preset', plugin) }}</b></label>
-                        <div class="col-sm-9">
-                            <select id="preset_selector" class="form-select" onchange="applyPreset(this.value)">
-                                <option value="">-- {{ __('Select Preset', plugin) }} --</option>
-                                {% for name, preset in mapping_presets %}
-                                    <option value="{{ name }}">{{ name|title }}</option>
-                                {% endfor %}
-                            </select>
+                    <!-- Collapsible Mapping Tools Panel -->
+                    <div class="collapse mb-4" id="samlsso-mapping-tools-collapse">
+                        <div class="card card-body bg-light border-0 shadow-sm p-3">
+                            <h6 class="fw-bold mb-2 text-dark"><i class="fas fa-info-circle me-1"></i>{{ __('Mapping Assistant', plugin) }}</h6>
+                            <p class="text-muted mb-3" style="font-size: 0.85rem;">
+                                {{ __('Map SAML response claim keys dynamically either directly to user profile fields or as JIT Rule criteria. Configure defaults and required verification checks.', plugin) }}
+                            </p>
+
+                            <!-- Preset selection and XML toggle -->
+                            <div class="row align-items-center g-3">
+                                <div class="col-md-7">
+                                    <div class="d-flex align-items-center">
+                                        <label class="mb-0 me-3 fw-bold" style="white-space: nowrap;">{{ __('Apply Preset', plugin) }}</label>
+                                        <select id="preset_selector" class="form-select form-select-sm" onchange="applyPreset(this.value)">
+                                            <option value="">-- {{ __('Select Preset', plugin) }} --</option>
+                                            {% for name, preset in mapping_presets %}
+                                                <option value="{{ name }}">{{ name|title }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-5 text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#samlsso-xml-collapse" aria-expanded="false" aria-controls="samlsso-xml-collapse">
+                                        <i class="fas fa-code me-1"></i>{{ __('View observed samlResponse XML', plugin) }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Collapsible SAML Response XML structure inside the assistant -->
+                            <div class="collapse mt-3" id="samlsso-xml-collapse">
+                                <div class="border rounded bg-white p-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="fw-bold text-muted small"><i class="fas fa-code"></i> {{ __('Sanitized SAML Response XML Structure', plugin) }}</span>
+                                    </div>
+                                    {% if saml_xml_structure is not empty %}
+                                        <div class="alert alert-info py-2 px-3 mb-2 small">
+                                            <i class="fas fa-info-circle text-primary me-1"></i>{{ __('This shows the structure of the last received SAML Response. Cryptographic keys, signatures, digests, and PII text node values have been stripped.', plugin) }}
+                                        </div>
+                                        <pre class="bg-light p-3 border rounded font-monospace mb-0" style="max-height: 450px; overflow-y: auto;"><code id="xml_highlighted_code"></code></pre>
+                                    {% else %}
+                                        <p class="text-muted mb-0 small"><i class="fas fa-info-circle"></i> {{ __('No SAML response has been recorded yet. Perform a successful login to populate this view.', plugin) }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -844,55 +1088,147 @@
                         {% endfor %}
                     </datalist>
 
-                    <!-- Mappings -->
-                    {% for field in claim_fields %}
-                        {% set configured_value = claim_mappings[field]|default('') %}
-                        <div class="row mb-3 align-items-center">
-                            <label class="col-sm-3 col-form-label"><b>{{ field|title }}</b></label>
-                            <div class="col-sm-6">
-                                <input type="text" 
-                                       name="claim_map[{{ field }}]" 
-                                       id="claim_map_{{ field }}" 
-                                       value="{{ configured_value }}" 
-                                       list="observed_claims_list" 
-                                       class="form-control"
-                                       placeholder="{{ __('Enter or select claim key', plugin) }}">
-                                <div class="form-text">
-                                    {% if field == 'username' %}
-                                        {{ __('Default: NameId', plugin) }}
-                                    {% elseif field == 'email' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress</code>
-                                    {% elseif field == 'realname' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname</code>
-                                    {% elseif field == 'firstname' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname</code>
-                                    {% elseif field == 'phone' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.xmlsoap.org/ws/2005/05/identity/claims/telephonenumber</code>
-                                    {% elseif field == 'mobile' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.xmlsoap.org/ws/2005/05/identity/claims/mobilephone</code>
-                                    {% elseif field == 'jobtitle' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.xmlsoap.org/ws/2005/05/identity/claims/jobtitle</code>
-                                    {% elseif field == 'country' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.xmlsoap.org/ws/2005/05/identity/claims/country</code>
-                                    {% elseif field == 'city' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.xmlsoap.org/ws/2005/05/identity/claims/city</code>
-                                    {% elseif field == 'street' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.xmlsoap.org/ws/2005/05/identity/claims/streetaddress</code>
-                                    {% elseif field == 'groups' %}
-                                        {{ __('Default:', plugin) }} <code>http://schemas.microsoft.com/ws/2008/06/identity/claims/groups</code>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="col-sm-3">
-                                {% if claim_warnings[field] is defined %}
-                                    <span class="text-warning" title="{{ claim_warnings[field] }}">
-                                        ⚠️ {{ __('Unobserved claim key', plugin) }}
-                                    </span>
-                                {% endif %}
-                            </div>
+                    <!-- Dynamic Mapping Grid -->
+                    {% if claim_errors is not empty %}
+                        <div class="alert alert-danger mb-4">
+                            <h5 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>{{ __('Claim Mapping Validation Errors', plugin) }}</h5>
+                            <ul class="mb-0">
+                                {% for key, err in claim_errors %}
+                                    <li>{{ err }}</li>
+                                {% endfor %}
+                            </ul>
                         </div>
-                    {% endfor %}
+                    {% endif %}
+
+                    <div>
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th style="width: 18%;">{{ __('Target Type', plugin) }}</th>
+                                    <th style="width: 18%;">{{ __('GLPI Target Field', plugin) }}</th>
+                                    <th style="width: 25%;">{{ __('SAML Response Claim Key', plugin) }}</th>
+                                    <th style="width: 18%;">{{ __('Default Fallback Value', plugin) }}</th>
+                                    <th class="text-center" style="width: 8%;">{{ __('Required', plugin) }}</th>
+                                    <th>{{ __('Status', plugin) }}</th>
+                                    <th style="width: 8%;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="claim_mapping_tbody">
+                                {% for index, mapping in claim_mappings %}
+                                    {% set is_system_required = (mapping.target_type == 'user_field' and (mapping.glpi_field == 'username' or mapping.glpi_field == 'email')) %}
+                                    {% set is_username_locked = (mapping.target_type == 'user_field' and mapping.glpi_field == 'username') %}
+                                    <tr class="claim-mapping-row" data-index="{{ index }}">
+                                        <td>
+                                            {% if is_system_required %}
+                                                <input type="hidden" name="claim_map[{{ index }}][target_type]" value="{{ mapping.target_type }}">
+                                            {% endif %}
+                                            <select name="claim_map[{{ index }}][target_type]" class="form-select target-type-select" onchange="updateGlpiFields(this)" {% if is_system_required %}disabled{% endif %}>
+                                                <option value="user_field" {% if mapping.target_type == 'user_field' %}selected{% endif %}>{{ __('User Field', plugin) }}</option>
+                                                <option value="rule_field" {% if mapping.target_type == 'rule_field' %}selected{% endif %}>{{ __('Rule Field', plugin) }}</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            {% if is_system_required %}
+                                                <input type="hidden" name="claim_map[{{ index }}][glpi_field]" value="{{ mapping.glpi_field }}">
+                                            {% endif %}
+                                            <select name="claim_map[{{ index }}][glpi_field]" class="form-select glpi-field-select" {% if is_system_required %}disabled{% endif %}>
+                                                {% if mapping.target_type == 'rule_field' %}
+                                                    {% for field in allowed_rule_fields %}
+                                                        <option value="{{ field }}" {% if mapping.glpi_field == field %}selected{% endif %}>{{ field|title }}</option>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    {% for field in allowed_user_fields %}
+                                                        <option value="{{ field }}" {% if mapping.glpi_field == field %}selected{% endif %}>{{ field|title }}</option>
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </select>
+                                        </td>
+                                        <td>
+                                            {% if is_username_locked %}
+                                                <input type="hidden" name="claim_map[{{ index }}][saml_claim]" value="NameId">
+                                            {% endif %}
+                                            <div class="input-group">
+                                                <input type="text" name="claim_map[{{ index }}][saml_claim]" value="{{ is_username_locked ? 'NameId' : mapping.saml_claim }}" class="form-control saml-claim-input" oninput="checkObserved(this)" {% if is_username_locked %}disabled{% else %}list="observed_claims_list"{% endif %}>
+                                                {% if not is_username_locked and observed_claims is not empty %}
+                                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false"></button>
+                                                    <ul class="dropdown-menu dropdown-menu-end" style="max-height: 200px; overflow-y: auto;">
+                                                        {% for claim in observed_claims %}
+                                                            <li><a class="dropdown-item" href="#" onclick="selectClaim(this, '{{ claim|escape('js') }}'); return false;">{{ claim }}</a></li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <input type="text" name="claim_map[{{ index }}][default_value]" value="{{ mapping.default_value }}" class="form-control">
+                                        </td>
+                                        <td class="text-center">
+                                            {% if is_system_required %}
+                                                <input type="hidden" name="claim_map[{{ index }}][is_required]" value="1">
+                                            {% endif %}
+                                            <input type="checkbox" name="claim_map[{{ index }}][is_required]" value="1" class="form-check-input" {% if is_system_required or mapping.is_required == 1 %}checked{% endif %} {% if is_system_required %}disabled{% endif %}>
+                                        </td>
+                                        <td>
+                                            <div class="status-indicators d-flex align-items-center gap-2">
+                                                {% if is_username_locked or mapping.saml_claim in observed_claims %}
+                                                    <span class="badge bg-success observed-badge">✅ {{ __('Observed', plugin) }}</span>
+                                                {% elseif mapping.saml_claim is not empty %}
+                                                    <span class="badge bg-warning unobserved-badge">⚠️ {{ __('Unobserved', plugin) }}</span>
+                                                {% endif %}
+                                                {% if mapping.target_type == 'rule_field' and mapping.glpi_field in unused_rule_fields %}
+                                                    <span class="badge bg-danger unused-rule-badge" title="{{ __('This JIT criteria has no active rules in GLPI evaluating it.', plugin) }}">⚠️ {{ __('Unused in Rules', plugin) }}</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if not is_system_required %}
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteRow(this)">
+                                                    <i class="fas fa-trash"></i> {{ __('Delete') }}
+                                                </button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mb-4">
+                        <button type="button" class="btn btn-primary" onclick="addRow('', '', '', '', 0)">
+                            <i class="fas fa-plus"></i> {{ __('Add Mapping', plugin) }}
+                        </button>
+                    </div>
+
+
+
+                    {% if claim_mappings is empty %}
+                        <script>
+                            $(function() {
+                                addRow('user_field', 'username', 'NameId', '', 1);
+                                addRow('user_field', 'email', 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress', '', 1);
+                                
+                                const rawXml = {{ saml_xml_structure|json_encode|raw }};
+                                const codeElem = document.getElementById('xml_highlighted_code');
+                                if (codeElem && rawXml) {
+                                    codeElem.innerHTML = highlightXml(rawXml);
+                                }
+                            });
+                        </script>
+                    {% else %}
+                        <script>
+                            $(function() {
+                                rowCounter = {{ claim_mappings|length }};
+                                
+                                const rawXml = {{ saml_xml_structure|json_encode|raw }};
+                                const codeElem = document.getElementById('xml_highlighted_code');
+                                if (codeElem && rawXml) {
+                                    codeElem.innerHTML = highlightXml(rawXml);
+                                }
+                            });
+                        </script>
+                    {% endif %}
                 </div>
+            </div>
             </div>
             <!-- ################################################################################-->
             <!-- Logging details -->

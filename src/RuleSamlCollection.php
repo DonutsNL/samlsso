@@ -72,4 +72,5 @@ class RuleSamlCollection extends RuleCollection
     {
         return __('JIT import rules', PLUGIN_NAME);
     }
+
 }

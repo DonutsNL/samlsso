@@ -98,6 +98,7 @@ class ConfigEntity extends ConfigItem
     public const IS_DELETED      = 'is_deleted';
     public const CREATE_DATE     = 'date_creation';
     public const MOD_DATE        = 'date_mod';
+    public const SAML_XML_STRUCTURE = 'saml_xml_structure';
 
     /**
      * True, if an configuration issue is found its set to false.
@@ -566,6 +567,114 @@ class ConfigEntity extends ConfigItem
             return $output;
         } else {
             return false;
+        }
+    }
+
+    /**
+     * Update the anonymized SAML XML structure in the database.
+     *
+     * @param string $anonymizedXml The sanitized XML structure.
+     * @return void
+     */
+    public function updateXmlStructure(string $anonymizedXml): void
+    {
+        $id = $this->getField(self::ID);
+        if ($id && (int)$id > 0) {
+            // Load current configuration as array from this entity's fields
+            $postData = $this->fields;
+            // Set the new XML structure
+            $postData[self::SAML_XML_STRUCTURE] = $anonymizedXml;
+            
+            // Re-validate everything using ConfigEntity post template to guarantee typesafety and strict validation
+            $updatedEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => new \ArrayIterator($postData)]);
+            if ($updatedEntity->isValid()) {
+                $fields = $updatedEntity->getDBFields([self::CREATE_DATE, self::IS_DELETED]);
+                $config = new SamlConfig();
+                $config->update($fields);
+                $this->fields[self::SAML_XML_STRUCTURE] = $anonymizedXml;
+            }
+        }
+    }
+
+    /**
+     * Anonymize SAML XML response by stripping out certificate data, signatures,
+     * digests, and replacing element text content with generic placeholders.
+     *
+     * @param string $xml Raw SAML Response XML.
+     * @return string Sanitized XML.
+     */
+    public static function anonymizeXml(string $xml): string
+    {
+        if (empty($xml)) {
+            return '';
+        }
+
+        $dom = new \DOMDocument();
+        $old_entity_loader = null;
+        if (\PHP_VERSION_ID < 80000) {
+            $old_entity_loader = libxml_disable_entity_loader(true);
+        }
+        
+        $dom->preserveWhiteSpace = false;
+        $dom->formatOutput = true;
+
+        if (!@$dom->loadXML($xml, LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR | LIBXML_NOCDATA)) {
+            if (\PHP_VERSION_ID < 80000 && $old_entity_loader !== null) {
+                libxml_disable_entity_loader($old_entity_loader);
+            }
+            return 'Invalid XML response';
+        }
+        
+        if (\PHP_VERSION_ID < 80000 && $old_entity_loader !== null) {
+            libxml_disable_entity_loader($old_entity_loader);
+        }
+
+        self::anonymizeNode($dom->documentElement);
+
+        return $dom->saveXML() ?: 'Error processing XML';
+    }
+
+    /**
+     * Recursively sanitize XML nodes.
+     *
+     * @param \DOMNode $node The node to sanitize.
+     * @return void
+     */
+    private static function anonymizeNode(\DOMNode $node): void
+    {
+        $cryptoTags = ['Signature', 'SignatureValue', 'DigestValue', 'X509Certificate', 'CipherValue', 'EncryptedData'];
+        
+        $toRemove = [];
+        foreach ($node->childNodes as $child) {
+            if ($child->nodeType === XML_ELEMENT_NODE) {
+                $localName = $child->localName ?: $child->nodeName;
+                if (in_array($localName, $cryptoTags, true)) {
+                    $toRemove[] = $child;
+                } else {
+                    self::anonymizeNode($child);
+                }
+            }
+        }
+
+        foreach ($toRemove as $child) {
+            $node->removeChild($child);
+        }
+
+        $allowedAttributes = ['Name', 'FriendlyName', 'NameFormat', 'Format', 'Version'];
+        if ($node->attributes) {
+            foreach ($node->attributes as $attr) {
+                if (str_starts_with($attr->nodeName, 'xmlns') || in_array($attr->nodeName, $allowedAttributes, true)) {
+                    continue;
+                }
+                $attr->nodeValue = '[STRIPPED]';
+            }
+        }
+
+        if ($node->childNodes->length === 1 && $node->firstChild->nodeType === XML_TEXT_NODE) {
+            $val = trim($node->firstChild->nodeValue);
+            if ($val !== '') {
+                $node->firstChild->nodeValue = '[STRIPPED]';
+            }
         }
     }
 }

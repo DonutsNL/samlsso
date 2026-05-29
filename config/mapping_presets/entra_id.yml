@@ -1,5 +1,4 @@
 # Entra ID (Azure AD) Claim Mapping Preset
-username: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
 email: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
 realname: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"
 firstname: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
