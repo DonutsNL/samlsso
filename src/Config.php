@@ -406,6 +406,7 @@ class Config extends CommonDBTM
             'WHERE' => [
                 ConfigEntity::IS_ACTIVE => 1,
                 ConfigEntity::IS_DELETED => 0,
+                ConfigEntity::ENFORCE_SSO => 1,
                 'NOT' => [ConfigEntity::CONF_DOMAIN => ['youruserdomain.tld', '']]
             ]
         ]);

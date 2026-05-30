@@ -125,7 +125,7 @@ function plugin_init_samlsso(): void                                            
     if ($is_login_post && !$is_bypassed) {
         if (Config::getIsEnforced()) {
             // Nullify the password payload so GLPI native authentication fails
-            $_POST['login_password'] = null;
+            $_POST['login_password'] = 'invalid_password_due_to_sso_enforcement';
         }
     }
 
