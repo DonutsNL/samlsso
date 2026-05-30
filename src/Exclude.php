@@ -348,6 +348,7 @@ class Exclude extends CommonDropdown
         $default_collation = DBConnection::getDefaultCollation();
         $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
 
+        // Fix for https://github.com/DonutsNL/samlsso/issues/111
         $table = getTableForItemType(static::class);
 
         // Create the base table if it does not yet exist;
@@ -440,12 +441,13 @@ class Exclude extends CommonDropdown
     /**
      * uninstall(Migration migration) : void -
      * Uninstall tables uncomment the line to make plugin clean table.
-     *
+     * 
      * @return void
      * @see             hook.php:plugin_GLPISaml_uninstall()
      */
     public static function uninstall(Migration $migration): void
     {
+        // Fix for https://github.com/DonutsNL/samlsso/issues/111
         $table = getTableForItemType(static::class);
         Session::addMessageAfterRedirect("🆗 Removed: $table");
         $migration->dropTable($table);

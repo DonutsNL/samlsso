@@ -41,6 +41,9 @@ if [ -d "$GLPIPATH" ]; then
 	if [ -f "$GLPIPATH/samlsso/release/samlsso.zip" ]; then
 		rm -f $GLPIPATH/samlsso/release/samlsso.zip
 	fi
+	if [ -f "$GLPIPATH/samlsso/release/release.zip" ]; then
+		rm -f $GLPIPATH/samlsso/release/release.zip
+	fi
 	
 	cd $GLPIPATH;
 	if [ -d './samlsso' ]; then 
