@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -165,7 +165,7 @@ class Config extends CommonDBTM
             'id'                 => '1',                        // By GLPI convention Name field should have ID 1.
             'table'              => $this->getTable(),
             'field'              => ConfigEntity::NAME,
-            'name'               => __('Name'),
+            'name'               => __('Name', PLUGIN_NAME),
             'massiveaction'      => false,
             'datatype'           => 'itemlink'
         ];
@@ -173,7 +173,7 @@ class Config extends CommonDBTM
             'id'                 => '2',                        // By GLPI convention ID field should have ID 2.
             'table'              => $this->getTable(),
             'field'              => ConfigEntity::ID,
-            'name'               => __('ID'),
+            'name'               => __('ID', PLUGIN_NAME),
             'massiveaction'      => false, // implicit field is id
             'datatype'           => 'itemlink'
         ];
@@ -181,7 +181,7 @@ class Config extends CommonDBTM
             'id'                 => '3',                        // If this was the glpi entities_id the id should by convention be ID `86`
             'table'              => $this->getTable(),
             'field'              => ConfigEntity::IDP_ENTITY_ID,
-            'name'               => __('Idp entity ID'),
+            'name'               => __('Idp entity ID', PLUGIN_NAME),
             'massiveaction'      => false,
             'datatype'           => 'text'
         ];
@@ -189,7 +189,7 @@ class Config extends CommonDBTM
             'id'                 => '4',
             'table'              => $this->getTable(),
             'field'              => ConfigEntity::IS_ACTIVE,
-            'name'               => __('Is active'),
+            'name'               => __('Is active', PLUGIN_NAME),
             'massiveaction'      => false,
             'datatype'           => 'bool'
         ];
@@ -224,7 +224,7 @@ class Config extends CommonDBTM
                     'id'                 => $index,
                     'table'              => Config::getTable(),
                     'field'              => $field[ConfigItem::FIELD],
-                    'name'               => __(str_replace('_', ' ', ucfirst($field[ConfigItem::FIELD]))),
+                    'name'               => __(str_replace('_', ' ', ucfirst($field[ConfigItem::FIELD])), PLUGIN_NAME),
                     'datatype'           => $field[ConfigItem::TYPE],
                     'list'               => $field['list'],
                 ];
@@ -443,7 +443,7 @@ class Config extends CommonDBTM
         $default_key_sign   = DBConnection::getDefaultPrimaryKeySignOption();
 
         // Get the class Table: glpi_plugin_samlsso_configs;
-        $table              = Config::getTable();
+        $table              = getTableForItemType(static::class);
 
         // Create the base table if it does not yet exist;
         // Do not update this table for later versions, use the migration class;
@@ -460,6 +460,7 @@ class Config extends CommonDBTM
             `strict`                        tinyint NOT NULL DEFAULT '0',
             `debug`                         tinyint NOT NULL DEFAULT '0',
             `user_jit`                      tinyint NOT NULL DEFAULT '0',
+            `sync_on_login`                 tinyint NOT NULL DEFAULT '0',
             `sp_certificate`                TEXT NOT NULL,
             `sp_private_key`                TEXT NOT NULL,
             `sp_nameid_format`              VARCHAR(128) NOT NULL,
@@ -473,12 +474,18 @@ class Config extends CommonDBTM
             `security_authnrequestssigned`  tinyint NOT NULL DEFAULT '0',
             `security_logoutrequestsigned`  tinyint NOT NULL DEFAULT '0',
             `security_logoutresponsesigned` tinyint NOT NULL DEFAULT '0',
+            `security_wantmessagessigned`   tinyint NOT NULL DEFAULT '0',
+            `security_wantassertionssigned` tinyint NOT NULL DEFAULT '0',
+            `security_wantassertionsencrypted` tinyint NOT NULL DEFAULT '0',
+            `security_signmetadata`         tinyint NOT NULL DEFAULT '0',
+            `security_wantnameid`           tinyint NOT NULL DEFAULT '0',
             `compress_requests`             tinyint NOT NULL DEFAULT '0',
             `compress_responses`            tinyint NOT NULL DEFAULT '0',
             `validate_xml`                  tinyint NOT NULL DEFAULT '0',
             `validate_destination`          tinyint NOT NULL DEFAULT '0',
             `lowercase_url_encoding`        tinyint NOT NULL DEFAULT '0',
             `comment`                       text NULL,
+            `saml_xml_structure`            text NULL,
             `is_active`                     tinyint NOT NULL DEFAULT '0',
             `is_deleted`                    tinyint NOT NULL default '0',
             `date_creation`                 timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -499,6 +506,34 @@ class Config extends CommonDBTM
             SQL;
             $DB->doQuery($query) or die($DB->error());
 
+            if (!$DB->fieldExists($table, 'saml_xml_structure', false)) {
+                $migration->addField($table, 'saml_xml_structure', 'text', ['null' => true, 'after' => 'comment', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'sync_on_login', false)) {
+                $migration->addField($table, 'sync_on_login', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'user_jit', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_wantmessagessigned', false)) {
+                $migration->addField($table, 'security_wantmessagessigned', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_logoutresponsesigned', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_wantassertionssigned', false)) {
+                $migration->addField($table, 'security_wantassertionssigned', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_wantmessagessigned', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_wantassertionsencrypted', false)) {
+                $migration->addField($table, 'security_wantassertionsencrypted', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_wantassertionssigned', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_signmetadata', false)) {
+                $migration->addField($table, 'security_signmetadata', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_wantassertionsencrypted', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_wantnameid', false)) {
+                $migration->addField($table, 'security_wantnameid', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_signmetadata', 'update' => true]);
+            }
+
             Session::addMessageAfterRedirect("🆗 Updated: $table layout.");
         }
     }
@@ -511,7 +546,7 @@ class Config extends CommonDBTM
      */
     public static function uninstall(Migration $migration): void
     {
-        $table = Config::getTable();
+        $table = getTableForItemType(static::class);
         // Make this smarter in the future. Never create a backup
         // when the source table is empty and an existing table is
         // populated! Allow user to restore from backup table. Current

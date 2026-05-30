@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Denis Ollier
  *  @copyright  Copyright (c) 2025 by Denis Ollier
  *  @license    GPLv3+
@@ -55,6 +55,7 @@ use GlpiPlugin\Samlsso\LoginState;
 class CronTask extends CommonDBTM
 {
     /**
+    /**
      * Give cron information
      * @param $name : automatic action's name
      * @return array of information
@@ -64,7 +65,9 @@ class CronTask extends CommonDBTM
         if ($name == 'cleanSessionSAML') {
                 return ['description' => __("Clean old SAML sessions", PLUGIN_NAME),
                         'parameter'   => __("SAML sessions retention period (in days, 0 for infinite)", PLUGIN_NAME)];
-        }else{
+        } else if ($name == 'updateGeoIP') {
+                return ['description' => __("Update GeoIP offline database", PLUGIN_NAME)];
+        } else {
             return [];
         }
     }
@@ -100,6 +103,17 @@ class CronTask extends CommonDBTM
    }
 
     /**
+     * Cron action to update the GeoIP database.
+     * @param glpiCronTask $task for log
+     * @return integer 0 : nothing to do, 1 : done with success
+     */
+    public static function cronUpdateGeoIP(glpiCronTask $task): int
+    {
+        $success = \GlpiPlugin\Samlsso\Utility\GeoIPUpdater::run($task);
+        return $success ? 1 : 0;
+    }
+
+    /**
      * Register GlpiSAML plugin CronTasks
      * @param   Migration $migration    - Plugin migration information;
      * @return  void
@@ -116,6 +130,15 @@ class CronTask extends CommonDBTM
                 'state' => glpiCronTask::STATE_WAITING,
                 'mode'  => glpiCronTask::MODE_EXTERNAL,
                 'param' => 30,
+            ]);
+        }
+
+        $task2 = "updateGeoIP";
+        if (!$cron->getFromDBbyName($class, $task2)) {
+            glpiCronTask::Register($class, $task2, 30 * DAY_TIMESTAMP, [
+                'state' => glpiCronTask::STATE_WAITING,
+                'mode'  => glpiCronTask::MODE_EXTERNAL,
+                'param' => 0,
             ]);
         }
     }

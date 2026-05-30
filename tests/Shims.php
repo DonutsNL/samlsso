@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -75,6 +75,15 @@ namespace {
     }
     if (!defined('PLUGIN_SAMLSSO_LOGEVENTS')) {
         define('PLUGIN_SAMLSSO_LOGEVENTS', '_events.log');
+    }
+    if (!defined('PLUGIN_SAMLSSO_VERSION')) {
+        define('PLUGIN_SAMLSSO_VERSION', '1.3.0');
+    }
+    if (!defined('PLUGIN_SAMLSSO_SRCDIR')) {
+        define('PLUGIN_SAMLSSO_SRCDIR', dirname(__DIR__) . '/src');
+    }
+    if (!defined('PLUGIN_SAMLSSO_WEBDIR')) {
+        define('PLUGIN_SAMLSSO_WEBDIR', '/plugins/samlsso/');
     }
     if (!defined('NS_PLUG')) {
         define('NS_PLUG', 'GlpiPlugin\\');
@@ -120,6 +129,19 @@ namespace {
     if (!function_exists('_n')) {
         function _n(string $single, string $plural, int $nb): string {
             return ($nb > 1) ? $plural : $single;
+        }
+    }
+
+    /**
+     * Shim for GLPI's getTableForItemType function.
+     * Computes the table name for a given class.
+     *
+     * @param string $itemtype The class name.
+     * @return string The resolved table name.
+     */
+    if (!function_exists('getTableForItemType')) {
+        function getTableForItemType(string $itemtype): string {
+            return CommonDBTM::getTable($itemtype);
         }
     }
 
@@ -187,6 +209,28 @@ namespace {
             public static function getPluralNumber(): int { 
                 return 2; 
             }
+
+            /**
+             * Mocks Session destroy.
+             */
+            public static function destroy(): void {}
+
+            /**
+             * Mocks Session start.
+             */
+            public static function start(): void {}
+
+            /**
+             * Mocks Session initialization with Auth.
+             *
+             * @param mixed $auth Auth instance.
+             */
+            public static function init($auth): void {}
+
+            /**
+             * Mocks Session cleanOnLogout.
+             */
+            public static function cleanOnLogout(): void {}
         }
     }
 
@@ -257,8 +301,16 @@ namespace {
             public static function footer(): void { 
                 echo "HTML_FOOTER\n"; 
             }
+
+            /**
+             * Mock date/time localized conversion helper.
+             */
+            public static function convDateTime(string $datetime, $format = null, bool $with_seconds = true): string {
+                return $datetime . ' (LOCAL)';
+            }
         }
     }
+
 
     /**
      * Shim for GLPI's Toolbox class.
@@ -286,6 +338,15 @@ namespace {
              */
             public static function logWarning(string $msg): bool { 
                 return true; 
+            }
+
+            /**
+             * Check if the current request is an AJAX request.
+             *
+             * @return bool
+             */
+            public static function isAjax(): bool {
+                return isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
             }
         }
     }
@@ -443,6 +504,21 @@ namespace {
                 }
                 return 1;
             }
+
+            /**
+             * Mocks updating a user record.
+             *
+             * @param array $input User attributes to update.
+             * @param bool $history Keep history logs.
+             * @param array $options Additional options.
+             * @return bool True on success.
+             */
+            public function update(array $input, bool $history = true, array $options = []): bool {
+                if (self::$mockObject && method_exists(self::$mockObject, 'update')) {
+                    return self::$mockObject->update($input, $history, $options);
+                }
+                return parent::update($input, $history, $options);
+            }
         }
     }
 
@@ -510,7 +586,13 @@ namespace {
      * Shim for GLPI's Group_User link table.
      */
     if (!class_exists('Group_User', false)) {
-        class Group_User extends CommonDBTM {}
+        class Group_User extends CommonDBTM {
+            public static array $added = [];
+            public function add(array $input, array $options = [], bool $history = true): int {
+                self::$added[] = $input;
+                return 1;
+            }
+        }
     }
 
     /**
@@ -518,6 +600,7 @@ namespace {
      */
     if (!class_exists('Profile_User', false)) {
         class Profile_User extends CommonDBTM {
+            public static array $added = [];
             /**
              * Get profile links for a user.
              *
@@ -526,6 +609,27 @@ namespace {
              */
             public static function getForUser(int $id): array { 
                 return [1 => ['profiles_id' => 1]]; 
+            }
+            public function add(array $input, array $options = [], bool $history = true): int {
+                self::$added[] = $input;
+                return 1;
+            }
+        }
+    }
+
+    /**
+     * Shim for GLPI's UserEmail class.
+     */
+    if (!class_exists('UserEmail', false)) {
+        class UserEmail extends CommonDBTM {
+            /**
+             * Mocks retrieving associated emails for a user.
+             *
+             * @param int $id User ID.
+             * @return array Empty array for mock.
+             */
+            public function getForUser(int $id): array {
+                return [];
             }
         }
     }
@@ -686,6 +790,17 @@ namespace Glpi\Toolbox {
             public static function sanitize(array $input): array { 
                 return $input; 
             }
+        }
+    }
+}
+
+namespace OneLogin\Saml2 {
+    if (!class_exists('OneLogin\Saml2\Constants', false)) {
+        class Constants {
+            public const NAMEID_EMAIL_ADDRESS = 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress';
+            public const NAMEID_UNSPECIFIED = 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified';
+            public const NAMEID_TRANSIENT = 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient';
+            public const NAMEID_PERSISTENT = 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent';
         }
     }
 }

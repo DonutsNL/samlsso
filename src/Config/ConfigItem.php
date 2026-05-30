@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -49,7 +49,6 @@ namespace GlpiPlugin\Samlsso\Config;
 use DateTime;
 use DateTimeImmutable;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
-use Plugin;
 
 /*
  * Validate, evaluate, clean, normalizes, enriches, saml config items before
@@ -99,7 +98,7 @@ class ConfigItem    //NOSONAR
             $var != -1        &&
             !is_numeric($var)
         ) {
-            $error = __('⭕ ID must be a positive numeric value!');
+            $error = __('⭕ ID must be a positive numeric value!', PLUGIN_NAME);
         }
 
         return [
@@ -374,6 +373,19 @@ class ConfigItem    //NOSONAR
         ];
     }
 
+    protected function saml_xml_structure(mixed $var): array
+    {
+        return [
+            ConfigItem::FORMEXPLAIN => __('The anonymized SAML response XML structure', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('SAML Response XML Structure', PLUGIN_NAME),
+            ConfigItem::EVAL      => ConfigItem::VALID,
+            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => false
+        ];
+    }
+
     // Might cast it into an EPOCH date with invalid values.
     protected function date_creation(mixed $var): array                 //NOSONAR
     {
@@ -479,7 +491,7 @@ class ConfigItem    //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN   => __('If enabled it will enforce OneLogin PHPSAML to print status and error messages. Be aware that not all message\'s might be captured by samlSSO and might therefor not become visible.'),
+                ConfigItem::FORMEXPLAIN   => __('If enabled it will enforce OneLogin PHPSAML to print status and error messages. Be aware that not all message\'s might be captured by samlSSO and might therefor not become visible.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE     => __('DEBUG', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -492,7 +504,7 @@ class ConfigItem    //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN     => __('If enabled samlSSO will create new GLPI users on the fly and assign the properties defined in the samlSSO assignment rules. If disables users that do not have a valid GLPI user will not be able to login into GLPI until a user is manually created.'),
+                ConfigItem::FORMEXPLAIN     => __('If enabled samlSSO will create new GLPI users on the fly and assign the properties defined in the samlSSO assignment rules. If disables users that do not have a valid GLPI user will not be able to login into GLPI until a user is manually created.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE     => __('JIT USER CREATION', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -501,11 +513,125 @@ class ConfigItem    //NOSONAR
         );
     }
 
+    /**
+     * Validates and normalizes the sync_on_login boolean configuration option.
+     *
+     * @param  mixed $var  Raw input value (usually '1' or '0')
+     * @return array       Contextual metadata and validation results
+     */
+    protected function sync_on_login(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled, user fields mapped from SAML claims and assignment rules will be synchronized on every successful login.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('SYNC ON LOGIN', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SYNC_ON_LOGIN)
+        );
+    }
+
+    /**
+     * Validates and normalizes the security_wantmessagessigned option.
+     *
+     * @param  mixed $var  Raw input value
+     * @return array       Metadata and validation results
+     */
+    protected function security_wantmessagessigned(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled, GLPI will require all SAML protocol messages received from the Identity Provider (IdP) to be cryptographically signed.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('REQUIRE SIGNED MESSAGES', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SECURITY_WANTMESSAGESSIGNED)
+        );
+    }
+
+    /**
+     * Validates and normalizes the security_wantassertionssigned option.
+     *
+     * @param  mixed $var  Raw input value
+     * @return array       Metadata and validation results
+     */
+    protected function security_wantassertionssigned(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled, GLPI will require individual SAML assertions within the SAML message to be signed. If unsigned, assertions will be rejected.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('REQUIRE SIGNED ASSERTIONS', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SECURITY_WANTASSERTIONSSIGNED)
+        );
+    }
+
+    /**
+     * Validates and normalizes the security_wantassertionsencrypted option.
+     *
+     * @param  mixed $var  Raw input value
+     * @return array       Metadata and validation results
+     */
+    protected function security_wantassertionsencrypted(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled, GLPI will expect the SAML assertions containing user claims to be encrypted. GLPI will decrypt them using the SP private key.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('REQUIRE ENCRYPTED ASSERTIONS', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED)
+        );
+    }
+
+    /**
+     * Validates and normalizes the security_signmetadata option.
+     *
+     * @param  mixed $var  Raw input value
+     * @return array       Metadata and validation results
+     */
+    protected function security_signmetadata(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled, the SAML SP metadata XML generated by GLPI will be cryptographically signed using the Service Provider certificate.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('SIGN SP METADATA', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SECURITY_SIGNMETADATA)
+        );
+    }
+
+    /**
+     * Validates and normalizes the security_wantnameid option.
+     *
+     * @param  mixed $var  Raw input value
+     * @return array       Metadata and validation results
+     */
+    protected function security_wantnameid(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN   => __('If enabled, GLPI will strictly require a NameID element to be present in the SAML assertion payload.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE     => __('REQUIRE NAMEID', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SECURITY_WANTNAMEID)
+        );
+    }
+
     protected function security_nameidencrypted(mixed $var): array //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will encrypt the <samlp:logoutRequest> sent by this SP using the provided SP certificate and private key. This option will be toggled "off" automatically if no, or no valid SP certificate and key is provided.')),
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will encrypt the <samlp:logoutRequest> sent by this SP using the provided SP certificate and private key. This option will be toggled "off" automatically if no, or no valid SP certificate and key is provided.', PLUGIN_NAME)),
                 ConfigItem::FORMTITLE     => __('ENCRYPT NAMEID', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -518,7 +644,7 @@ class ConfigItem    //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> messages send by this SP. The IDP should consult the metadata to get the information required to validate the signatures.')),
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> messages send by this SP. The IDP should consult the metadata to get the information required to validate the signatures.', PLUGIN_NAME)),
                 ConfigItem::FORMTITLE     => __('SIGN AUTHN REQUEST', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -531,7 +657,7 @@ class ConfigItem    //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> messages send by this SP.')),
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> messages send by this SP.', PLUGIN_NAME)),
                 ConfigItem::FORMTITLE     => __('SIGN LOGOUT REQUEST', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -544,7 +670,7 @@ class ConfigItem    //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutResponse> messages send by this SP.')),
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled the OneLogin PHPSAML toolkit will sign the <samlp:logoutResponse> messages send by this SP.', PLUGIN_NAME)),
                 ConfigItem::FORMTITLE     => __('SIGN LOGOUT RESPONSE', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -557,7 +683,7 @@ class ConfigItem    //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN     => __('If enabled the authentication requests send to the IdP will be compressed by the SP.'),
+                ConfigItem::FORMEXPLAIN     => __('If enabled the authentication requests send to the IdP will be compressed by the SP.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE     => __('COMPRESS REQUESTS', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -570,7 +696,7 @@ class ConfigItem    //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN     => __('If enabled the SP expects responses send by the IdP to be compressed.'),
+                ConfigItem::FORMEXPLAIN     => __('If enabled the SP expects responses send by the IdP to be compressed.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE     => __('COMPRESS RESPONSES', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -584,7 +710,7 @@ class ConfigItem    //NOSONAR
         return array_merge(
             [
                 ConfigItem::FORMEXPLAIN   => __('If enabled the SP will validate all received XMLs. In order to validate the XML
-                                                        "strict" security setting must be true.'),
+                                                        "strict" security setting must be true.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE     => __('VALIDATE XML', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -597,7 +723,7 @@ class ConfigItem    //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN   => __('If enabled, SAMLResponses with an empty value at its Destination attribute will not be rejected for this fact.'),
+                ConfigItem::FORMEXPLAIN   => __('If enabled, SAMLResponses with an empty value at its Destination attribute will not be rejected for this fact.', PLUGIN_NAME),
                 ConfigItem::FORMTITLE     => __('RELAX DEST VALIDATION', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -610,7 +736,7 @@ class ConfigItem    //NOSONAR
     {
         return array_merge(
             [
-                ConfigItem::FORMEXPLAIN   => __('ADFS URL-Encodes SAML data as lowercase, and the OneLogin PHPSAML toolkit by default uses uppercase. Enable this setting for ADFS compatibility on signature verification'),
+                ConfigItem::FORMEXPLAIN   => __('ADFS URL-Encodes SAML data as lowercase, and the OneLogin PHPSAML toolkit by default uses uppercase. Enable this setting for ADFS compatibility on signature verification', PLUGIN_NAME),
                 ConfigItem::FORMTITLE     => __('LOWER CASE ENCODING', PLUGIN_NAME),
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
@@ -659,7 +785,9 @@ class ConfigItem    //NOSONAR
                 // Format the born date to days between.
                 $born = $born->format('%R%a');
                 // Get the certificate's common name property.
-                $cn = $parsedCertificate['subject']['CN'];
+                /** @var array $subject */
+                $subject = $parsedCertificate['subject'];
+                $cn = $subject['CN'];
                 // Validate if we got a negative sign in the calculated ValidTo days.
                 if (strpos($aged, '-') !== false) {
                     $validations['validTo'] = __("⚠️ Warning, certificate with Common Name (CN): $cn is expired: $aged days", PLUGIN_NAME);

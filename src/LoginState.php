@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    GLPISaml
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -52,6 +52,8 @@ declare(strict_types=1);
  **/
 
 namespace GlpiPlugin\Samlsso;
+
+require_once __DIR__ . '/Utility/GeoIPResolver.php';
 
 use Session;
 use Migration;
@@ -92,6 +94,8 @@ class LoginState extends CommonDBTM
     public const LOGIN_FLOW_TRACE           = 'loginFlowTrace'; // Registers the steps and outcomes of the LoginFlow
     public const PHASE                      = 'phase';          // Describes the current state GLPI, ACS, TIMEOUT, LOGGED IN, LOGGED OUT.
     public const DATABASE                   = 'database';       // State fetched from database
+    public const CLIENT_IP                  = 'clientIp';       // Originating IP address of the client
+    public const CLIENT_COUNTRY             = 'clientCountry';  // Originating country code (2-letter ISO)
     public const PHASE_INITIAL              = 1;                // Initial visit
     public const PHASE_SAML_ACS             = 2;                // Performed SAML IDP call expected back at ACS
     public const PHASE_SAML_AUTH            = 3;                // Successfully performed IDP auth
@@ -191,9 +195,12 @@ class LoginState extends CommonDBTM
                     LoginState::LOGIN_FLOW_TRACE  => $sessionState[LoginState::LOGIN_FLOW_TRACE],
                     LoginState::PHASE             => $sessionState[LoginState::PHASE],
                     LoginState::REDIRECT          => $sessionState[LoginState::REDIRECT],
+                    LoginState::CLIENT_IP         => $sessionState[LoginState::CLIENT_IP] ?? null,
+                    LoginState::CLIENT_COUNTRY    => $sessionState[LoginState::CLIENT_COUNTRY] ?? null,
                     LoginState::DATABASE          => true,
                 ]);
             }
+            $this->setClientIpAndCountry();
 
 
 
@@ -277,6 +284,8 @@ class LoginState extends CommonDBTM
         // Populate the GLPI state first.
         $this->evalGlpiAuth();
 
+        $this->setClientIpAndCountry();
+
         return true;
     }
 
@@ -305,6 +314,30 @@ class LoginState extends CommonDBTM
     }
 
     /**
+     * Get client IP and resolve country if not already set.
+     *
+     * @return void
+     */
+    private function setClientIpAndCountry(): void
+    {
+        if (!empty($this->state[LoginState::CLIENT_IP])) {
+            return;
+        }
+
+        $altUser = (isset($_SERVER['REMOTE_ADDR'])) ? $_SERVER['REMOTE_ADDR'] : 'CLI';
+        $remote = (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : $altUser;
+
+        if (str_contains($remote, ',')) {
+            $parts = explode(',', $remote);
+            $remote = trim($parts[0]);
+        }
+
+        $this->state[LoginState::CLIENT_IP] = $remote;
+        $this->state[LoginState::CLIENT_COUNTRY] = \GlpiPlugin\Samlsso\Utility\GeoIPResolver::resolveCountry($remote);
+    }
+
+
+    /**
      * Get and set last activity in state array
      * @since   1.0.0
      */
@@ -318,6 +351,58 @@ class LoginState extends CommonDBTM
         } else {
             return -1;
         }
+    }
+
+    /**
+     * Load state by state ID
+     *
+     * @param int $stateId The ID of the state to load
+     * @return bool True if loaded successfully, false otherwise
+     */
+    public function getFromID(int $stateId): bool
+    {
+        global $DB;
+        $sessionIterator = $DB->request([
+            'FROM' => LoginState::getTable(),
+            'WHERE' => [LoginState::STATE_ID => $stateId]
+        ]);
+        if ($sessionIterator->numrows() === 1) {
+            foreach ($sessionIterator as $sessionState) {
+                $this->state = array_merge($this->state, [
+                    LoginState::STATE_ID          => $sessionState[LoginState::STATE_ID],
+                    LoginState::USER_ID           => $sessionState[LoginState::USER_ID],
+                    LoginState::SESSION_ID        => $sessionState[LoginState::SESSION_ID],
+                    LoginState::SESSION_NAME      => $sessionState[LoginState::SESSION_NAME],
+                    LoginState::LOCATION          => $sessionState[LoginState::LOCATION],
+                    LoginState::GLPI_AUTHED       => (bool) $sessionState[LoginState::GLPI_AUTHED],
+                    LoginState::SAML_AUTHED       => (bool) $sessionState[LoginState::SAML_AUTHED],
+                    LoginState::LOGIN_DATETIME    => $sessionState[LoginState::LOGIN_DATETIME],
+                    LoginState::ENFORCE_LOGOFF    => $sessionState[LoginState::ENFORCE_LOGOFF],
+                    LoginState::IDP_ID            => $sessionState[LoginState::IDP_ID],
+                    LoginState::SAML_RESPONSE_ID  => $sessionState[LoginState::SAML_RESPONSE_ID],
+                    LoginState::SAML_REQUEST_ID   => $sessionState[LoginState::SAML_REQUEST_ID],
+                    LoginState::SAML_UNSOLICITED  => $sessionState[LoginState::SAML_UNSOLICITED],
+                    LoginState::LOGIN_FLOW_TRACE  => $sessionState[LoginState::LOGIN_FLOW_TRACE],
+                    LoginState::PHASE             => $sessionState[LoginState::PHASE],
+                    LoginState::REDIRECT          => $sessionState[LoginState::REDIRECT],
+                    LoginState::CLIENT_IP         => $sessionState[LoginState::CLIENT_IP] ?? null,
+                    LoginState::CLIENT_COUNTRY    => $sessionState[LoginState::CLIENT_COUNTRY] ?? null,
+                    LoginState::DATABASE          => true,
+                ]);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Gets the user ID associated with this state
+     *
+     * @return int User ID
+     */
+    public function getUserId(): int
+    {
+        return (!empty($this->state[LoginState::USER_ID])) ? (int) $this->state[LoginState::USER_ID] : 0;
     }
 
 
@@ -511,43 +596,6 @@ class LoginState extends CommonDBTM
 
 
 
-    /**
-     * Adds SamlResponse to the state table
-     * @param  string   json_encoded samlResponse
-     * @return bool     true on success.
-     * @since           1.0.0
-     */
-    public function setSamlResponseParams($samlResponse): bool
-    {
-        if (isset($this->state[LoginState::STATE_ID])) {
-            if ($samlResponse > 0) {
-                $this->state[LoginState::SAML_RESPONSE] = $samlResponse;
-                return ($this->update($this->state)) ? true : false;
-            }
-            return false;
-        } else {
-            throw new LoginStateException('Tried to add SamlResponseParams to non existing state');
-        }
-    }
-
-    /**
-     * Adds SamlRequest to the state table
-     * @param  string   json_encoded samlRequest
-     * @return bool     true on success.
-     * @since           1.0.0
-     */
-    public function setRequestParams(string $samlRequest): bool
-    {
-        if (isset($this->state[LoginState::STATE_ID])) {
-            if ($samlRequest > 0) {
-                $this->state[LoginState::SAML_REQUEST] = $samlRequest;
-                return ($this->update($this->state)) ? true : false;
-            }
-            return false;
-        } else {
-            throw new LoginStateException('Tried to add SamlRequestParams to non existing state');
-        }
-    }
 
     /**
      * Adds SamlRequestId to the state table
@@ -559,6 +607,7 @@ class LoginState extends CommonDBTM
     {
         if (isset($this->state[LoginState::STATE_ID])) {
             $this->state[LoginState::SAML_REQUEST_ID] = $requestId;
+            $this->state[LoginState::SAML_RESPONSE_ID] = '';
             return ($this->update($this->state)) ? true : false;
         } else {
             throw new LoginStateException('Tried to add SamlRequestId to non existing state');
@@ -682,19 +731,112 @@ class LoginState extends CommonDBTM
             }
 
             foreach ($DB->request($query) as $id => $row) {
-                // Unserialize the loginTrace, format it and export it;
+                /* Unserialize the loginTrace, format it and export it; */
                 if (!empty($row[LoginState::LOGIN_FLOW_TRACE])) {
                     $i = 1;
                     $trace = '';
-                    foreach (unserialize($row[LoginState::LOGIN_FLOW_TRACE]) as $key => $value) {
-                        $trace .= "$i : $key => $value\n\n";
-                        $i++;
+                    $decodedTrace = unserialize($row[LoginState::LOGIN_FLOW_TRACE]);
+                    if (is_array($decodedTrace)) {
+                        foreach ($decodedTrace as $key => $value) {
+                            // Translate main trace step keys
+                            $mainKeyTranslations = [
+                                'rulesEngineInput'            => 'Rules Engine Input',
+                                'rulesEngineOutput'           => 'Rules Engine Output',
+                                'syncNoChanges'               => 'Synchronization Check',
+                                'syncUpdatedFields'           => 'Updated Fields',
+                                'finalIdp'                    => 'Identity Provider Selected',
+                                'OnlyOneIdpEnforced'          => 'Only One IDP Enforced',
+                                'bypassUsed'                  => 'SSO Bypass Utilized',
+                                'loginViaUserfield'           => 'Login Via User Field',
+                                'loginViaGetter'              => 'Login Via Query Parameter',
+                                'logoutPressed'               => 'Logout Action Initiated',
+                                'JIT group assigned'          => 'JIT Group Assigned',
+                                'JIT group assignment failed' => 'JIT Group Assignment Failed',
+                                'JIT profile assigned'        => 'JIT Profile Assigned',
+                                'JIT profile assignment failed'=> 'JIT Profile Assignment Failed',
+                            ];
+                            $displayKey = $mainKeyTranslations[$key] ?? $key;
+
+                            // Decode and format JSON values nicely
+                            if (is_string($value) && (str_starts_with($value, '{') || str_starts_with($value, '['))) {
+                                $decodedJson = json_decode($value, true);
+                                if (json_last_error() === JSON_ERROR_NONE && is_array($decodedJson)) {
+                                    $formattedParts = [];
+                                    $keyTranslations = [
+                                        'name'                 => 'user_field: username',
+                                        '_useremails'          => 'user_field: email',
+                                        'realname'             => 'user_field: realname',
+                                        'firstname'            => 'user_field: firstname',
+                                        'phone'                => 'user_field: phone',
+                                        'mobile'               => 'user_field: mobile',
+                                        'samlClaimedJobTitle'  => 'user_field: jobtitle',
+                                        'samlClaimedCountry'   => 'user_field: country',
+                                        'samlClaimedCity'      => 'user_field: city',
+                                        'samlClaimedStreet'    => 'user_field: street',
+                                        'samlClaimedGroups'    => 'rule_field: groups',
+                                        'groups'               => 'rule_field: groups',
+                                        'email'                => 'rule_field: email',
+                                        'jobtitle'             => 'rule_field: jobtitle',
+                                        'country'              => 'rule_field: country',
+                                        'city'                 => 'rule_field: city',
+                                        'street'               => 'rule_field: street',
+                                        'users_id'             => 'User ID',
+                                        '_rule_process'        => 'Rule Processed',
+                                        'specific_groups_id'   => 'Assigned Group ID',
+                                        'profiles_id'          => 'Assigned Profile ID',
+                                        'entities_id'          => 'Assigned Entity ID',
+                                        'is_recursive'         => 'Recursive Profile Assignment',
+                                        '_profiles_id_default' => 'Default Profile ID',
+                                        '_entities_id_default' => 'Default Entity ID',
+                                    ];
+                                    $ruleFieldsList = ['department', 'company', 'employee_type', 'location', 'locale', 'manager'];
+                                    foreach ($decodedJson as $jsonKey => $jsonVal) {
+                                        if (isset($keyTranslations[$jsonKey])) {
+                                            $label = $keyTranslations[$jsonKey];
+                                        } elseif (in_array($jsonKey, $ruleFieldsList, true)) {
+                                            $label = 'rule_field: ' . $jsonKey;
+                                        } else {
+                                            $label = ucwords(str_replace('_', ' ', $jsonKey));
+                                        }
+                                        if (is_array($jsonVal)) {
+                                            $valStr = implode(', ', $jsonVal);
+                                        } elseif (is_bool($jsonVal)) {
+                                            $valStr = $jsonVal ? 'Yes' : 'No';
+                                        } else {
+                                            $valStr = (string)$jsonVal;
+                                        }
+                                        $formattedParts[] = "<strong>$label:</strong> $valStr";
+                                    }
+                                    $value = implode("<br/>&nbsp;&nbsp;↳ ", $formattedParts);
+                                }
+                            }
+
+                            $trace .= "<strong>$i. $displayKey</strong><br/>&nbsp;&nbsp;↳ $value<br/>";
+                            $i++;
+                        }
                     }
                 } else {
                     $trace = '';
                 }
 
                 $row[LoginState::LOGIN_FLOW_TRACE] = $trace;
+                $row[LoginState::LOGIN_DATETIME]   = \Html::convDateTime($row[LoginState::LOGIN_DATETIME]);
+                $row[LoginState::LAST_ACTIVITY]    = \Html::convDateTime($row[LoginState::LAST_ACTIVITY]);
+                
+                $countryCode = $row[LoginState::CLIENT_COUNTRY] ?? '';
+                $row['clientCountryFlag'] = \GlpiPlugin\Samlsso\Utility\GeoIPResolver::countryCodeToFlag($countryCode);
+                $row['clientCountryName'] = \GlpiPlugin\Samlsso\Utility\GeoIPResolver::countryCodeToName($countryCode);
+                $row['clientIp'] = $row[LoginState::CLIENT_IP] ?? '';
+
+                $userId = $row[LoginState::USER_ID] ?? 0;
+                $row['isUserActive'] = 0;
+                if ($userId > 0) {
+                    $user = new \User();
+                    if ($user->getFromDB($userId)) {
+                        $row['isUserActive'] = (int)($user->fields['is_active'] ?? 0);
+                    }
+                }
+
                 $logging[$id] = $row;
             }
         }
@@ -733,20 +875,6 @@ class LoginState extends CommonDBTM
         return 0;
     }
 
-    /**
-     * Determin if the state was loaded from the LoginState database or if you are dealing with
-     * an initial version. Deprecated due to new logic, use the LoginState::STATE_ID field to determin
-     * if a state was loaded from the database or initial. But it should always be loaded from database
-     * in subsequent calls as per the new logic.
-     *
-     * @deprecated 1.2.2
-     * @return  bool
-     * @since   1.2.0
-     */
-    public function isLoadedFromDb(): bool
-    {
-        return ($this->state[LoginState::DATABASE]) ? true : false;
-    }
 
     /**
      * Returns the stored redirect location if any.
@@ -777,7 +905,7 @@ class LoginState extends CommonDBTM
      * can lead anywhere.
      * 
      * @return string
-     * @since 1.2.7
+     * @since 1.3.0
      */
     public function getSafeRedirect(): string
     {
@@ -801,7 +929,7 @@ class LoginState extends CommonDBTM
      * 
      * @param bool $debug If true, preserves full context.
      * @return array
-     * @since 1.2.7
+     * @since 1.3.0
      */
     public function getSafeStateForLogging(bool $debug = false): array
     {
@@ -836,7 +964,7 @@ class LoginState extends CommonDBTM
         $default_collation = DBConnection::getDefaultCollation();
         $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
 
-        $table = LoginState::getTable();
+        $table = getTableForItemType(static::class);
 
         // Create the base table if it does not yet exist;
         // Do not update this table for later versions, use the migration class;
@@ -855,16 +983,29 @@ class LoginState extends CommonDBTM
                 `lastClickTime`             timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 `location`                  longtext NOT NULL,
                 `enforceLogoff`             tinyint {$default_key_sign} NULL,
-                `idpId`                     int NULL,
+                `idpId`                     int {$default_key_sign} NULL,
                 `serverParams`              text NULL,
                 `requestParams`             text NULL,
                 `loggedOff`                 tinyint {$default_key_sign} NULL,
                 `phase`                     text NULL,
+                `clientIp`                  varchar(45) NULL,
+                `clientCountry`             varchar(2) NULL,
                 PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
             $DB->doQuery($query) or die($DB->error());
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
+        } else {
+            /**
+             * UPGRADE PATH: correct the sign of the idpId foreign key column
+             * for installations created before this fix was applied. GLPI 11 emits
+             * a deprecation warning for signed integer foreign keys; making it
+             * UNSIGNED aligns it with the primary key it references in
+             * glpi_plugin_samlsso_configs. The column is nullable because a
+             * LoginState row may exist before an IdP is selected.
+             */
+            $migration->changeField($table, 'idpId', 'idpId', "int {$default_key_sign} NULL");
+            $migration->migrationOneTable($table);
         }
 
         // Add new requestId field for version 1.1.2.
@@ -894,12 +1035,18 @@ class LoginState extends CommonDBTM
         } // We silently ignore errors. Most common cause for an error is if the field already exists.
 
         if (
-            $DB->tableExists($table)                                                                                                                       &&   // Table should exist
-            !$DB->fieldExists($table, LoginState::LOGIN_FLOW_TRACE, false)                                                                                  &&   // Field should not exist
-            $migration->addField($table, LoginState::LOGIN_FLOW_TRACE, 'str', ['null' => true, 'after' => LoginState::SAML_RESPONSE_ID, 'update' => true])
-        ) {   // @see Migration::fieldFormat()
+            $DB->tableExists($table)                                                                                                                       &&   /* Table should exist */
+            !$DB->fieldExists($table, LoginState::LOGIN_FLOW_TRACE, false)                                                                                  &&   /* Field should not exist */
+            $migration->addField($table, LoginState::LOGIN_FLOW_TRACE, 'text', ['null' => true, 'after' => LoginState::SAML_RESPONSE_ID, 'update' => true])
+        ) {   /* @see Migration::fieldFormat() */
             Session::addMessageAfterRedirect("🆗 Added field LoginState::LOGIN_FLOW_TRACE for v1.1.2");
-        } // We silently ignore errors. Most common cause for an error is if the field already exists.
+        } /* We silently ignore errors. Most common cause for an error is if the field already exists. */
+
+        /* Upgrade loginFlowTrace field type to text to support longer trace logs. */
+        if ($DB->tableExists($table) && $DB->fieldExists($table, LoginState::LOGIN_FLOW_TRACE)) {
+            $migration->changeField($table, LoginState::LOGIN_FLOW_TRACE, LoginState::LOGIN_FLOW_TRACE, 'text');
+            $migration->migrationOneTable($table);
+        }
 
         // @see https://github.com/DonutsNL/glpisaml/issues/22
         if (
@@ -917,6 +1064,22 @@ class LoginState extends CommonDBTM
         ) {   // If the excluded Path field exists (older versions) drop it. 
             // Drop the field;
             $migration->dropField($table, 'excludedPath');
+        }
+
+        if (
+            $DB->tableExists($table)                                                                                                                       &&
+            !$DB->fieldExists($table, LoginState::CLIENT_IP, false)                                                                                        &&
+            $migration->addField($table, LoginState::CLIENT_IP, 'str', ['null' => true, 'after' => LoginState::PHASE, 'update' => true])
+        ) {
+            Session::addMessageAfterRedirect("🆗 Added field LoginState::CLIENT_IP");
+        }
+
+        if (
+            $DB->tableExists($table)                                                                                                                       &&
+            !$DB->fieldExists($table, LoginState::CLIENT_COUNTRY, false)                                                                                   &&
+            $migration->addField($table, LoginState::CLIENT_COUNTRY, 'str', ['null' => true, 'after' => LoginState::CLIENT_IP, 'update' => true])
+        ) {
+            Session::addMessageAfterRedirect("🆗 Added field LoginState::CLIENT_COUNTRY");
         }
 
         // https://github.com/DonutsNL/samlsso/issues/58
@@ -986,7 +1149,7 @@ class LoginState extends CommonDBTM
      */
     public static function uninstall(Migration $migration): void
     {
-        $table = LoginState::getTable();
+        $table = getTableForItemType(static::class);
         $migration->dropTable($table);
         Session::addMessageAfterRedirect("🆗 Removed: $table.");
     }

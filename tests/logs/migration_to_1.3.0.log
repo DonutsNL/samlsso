@@ -1,0 +1,256 @@
+2026-05-29 10:05:57 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_observedclaims table already exists. A backup have been done to backup_glpi_plugin_samlsso_observedclaims
+2026-05-29 10:05:57 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 10:06:11 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_claimmaps table already exists. A backup have been done to backup_glpi_plugin_samlsso_claimmaps
+2026-05-29 10:06:11 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 10:06:33 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_configs table already exists. A backup have been done to backup_glpi_plugin_samlsso_configs
+2026-05-29 10:06:33 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 10:06:52 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_configs"
+2026-05-29 10:06:52 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:06:52 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:06:52 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:06:52 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:06:52 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:06:52 [@quinquies-vps-66795946]
+0 seconds for "Updating table layout for glpi_plugin_samlsso_configs"
+2026-05-29 10:06:52 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_claimmaps"
+2026-05-29 10:07:27 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_observedclaims table already exists. A backup have been done to backup_glpi_plugin_samlsso_observedclaims
+2026-05-29 10:07:27 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 10:07:27 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_claimmaps table already exists. A backup have been done to backup_glpi_plugin_samlsso_claimmaps
+2026-05-29 10:07:27 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 10:07:27 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_configs table already exists. A backup have been done to backup_glpi_plugin_samlsso_configs
+2026-05-29 10:07:27 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 10:07:28 [@quinquies-vps-66795946]
+1 second for "Installing glpi_plugin_samlsso_configs"
+2026-05-29 10:07:28 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:07:28 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:07:28 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:07:28 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:07:28 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:07:28 [@quinquies-vps-66795946]
+0 seconds for "Updating table layout for glpi_plugin_samlsso_configs"
+2026-05-29 10:07:28 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_claimmaps"
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_observedclaims table already exists. A backup have been done to backup_glpi_plugin_samlsso_observedclaims
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_claimmaps table already exists. A backup have been done to backup_glpi_plugin_samlsso_claimmaps
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_configs table already exists. A backup have been done to backup_glpi_plugin_samlsso_configs
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_configs"
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+0 seconds for "Updating table layout for glpi_plugin_samlsso_configs"
+2026-05-29 10:12:58 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_claimmaps"
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_observedclaims table already exists. A backup have been done to backup_glpi_plugin_samlsso_observedclaims
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_claimmaps table already exists. A backup have been done to backup_glpi_plugin_samlsso_claimmaps
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_configs table already exists. A backup have been done to backup_glpi_plugin_samlsso_configs
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_configs"
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+0 seconds for "Updating table layout for glpi_plugin_samlsso_configs"
+2026-05-29 21:32:44 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_claimmaps"
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_observedclaims table already exists. A backup have been done to backup_glpi_plugin_samlsso_observedclaims
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_claimmaps table already exists. A backup have been done to backup_glpi_plugin_samlsso_claimmaps
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_configs table already exists. A backup have been done to backup_glpi_plugin_samlsso_configs
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_configs"
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+0 seconds for "Updating table layout for glpi_plugin_samlsso_configs"
+2026-05-29 21:33:05 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_claimmaps"
+2026-05-29 22:26:36 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_observedclaims table already exists. A backup have been done to backup_glpi_plugin_samlsso_observedclaims
+2026-05-29 22:26:36 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 22:26:36 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_claimmaps table already exists. A backup have been done to backup_glpi_plugin_samlsso_claimmaps
+2026-05-29 22:26:36 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_configs table already exists. A backup have been done to backup_glpi_plugin_samlsso_configs
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_configs"
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+0 seconds for "Updating table layout for glpi_plugin_samlsso_configs"
+2026-05-29 22:26:37 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_claimmaps"
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_observedclaims table already exists. A backup have been done to backup_glpi_plugin_samlsso_observedclaims
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_claimmaps table already exists. A backup have been done to backup_glpi_plugin_samlsso_claimmaps
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_configs table already exists. A backup have been done to backup_glpi_plugin_samlsso_configs
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_configs"
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+0 seconds for "Updating table layout for glpi_plugin_samlsso_configs"
+2026-05-29 22:44:05 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_claimmaps"
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_observedclaims table already exists. A backup have been done to backup_glpi_plugin_samlsso_observedclaims
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_claimmaps table already exists. A backup have been done to backup_glpi_plugin_samlsso_claimmaps
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_configs table already exists. A backup have been done to backup_glpi_plugin_samlsso_configs
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_configs"
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+0 seconds for "Updating table layout for glpi_plugin_samlsso_configs"
+2026-05-29 23:12:43 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_claimmaps"
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_observedclaims table already exists. A backup have been done to backup_glpi_plugin_samlsso_observedclaims
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_claimmaps table already exists. A backup have been done to backup_glpi_plugin_samlsso_claimmaps
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+glpi_plugin_samlsso_configs table already exists. A backup have been done to backup_glpi_plugin_samlsso_configs
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+You can delete backup tables if you have no need of them.
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_configs"
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+Change of the database layout - glpi_plugin_samlsso_loginstates
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+0 seconds for "Updating table layout for glpi_plugin_samlsso_configs"
+2026-05-30 15:48:21 [@quinquies-vps-66795946]
+0 seconds for "Installing glpi_plugin_samlsso_claimmaps"

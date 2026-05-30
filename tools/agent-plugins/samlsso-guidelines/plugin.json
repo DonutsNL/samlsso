@@ -1,0 +1,8 @@
+{
+  "name": "samlsso-guidelines",
+  "version": "1.0.0",
+  "description": "Custom coding and architectural guidelines for the SAMLSSO plugin",
+  "skills": [
+    "samlsso-development"
+  ]
+}

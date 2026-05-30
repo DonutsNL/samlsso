@@ -1,6 +1,46 @@
+
+**V1.3.0**
+- Implemented configurable SAML claim mapping for GLPI user fields with predefined presets (Entra ID, Okta, Keycloak) and observed claims tracking.
+- Refactored installation/uninstallation routines using a central class registry and single migration instance.
+- Hardened logout and Single Logout (SLO) confirmation rendering, local logout redirection paths, and auto-login loop prevention.
+- Added automated test validation pre-checks to the release packaging script.
+- Fixed static analysis warnings, type declarations, compliance checks, and translation domain issues across source files.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/51 where user JIT creation bypassed the Identity Provider configuration.
+- UI: Refactored the Backup & Restore section on the IDP list page into a collapsible panel triggered by a subtle outline toggle button, reducing visual weight while keeping the feature accessible.
+- UI: Wrapped the "Template & View XML" tools on the Claim Mapping tab into a collapsible "Tools" panel, consistent with the Backup & Restore treatment.
+- UI: Claim mappings are now ordered deterministically — enforced (system) mappings are always shown first, followed by manually added mappings in insertion order.
+- Reliability: Replaced `::class` constants in the `PLUGIN_SAMLSSO_CLASSES` array in `setup.php` with fully-qualified string literals so the constant can be safely defined before the Composer autoloader is registered (i.e. when the plugin is disabled).
+- Reliability: Added `include_once __DIR__ . '/vendor/autoload.php'` to `hook.php` so plugin classes are always resolvable during install/uninstall, even when `plugin_init_samlsso()` (which normally loads the autoloader) has not run.
+- Reliability: Replaced `ClassName::getTable()` / `self::getTable()` calls inside `install()` and `uninstall()` lifecycle methods with `getTableForItemType(static::class)` across `Config`, `ClaimMap`, `ObservedClaim`, `Exclude`, and `LoginState`, using the GLPI-recommended function that performs pure string manipulation with no dependency on plugin state.
+- Testing: Updated `LifecycleIntegrityTest.php` class parser to support both the legacy `::class` constant format and the new quoted string literal format in `PLUGIN_SAMLSSO_CLASSES`.
+- Fix: Corrected signed `INT` foreign key columns (`configs_id` in `ObservedClaim` and `ClaimMap`; `idpId` in `LoginState`) to `INT UNSIGNED` to silence GLPI 11 deprecation warnings; added upgrade migrations to fix existing installations.
+- Feature: Added `sync_on_login` configuration option to automatically update user claim mappings and rerun the rules engine on every successful user login.
+- Refactored Claim Mappings to use class constants instead of raw strings for target fields and target types, improving consistency and maintainability.
+- Refactored SAML claim resolution, defaults, and requirements validation logic out of `User.php` and into `ClaimMapEntity.php` helper methods.
+- Decomposed large methods in `User.php`, `Acs.php`, and `LoginFlow.php` into descriptive private helper methods to improve readability.
+- Standardized project-wide class layout and structure rules (constants at the top, chronological method ordering, and database schema hooks at the bottom) documented in ADR 0010.
+- Cleaned up unused imports and normalized FQCN references across source files.
+- Removed unused `SCHEMA_*` and `USERDATA` constants from `User.php` that are no longer referenced after the mapping refactor.
+- Cleaned up unused and deprecated methods (`trackObservedClaim` in `ClaimMapEntity.php`; `setSamlResponseParams`, `setRequestParams`, and `isLoadedFromDb` in `LoginState.php`) detected by dead-code analysis.
+- Feature: Added offline GeoIP originating country flag resolution. Client IPs are stored and matched using a high-performance binary search resolver (`GeoIPResolver`) on a compact local database (`ip_to_country.bin`). Flags are rendered as native browser emojis with full country hover tooltips in the session log UI.
+- CLI Tool: Added `tools/update_geoip.php` to fetch DB-IP Lite country CSV databases and compile them into the optimized binary database format.
+- Testing: Integrated `GeoIPTest.php` to verify offline database country matching and emoji flag conversions.
+- Fix: Prevented SAML SSO auto-redirect logic from running on AJAX/sub-requests (e.g., translation fetch) to avoid session state phase corruption and ensure top-level pages correctly redirect to the IdP when SSO is enforced.
+- Architecture: Added ADR 0011 documenting the decision to skip SAML SSO redirection on AJAX requests.
+- Fix: Updated session log UI to render country flags using FlagCDN PNG images rather than native OS-dependent emoji characters, ensuring correct rendering on platforms like Windows.
+- Fix: Automatically disable the SSO Enforce option (`enforce_sso`) via `ConfigEntity::validateAdvancedConfig()` when multiple active IDPs exist, and display a warning inline in the configuration form rather than as a redirect message.
+- Architecture: Added ADR 0012 explaining the multi-IDP Enforce conflict resolution mechanism and the explicit design decision not to follow the GLPI standard redirect-based messages.
+- Feature: Added administrative action to forcefully log off and disable users directly from the active sessions log table.
+- Architecture: Added ADR 0013 documenting the design and security of the force logoff and disable user action.
+
+
+
+
+
+
+
 **V1.2.7**
 - Bugfix for regression bug in `acs.php:228` where method getErrors didnt exist https://github.com/DonutsNL/samlsso/issues/104
-
 
 **V1.2.6**
 - Security Fix: Resolved critical authentication bypass vulnerability in exclude path matching logic by parsing URL path component before matching.

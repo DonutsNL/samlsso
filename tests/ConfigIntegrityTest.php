@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -230,6 +230,55 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ Dead configuration field detection\n";
         }
+
+        /**
+         * Test that Enforce SSO is automatically disabled when another active IDP exists.
+         *
+         * @throws \Exception if validation behaves incorrectly.
+         */
+        public function testMultiIdpEnforceAutoDisable(): void {
+            global $DB;
+
+            // Mock database response to simulate another active IDP
+            $this->db->setResponse(Config::getTable(), [
+                [
+                    'id' => 1,
+                    'is_active' => 1,
+                    'is_deleted' => 0,
+                    'enforce_sso' => 1,
+                ]
+            ]);
+
+            // Create ConfigEntity representing a second IDP being configured
+            $entity = new ConfigEntity(-1, [
+                'template' => 'post',
+                'postData' => [
+                    'id' => 2,
+                    'is_active' => 1,
+                    'is_deleted' => 0,
+                    'enforce_sso' => 1,
+                    'name' => 'Entra 2',
+                ]
+            ]);
+
+            $fields = $entity->getFields();
+
+            // Verify that enforce_sso has been set to 0 and warning populated in errors
+            $enforceSso = $fields[ConfigEntity::ENFORCE_SSO] ?? null;
+            if ($enforceSso === null) {
+                throw new \Exception("enforce_sso field not populated in fields array.");
+            }
+
+            if ((int)$enforceSso[ConfigItem::VALUE] !== 0) {
+                throw new \Exception("Expected enforce_sso value to be corrected to 0, got: " . var_export($enforceSso[ConfigItem::VALUE], true));
+            }
+
+            if (empty($enforceSso[ConfigItem::ERRORS])) {
+                throw new \Exception("Expected enforce_sso error message to be set, but it was empty.");
+            }
+
+            echo "✅ Multi-IDP Enforce auto-disable and warning verified\n";
+        }
     }
 }
 
@@ -242,6 +291,7 @@ namespace {
         $test->testSchemaVsConstants();
         $test->testValidatorsExistence();
         $test->testDeadConfigDetection();
+        $test->testMultiIdpEnforceAutoDisable();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

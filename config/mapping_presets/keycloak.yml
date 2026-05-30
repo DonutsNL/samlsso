@@ -1,0 +1,11 @@
+# Keycloak Claim Mapping Preset
+email: "email"
+realname: "lastName"
+firstname: "firstName"
+phone: "phone"
+mobile: "mobile"
+jobtitle: "jobTitle"
+country: "country"
+city: "locality"
+street: "street"
+groups: "groups"

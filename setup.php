@@ -33,7 +33,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -56,11 +56,34 @@ global $CFG_GLPI;
 
 // PLUGIN CONSTANTS
 define('PLUGIN_NAME', 'samlsso');                                                               // Plugin name
-define('PLUGIN_SAMLSSO_VERSION', '1.2.7');                                                      // Plugin version
+define('PLUGIN_SAMLSSO_VERSION', '1.3.0');                                                      // Plugin version
 define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.0');                                                    // Min required GLPI version
 define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.99');                                                   // Max GLPI compat version
 define('PLUGIN_SAMLSSO_LOGEVENTS', 'events');                                                    // specifies log extention
 define('PLUGIN_SAMLSSO_SRCDIR', __DIR__ . '/src');                                              // Location of the main classes
+/**
+ * Ordered list of fully-qualified class names for every plugin class that
+ * implements a database lifecycle (install / uninstall).
+ *
+ * IMPORTANT: String literals are used intentionally instead of ::class constants.
+ * This constant is defined at file-load time, before plugin_init_samlsso() has
+ * had a chance to register the Composer autoloader. Using ::class would require
+ * each class to be already loadable, which is NOT guaranteed when GLPI calls
+ * this file while the plugin is in a disabled state (e.g. during uninstall).
+ *
+ * The order is significant: install() iterates forward (dependency order) and
+ * uninstall() iterates in reverse (reverse dependency order), so child tables
+ * that reference parent tables must appear after their parent in this list.
+ */
+define('PLUGIN_SAMLSSO_CLASSES', [
+    'GlpiPlugin\\Samlsso\\Config',       // Core IDP configuration table (parent)
+    'GlpiPlugin\\Samlsso\\Exclude',      // URL exclusion rules
+    'GlpiPlugin\\Samlsso\\LoginState',   // Session state tracking
+    'GlpiPlugin\\Samlsso\\ClaimMap',     // Claim-to-field mapping rules (references Config)
+    'GlpiPlugin\\Samlsso\\ObservedClaim', // Passively observed claim keys (references Config)
+    'GlpiPlugin\\Samlsso\\CronTask',     // Cron task registration
+]);
+
 
 // Deal with GLPI ability to place plugin in multiple locations.
 // https://github.com/DonutsNL/samlsso/issues/41
@@ -70,7 +93,6 @@ define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] . $pLoc . PLUGIN_NAME . '/
 
 // METHODS
 /**
- * Default GLPI Plugin Init function./**
  * Default GLPI Plugin bootstrap function.
  * @param void
  * @return void
@@ -178,7 +200,7 @@ function plugin_samlsso_check_prerequisites(): bool                             
     // https://github.com/DonutsNL/samlsso/issues/13
     if (
         ini_get('session.cookie_secure') == 1   ||
-        !ini_get('session.cookie_httponly') == 1 ||
+        ini_get('session.cookie_httponly') != 1 ||
         ini_get('session.cookie_samesite') == 0
     ) {
         echo "PHP is configured with the following Cookie settings.";

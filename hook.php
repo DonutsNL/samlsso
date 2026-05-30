@@ -1,4 +1,5 @@
 <?php
+
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -32,7 +33,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -42,14 +43,26 @@
  * ------------------------------------------------------------------------
  **/
 
-// This file is included in the GLPI\Plugins\Hooks context.
-// USE
+/** This file is included in the GLPI\Plugins\Hooks context. */
 use GlpiPlugin\Samlsso\Exclude;
 use GlpiPlugin\Samlsso\RuleSaml;
 use GlpiPlugin\Samlsso\LoginFlow;
 use GlpiPlugin\Samlsso\LoginFlow\User;
 
+/**
+ * Register the Composer PSR-4 autoloader unconditionally at hook-file scope.
+ *
+ * hook.php is included by GLPI before plugin_init_samlsso() runs, which means
+ * the autoloader registered inside plugin_init_samlsso() is NOT yet active when
+ * GLPI calls plugin_samlsso_install() or plugin_samlsso_uninstall() for a
+ * disabled plugin. Without this include the 'use' statements above and the
+ * static dispatch ($class::install()) in the lifecycle loops would both fail
+ * with a class-not-found error.
+ */
+include_once __DIR__ . '/vendor/autoload.php';
+
 // METHODS
+
 /**
  * This function is hooked by rule engine if an user import rule matches configured criteria.
  * it will call the implementation with the params passed by the ruleEngine.
@@ -63,10 +76,13 @@ use GlpiPlugin\Samlsso\LoginFlow\User;
  */
 function updateUser(array $params): void
 {
-    // RuleEngine does not discriminate rulesets on execution
-    // so validate sub_type is correct class before executing.
-    if( $params['sub_type'] == RuleSaml::class ){
-        // Pass the params to the updateUserRight method non statically.
+    /**
+     * The GLPI rule engine fires all registered rule collections without
+     * filtering by type, so we must verify that the sub_type matches our
+     * own RuleSaml class before delegating. Dispatching on a wrong sub_type
+     * would pass unrelated rule parameters to our handler.
+     */
+    if ($params['sub_type'] == RuleSaml::class) {
         (new User)->updateUserRights($params);
     }
 }
@@ -78,10 +94,14 @@ function updateUser(array $params): void
  * @param void
  * @return array [ClassName => __('Menu label') ]
  */
-function plugin_samlsso_getDropdown() : array                                      // NOSONAR - Default GLPI naming
+function plugin_samlsso_getDropdown(): array                                      // NOSONAR - Default GLPI naming
 {
-   // Tell GLPI to add Excludes to Setup>dropdowns
-   return [Exclude::class => __("samlSSO exclusions", PLUGIN_NAME)];
+    /**
+     * Return a class-to-label map that instructs GLPI to surface the Exclude
+     * object type inside Setup → Dropdowns, allowing administrators to manage
+     * exclusion rules from the standard dropdown configuration UI.
+     */
+    return [Exclude::class => __("samlSSO exclusions", PLUGIN_NAME)];
 }
 
 
@@ -92,9 +112,13 @@ function plugin_samlsso_getDropdown() : array                                   
  * @param void
  * @return void
  */
-function plugin_samlsso_evalAuth() : void                                          // NOSONAR - Default GLPI naming
+function plugin_samlsso_evalAuth(): void                                          // NOSONAR - Default GLPI naming
 {
-    // Call the evalAuth hook;
+    /**
+     * Delegate to LoginFlow::doAuth() which evaluates whether the current
+     * request should be intercepted for SAML authentication, redirected to an
+     * IdP, or allowed to proceed as a standard GLPI login.
+     */
     (new LoginFlow())->doAuth();
 }
 
@@ -106,106 +130,131 @@ function plugin_samlsso_evalAuth() : void                                       
  * @param void
  * @return void
  */
-function plugin_samlsso_displaylogin() : void                                      // NOSONAR - Default GLPI naming
+function plugin_samlsso_displaylogin(): void                                      // NOSONAR - Default GLPI naming
 {
-    // Call the showLoginScreen method
+    /**
+     * Delegate to LoginFlow::showLoginScreen() which injects the plugin's IdP
+     * login buttons into the standard GLPI login page output.
+     */
     (new LoginFlow())->showLoginScreen();
 }
 
 
 /**
- * This function performs install of all plugin classes.
+ * Install the samlSSO plugin.
  *
- * @param void
- * @return boolean
+ * Called by GLPI when the administrator clicks "Install" in the Plugin Manager.
+ * Iterates through PLUGIN_SAMLSSO_CLASSES in forward (dependency) order so that
+ * parent tables are created before child tables that reference them.
+ *
+ * @return bool  True on success (GLPI expects a bool return value).
+ * @see    setup.php  PLUGIN_SAMLSSO_CLASSES for the ordered class registry.
  */
-function plugin_samlsso_install() : bool                                           // NOSONAR - Default GLPI naming
+function plugin_samlsso_install(): bool                                           // NOSONAR - Default GLPI naming
 {
-    // Init the migration object
+    /**
+     * Initialise the GLPI Migration object scoped to the current plugin version.
+     * Migration is used by each class's install() method to perform DDL operations
+     * and emit user-visible status messages in the GLPI admin interface.
+     */
     $version   = plugin_version_samlsso();
     $migration = new Migration($version['version']);
 
-    // Report the version we are installing
-    Session::addMessageAfterRedirect(__('🆗 Installing version:'.PLUGIN_SAMLSSO_VERSION));
+    Session::addMessageAfterRedirect(__('🆗 Installing version:' . PLUGIN_SAMLSSO_VERSION, PLUGIN_NAME));
 
-    // Check memory_limit
+    /**
+     * Warn if PHP memory_limit is below 512 MB. The OneLogin SAML library
+     * may decode and validate large XML responses in-memory, and an insufficient
+     * limit can cause silent process crashes during ACS response processing.
+     * The check is advisory only — it does not abort the installation.
+     */
     $memory_limit = ini_get('memory_limit');
     if ($memory_limit && $memory_limit != -1) {
         $value = trim($memory_limit);
         if ($value !== '') {
-            $last = strtolower($value[strlen($value)-1]);
+            $last = strtolower($value[strlen($value) - 1]);
             $bytes = (int)$value;
-            switch($last) {
-                case 'g': $bytes *= 1024;
-                case 'm': $bytes *= 1024;
-                case 'k': $bytes *= 1024;
+            switch ($last) {
+                case 'g':
+                    $bytes *= 1024;
+                case 'm':
+                    $bytes *= 1024;
+                case 'k':
+                    $bytes *= 1024;
             }
 
             if ($bytes < 536870912) {
-                 Session::addMessageAfterRedirect(__('⚠️ PHP memory_limit is less than 512M. This may cause crashes during SAML Login. See: ', PLUGIN_NAME) . ' <a href="https://github.com/DonutsNL/samlsso/wiki/Container-crashes-during-SAML-Login" target="_blank">Wiki</a>', false, WARNING);
+                Session::addMessageAfterRedirect(__('⚠️ PHP memory_limit is less than 512M. This may cause crashes during SAML Login. See: ', PLUGIN_NAME) . ' <a href="https://github.com/DonutsNL/samlsso/wiki/Container-crashes-during-SAML-Login" target="_blank">Wiki</a>', false, WARNING);
             }
         }
     }
 
-    // openssl is nice to have therefore it is not included in the prerequisites.
-    if ( !function_exists('openssl_x509_parse') ) {
-        Session::addMessageAfterRedirect( __('⚠️ OpenSSL not available, cant verify provided certificates') );
+    /**
+     * OpenSSL is needed to verify IdP certificates. It is not listed as a hard
+     * prerequisite because the plugin can still function (with reduced security)
+     * without it. Emit a warning so the administrator is aware of the gap.
+     */
+    if (!function_exists('openssl_x509_parse')) {
+        Session::addMessageAfterRedirect(__('⚠️ OpenSSL not available, cant verify provided certificates', PLUGIN_NAME));
     } else {
-        Session::addMessageAfterRedirect( __('🆗 OpenSSL found!') );
+        Session::addMessageAfterRedirect(__('🆗 OpenSSL found!', PLUGIN_NAME));
     }
 
-    // Traverse pkugin files and call install methods if they exist within the class.
-    if( $files = plugin_samlsso_getSrcClasses() ){
-        if( is_array($files) ){                                                      // NOSONAR - For readability ifs nested.
-            foreach( $files as $name ){
-                $class = "GlpiPlugin\\Samlsso\\" . basename($name, '.php');
-                if( method_exists($class, 'install') ){
-                    $class::install($migration);
-                }
-            }
-        } // Should never be emtpy, but not handling that.
-    } // Should never be emtpy, but not handling that.
+    /**
+     * Iterate through PLUGIN_SAMLSSO_CLASSES in forward (dependency) order and
+     * call each class's static install() method. The method_exists() guard makes
+     * the loop tolerant of classes that do not manage database tables (e.g. pure
+     * service classes that may be added to the array in the future).
+     */
+    foreach (PLUGIN_SAMLSSO_CLASSES as $class) {
+        if (method_exists($class, 'install')) {
+            $class::install($migration);
+        }
+    }
     return true;
 }
 
 
 /**
- * Performs uninstall of plugin classes in /src.
+ * Performs uninstall of plugin classes.
  *
  * @return boolean
  * @see https://codeberg.org/QuinQuies/glpisaml/issues/65
  */
-function plugin_samlsso_uninstall() : bool                                         // NOSONAR - Default GLPI naming
+/**
+ * Uninstall the samlSSO plugin.
+ *
+ * Called by GLPI when the administrator clicks "Uninstall" in the Plugin Manager.
+ * Iterates through PLUGIN_SAMLSSO_CLASSES in reverse (anti-dependency) order so
+ * that child tables referencing parent tables are removed before the parent
+ * tables are dropped, preventing foreign-key constraint violations.
+ *
+ * Each class's uninstall() method is responsible for creating a GLPI backup table
+ * before dropping the live table, preserving data for potential recovery.
+ *
+ * @return bool  True on success (GLPI expects a bool return value).
+ * @see    setup.php  PLUGIN_SAMLSSO_CLASSES for the ordered class registry.
+ */
+function plugin_samlsso_uninstall(): bool                                         // NOSONAR - Default GLPI naming
 {
-    if( $files = plugin_samlsso_getSrcClasses() ) {
-        if( is_array($files) ){                                                     // NOSONAR - For readability ifs nested.
-            foreach( $files as $name ){
-                $class = "GlpiPlugin\\Samlsso\\" . basename($name, '.php');
-                if( method_exists($class, 'install') ){
-                    $version   = plugin_version_samlsso();
-                    $migration = new Migration($version['version']);
-                    $class::uninstall($migration);
-                }
-            }
-        } // Should never be emtpy, but not handling that.
-    } // Should never be emtpy, but not handling that.
+    /**
+     * Initialise the GLPI Migration object scoped to the current plugin version.
+     * Passed to each class's uninstall() method so backup and drop operations
+     * are logged consistently.
+     */
+    $version   = plugin_version_samlsso();
+    $migration = new Migration($version['version']);
+
+    /**
+     * array_reverse() ensures child tables (defined later in PLUGIN_SAMLSSO_CLASSES)
+     * are removed before the parent tables they reference. The method_exists()
+     * guard mirrors the install loop for symmetry and future-proofing.
+     */
+    foreach (array_reverse(PLUGIN_SAMLSSO_CLASSES) as $class) {
+        if (method_exists($class, 'uninstall')) {
+            $class::uninstall($migration);
+        }
+    }
     return true;
 }
 
-/**
- * Fetches all classes from the plugin \src directory
- * Used by installation.
- *
- * @return array
- */
-function plugin_samlsso_getSrcClasses() : array                                    // NOSONAR - Default GLPI naming
-{
-    if( is_dir(PLUGIN_SAMLSSO_SRCDIR) && is_readable(PLUGIN_SAMLSSO_SRCDIR) ){
-        return array_filter(scandir(PLUGIN_SAMLSSO_SRCDIR, SCANDIR_SORT_NONE), function($item) {
-            return !is_dir(PLUGIN_SAMLSSO_SRCDIR.'/'.$item);
-        });
-    } else {
-        echo "The directory". PLUGIN_SAMLSSO_SRCDIR . "Is not accessible, Plugin installation failed!";
-        return [];
-    }
-}

@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -164,6 +164,207 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ ACS endpoint entry detection\n";
         }
+
+        /**
+         * Test that the SLO logout flow correctly redirects to the IDP SLO URL when triggered.
+         *
+         * @throws \Exception if the flow does not redirect or redirects to an incorrect SLO URL.
+         */
+        public function testSloLogoutRedirect(): void {
+            $_SERVER['REQUEST_URI'] = '/';
+            $_GET[LoginFlow::SLOLOGOUT] = '1';
+            $state = new Loginstate();
+            $state->idpId = 5;
+            $state->samlAuthed = true;
+            $flow = new LoginFlow();
+            try {
+                $flow->doAuth();
+                throw new \Exception("Flow should have redirected to the IDP SLO URL.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'Redirect to: /plugins/samlsso/front/slo.php')) {
+                    throw new \Exception("SLO redirect failed.\nResult: " . $e->getMessage());
+                }
+            } finally {
+                unset($_GET[LoginFlow::SLOLOGOUT]);
+            }
+            echo "✅ SLO logout redirect logic\n";
+        }
+
+        /**
+         * Test that the SLO logout flow redirects to the home page if the config or IDP ID is invalid.
+         *
+         * @throws \Exception if the fallback redirect does not go to the GLPI homepage.
+         */
+        public function testSloLogoutFallback(): void {
+            $_SERVER['REQUEST_URI'] = '/';
+            $_GET[LoginFlow::SLOLOGOUT] = '1';
+            $state = new Loginstate();
+            $state->idpId = 0;
+            $flow = new LoginFlow();
+            try {
+                $flow->doAuth();
+                throw new \Exception("Flow should have redirected to the homepage on invalid IDP ID.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'Redirect to: http://glpi.local/')) {
+                    throw new \Exception("SLO fallback redirect failed.\nResult: " . $e->getMessage());
+                }
+            } finally {
+                unset($_GET[LoginFlow::SLOLOGOUT]);
+            }
+            echo "✅ SLO logout fallback logic\n";
+        }
+
+        /**
+         * Test that local logout triggers the transition of the database state phase to PHASE_LOGOFF
+         * and then lets the request pass through to GLPI's native logout code.
+         *
+         * @throws \Exception if the phase transition fails or if the flow throws an unexpected exception.
+         */
+        public function testLocalLogoutPassThrough(): void {
+            $_SERVER['REQUEST_URI'] = '/';
+            $_GET[LoginFlow::LOCALLOGOUT] = '1';
+            $state = new Loginstate();
+            $state->idpId = 5;
+            $state->samlAuthed = true;
+            $state->phase = Loginstate::PHASE_GLPI_AUTH;
+            $flow = new LoginFlow();
+            
+            // Should complete normally without throwing redirect exceptions
+            $flow->doAuth();
+            
+            $lastState = Loginstate::$lastInstance;
+            if ($lastState->phase !== Loginstate::PHASE_LOGOFF) {
+                throw new \Exception("Database session phase should have been updated to PHASE_LOGOFF. Got: " . $lastState->phase);
+            }
+            
+            unset($_GET[LoginFlow::LOCALLOGOUT]);
+            echo "✅ Local logout pass-through and DB state transition logic\n";
+        }
+
+        /**
+         * Test that the logout page renders the normal local logout options when SSO is not enforced.
+         *
+         * @throws \Exception if the output buffer does not contain the expected twig template output or messages.
+         */
+        public function testLogoutPageRenderingNormal(): void {
+            $tempFile = __DIR__ . '/logout_test_normal.php';
+            $code = '<?php
+                global $GLPI_IS_COMMAND_LINE, $CFG_GLPI;
+                $GLPI_IS_COMMAND_LINE = false;
+                require_once "' . __DIR__ . '/TestHarness.php";
+                $CFG_GLPI = ["url_base" => "http://glpi.local"];
+                require_once "' . __DIR__ . '/../src/LoginFlow.php";
+                $_SESSION["glpiID"] = 1;
+                $_SERVER["REQUEST_URI"] = "/front/logout.php";
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::IDP_SLO_URL] = "http://idp.local/slo";
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::ENFORCE_SSO] = false;
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::NAME] = "Normal IDP";
+                
+                $state = new \GlpiPlugin\Samlsso\Loginstate();
+                $state->idpId = 5;
+                $state->samlAuthed = true;
+                
+                $flow = new \GlpiPlugin\Samlsso\LoginFlow();
+                $flow->doAuth();
+            ';
+            file_put_contents($tempFile, $code);
+            
+            $output = [];
+            $status = 0;
+            exec("php " . escapeshellarg($tempFile) . " 2>&1", $output, $status);
+            $outputStr = implode("\n", $output);
+            unlink($tempFile);
+            
+            if ($status !== 0) {
+                throw new \Exception("Subprocess failed with status: $status. Output: $outputStr");
+            }
+            
+            if (!str_contains($outputStr, 'Continue with local logout')) {
+                throw new \Exception("Normal logout page should contain 'Continue with local logout'. Got: " . $outputStr);
+            }
+            if (str_contains($outputStr, 'Go back to GLPI')) {
+                throw new \Exception("Normal logout page should NOT contain 'Go back to GLPI'. Got: " . $outputStr);
+            }
+            echo "✅ Normal logout screen rendering logic\n";
+        }
+
+        /**
+         * Test that the logout page renders the enforced logout options when SSO is enforced.
+         *
+         * @throws \Exception if the output buffer does not contain the expected close and return buttons.
+         */
+        public function testLogoutPageRenderingEnforced(): void {
+            $tempFile = __DIR__ . '/logout_test_enforced.php';
+            $code = '<?php
+                global $GLPI_IS_COMMAND_LINE, $CFG_GLPI;
+                $GLPI_IS_COMMAND_LINE = false;
+                require_once "' . __DIR__ . '/TestHarness.php";
+                $CFG_GLPI = ["url_base" => "http://glpi.local"];
+                require_once "' . __DIR__ . '/../src/LoginFlow.php";
+                $_SESSION["glpiID"] = 1;
+                $_SERVER["REQUEST_URI"] = "/front/logout.php";
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::IDP_SLO_URL] = "http://idp.local/slo";
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::ENFORCE_SSO] = true;
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::NAME] = "Enforced IDP";
+                
+                $state = new \GlpiPlugin\Samlsso\Loginstate();
+                $state->idpId = 5;
+                $state->samlAuthed = true;
+                
+                $flow = new \GlpiPlugin\Samlsso\LoginFlow();
+                $flow->doAuth();
+            ';
+            file_put_contents($tempFile, $code);
+            
+            $output = [];
+            $status = 0;
+            exec("php " . escapeshellarg($tempFile) . " 2>&1", $output, $status);
+            $outputStr = implode("\n", $output);
+            unlink($tempFile);
+            
+            if ($status !== 0) {
+                throw new \Exception("Subprocess failed with status: $status. Output: $outputStr");
+            }
+            
+            if (!str_contains($outputStr, 'Go back to GLPI')) {
+                throw new \Exception("Enforced logout page should contain 'Go back to GLPI'. Got: " . $outputStr);
+            }
+            if (!str_contains($outputStr, 'Close tab')) {
+                throw new \Exception("Enforced logout page should contain 'Close tab'. Got: " . $outputStr);
+            }
+            if (str_contains($outputStr, 'Continue with local logout')) {
+                throw new \Exception("Enforced logout page should NOT contain 'Continue with local logout'. Got: " . $outputStr);
+            }
+            echo "✅ Enforced logout screen rendering logic\n";
+        }
+
+        /**
+         * Test that a state in PHASE_FORCE_LOG logs the user out, transitions phase to PHASE_LOGOFF,
+         * and redirects to index.php?noAuto=1 with the proper message.
+         *
+         * @throws \Exception if the redirect behavior or session cleanup fails.
+         */
+        public function testForceLogoffRedirect(): void {
+            $_SERVER['REQUEST_URI'] = '/';
+            $state = new Loginstate();
+            $state->idpId = 5;
+            $state->samlAuthed = true;
+            $state->phase = Loginstate::PHASE_FORCE_LOG;
+            $flow = new LoginFlow();
+            try {
+                $flow->doAuth();
+                throw new \Exception("Flow should have redirected for forced logoff.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'Redirect to: http://glpi.local/index.php?noAuto=1')) {
+                    throw new \Exception("Force logoff redirect failed.\nResult: " . $e->getMessage());
+                }
+            }
+            $lastState = Loginstate::$lastInstance;
+            if ($lastState->phase !== Loginstate::PHASE_LOGOFF) {
+                throw new \Exception("Database session phase should have been updated to PHASE_LOGOFF. Got: " . $lastState->phase);
+            }
+            echo "✅ Force logoff and redirect logic\n";
+        }
     }
 }
 
@@ -178,6 +379,12 @@ namespace {
         $test->testBypassParameter();
         $test->testLoginPageRendering();
         $test->testAcsProcessing();
+        $test->testSloLogoutRedirect();
+        $test->testSloLogoutFallback();
+        $test->testLocalLogoutPassThrough();
+        $test->testLogoutPageRenderingNormal();
+        $test->testLogoutPageRenderingEnforced();
+        $test->testForceLogoffRedirect();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

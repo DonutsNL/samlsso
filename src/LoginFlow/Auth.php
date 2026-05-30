@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.2.7
+ *  @version    1.3.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -46,8 +46,8 @@ declare(strict_types=1);
 namespace GlpiPlugin\Samlsso\LoginFlow;
 
 use Auth as glpiAuth;
-use Profile_User;
 use GlpiPlugin\Samlsso\LoginFlow\User;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
 
 /**
  * Extends the glpi Auth class for injection into Session::init();
@@ -57,12 +57,20 @@ use GlpiPlugin\Samlsso\LoginFlow\User;
  */
 class Auth extends glpiAuth
 {
-    public function loadUser(array $userFields)
+    /**
+     * Loads the authenticated user context or JIT provisions a new one.
+     *
+     * @param array $userFields Mapped user fields from SAML response.
+     * @param ConfigEntity $configEntity The active IdP config entity.
+     * @param \GlpiPlugin\Samlsso\LoginState|null $state The active login state tracker.
+     * @return $this
+     */
+    public function loadUser(array $userFields, ConfigEntity $configEntity, ?\GlpiPlugin\Samlsso\LoginState $state = null)
     {
         global $DB;
 
         // Get or Jit create user or exit on error.
-        $this->user = (new User())->getOrCreateUser($userFields);
+        $this->user = (new User())->getOrCreateUser($userFields, $configEntity, $state);
 
         // Setting this property actually authorizes the login for the user.
         // Be aware (sic) Succeeded is spelled incorrectly in parent GLPI object
