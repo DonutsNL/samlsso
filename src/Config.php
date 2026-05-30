@@ -291,7 +291,7 @@ class Config extends CommonDBTM
         global $DB;
 
         // Return true if we have more then one row that enforces the config
-        return (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
+        return (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_ACTIVE => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
     }
 
     /**
@@ -404,6 +404,8 @@ class Config extends CommonDBTM
             'SELECT'   =>  ConfigEntity::CONF_DOMAIN,
             'FROM'     =>  Config::getTable(),
             'WHERE' => [
+                ConfigEntity::IS_ACTIVE => 1,
+                ConfigEntity::IS_DELETED => 0,
                 'NOT' => [ConfigEntity::CONF_DOMAIN => ['youruserdomain.tld', '']]
             ]
         ]);

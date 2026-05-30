@@ -388,14 +388,17 @@ class LoginFlow extends CommonDBTM
     private function interceptBypass(): bool
     {
         global $CFG_GLPI;
-        if (
-            (isset($_GET[LoginFlow::SAMLBYPASS]) && $_GET[LoginFlow::SAMLBYPASS] == 1) ||
-            isset($_GET['noAuto'])
-        ) {
-            $this->state->addLoginFlowTrace(['bypassUsed' => true]);
-            $url = $CFG_GLPI['url_base'] . '/?' . LoginFlow::SAMLBYPASS . '=1&noAUTO=1';
-            header('Location:' . $url);
-            exit();
+        $bypassRequested = (isset($_GET[LoginFlow::SAMLBYPASS]) && $_GET[LoginFlow::SAMLBYPASS] == 1);
+        $noAutoRequested = isset($_GET['noAuto']);
+        $noAutoUpperSet = isset($_GET['noAUTO']);
+
+        if ($bypassRequested || $noAutoRequested) {
+            if (!$bypassRequested || !$noAutoUpperSet) {
+                $this->state->addLoginFlowTrace(['bypassUsed' => true]);
+                $url = $CFG_GLPI['url_base'] . '/?' . LoginFlow::SAMLBYPASS . '=1&noAUTO=1';
+                header('Location:' . $url);
+                exit();
+            }
         }
         return false;
     }
@@ -668,7 +671,8 @@ class LoginFlow extends CommonDBTM
             TemplateRenderer::getInstance()->display('@samlsso/loginScreen.html.twig',  $tplVars);
         } else {
             // We might still need to hide password, remember and database login fields
-            if ($tplVars['enforced'] = Config::getIsEnforced() &&    // Validate there is 'an' enforced saml Config
+            $tplVars['enforced'] = Config::getIsEnforced();
+            if ($tplVars['enforced'] &&    // Validate there is 'an' enforced saml Config
                 !isset($_GET['bypass'])
             ) {    // Validate we don't want to bypass our enforcement
 
