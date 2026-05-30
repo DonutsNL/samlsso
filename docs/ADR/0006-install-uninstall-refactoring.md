@@ -1,5 +1,7 @@
 # ADR 0006: Install/Uninstall Teardown Refactoring
 
+Fix for issue: https://github.com/DonutsNL/samlsso/issues/111
+
 ## Status
 Accepted
 

@@ -221,6 +221,8 @@ class Acs extends LoginFlow
             $inResponseTo = $this->samlResponse->getXMLDocument()->documentElement->getAttribute('InResponseTo');
             $this->state = new LoginState($inResponseTo);
         } catch (Throwable $e) {
+            // All references to state removed when state doesnt exist yet.
+            // Fix for: https://github.com/DonutsNL/samlsso/issues/104
             $this->printError(
                 __("Could not fetch loginState from database with error: <br><br>$e<br><br>See: https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php for more information.", PLUGIN_NAME),
                 __('Samlsso->acs->init->LoginState::construct', PLUGIN_NAME)
@@ -299,7 +301,6 @@ class Acs extends LoginFlow
                 $xml = $this->samlResponse->getXMLDocument()->saveXML();
                 $anonymizedXml = ConfigEntity::anonymizeXml($xml);
                 $this->configEntity->updateXmlStructure($anonymizedXml);
-
             } catch (Throwable $e) {
                 $this->printError(
                     __("An error occured while trying to update the samlResponseId into the LoginState database. Review the saml log for more details", PLUGIN_NAME),
