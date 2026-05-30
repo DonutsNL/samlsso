@@ -962,7 +962,14 @@
                                                             {{ logrow.userName|slice(0, 2)|upper }}
                                                         </span>
                                                         <div>
-                                                            <div class="font-weight-medium">{{ logrow.userName }}</div>
+                                                            <div class="font-weight-medium">
+                                                                {{ logrow.userName }}
+                                                                {% if logrow.clientCountry is not empty and logrow.clientCountry != '??' and logrow.clientCountry|upper != 'ZZ' %}
+                                                                    <span class="ms-1" style="cursor: help;" data-bs-toggle="tooltip" title="{{ logrow.clientCountryName }} ({{ logrow.clientIp }})">
+                                                                        <img src="https://flagcdn.com/16x12/{{ logrow.clientCountry|lower }}.png" width="16" height="12" alt="{{ logrow.clientCountry }}" style="vertical-align: middle; margin-top: -2px;">
+                                                                    </span>
+                                                                {% endif %}
+                                                            </div>
                                                             <div class="text-muted fs-8 font-monospace" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ logrow.sessionId }}">
                                                                 {{ logrow.sessionId }}
                                                             </div>
