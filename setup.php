@@ -120,7 +120,12 @@ function plugin_init_samlsso(): void                                            
 
     // Backend block for local login when Enforced is enabled
     $is_login_post = isset($_POST['login_name']) && isset($_POST['login_password']);
-    $is_bypassed = isset($_GET['bypass']) && $_GET['bypass'] == '1';
+    
+    // Check GET parameter or HTTP Referer for bypass flag
+    // The login POST request itself won't have the GET parameter, so we check the referer.
+    $bypass_param = 'bypass=1';
+    $is_bypassed = (isset($_GET['bypass']) && $_GET['bypass'] == '1') || 
+                   (isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], $bypass_param) !== false);
 
     if ($is_login_post && !$is_bypassed) {
         if (Config::getIsEnforced()) {
