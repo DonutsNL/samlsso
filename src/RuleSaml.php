@@ -55,6 +55,8 @@ use Location;
 use UserCategory;
 use UserTitle;
 
+use GlpiPlugin\Samlsso\Config\ClaimMapItem;
+
 class RuleSaml extends Rule
 {
     /**
@@ -140,7 +142,7 @@ class RuleSaml extends Rule
                     'DISTINCT' => true,
                     'FROM'     => $claimMapTable,
                     'WHERE'    => [
-                        'target_type' => 'rule_field'
+                        'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD
                     ]
                 ]);
                 foreach ($iterator as $row) {

@@ -52,32 +52,59 @@ namespace GlpiPlugin\Samlsso\Config;
  */
 class ClaimMapItem
 {
+    /**
+     * Target types for claim mappings.
+     */
+    public const TARGET_TYPE_USER_FIELD = 'user_field';
+    public const TARGET_TYPE_RULE_FIELD = 'rule_field';
+
+    /**
+     * Allowed target fields for claim mapping.
+     */
+    public const FIELD_USERNAME      = 'username';
+    public const FIELD_EMAIL         = 'email';
+    public const FIELD_REALNAME      = 'realname';
+    public const FIELD_FIRSTNAME     = 'firstname';
+    public const FIELD_PHONE         = 'phone';
+    public const FIELD_MOBILE        = 'mobile';
+    public const FIELD_JOBTITLE      = 'jobtitle';
+    public const FIELD_COUNTRY       = 'country';
+    public const FIELD_CITY          = 'city';
+    public const FIELD_STREET        = 'street';
+    public const FIELD_GROUPS        = 'groups';
+    public const FIELD_DEPARTMENT    = 'department';
+    public const FIELD_COMPANY       = 'company';
+    public const FIELD_EMPLOYEE_TYPE = 'employee_type';
+    public const FIELD_LOCATION      = 'location';
+    public const FIELD_LOCALE        = 'locale';
+    public const FIELD_MANAGER       = 'manager';
+
     public const ALLOWED_USER_FIELDS = [
-        'username',
-        'email',
-        'realname',
-        'firstname',
-        'phone',
-        'mobile',
-        'jobtitle',
-        'country',
-        'city',
-        'street'
+        self::FIELD_USERNAME,
+        self::FIELD_EMAIL,
+        self::FIELD_REALNAME,
+        self::FIELD_FIRSTNAME,
+        self::FIELD_PHONE,
+        self::FIELD_MOBILE,
+        self::FIELD_JOBTITLE,
+        self::FIELD_COUNTRY,
+        self::FIELD_CITY,
+        self::FIELD_STREET
     ];
 
     public const ALLOWED_RULE_FIELDS = [
-        'groups',
-        'username',
-        'email',
-        'realname',
-        'firstname',
-        'jobtitle',
-        'department',
-        'company',
-        'employee_type',
-        'location',
-        'locale',
-        'manager'
+        self::FIELD_GROUPS,
+        self::FIELD_USERNAME,
+        self::FIELD_EMAIL,
+        self::FIELD_REALNAME,
+        self::FIELD_FIRSTNAME,
+        self::FIELD_JOBTITLE,
+        self::FIELD_DEPARTMENT,
+        self::FIELD_COMPANY,
+        self::FIELD_EMPLOYEE_TYPE,
+        self::FIELD_LOCATION,
+        self::FIELD_LOCALE,
+        self::FIELD_MANAGER
     ];
 
     /**

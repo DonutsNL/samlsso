@@ -337,6 +337,34 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ Enforced logout screen rendering logic\n";
         }
+
+        /**
+         * Test that a state in PHASE_FORCE_LOG logs the user out, transitions phase to PHASE_LOGOFF,
+         * and redirects to index.php?noAuto=1 with the proper message.
+         *
+         * @throws \Exception if the redirect behavior or session cleanup fails.
+         */
+        public function testForceLogoffRedirect(): void {
+            $_SERVER['REQUEST_URI'] = '/';
+            $state = new Loginstate();
+            $state->idpId = 5;
+            $state->samlAuthed = true;
+            $state->phase = Loginstate::PHASE_FORCE_LOG;
+            $flow = new LoginFlow();
+            try {
+                $flow->doAuth();
+                throw new \Exception("Flow should have redirected for forced logoff.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'Redirect to: http://glpi.local/index.php?noAuto=1')) {
+                    throw new \Exception("Force logoff redirect failed.\nResult: " . $e->getMessage());
+                }
+            }
+            $lastState = Loginstate::$lastInstance;
+            if ($lastState->phase !== Loginstate::PHASE_LOGOFF) {
+                throw new \Exception("Database session phase should have been updated to PHASE_LOGOFF. Got: " . $lastState->phase);
+            }
+            echo "✅ Force logoff and redirect logic\n";
+        }
     }
 }
 
@@ -356,6 +384,7 @@ namespace {
         $test->testLocalLogoutPassThrough();
         $test->testLogoutPageRenderingNormal();
         $test->testLogoutPageRenderingEnforced();
+        $test->testForceLogoffRedirect();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

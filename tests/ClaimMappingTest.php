@@ -123,7 +123,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
 
             $entra = $presets['entra_id'];
-            if (($entra['email'] ?? '') !== 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress') {
+            if (($entra[ClaimMapItem::FIELD_EMAIL] ?? '') !== 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress') {
                 throw new \Exception("Entra ID preset has incorrect email mapping.");
             }
 
@@ -142,8 +142,8 @@ namespace GlpiPlugin\Samlsso\Tests {
             // Test saving invalid config ID
             $success = $entity->save([
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'email',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_EMAIL,
                     'saml_claim'  => 'some-claim'
                 ]
             ]);
@@ -156,7 +156,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             // Test saving invalid GLPI fields (and also missing required fields username and email)
             $success = $entity->save([
                 [
-                    'target_type' => 'user_field',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
                     'glpi_field'  => 'invalid_field',
                     'saml_claim'  => 'some-claim'
                 ]
@@ -171,8 +171,8 @@ namespace GlpiPlugin\Samlsso\Tests {
             // Test saving missing required fields (only username provided, email missing)
             $success = $entity->save([
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'username',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_USERNAME,
                     'saml_claim'  => 'custom-username-claim'
                 ]
             ]);
@@ -186,13 +186,13 @@ namespace GlpiPlugin\Samlsso\Tests {
             // Test saving with empty claim for required field
             $success = $entity->save([
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'username',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_USERNAME,
                     'saml_claim'  => ''
                 ],
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'email',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_EMAIL,
                     'saml_claim'  => 'custom-email-claim'
                 ]
             ]);
@@ -203,13 +203,13 @@ namespace GlpiPlugin\Samlsso\Tests {
             // Test saving valid mappings (both username and email present)
             $success = $entity->save([
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'username',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_USERNAME,
                     'saml_claim'  => 'custom-username-claim'
                 ],
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'email',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_EMAIL,
                     'saml_claim'  => 'custom-email-claim'
                 ]
             ]);
@@ -220,7 +220,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             // Verify that is_required is forced to 1 for required mappings
             $mappings = $entity->getMappings();
             foreach ($mappings as $mapping) {
-                if ($mapping['glpi_field'] === 'username' || $mapping['glpi_field'] === 'email') {
+                if ($mapping['glpi_field'] === ClaimMapItem::FIELD_USERNAME || $mapping['glpi_field'] === ClaimMapItem::FIELD_EMAIL) {
                     if ($mapping['is_required'] !== 1) {
                         throw new \Exception("is_required was not forced to 1 for " . $mapping['glpi_field']);
                     }
@@ -276,9 +276,9 @@ namespace GlpiPlugin\Samlsso\Tests {
         {
             // Configure mock mappings in DB
             $this->db->setResponse('glpi_plugin_samlsso_claimmaps', [
-                ['target_type' => 'user_field', 'glpi_field' => 'username', 'saml_claim' => 'custom-uid'],
-                ['target_type' => 'user_field', 'glpi_field' => 'email', 'saml_claim' => 'custom-mail'],
-                ['target_type' => 'user_field', 'glpi_field' => 'realname', 'saml_claim' => 'custom-lastname']
+                ['target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD, 'glpi_field' => ClaimMapItem::FIELD_USERNAME, 'saml_claim' => 'custom-uid'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD, 'glpi_field' => ClaimMapItem::FIELD_EMAIL, 'saml_claim' => 'custom-mail'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD, 'glpi_field' => ClaimMapItem::FIELD_REALNAME, 'saml_claim' => 'custom-lastname']
             ]);
 
             $response = new TestResponse();
@@ -388,8 +388,8 @@ XML;
             // Scenario 1: missing non-required field with a configured default
             $this->db->setResponse('glpi_plugin_samlsso_claimmaps', [
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'firstname',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_FIRSTNAME,
                     'saml_claim'  => 'missing-firstname-claim',
                     'default_value'=> 'DefaultFirstname',
                     'is_required' => 0
@@ -408,8 +408,8 @@ XML;
             // Scenario 2: overlength claim value (> 255 chars) falls back to default
             $this->db->setResponse('glpi_plugin_samlsso_claimmaps', [
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'firstname',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_FIRSTNAME,
                     'saml_claim'  => 'overlength-firstname-claim',
                     'default_value'=> 'DefaultFirstname',
                     'is_required' => 0
@@ -428,15 +428,15 @@ XML;
             // Scenario 3: missing required field without default raises a fatal error
             $this->db->setResponse('glpi_plugin_samlsso_claimmaps', [
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'email',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_EMAIL,
                     'saml_claim'  => 'email-claim',
                     'default_value'=> 'email@example.com',
                     'is_required' => 0
                 ],
                 [
-                    'target_type' => 'user_field',
-                    'glpi_field'  => 'realname',
+                    'target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'  => ClaimMapItem::FIELD_REALNAME,
                     'saml_claim'  => 'missing-realname-claim',
                     'default_value'=> '',
                     'is_required' => 1
@@ -451,7 +451,7 @@ XML;
             try {
                 SamlUser::getUserInputFieldsFromSamlClaim($response, 1);
             } catch (\Exception $e) {
-                if (str_contains($e->getMessage(), 'Required user field "realname" is missing')) {
+                if (str_contains($e->getMessage(), 'Required user field "' . ClaimMapItem::FIELD_REALNAME . '" is missing')) {
                     $hasRaisedError = true;
                 } else {
                     throw $e;
@@ -475,17 +475,17 @@ XML;
         public function testDynamicCriterias(): void
         {
             $this->db->setResponse('glpi_plugin_samlsso_claimmaps', [
-                ['glpi_field' => 'groups', 'target_type' => 'rule_field'],
-                ['glpi_field' => 'jobtitle', 'target_type' => 'rule_field']
+                ['glpi_field' => ClaimMapItem::FIELD_GROUPS, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD],
+                ['glpi_field' => ClaimMapItem::FIELD_JOBTITLE, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD]
             ]);
 
             $rule = new \GlpiPlugin\Samlsso\RuleSaml();
             $criterias = $rule->getCriterias();
 
-            if (!isset($criterias['groups']) || !isset($criterias['jobtitle'])) {
+            if (!isset($criterias[ClaimMapItem::FIELD_GROUPS]) || !isset($criterias[ClaimMapItem::FIELD_JOBTITLE])) {
                 throw new \Exception("Dynamic rule_field criteria registration failed.");
             }
-            if (($criterias['groups']['name'] ?? '') !== 'SAML Claim: Groups') {
+            if (($criterias[ClaimMapItem::FIELD_GROUPS]['name'] ?? '') !== 'SAML Claim: Groups') {
                 throw new \Exception("Incorrect dynamic criteria name mapping.");
             }
             echo "✅ Dynamic rule_field criteria registration verified\n";
@@ -578,8 +578,8 @@ XML;
                 [
                     'id'            => 1,
                     'configs_id'    => 1,
-                    'target_type'   => 'user_field',
-                    'glpi_field'    => 'username',
+                    'target_type'   => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'    => ClaimMapItem::FIELD_USERNAME,
                     'saml_claim'    => 'NameId',
                     'default_value' => '',
                     'is_required'   => 1,
@@ -587,8 +587,8 @@ XML;
                 [
                     'id'            => 2,
                     'configs_id'    => 1,
-                    'target_type'   => 'user_field',
-                    'glpi_field'    => 'email',
+                    'target_type'   => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'    => ClaimMapItem::FIELD_EMAIL,
                     'saml_claim'    => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
                     'default_value' => '',
                     'is_required'   => 1,
@@ -596,8 +596,8 @@ XML;
                 [
                     'id'            => 3,
                     'configs_id'    => 1,
-                    'target_type'   => 'user_field',
-                    'glpi_field'    => 'realname',
+                    'target_type'   => ClaimMapItem::TARGET_TYPE_USER_FIELD,
+                    'glpi_field'    => ClaimMapItem::FIELD_REALNAME,
                     'saml_claim'    => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname',
                     'default_value' => 'Unknown',
                     'is_required'   => 0,
@@ -678,7 +678,7 @@ XML;
             if (count($firstEntry['claim_maps']) !== 3) {
                 throw new \Exception("Export JSON claim_maps count mismatch for first config.");
             }
-            if (($firstEntry['claim_maps'][0]['glpi_field'] ?? '') !== 'username') {
+            if (($firstEntry['claim_maps'][0]['glpi_field'] ?? '') !== ClaimMapItem::FIELD_USERNAME) {
                 throw new \Exception("Export JSON first claim_map glpi_field is incorrect.");
             }
             if (($firstEntry['claim_maps'][0]['is_required'] ?? -1) !== 1) {
@@ -759,6 +759,37 @@ XML;
 
             echo "✅ Bulk JSON export/import round-trip verified successfully\n";
         }
+
+        /**
+         * Test that custom mapped rule fields are dynamically resolved and populated in the rule fields array.
+         *
+         * @throws \Exception if the custom mapped rule field is not correctly resolved.
+         */
+        public function testDynamicRuleFieldClaimMapping(): void
+        {
+            $entity = new ClaimMapEntity(1);
+            $entity->save([
+                ['target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD, 'glpi_field' => ClaimMapItem::FIELD_USERNAME, 'saml_claim' => 'custom-uid'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD, 'glpi_field' => ClaimMapItem::FIELD_EMAIL, 'saml_claim' => 'custom-mail'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_EMAIL, 'saml_claim' => 'custom-mail-rule']
+            ]);
+
+            $response = new TestResponse();
+            $response->mockNameId = 'john.doe';
+            $response->mockAttributes = [
+                'custom-uid' => ['john.doe'],
+                'custom-mail' => ['john@example.com'],
+                'custom-mail-rule' => ['rule-email@quinquies.nl']
+            ];
+
+            $userFields = SamlUser::getUserInputFieldsFromSamlClaim($response, 1);
+
+            if (!isset($userFields['_saml_rule_fields'][ClaimMapItem::FIELD_EMAIL]) || $userFields['_saml_rule_fields'][ClaimMapItem::FIELD_EMAIL] !== 'rule-email@quinquies.nl') {
+                throw new \Exception("Dynamic rule field mapping for email failed.");
+            }
+
+            echo "✅ Dynamic custom rule field mappings resolved correctly\n";
+        }
     }
 }
 
@@ -774,6 +805,7 @@ namespace {
         $test->testFallbackAndRequiredValidation();
         $test->testDynamicCriterias();
         $test->testBulkExportImport();
+        $test->testDynamicRuleFieldClaimMapping();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

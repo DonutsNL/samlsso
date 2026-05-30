@@ -51,7 +51,7 @@ use OneLogin\Saml2\Utils;
 use OneLogin\Saml2\Settings;
 use OneLogin\Saml2\Response;
 use GlpiPlugin\Samlsso\LoginFlow;
-use GlpiPlugin\Samlsso\Loginstate;
+use GlpiPlugin\Samlsso\LoginState;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -120,22 +120,19 @@ class Acs extends LoginFlow
      * @return void
      * @since 1.0.0
      */
+    /**
+     * Init pre fetches loginState or fails.
+     *
+     * @param Request $request Incoming HTTP request
+     * @return void
+     * @since 1.0.0
+     */
     public function init(Request $request)             #NOSONAR Yes TLDR not fixing it.
     {
         $samlResponse = $request->get('SAMLResponse');         // Get post fields if any
         $this->idpId = !empty($request->get(LoginState::IDP_ID)) ? (int) $request->get(LoginState::IDP_ID) : -1;
 
-        // If we have all required data we first need to unpack the samlResponse using
-        // the samlRequest provided idpId. If all went well, the idpId was added as an
-        // get value to the URL by the IdP using the value provided in the samlRequest
-        // @see: ConfigEntity::getPhpSamlConfig()
-        if (
-            !empty($samlResponse)                  &&          //samlResponse post should not be empty
-            is_numeric($this->idpId)
-        ) {
-            //idpId should be a nummeric value (1>)
-            // We got everything we need!
-            // get the configuration using the idpId provided in the ACS call.
+        if (!empty($samlResponse) && is_numeric($this->idpId)) {
             try {
                 $this->configEntity = new ConfigEntity($this->idpId);
             } catch (Throwable $e) {
@@ -145,75 +142,88 @@ class Acs extends LoginFlow
                 );
             }
 
-            // DEBUG ENABLED?
-            // Only add extended logging with debug not to dump sensitive samlResponse data.
-            // https://github.com/DonutsNL/glpisaml/issues/12
             $this->debug = ($this->configEntity->getField(ConfigEntity::DEBUG)) ? true : false;
 
-            // PROXIED RESPONSES?
-            // Does phpSaml needs to take proxy headers into account
-            // for assertion url validation
-            if ($this->configEntity->getField(ConfigEntity::PROXIED)) {
-                try {
-                    $samltoolkit = new Utils();
-                    $samltoolkit::setProxyVars(true);
-                } catch (Throwable $e) {
-                    $this->printError(
-                        $e->getMessage(),
-                        __('Samlsso->acs->init->phpsaml->Utils->setProxyVars', PLUGIN_NAME)
-                    );
-                }
-            }
-
-            // GET POPULATED PHPSAML SETTINGS OBJECT
-            // Or show error!
-            $samlSettings = null;
-            try {
-                $samlSettings = new Settings($this->configEntity->getPhpSamlConfig());
-            } catch (Throwable $e) {
-                $this->printError(
-                    __('PHP-SAML could not initialize the settings object using the configEntity.', PLUGIN_NAME) . $e->getMessage(),
-                    __('Samlsso->acs->init->phpsaml->initializeSettings', PLUGIN_NAME)
-                );
-            }
-
-            // PROCESS THE SAMLRESPONSE
-            /** @var Settings $samlSettings */
-            try {
-                $this->samlResponse = new Response($samlSettings, $samlResponse);
-            } catch (Throwable $e) {
-                $this->printError(
-                    __('PHP-SAML library could not process samlResponse and reported the error:', PLUGIN_NAME) . $e->getMessage(),
-                    __('Samlsso->acs->init->phpsaml->initializeResponse', PLUGIN_NAME)
-                );
-            }
-
-            // Get the requestId from the samlResponse and generate LoginState using
-            // the samlInResponseTo attribute. If the samlResponse was requested by
-            // GLPI we should find an existing LoginState in the LoginState database
-            // and the LoginState should be prepopulated with the 'database' marker set
-            // to true.
-            try {
-                $inResponseTo = $this->samlResponse->getXMLDocument()->documentElement->getAttribute('InResponseTo');
-                $this->state = new LoginState($inResponseTo);
-            } catch (Throwable $e) {
-                $this->printError(
-                    __("Could not fetch loginState from database with error: <br><br>$e<br><br>See: https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php for more information.", PLUGIN_NAME),
-                    __('Samlsso->acs->init->LoginState::construct', PLUGIN_NAME)
-                );
-            }
+            $this->configureProxyVars();
+            $this->setupSamlResponse($samlResponse);
+            $this->fetchRequestState();
 
             // Everything is prepared for assertion!
             // Perform assertion on the samlResponse
             $this->assertSaml();
         } else {
-            //https://github.com/DonutsNL/samlsso/issues/5
             $this->printError(
                 __('The received idp response did not contain the required samlResponse POST body or idpId to authenticate the user, see: https://codeberg.org/QuinQuies/glpisaml/wiki/ACS.php for more information', PLUGIN_NAME),
                 __('Samlsso->acs->init->NoSamlResponse', PLUGIN_NAME),
                 Acs::EXTENDED_HEADER .
                     Acs::SERVER_OBJ . var_export($_SERVER, true) . "\n\n" .
                     Acs::EXTENDED_FOOTER . "\n"
+            );
+        }
+    }
+
+    /**
+     * Configure proxy variables for Utils if configured.
+     *
+     * @return void
+     */
+    private function configureProxyVars(): void
+    {
+        if ($this->configEntity->getField(ConfigEntity::PROXIED)) {
+            try {
+                $samltoolkit = new Utils();
+                $samltoolkit::setProxyVars(true);
+            } catch (Throwable $e) {
+                $this->printError(
+                    $e->getMessage(),
+                    __('Samlsso->acs->init->phpsaml->Utils->setProxyVars', PLUGIN_NAME)
+                );
+            }
+        }
+    }
+
+    /**
+     * Set up the SAML response settings and response object.
+     *
+     * @param string $samlResponse The raw SAML Response string
+     * @return void
+     */
+    private function setupSamlResponse(string $samlResponse): void
+    {
+        $samlSettings = null;
+        try {
+            $samlSettings = new Settings($this->configEntity->getPhpSamlConfig());
+        } catch (Throwable $e) {
+            $this->printError(
+                __('PHP-SAML could not initialize the settings object using the configEntity.', PLUGIN_NAME) . $e->getMessage(),
+                __('Samlsso->acs->init->phpsaml->initializeSettings', PLUGIN_NAME)
+            );
+        }
+
+        try {
+            $this->samlResponse = new Response($samlSettings, $samlResponse);
+        } catch (Throwable $e) {
+            $this->printError(
+                __('PHP-SAML library could not process samlResponse and reported the error:', PLUGIN_NAME) . $e->getMessage(),
+                __('Samlsso->acs->init->phpsaml->initializeResponse', PLUGIN_NAME)
+            );
+        }
+    }
+
+    /**
+     * Fetch the login request state from the database.
+     *
+     * @return void
+     */
+    private function fetchRequestState(): void
+    {
+        try {
+            $inResponseTo = $this->samlResponse->getXMLDocument()->documentElement->getAttribute('InResponseTo');
+            $this->state = new LoginState($inResponseTo);
+        } catch (Throwable $e) {
+            $this->printError(
+                __("Could not fetch loginState from database with error: <br><br>$e<br><br>See: https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php for more information.", PLUGIN_NAME),
+                __('Samlsso->acs->init->LoginState::construct', PLUGIN_NAME)
             );
         }
     }

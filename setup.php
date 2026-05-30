@@ -93,7 +93,6 @@ define('PLUGIN_SAMLSSO_WEBDIR', $CFG_GLPI['url_base'] . $pLoc . PLUGIN_NAME . '/
 
 // METHODS
 /**
- * Default GLPI Plugin Init function./**
  * Default GLPI Plugin bootstrap function.
  * @param void
  * @return void
@@ -201,7 +200,7 @@ function plugin_samlsso_check_prerequisites(): bool                             
     // https://github.com/DonutsNL/samlsso/issues/13
     if (
         ini_get('session.cookie_secure') == 1   ||
-        !ini_get('session.cookie_httponly') == 1 ||
+        ini_get('session.cookie_httponly') != 1 ||
         ini_get('session.cookie_samesite') == 0
     ) {
         echo "PHP is configured with the following Cookie settings.";

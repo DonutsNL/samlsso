@@ -935,6 +935,24 @@
                             }
                         ) }}
                     </div>
+
+                    <!-- Sync on login -->
+                    <div>
+                        {% set error_helper %}
+                            {% if inputfields.sync_on_login.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.sync_on_login.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.sliderField(
+                            inputfields.sync_on_login.field,
+                            inputfields.sync_on_login.value,
+                            inputfields.sync_on_login.formtitle,
+                            {
+                                'add_field_html': error_helper,
+                                helper: inputfields.sync_on_login.formexplain,
+                            }
+                        ) }}
+                    </div>
                     
                     <!-- security_nameidencrypted -->
                     <div>
@@ -1010,6 +1028,96 @@
                             {
                                 'add_field_html': error_helper,
                                 helper: inputfields.security_logoutresponsesigned.formexplain,
+                            }) 
+                        }}
+                    </div>
+
+                    <!-- security_wantmessagessigned -->
+                    <div>
+                        {% set error_helper %}
+                            {% if inputfields.security_wantmessagessigned.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.security_wantmessagessigned.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.sliderField(
+                            inputfields.security_wantmessagessigned.field,
+                            inputfields.security_wantmessagessigned.value,
+                            inputfields.security_wantmessagessigned.formtitle,
+                            {
+                                'add_field_html': error_helper,
+                                helper: inputfields.security_wantmessagessigned.formexplain,
+                            }) 
+                        }}
+                    </div>
+
+                    <!-- security_wantassertionssigned -->
+                    <div>
+                        {% set error_helper %}
+                            {% if inputfields.security_wantassertionssigned.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.security_wantassertionssigned.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.sliderField(
+                            inputfields.security_wantassertionssigned.field,
+                            inputfields.security_wantassertionssigned.value,
+                            inputfields.security_wantassertionssigned.formtitle,
+                            {
+                                'add_field_html': error_helper,
+                                helper: inputfields.security_wantassertionssigned.formexplain,
+                            }) 
+                        }}
+                    </div>
+
+                    <!-- security_wantassertionsencrypted -->
+                    <div>
+                        {% set error_helper %}
+                            {% if inputfields.security_wantassertionsencrypted.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.security_wantassertionsencrypted.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.sliderField(
+                            inputfields.security_wantassertionsencrypted.field,
+                            inputfields.security_wantassertionsencrypted.value,
+                            inputfields.security_wantassertionsencrypted.formtitle,
+                            {
+                                'add_field_html': error_helper,
+                                helper: inputfields.security_wantassertionsencrypted.formexplain,
+                            }) 
+                        }}
+                    </div>
+
+                    <!-- security_signmetadata -->
+                    <div>
+                        {% set error_helper %}
+                            {% if inputfields.security_signmetadata.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.security_signmetadata.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.sliderField(
+                            inputfields.security_signmetadata.field,
+                            inputfields.security_signmetadata.value,
+                            inputfields.security_signmetadata.formtitle,
+                            {
+                                'add_field_html': error_helper,
+                                helper: inputfields.security_signmetadata.formexplain,
+                            }) 
+                        }}
+                    </div>
+
+                    <!-- security_wantnameid -->
+                    <div>
+                        {% set error_helper %}
+                            {% if inputfields.security_wantnameid.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.security_wantnameid.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.sliderField(
+                            inputfields.security_wantnameid.field,
+                            inputfields.security_wantnameid.value,
+                            inputfields.security_wantnameid.formtitle,
+                            {
+                                'add_field_html': error_helper,
+                                helper: inputfields.security_wantnameid.formexplain,
                             }) 
                         }}
                     </div>
@@ -1380,12 +1488,13 @@
                                         <th>{{ __("Last Click") }}</th>
                                         <th style="width: 90px;" class="text-center">{{ __("Location") }}</th>
                                         <th style="width: 90px;" class="text-center">{{ __("Trace") }}</th>
+                                        <th style="width: 160px;" class="text-center">{{ __("Actions") }}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% if loggingfields is empty %}
                                         <tr>
-                                            <td colspan="10" class="text-center py-4 text-muted">
+                                            <td colspan="11" class="text-center py-4 text-muted">
                                                 <i class="ti ti-database-x fs-1 d-block mb-2"></i>
                                                 {{ __("No logs match the criteria.") }}
                                             </td>
@@ -1403,7 +1512,14 @@
                                                             {{ logrow.userName|slice(0, 2)|upper }}
                                                         </span>
                                                         <div>
-                                                            <div class="font-weight-medium">{{ logrow.userName }}</div>
+                                                            <div class="font-weight-medium">
+                                                                {{ logrow.userName }}
+                                                                {% if logrow.clientCountry is not empty and logrow.clientCountry != '??' %}
+                                                                    <span class="ms-1" style="cursor: help;" title="{{ logrow.clientCountryName }} ({{ logrow.clientIp }})">
+                                                                        <img src="https://flagcdn.com/16x12/{{ logrow.clientCountry|lower }}.png" width="16" height="12" alt="{{ logrow.clientCountry }}" style="vertical-align: middle; margin-top: -2px;">
+                                                                    </span>
+                                                                {% endif %}
+                                                            </div>
                                                             <div class="text-muted fs-8 font-monospace" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ logrow.sessionId }}">
                                                                 {{ logrow.sessionId }}
                                                             </div>
@@ -1467,6 +1583,22 @@
                                                                 title="{{ __('Login Flow Trace') }}">
                                                             <i class="ti ti-terminal-2 fs-4 text-warning"></i>
                                                         </button>
+                                                    {% else %}
+                                                        <span class="text-muted fs-7">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-center text-nowrap">
+                                                    {% if logrow.isUserActive == 1 and logrow.phase != 6 and logrow.phase != 8 %}
+                                                        <form action="{{ glpi_rootdoc }}" method="POST" style="display: inline-block;" onsubmit="return confirm('{{ __("Are you sure you want to disable this user and force logoff?") }}');">
+                                                            <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+                                                            <input type="hidden" name="action" value="forcelogoff">
+                                                            <input type="hidden" name="state_id" value="{{ logrow.id }}">
+                                                            <input type="hidden" name="id" value="{{ inputfields.id.value }}">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1">
+                                                                <i class="ti ti-user-off fs-4"></i>
+                                                                {{ __("Force Logoff & Disable") }}
+                                                            </button>
+                                                        </form>
                                                     {% else %}
                                                         <span class="text-muted fs-7">-</span>
                                                     {% endif %}
@@ -1568,12 +1700,123 @@
                             });
                         }
                         
-                        // Initialize popovers on logging tab specifically
+                        // Initialize popovers on logging tab specifically with auto-close when mouse is not near or tabs switch
                         var popoverTriggerList = [].slice.call(document.querySelectorAll('#logging [data-bs-toggle="popover"]'));
+                        var activePopoverInstance = null;
+                        var activePopoverEl = null;
+                        var closeTimeout = null;
+
                         popoverTriggerList.map(function (popoverTriggerEl) {
-                            return new bootstrap.Popover(popoverTriggerEl, {
-                                sanitize: false
+                            var popoverInstance = new bootstrap.Popover(popoverTriggerEl, {
+                                sanitize: false,
+                                trigger: 'manual'
                             });
+
+                            function showPopover() {
+                                if (closeTimeout) {
+                                    clearTimeout(closeTimeout);
+                                }
+                                if (activePopoverInstance && activePopoverInstance !== popoverInstance) {
+                                    activePopoverInstance.hide();
+                                }
+                                popoverInstance.show();
+                                activePopoverInstance = popoverInstance;
+                                activePopoverEl = popoverTriggerEl;
+                            }
+
+                            function delayHidePopover() {
+                                if (closeTimeout) {
+                                    clearTimeout(closeTimeout);
+                                }
+                                closeTimeout = setTimeout(function() {
+                                    // Check if trigger or popover itself is hovered before hiding
+                                    var activePopover = document.querySelector('.popover');
+                                    var isTriggerHovered = activePopoverEl && activePopoverEl.matches(':hover');
+                                    var isPopoverHovered = activePopover && activePopover.matches(':hover');
+
+                                    if (isTriggerHovered || isPopoverHovered) {
+                                        return; // Keep popover open
+                                    }
+
+                                    popoverInstance.hide();
+                                    if (activePopoverInstance === popoverInstance) {
+                                        activePopoverInstance = null;
+                                        activePopoverEl = null;
+                                    }
+                                }, 750);
+                            }
+
+                            popoverTriggerEl.addEventListener('mouseenter', showPopover);
+                            popoverTriggerEl.addEventListener('mouseleave', delayHidePopover);
+                            popoverTriggerEl.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                if (activePopoverInstance === popoverInstance) {
+                                    popoverInstance.hide();
+                                    activePopoverInstance = null;
+                                    activePopoverEl = null;
+                                } else {
+                                    showPopover();
+                                }
+                            });
+
+                            return popoverInstance;
+                        });
+
+                        // Keep popover open if mouse is hovering over the popover itself
+                        document.addEventListener('mouseover', function(e) {
+                            var targetPopover = e.target.closest('.popover');
+                            if (targetPopover && activePopoverInstance) {
+                                if (closeTimeout) {
+                                    clearTimeout(closeTimeout);
+                                }
+                            }
+                        });
+
+                        document.addEventListener('mouseout', function(e) {
+                            var targetPopover = e.target.closest('.popover');
+                            if (targetPopover && activePopoverInstance) {
+                                // Ignore mouseout events if moving to an element within the same popover
+                                if (e.relatedTarget && e.relatedTarget.closest('.popover') === targetPopover) {
+                                    return;
+                                }
+                                if (closeTimeout) {
+                                    clearTimeout(closeTimeout);
+                                }
+                                closeTimeout = setTimeout(function() {
+                                    var activePopover = document.querySelector('.popover');
+                                    var isTriggerHovered = activePopoverEl && activePopoverEl.matches(':hover');
+                                    var isPopoverHovered = activePopover && activePopover.matches(':hover');
+
+                                    if (isTriggerHovered || isPopoverHovered) {
+                                        return; // Keep popover open
+                                    }
+
+                                    if (activePopoverInstance) {
+                                        activePopoverInstance.hide();
+                                        activePopoverInstance = null;
+                                        activePopoverEl = null;
+                                    }
+                                }, 750);
+                            }
+                        });
+
+                        // Hide all popovers when switching tabs or clicking elsewhere
+                        document.querySelectorAll('.nav-link, [data-bs-toggle="tab"]').forEach(function(tabEl) {
+                            tabEl.addEventListener('click', function() {
+                                if (activePopoverInstance) {
+                                    activePopoverInstance.hide();
+                                    activePopoverInstance = null;
+                                    activePopoverEl = null;
+                                }
+                            });
+                        });
+
+                        document.addEventListener('click', function(e) {
+                            if (activePopoverInstance && activePopoverEl && !activePopoverEl.contains(e.target) && !e.target.closest('.popover')) {
+                                activePopoverInstance.hide();
+                                activePopoverInstance = null;
+                                activePopoverEl = null;
+                            }
                         });
                     });
                 </script>
@@ -1596,7 +1839,7 @@
             </div>
             {% if inputfields.debug.value == true %}
             <div class="m-1 align-middle text-muted pull-left pt-2">
-                ⚠️ Warning SP metadata exposed! - ROWID: {{ inputfields.id.value }} | CREATED DATE: {{ inputfields.date_creation.value }} | LAST UPDATED: {{ inputfields.date_mod.value }}
+                ⚠️ Warning SP metadata exposed! - ROWID: {{ inputfields.id.value }} | CREATED DATE: {{ inputfields.date_creation.value|formatted_datetime }} | LAST UPDATED: {{ inputfields.date_mod.value|formatted_datetime }}
             {% endif %}
         </div>
     </div>

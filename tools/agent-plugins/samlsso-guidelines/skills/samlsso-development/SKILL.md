@@ -29,6 +29,7 @@ You MUST follow these rules when performing any changes in this repository.
 - **Line Length**: Keep lines under 120 characters where possible.
 - **Descriptive Naming**: Use descriptive names for variables, classes, functions, and constants. Follow GLPI naming conventions first, then plugin conventions.
 - **Obfuscations**: Never allow obfuscations (e.g., minification, magic strings, hashed strings, or encoded payloads) in the code. If detected, report it immediately and attempt to uncover its purpose.
+- **No Raw Strings for Config/Claim Mapping Fields**: Never use raw string literals when referencing configuration keys or claim mapping fields (e.g. use `ClaimMapItem::FIELD_EMAIL` instead of `'email'`). All fields and keys must be defined as class constants.
 
 ## 🔒 Security & GLPI Architecture
 - **GLPI Core As-Is Rule**: Never modify or alter any class or method belonging to the GLPI core. Core files and methods must be considered "as-is" (even if they are insecure). Always notify the developer immediately if any core security issues are found.

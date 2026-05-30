@@ -215,9 +215,135 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function testUpdateUserRights(): void {
             $samlUser = new SamlUser();
-            $params = [SamlUser::RULEOUTPUT => [SamlUser::USERSID => 999, SamlUser::GROUPID => 50, SamlUser::PROFILESID => 5]];
+
+            // Clear tracking arrays
+            \Group_User::$added = [];
+            \User::$mockObject->updatedUserData = null;
+
+            // Simulate actual rule engine output keys:
+            // - specific_groups_id (GROUP_DEFAULT) => assigns user to a group
+            // - groups_id (GROUPID) => sets user default group
+            $params = [
+                SamlUser::RULEOUTPUT => [
+                    SamlUser::USERSID => 999,
+                    SamlUser::GROUP_DEFAULT => 50,
+                    SamlUser::GROUPID => 60,
+                    SamlUser::PROFILESID => 5
+                ]
+            ];
+
             $samlUser->updateUserRights($params);
+
+            // 1. Verify user was added to the group
+            if (empty(\Group_User::$added) || \Group_User::$added[0]['groups_id'] !== 50) {
+                throw new \Exception("Group assignment handler failed to add user to group 50 via Group_User.");
+            }
+
+            // 2. Verify default group was updated on the user object
+            $updatedData = \User::$mockObject->updatedUserData;
+            if ($updatedData === null || ($updatedData['groups_id'] ?? null) !== 60) {
+                throw new \Exception("User defaults handler failed to update default groups_id to 60.");
+            }
+
             echo "✅ User rights update (Groups/Profiles)\n";
+        }
+
+        /**
+         * Test that synchronization of claims and rules engine rerun works on login
+         * for existing users when sync_on_login is active.
+         */
+        public function testSyncOnLogin(): void {
+            $samlUser = new SamlUser();
+            $configEntity = new ConfigEntity();
+            
+            // Setup mock existing user fields
+            \User::$mockObject->mockUserData = [
+                'id'         => 999,
+                'name'       => 'existing_user',
+                'email'      => 'existing@example.com',
+                'is_deleted' => 0,
+                'is_active'  => 1
+            ];
+            
+            // 1. Sync on Login is disabled: should not trigger update
+            MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 0;
+            \User::$mockObject->mockUpdateCalled = false;
+            
+            $userFields = $this->getFullUserData('existing_user', 'existing@example.com');
+            $resUser = $samlUser->getOrCreateUser($userFields, $configEntity);
+            
+            if (\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("User update was triggered on login even though sync_on_login is disabled.");
+            }
+            
+            // 2. Sync on Login is enabled: should trigger update
+            MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+            \User::$mockObject->mockUpdateCalled = false;
+            
+            $resUser = $samlUser->getOrCreateUser($userFields, $configEntity);
+            
+            if (!\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("User update was NOT triggered on login even though sync_on_login is enabled.");
+            }
+            
+            echo "✅ Synchronize claim mappings and rerun rules engine on login verified\n";
+        }
+
+        /**
+         * Test that claim resync detailed trace logging records field changes correctly.
+         *
+         * @throws \Exception if the trace log doesn't match the simulated changes.
+         */
+        public function testSyncOnLoginTraceLogging(): void {
+            $samlUser = new SamlUser();
+            $configEntity = new ConfigEntity();
+            
+            \User::$mockObject->mockUserData = [
+                'id'         => 999,
+                'name'       => 'existing_user',
+                'realname'   => 'OldRealName',
+                'firstname'  => 'OldFirstName',
+                'mobile'     => '12345',
+                'phone'      => '67890',
+                'email'      => 'existing@example.com',
+                'is_deleted' => 0,
+                'is_active'  => 1
+            ];
+            
+            MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+            
+            $userFields = $this->getFullUserData('existing_user', 'newemail@example.com');
+            $userFields[SamlUser::REALNAME] = 'NewRealName';
+            $userFields[SamlUser::FIRSTNAME] = 'NewFirstName';
+            
+            /* Emulate LoginState */
+            $state = new class extends \GlpiPlugin\Samlsso\LoginState {
+                public array $traces = [];
+                public function __construct() {}
+                public function addLoginFlowTrace(array $condition): bool {
+                    $this->traces = array_merge($this->traces, $condition);
+                    return true;
+                }
+            };
+            
+            $resUser = $samlUser->getOrCreateUser($userFields, $configEntity, $state);
+            
+            if (!isset($state->traces['syncUpdatedFields'])) {
+                throw new \Exception("Sync changes trace log was not written.");
+            }
+            
+            $logContent = $state->traces['syncUpdatedFields'];
+            if (!str_contains($logContent, "realname: 'OldRealName' => 'NewRealName'") ||
+                !str_contains($logContent, "firstname: 'OldFirstName' => 'NewFirstName'") ||
+                !str_contains($logContent, "email added: 'newemail@example.com'")) {
+                throw new \Exception("Sync changes trace log has incorrect detail: " . $logContent);
+            }
+
+            if (!isset($state->traces['rulesEngineInput']) || !isset($state->traces['rulesEngineOutput'])) {
+                throw new \Exception("Rules engine inputs or outputs were not logged.");
+            }
+            
+            echo "✅ Synchronize claim mappings trace logging verified\n";
         }
     }
 }
@@ -233,6 +359,8 @@ namespace {
         $test->testJitDisabledRespectsIdpConfig();
         $test->testUpdateUserRights();
         $test->testRuleActionsHaveHandlers();
+        $test->testSyncOnLogin();
+        $test->testSyncOnLoginTraceLogging();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

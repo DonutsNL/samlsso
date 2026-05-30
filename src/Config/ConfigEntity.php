@@ -99,6 +99,16 @@ class ConfigEntity extends ConfigItem
     public const CREATE_DATE     = 'date_creation';
     public const MOD_DATE        = 'date_mod';
     public const SAML_XML_STRUCTURE = 'saml_xml_structure';
+    /**
+     * @var string Database column: flag to trigger synchronization of user
+     *             properties and rules engine rerun on every successful login.
+     */
+    public const SYNC_ON_LOGIN = 'sync_on_login';
+    public const SECURITY_WANTMESSAGESSIGNED = 'security_wantmessagessigned';
+    public const SECURITY_WANTASSERTIONSSIGNED = 'security_wantassertionssigned';
+    public const SECURITY_WANTASSERTIONSENCRYPTED = 'security_wantassertionsencrypted';
+    public const SECURITY_SIGNMETADATA = 'security_signmetadata';
+    public const SECURITY_WANTNAMEID = 'security_wantnameid';
 
     /**
      * True, if an configuration issue is found its set to false.
@@ -379,6 +389,36 @@ class ConfigEntity extends ConfigItem
             }
         }
 
+        // Enforce option check for multiple active IDPs.
+        // If there are more than one active and configured IDPs, we automatically disable the enforce option
+        // and display a warning inline in the form.
+        global $DB;
+        $isActive = (int)($fields[configEntity::IS_ACTIVE][configItem::VALUE] ?? 0);
+        $isDeleted = (int)($fields[configEntity::IS_DELETED][configItem::VALUE] ?? 0);
+
+        if ($isActive === 1 && $isDeleted === 0) {
+            $id = $fields[configEntity::ID][configItem::VALUE] ?? null;
+            $where = [
+                configEntity::IS_ACTIVE  => 1,
+                configEntity::IS_DELETED => 0
+            ];
+            if ($id !== null && is_numeric($id) && $id > 0) {
+                $where['NOT'] = [configEntity::ID => (int)$id];
+            }
+
+            $otherActiveCount = count(iterator_to_array($DB->request([
+                'FROM'  => SamlConfig::getTable(),
+                'WHERE' => $where
+            ])));
+
+            if ($otherActiveCount > 0) {
+                if (!empty($fields[configEntity::ENFORCE_SSO][configItem::VALUE])) {
+                    $fields[configEntity::ENFORCE_SSO][configItem::VALUE] = 0;
+                    $fields[configEntity::ENFORCE_SSO][configItem::ERRORS] = __('⚠️ IDPs cannot be enforced if more than one is present in the IDP list.', PLUGIN_NAME);
+                }
+            }
+        }
+
         return $fields;
     }
 
@@ -496,13 +536,11 @@ class ConfigEntity extends ConfigItem
                     'authnRequestsSigned'               => $this->fields[ConfigEntity::SIGN_AUTHN],
                     'logoutRequestSigned'               => $this->fields[ConfigEntity::SIGN_SLO_REQ],
                     'logoutResponseSigned'              => $this->fields[ConfigEntity::SIGN_SLO_RES],
-
-                    //'signMetadata'                    => false,
-                    //'wantMessagesSigned'              => false,
-                    //'wantAssertionsEncrypted'         => false,
-                    //'wantAssertionsSigned'            => false,
-                    //'wantNameId'                      => true,
-                    //'wantNameIdEncrypted'             => false,
+                    'wantMessagesSigned'                => (bool)$this->fields[ConfigEntity::SECURITY_WANTMESSAGESSIGNED],
+                    'wantAssertionsSigned'              => (bool)$this->fields[ConfigEntity::SECURITY_WANTASSERTIONSSIGNED],
+                    'wantAssertionsEncrypted'           => (bool)$this->fields[ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED],
+                    'signMetadata'                      => (bool)$this->fields[ConfigEntity::SECURITY_SIGNMETADATA],
+                    'wantNameId'                        => (bool)$this->fields[ConfigEntity::SECURITY_WANTNAMEID],
                     // Set true or don't present this parameter and you will get an AuthContext 'exact' 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport'
                     // Set an array with the possible auth context values: array ('urn:oasis:names:tc:SAML:2.0:ac:classes:Password', 'urn:oasis:names:tc:SAML:2.0:ac:classes:X509'),
                     'requestedAuthnContext'             => $this->getAuthn($this->fields[ConfigEntity::AUTHN_CONTEXT]),

@@ -301,8 +301,16 @@ namespace {
             public static function footer(): void { 
                 echo "HTML_FOOTER\n"; 
             }
+
+            /**
+             * Mock date/time localized conversion helper.
+             */
+            public static function convDateTime(string $datetime, $format = null, bool $with_seconds = true): string {
+                return $datetime . ' (LOCAL)';
+            }
         }
     }
+
 
     /**
      * Shim for GLPI's Toolbox class.
@@ -330,6 +338,15 @@ namespace {
              */
             public static function logWarning(string $msg): bool { 
                 return true; 
+            }
+
+            /**
+             * Check if the current request is an AJAX request.
+             *
+             * @return bool
+             */
+            public static function isAjax(): bool {
+                return isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest';
             }
         }
     }
@@ -487,6 +504,21 @@ namespace {
                 }
                 return 1;
             }
+
+            /**
+             * Mocks updating a user record.
+             *
+             * @param array $input User attributes to update.
+             * @param bool $history Keep history logs.
+             * @param array $options Additional options.
+             * @return bool True on success.
+             */
+            public function update(array $input, bool $history = true, array $options = []): bool {
+                if (self::$mockObject && method_exists(self::$mockObject, 'update')) {
+                    return self::$mockObject->update($input, $history, $options);
+                }
+                return parent::update($input, $history, $options);
+            }
         }
     }
 
@@ -554,7 +586,13 @@ namespace {
      * Shim for GLPI's Group_User link table.
      */
     if (!class_exists('Group_User', false)) {
-        class Group_User extends CommonDBTM {}
+        class Group_User extends CommonDBTM {
+            public static array $added = [];
+            public function add(array $input, array $options = [], bool $history = true): int {
+                self::$added[] = $input;
+                return 1;
+            }
+        }
     }
 
     /**
@@ -562,6 +600,7 @@ namespace {
      */
     if (!class_exists('Profile_User', false)) {
         class Profile_User extends CommonDBTM {
+            public static array $added = [];
             /**
              * Get profile links for a user.
              *
@@ -570,6 +609,27 @@ namespace {
              */
             public static function getForUser(int $id): array { 
                 return [1 => ['profiles_id' => 1]]; 
+            }
+            public function add(array $input, array $options = [], bool $history = true): int {
+                self::$added[] = $input;
+                return 1;
+            }
+        }
+    }
+
+    /**
+     * Shim for GLPI's UserEmail class.
+     */
+    if (!class_exists('UserEmail', false)) {
+        class UserEmail extends CommonDBTM {
+            /**
+             * Mocks retrieving associated emails for a user.
+             *
+             * @param int $id User ID.
+             * @return array Empty array for mock.
+             */
+            public function getForUser(int $id): array {
+                return [];
             }
         }
     }

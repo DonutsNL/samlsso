@@ -64,7 +64,7 @@ use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginState;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\LoginFlow\User;
-use GlpiPlugin\Samlsso\LoginFlow\Auth as glpiAuth;
+use GlpiPlugin\Samlsso\LoginFlow\Auth as GlpiAuth;
 
 /**
  * This object brings it all together. It is responsible to handle the
@@ -201,6 +201,15 @@ class LoginFlow extends CommonDBTM
             return;
         }
 
+        /**
+         * Skip authentication logic for AJAX requests to avoid session state
+         * corruption during background operations.
+         */
+        if (\Toolbox::isAjax()) {
+            return;
+        }
+
+
         // Dont process anything if we are handling an ACS call.
         // Generating a state in this phase will taint it because we
         // have a new sessionId that wont align with existing entries
@@ -241,6 +250,14 @@ class LoginFlow extends CommonDBTM
             } // We loaded a valid state from the database, do nothing more.
         } catch (Throwable $e) {
             $this->printError(__("Loading login state failed with: $e", PLUGIN_NAME));
+        }
+
+        if ($this->state->getPhase() === LoginState::PHASE_FORCE_LOG) {
+            $this->state->setPhase(LoginState::PHASE_LOGOFF);
+            Session::cleanOnLogout();
+            Session::addMessageAfterRedirect(__('You have been forcefully logged out by an administrator.', PLUGIN_NAME), false, ERROR);
+            header('Location: ' . $CFG_GLPI['url_base'] . '/index.php?noAuto=1');
+            exit;
         }
 
         if (isset($_GET[self::LOCALLOGOUT])) {
@@ -307,35 +324,13 @@ class LoginFlow extends CommonDBTM
 
         // BYPASS SAML ENFORCE OPTION
         // https://codeberg.org/QuinQuies/glpisaml/issues/35
-        if ((isset($_GET[LoginFlow::SAMLBYPASS])                  &&                                             // Is ?bypass=1 set in our uri (replace with GLPIs noAuto?)
-                $_GET[LoginFlow::SAMLBYPASS] == 1)                   ||                                             // bypass key is set (drop this?)
-            isset($_GET['noAuto'])
-        ) {                                             // bypass is set to 1 (can be replaced with secret key)
-
-            $this->state->addLoginFlowTrace(['bypassUsed' => true]);                                        // Register the bypass was used
-            $url = $CFG_GLPI['url_base'] . '/?' . LoginFlow::SAMLBYPASS . '=1&noAUTO=1';                          // Craft url with bypass make sure we land on page
-            // Perform serverside redirect.
-            header('Location:' . $url);
-        }
+        $this->interceptBypass();
 
         // CAPTURE LOGIN FIELD
         // https://codeberg.org/QuinQuies/glpisaml/issues/3
         // https://github.com/DonutsNL/samlsso/issues/16
-        // Capture the post of regular login and verify if the provided domain is SSO enabled.
-        // by evaluating the domain portion against the configured user domains.
-        // we need to iterate through the keys because of the added csrf token i.e.
-        // [fielda[csrf_token]] = value.
-        foreach ($_POST as $key => $value) {
-            if (
-                strstr($key, 'login_name')                           &&                                          // Test keys if fielda[token] is present in the POST.
-                !empty($_POST[$key])                                  &&                                          // Test if fielda actually has a value we can process
-                $id = Config::getConfigIdByEmailDomain($_POST[$key])
-            ) {                                          // If all is true try to find an matching idp id.
-
-                $this->state->addLoginFlowTrace(['loginViaUserfield' => 'user:' . $_POST[$key] . ',idpId:' . $id]);   // Register the userfield was used with user
-                $this->subject = $_POST[$key];                                                                  // Save the user piripheral name as samlSubject to pass to the IDP
-                $_POST[LoginFlow::POSTFIELD] = $id;                                                             // If we found an ID Set the POST phpsaml to our found ID this will trigger
-            }
+        if ($id = $this->resolveIdpFromLoginForm()) {
+            $_POST[LoginFlow::POSTFIELD] = $id;
         }
 
         // MANUAL IDP ID VIA GETTER
@@ -383,6 +378,47 @@ class LoginFlow extends CommonDBTM
         }
         // Do nothing and return nothing.
         // Returning an value like false breaks glpi in all kinds of nasty ways.
+    }
+
+    /**
+     * Intercept and handle bypass SAML authentication requests.
+     *
+     * @return bool True if bypass was triggered
+     */
+    private function interceptBypass(): bool
+    {
+        global $CFG_GLPI;
+        if (
+            (isset($_GET[LoginFlow::SAMLBYPASS]) && $_GET[LoginFlow::SAMLBYPASS] == 1) ||
+            isset($_GET['noAuto'])
+        ) {
+            $this->state->addLoginFlowTrace(['bypassUsed' => true]);
+            $url = $CFG_GLPI['url_base'] . '/?' . LoginFlow::SAMLBYPASS . '=1&noAUTO=1';
+            header('Location:' . $url);
+            exit();
+        }
+        return false;
+    }
+
+    /**
+     * Parse the login form parameters to see if IDP matching the domain is configured.
+     *
+     * @return int|null Resolved IDP configuration ID, or null
+     */
+    private function resolveIdpFromLoginForm(): ?int
+    {
+        foreach ($_POST as $key => $value) {
+            if (
+                strstr($key, 'login_name') &&
+                !empty($_POST[$key]) &&
+                $id = Config::getConfigIdByEmailDomain($_POST[$key])
+            ) {
+                $this->state->addLoginFlowTrace(['loginViaUserfield' => 'user:' . $_POST[$key] . ',idpId:' . $id]);
+                $this->subject = $_POST[$key];
+                return (int)$id;
+            }
+        }
+        return null;
     }
 
     /**
@@ -482,7 +518,7 @@ class LoginFlow extends CommonDBTM
 
         // Try to populate GLPI Auth using the fetched samlResponse attributes;
         try {
-            $auth = (new GlpiAuth())->loadUser($userFields, $configEntity);
+            $auth = (new GlpiAuth())->loadUser($userFields, $configEntity, $state);
         } catch (Throwable $e) {
             $this->printError($e->getMessage(), 'doSamlLogin');
         }
@@ -658,18 +694,31 @@ class LoginFlow extends CommonDBTM
 
         $ip = getenv("HTTP_X_FORWARDED_FOR") ?: getenv("REMOTE_ADDR");
 
-        // Log in file
+        /* Log in file */
         Toolbox::logInFile(PLUGIN_NAME . "-errors", 'FATAL SAML LOGIN ERROR:' . $errorMsg . "\n", true);
 
         if (self::$throwOnError) {
             throw new \Exception((string)$errorMsg);
         }
 
-        // Define static translatable elements
+        $debug = false;
+        try {
+            $state = new Loginstate();
+            if ($state->getStateId() > 0 && $state->getIdpId() > 0) {
+                $configEntity = new ConfigEntity($state->getIdpId());
+                $debug = (bool)$configEntity->getField(ConfigEntity::DEBUG);
+            }
+        } catch (\Throwable $t) {
+            /* ignore */
+        }
+
+        $displayMsg = $debug ? (string)$errorMsg : __('An internal error occurred. Please contact your GLPI administrator.', PLUGIN_NAME);
+
+        /* Define static translatable elements */
         $tplVars['header']      = __('⚠️ Sorry we are unable to log you in', PLUGIN_NAME);
-        // https://github.com/DonutsNL/samlsso/issues/21
-        // Typecast might break if the passed object doesnt have a __toString() magic method.
-        $tplVars['error']       = htmlentities((string) $errorMsg);
+        /* https://github.com/DonutsNL/samlsso/issues/21 */
+        /* Typecast might break if the passed object doesnt have a __toString() magic method. */
+        $tplVars['error']       = htmlentities($displayMsg);
         $tplVars['returnPath']  = $CFG_GLPI["url_base"] . '/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
 
@@ -702,7 +751,7 @@ class LoginFlow extends CommonDBTM
         // Pull GLPI config into scope.
         global $CFG_GLPI;
 
-        // Log in file
+        /* Log in file */
         Toolbox::logInFile(PLUGIN_NAME . "-errors", $errorMsg . "\n", true);
         if ($extended) {
             Toolbox::logInFile(PLUGIN_NAME . "-errors", $extended . "\n", true);
@@ -712,10 +761,23 @@ class LoginFlow extends CommonDBTM
             throw new \Exception($errorMsg);
         }
 
-        // Define static translatable elements
+        $debug = false;
+        try {
+            $state = new Loginstate();
+            if ($state->getStateId() > 0 && $state->getIdpId() > 0) {
+                $configEntity = new ConfigEntity($state->getIdpId());
+                $debug = (bool)$configEntity->getField(ConfigEntity::DEBUG);
+            }
+        } catch (\Throwable $t) {
+            /* ignore */
+        }
+
+        $displayMsg = $debug ? $errorMsg : __('An internal error occurred. Please contact your GLPI administrator.', PLUGIN_NAME);
+
+        /* Define static translatable elements */
         $tplVars['header']      = __('⚠️ An error occurred', PLUGIN_NAME);
-        $tplVars['leading']     = __("We are sorry, something went terribly wrong while processing your $action request!", PLUGIN_NAME);
-        $tplVars['error']       = $errorMsg;
+        $tplVars['leading']     = __("We are sorry, something went wrong while processing your request!", PLUGIN_NAME);
+        $tplVars['error']       = $displayMsg;
         $tplVars['returnPath']  = $CFG_GLPI["url_base"] . '/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
         // print header

@@ -1,0 +1,22 @@
+<div class="container-tight py-4" style="max-width: 450px; margin: 40px auto;">
+    <div class="card card-md shadow-lg border-0 rounded-3">
+        <div class="card-body text-center py-5">
+            <div class="mb-4">
+                <span class="avatar avatar-xl rounded-circle bg-success-lt" style="width: 80px; height: 80px; display: inline-flex; align-items: center; justify-content: center; background-color: rgba(40, 167, 69, 0.15); color: #28a745;">
+                    <i class="ti ti-circle-check fs-1" style="font-size: 3rem;"></i>
+                </span>
+            </div>
+            <h1 class="h2 mb-2" style="font-weight: 600;">{{ __('Successfully Logged Out', 'samlsso') }}</h1>
+            <div class="alert alert-success border-0 bg-transparent text-muted px-4" role="alert" style="font-size: 1.1em; line-height: 1.6;">
+                <p>
+                    {{ __('You have been successfully logged out of your session. You can now safely close this browser window/tab, or log in again using the button below.', 'samlsso') }}
+                </p>
+            </div>
+            <div class="mt-4">
+                <a class="btn btn-primary btn-lg w-100" href="{{ loginPath|striptags }}" target="_self" style="padding: 10px 20px; font-weight: 500;">
+                    <i class="ti ti-login me-2"></i>{{ __('Log in again', 'samlsso') }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

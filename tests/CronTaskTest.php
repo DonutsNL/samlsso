@@ -160,6 +160,30 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ CronTask: session cleanup skipped when retention is 0\n";
         }
+
+        /**
+         * Test cronInfo returns correct details for both tasks.
+         *
+         * @throws \Exception
+         */
+        public function testCronInfo(): void {
+            $infoClean = CronTask::cronInfo('cleanSessionSAML');
+            if (empty($infoClean['description'])) {
+                throw new \Exception("Missing description for cleanSessionSAML");
+            }
+
+            $infoGeoIP = CronTask::cronInfo('updateGeoIP');
+            if (empty($infoGeoIP['description'])) {
+                throw new \Exception("Missing description for updateGeoIP");
+            }
+
+            $infoInvalid = CronTask::cronInfo('invalidTask');
+            if (!empty($infoInvalid)) {
+                throw new \Exception("Expected empty array for invalid task info");
+            }
+
+            echo "✅ CronTask: cronInfo metadata verified\n";
+        }
     }
 }
 
@@ -171,6 +195,7 @@ namespace {
     try {
         $test->testCronSessionCleanupPositive();
         $test->testCronSessionCleanupZero();
+        $test->testCronInfo();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

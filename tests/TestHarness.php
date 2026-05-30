@@ -523,6 +523,12 @@ namespace GlpiPlugin\Samlsso\Config {
             public const IS_DELETED      = 'is_deleted';
             public const CREATE_DATE     = 'date_creation';
             public const MOD_DATE        = 'date_mod';
+            public const SYNC_ON_LOGIN   = 'sync_on_login';
+            public const SECURITY_WANTMESSAGESSIGNED = 'security_wantmessagessigned';
+            public const SECURITY_WANTASSERTIONSSIGNED = 'security_wantassertionssigned';
+            public const SECURITY_WANTASSERTIONSENCRYPTED = 'security_wantassertionsencrypted';
+            public const SECURITY_SIGNMETADATA = 'security_signmetadata';
+            public const SECURITY_WANTNAMEID = 'security_wantnameid';
 
             /** @var array Mocks configuration field storage. */
             public static array $mockFields = [];
@@ -1314,9 +1320,29 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @param string $query SQL string.
          * @return bool Always returns true.
          */
-        public function doQuery(string $query): bool
+        public function doQuery(string $query): mixed
         {
             $this->lastQuery = $query;
+            if (stripos($query, 'SHOW COLUMNS') !== false) {
+                return new class() {
+                    private array $columns = [
+                        ['Field' => 'id', 'Type' => 'int', 'Null' => 'NO'],
+                        ['Field' => 'is_active', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'is_deleted', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'enforce_sso', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'name', 'Type' => 'varchar(255)', 'Null' => 'YES'],
+                        ['Field' => 'sp_certificate', 'Type' => 'text', 'Null' => 'YES'],
+                        ['Field' => 'sp_private_key', 'Type' => 'text', 'Null' => 'YES'],
+                    ];
+                    private int $index = 0;
+                    public function fetch_assoc() {
+                        if ($this->index < count($this->columns)) {
+                            return $this->columns[$this->index++];
+                        }
+                        return null;
+                    }
+                };
+            }
             return true;
         }
 
@@ -1436,9 +1462,37 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @param bool $history Keep history logs.
          * @return int Created user ID.
          */
+        /** @var bool Track if update was called. */
+        public bool $mockUpdateCalled = false;
+        /** @var array|null Captured update data. */
+        public ?array $updatedUserData = null;
+
+        /**
+         * Create a new user record.
+         *
+         * @param array $input User fields.
+         * @param array $options Additional options.
+         * @param bool $history Keep history logs.
+         * @return int Created user ID.
+         */
         public function add(array $input, array $options = [], bool $history = true): int
         {
             return $this->mockIdToReturn;
+        }
+
+        /**
+         * Mocks updating a user record.
+         *
+         * @param array $input Fields to update.
+         * @param bool $history Keep history logs.
+         * @param array $options Additional options.
+         * @return bool Always returns true.
+         */
+        public function update(array $input, bool $history = true, array $options = []): bool
+        {
+            $this->mockUpdateCalled = true;
+            $this->updatedUserData = $input;
+            return true;
         }
     }
 

@@ -49,7 +49,6 @@ namespace GlpiPlugin\Samlsso\Config;
 use Html;
 use Search;
 use Session;
-use Plugin;
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\ClaimMap;
 use GlpiPlugin\Samlsso\LoginState;
@@ -167,6 +166,12 @@ HTML;
             ConfigEntity::ID, ConfigEntity::NAME, ConfigEntity::CONF_DOMAIN,
             ConfigEntity::CONF_ICON, ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
             ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT,
+            ConfigEntity::SYNC_ON_LOGIN,
+            ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
+            ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
+            ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
+            ConfigEntity::SECURITY_SIGNMETADATA,
+            ConfigEntity::SECURITY_WANTNAMEID,
             ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY, ConfigEntity::SP_NAME_FORMAT,
             ConfigEntity::IDP_ENTITY_ID, ConfigEntity::IDP_SSO_URL, ConfigEntity::IDP_SLO_URL,
             ConfigEntity::IDP_CERTIFICATE, ConfigEntity::AUTHN_CONTEXT, ConfigEntity::AUTHN_COMPARE,
@@ -309,6 +314,12 @@ HTML;
             ConfigEntity::ID, ConfigEntity::NAME, ConfigEntity::CONF_DOMAIN,
             ConfigEntity::CONF_ICON, ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
             ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT,
+            ConfigEntity::SYNC_ON_LOGIN,
+            ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
+            ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
+            ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
+            ConfigEntity::SECURITY_SIGNMETADATA,
+            ConfigEntity::SECURITY_WANTNAMEID,
             ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY, ConfigEntity::SP_NAME_FORMAT,
             ConfigEntity::IDP_ENTITY_ID, ConfigEntity::IDP_SSO_URL, ConfigEntity::IDP_SLO_URL,
             ConfigEntity::IDP_CERTIFICATE, ConfigEntity::AUTHN_CONTEXT, ConfigEntity::AUTHN_COMPARE,
@@ -394,6 +405,33 @@ HTML;
      */
     public function invokeForm(Request $request): Response|RedirectResponse     // NOSONAR - CRUDE returns by design.
     {
+        if ($request->get('action') === 'forcelogoff') {
+            $config = new Config();
+            if (!$config->canUpdate()) {
+                Session::addMessageAfterRedirect(__('You do not have permission to perform this action.', PLUGIN_NAME), false, ERROR);
+                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIGFORM_ROUTE);
+            }
+            $stateId = (int)$request->get('state_id');
+            if ($stateId > 0) {
+                $loginState = new LoginState();
+                if ($loginState->getFromID($stateId)) {
+                    $userId = $loginState->getUserId();
+                    if ($userId > 0) {
+                        $user = new \User();
+                        if ($user->getFromDB($userId)) {
+                            $user->update(['id' => $userId, 'is_active' => 0]);
+                        }
+                    }
+                    $loginState->setPhase(LoginState::PHASE_FORCE_LOG);
+                    Session::addMessageAfterRedirect(__('User disabled and session forced logoff.', PLUGIN_NAME));
+                } else {
+                    Session::addMessageAfterRedirect(__('Login state session not found.', PLUGIN_NAME), false, ERROR);
+                }
+            }
+            $idpId = !empty($request->get('id')) ? (int) $request->get('id') : -1;
+            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $idpId . '#logging');
+        }
+
         $inputBag = $request->getPayload();                                     // Assign the inputBag
         $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;     // Assign the ID if any
         $options['template'] = ( $request->get('template') &&                   // iF set URI?template={template}
@@ -610,10 +648,16 @@ HTML;
                       'security_warning'    => [configEntity::ENFORCE_SSO,
                                                 configEntity::STRICT,
                                                 configEntity::USER_JIT,
+                                                configEntity::SYNC_ON_LOGIN,
                                                 configEntity::ENCRYPT_NAMEID,
                                                 configEntity::SIGN_AUTHN,
                                                 configEntity::SIGN_SLO_REQ,
-                                                configEntity::SIGN_SLO_RES]];
+                                                configEntity::SIGN_SLO_RES,
+                                                configEntity::SECURITY_WANTMESSAGESSIGNED,
+                                                configEntity::SECURITY_WANTASSERTIONSSIGNED,
+                                                configEntity::SECURITY_WANTASSERTIONSENCRYPTED,
+                                                configEntity::SECURITY_SIGNMETADATA,
+                                                configEntity::SECURITY_WANTNAMEID]];
         // Parse config fields
         // https://github.com/DonutsNL/samlsso/issues/27
         // Make sure all tabs are present for twig.
@@ -728,6 +772,7 @@ HTML;
             'saml_xml_structure'        =>  $fields[ConfigEntity::SAML_XML_STRUCTURE]['value'] ?? '',
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
+            'csrf_token'                =>  \Session::getNewCSRFToken(),
             'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
             'inputfields'               =>  $fields,

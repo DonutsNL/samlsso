@@ -200,7 +200,13 @@ s2DsGVGfjX/LlC5WK63pBfsK3tttiIWXaOmAz29C2279l/WrZFWHQyy0DOHBQYtb
                  ConfigEntity::XML_VALIDATION   => true,
                  ConfigEntity::LOWERCASE_URL    => true,
                  ConfigEntity::COMMENT          => 'Azure example configuration, see: https://learn.microsoft.com/en-us/entra/identity/saas-apps/saml-toolkit-tutorial',
-                 ConfigEntity::IS_ACTIVE        => false
+                 ConfigEntity::IS_ACTIVE        => false,
+                 ConfigEntity::SYNC_ON_LOGIN    => false,
+                 ConfigEntity::SECURITY_WANTMESSAGESSIGNED => false,
+                 ConfigEntity::SECURITY_WANTASSERTIONSSIGNED => false,
+                 ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED => false,
+                 ConfigEntity::SECURITY_SIGNMETADATA => false,
+                 ConfigEntity::SECURITY_WANTNAMEID => true
         ];
     }
 }

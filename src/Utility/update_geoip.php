@@ -9,7 +9,7 @@ declare(strict_types=1);
  *  caused by the gradual development of GLPI and the broad amount of
  *  wishes expressed by the community.
  *
- *  Copyright (C) 2024 by Chris Gralike
+ *  Copyright (C) 2026 by DonutsNL
  *  ------------------------------------------------------------------------
  *
  * LICENSE
@@ -39,45 +39,19 @@ declare(strict_types=1);
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.0.0
+ *  @since      1.3.0
  * ------------------------------------------------------------------------
  **/
 
-namespace GlpiPlugin\Samlsso\LoginFlow;
-
-use Auth as glpiAuth;
-use GlpiPlugin\Samlsso\LoginFlow\User;
-use GlpiPlugin\Samlsso\Config\ConfigEntity;
-
-/**
- * Extends the glpi Auth class for injection into Session::init();
- * by the LoginFlow class. Loads the $this->user after successful
- * authentication by phpSaml using the provided claim attributes
- * and sets all session variables to allow for login.
- */
-class Auth extends glpiAuth
-{
-    /**
-     * Loads the authenticated user context or JIT provisions a new one.
-     *
-     * @param array $userFields Mapped user fields from SAML response.
-     * @param ConfigEntity $configEntity The active IdP config entity.
-     * @param \GlpiPlugin\Samlsso\LoginState|null $state The active login state tracker.
-     * @return $this
-     */
-    public function loadUser(array $userFields, ConfigEntity $configEntity, ?\GlpiPlugin\Samlsso\LoginState $state = null)
-    {
-        global $DB;
-
-        // Get or Jit create user or exit on error.
-        $this->user = (new User())->getOrCreateUser($userFields, $configEntity, $state);
-
-        // Setting this property actually authorizes the login for the user.
-        // Be aware (sic) Succeeded is spelled incorrectly in parent GLPI object
-        // as per Auth.php:1043
-        $this->auth_succeded = $this->user;
-
-        // Return this object for injection into the session.
-        return $this;
-    }
+if (php_sapi_name() !== 'cli' && !defined('GLPI_ROOT')) {
+    header("HTTP/1.1 403 Forbidden");
+    echo "Access denied. This script can only be run via CLI or from within GLPI.\n";
+    return;
 }
+
+// Bootstrap Composer autoloader
+require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
+
+use GlpiPlugin\Samlsso\Utility\GeoIPUpdater;
+
+GeoIPUpdater::run();

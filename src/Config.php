@@ -460,6 +460,7 @@ class Config extends CommonDBTM
             `strict`                        tinyint NOT NULL DEFAULT '0',
             `debug`                         tinyint NOT NULL DEFAULT '0',
             `user_jit`                      tinyint NOT NULL DEFAULT '0',
+            `sync_on_login`                 tinyint NOT NULL DEFAULT '0',
             `sp_certificate`                TEXT NOT NULL,
             `sp_private_key`                TEXT NOT NULL,
             `sp_nameid_format`              VARCHAR(128) NOT NULL,
@@ -473,6 +474,11 @@ class Config extends CommonDBTM
             `security_authnrequestssigned`  tinyint NOT NULL DEFAULT '0',
             `security_logoutrequestsigned`  tinyint NOT NULL DEFAULT '0',
             `security_logoutresponsesigned` tinyint NOT NULL DEFAULT '0',
+            `security_wantmessagessigned`   tinyint NOT NULL DEFAULT '0',
+            `security_wantassertionssigned` tinyint NOT NULL DEFAULT '0',
+            `security_wantassertionsencrypted` tinyint NOT NULL DEFAULT '0',
+            `security_signmetadata`         tinyint NOT NULL DEFAULT '0',
+            `security_wantnameid`           tinyint NOT NULL DEFAULT '0',
             `compress_requests`             tinyint NOT NULL DEFAULT '0',
             `compress_responses`            tinyint NOT NULL DEFAULT '0',
             `validate_xml`                  tinyint NOT NULL DEFAULT '0',
@@ -502,6 +508,30 @@ class Config extends CommonDBTM
 
             if (!$DB->fieldExists($table, 'saml_xml_structure', false)) {
                 $migration->addField($table, 'saml_xml_structure', 'text', ['null' => true, 'after' => 'comment', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'sync_on_login', false)) {
+                $migration->addField($table, 'sync_on_login', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'user_jit', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_wantmessagessigned', false)) {
+                $migration->addField($table, 'security_wantmessagessigned', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_logoutresponsesigned', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_wantassertionssigned', false)) {
+                $migration->addField($table, 'security_wantassertionssigned', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_wantmessagessigned', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_wantassertionsencrypted', false)) {
+                $migration->addField($table, 'security_wantassertionsencrypted', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_wantassertionssigned', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_signmetadata', false)) {
+                $migration->addField($table, 'security_signmetadata', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_wantassertionsencrypted', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'security_wantnameid', false)) {
+                $migration->addField($table, 'security_wantnameid', 'tinyint', ['null' => false, 'default' => '0', 'after' => 'security_signmetadata', 'update' => true]);
             }
 
             Session::addMessageAfterRedirect("🆗 Updated: $table layout.");
