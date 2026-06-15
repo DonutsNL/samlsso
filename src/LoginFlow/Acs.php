@@ -261,6 +261,20 @@ class Acs extends LoginFlow
             );
         }
 
+        // samlSSO fix: recover a timed-out session instead of rejecting it.
+        // When a session previously timed out (PHASE_TIMED_OUT) the user usually
+        // retries from the same browser. A fresh, UNIQUE samlResponse must then be
+        // treated as a new attempt, not a replay/race. Without this, the phase gates
+        // below ("already used to authenticate a different user" and PhaseMismatched)
+        // reject every retry, permanently locking the session out: the session GC
+        // (cronCleanSessionSAML) keys on lastActivity, which each rejected retry
+        // refreshes, so the dead state never reaches its retention age. Genuine replays
+        // stay blocked by getSamlResponseId()/checkResponseIdUnique(); a timed-out
+        // state is by definition not an in-flight parallel request.
+        if ($this->state->getPhase() === LoginState::PHASE_TIMED_OUT) {
+            $this->state->setPhase(LoginState::PHASE_SAML_ACS);
+        }
+
         // Prevent replay attacks, check if response_id is already used
         // The response_id is unique and should only be processed once.
         // This is checked by comparing the response_id from the incoming
