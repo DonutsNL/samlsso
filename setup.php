@@ -87,10 +87,9 @@ define('PLUGIN_SAMLSSO_CLASSES', [
 
 // Deal with GLPI ability to place plugin in multiple locations.
 // https://github.com/DonutsNL/samlsso/issues/41
-$phpDir = Plugin::getPhpDir('samlsso');
-$pLoc = ($phpDir !== false && strpos($phpDir, 'marketplace') !== false) ? '/marketplace/' : '/plugins/';
+$webDir = Plugin::getWebDir('samlsso');
 $urlBase = (is_array($CFG_GLPI) && isset($CFG_GLPI['url_base'])) ? $CFG_GLPI['url_base'] : '';
-define('PLUGIN_SAMLSSO_WEBDIR', $urlBase . $pLoc . PLUGIN_NAME . '/');            // Make sure we dont use this messy code everywhere
+define('PLUGIN_SAMLSSO_WEBDIR', $urlBase . $webDir . '/');
 
 
 // METHODS
