@@ -68,9 +68,26 @@ class RuleSamlCollection extends RuleCollection
     /**
      * @see Rule::getCriterias()
      **/
-    public function getTitle()
+    /**
+     * Get the title of the rule collection.
+     *
+     * @return string Friendly name of the JIT import rules.
+     */
+    public function getTitle(): string
     {
         return __('JIT import rules', PLUGIN_NAME);
+    }
+
+    /**
+     * Get the URL for testing the rules.
+     * Overrides core RuleCollection to point to the global core rules test endpoint,
+     * since the plugin does not ship a custom rules engine test page in its front directory.
+     *
+     * @return string The test URL.
+     */
+    public static function getRulesTestURL(): string
+    {
+        return '/front/rulesengine.test.php';
     }
 
 }

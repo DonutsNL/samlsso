@@ -145,6 +145,19 @@ class Acs extends LoginFlow
             $this->debug = ($this->configEntity->getField(ConfigEntity::DEBUG)) ? true : false;
 
             $this->configureProxyVars();
+            
+            /**
+             * Detect LogoutResponse (SLO return from IDP) and redirect silently.
+             * Without this, the LogoutResponse is incorrectly processed as an AuthnResponse
+             * causing Utils::getStatus() to throw "Missing Status on response".
+             *
+             * @see https://github.com/DonutsNL/samlsso/issues/138
+             */
+            $decoded = base64_decode($samlResponse);
+            if (strpos($decoded, 'LogoutResponse') !== false) {
+                \Html::redirect(PLUGIN_SAMLSSO_WEBDIR . \GlpiPlugin\Samlsso\Controller\SamlSsoController::SLO_ROUTE);
+            }
+            
             $this->setupSamlResponse($samlResponse);
             $this->fetchRequestState();
 

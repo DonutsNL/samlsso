@@ -802,29 +802,30 @@ class ConfigItem    //NOSONAR
             if (($parsedCertificate = openssl_x509_parse($certificate))) {
                 // Create time object from current timestamp to calculate with
                 $n = new DateTimeImmutable('now');
-                // Create time object from validTo certificate property
-                $t = (array_key_exists('validTo', $parsedCertificate)) ? DateTimeImmutable::createFromFormat("ymdHisT", $parsedCertificate['validTo']) : '';
-                // Create time object from validFrom certificate property
-                $f = (array_key_exists('validFrom', $parsedCertificate)) ? DateTimeImmutable::createFromFormat("ymdHisT", $parsedCertificate['validFrom']) : '';
-                // Calculate if the current date is past the validTo certificate property
-                $aged = $n->diff($t);
-                // Format the age to days between.
-                $aged = $aged->format('%R%a');
-                // Calculate if the current date is before the validFrom certificate property.
-                $born = $f->diff($n);
-                // Format the born date to days between.
-                $born = $born->format('%R%a');
+                // Create time objects from certificate validity properties.
+                $t = $this->createCertificateDateTime($parsedCertificate, 'validTo');
+                $f = $this->createCertificateDateTime($parsedCertificate, 'validFrom');
                 // Get the certificate's common name property.
                 /** @var array $subject */
                 $subject = $parsedCertificate['subject'];
-                $cn = $subject['CN'];
-                // Validate if we got a negative sign in the calculated ValidTo days.
-                if (strpos($aged, '-') !== false) {
-                    $validations['validTo'] = sprintf(__("⚠️ Warning, certificate with Common Name (CN): %s is expired: %s days", PLUGIN_NAME), $cn, $aged);
+                $cn = (string)($subject['CN'] ?? '');
+                if ($t instanceof DateTimeImmutable) {
+                    // Calculate if the current date is past the validTo certificate property.
+                    $aged = $n->diff($t)->format('%R%a');
+                    if (strpos($aged, '-') !== false) {
+                        $validations['validTo'] = sprintf(__("⚠️ Warning, certificate with Common Name (CN): %s is expired: %s days", PLUGIN_NAME), $cn, $aged);
+                    }
+                } else {
+                    $validations['validTo'] = __('⭕ Unable to parse certificate validTo date', PLUGIN_NAME);
                 }
-                // Validate if we got a negative sign in the calculated validFrom days.
-                if (strpos($born, '-') !== false) {
-                    $validations['validFrom'] = sprintf(__("⚠️ Warning, certificate with Common Name (CN): %s issued in the future (%s days)", PLUGIN_NAME), $cn, $born);
+                if ($f instanceof DateTimeImmutable) {
+                    // Calculate if the current date is before the validFrom certificate property.
+                    $born = $f->diff($n)->format('%R%a');
+                    if (strpos($born, '-') !== false) {
+                        $validations['validFrom'] = sprintf(__("⚠️ Warning, certificate with Common Name (CN): %s issued in the future (%s days)", PLUGIN_NAME), $cn, $born);
+                    }
+                } else {
+                    $validations['validFrom'] = __('⭕ Unable to parse certificate validFrom date', PLUGIN_NAME);
                 }
                 if ($cn == 'withlove.from.donuts.nl') {
                     $validations['validFrom'] = __("⚠️ Warning, do not use the 'withlove.from.donuts.nl' example certificates. They offer no additional protection.", PLUGIN_NAME);
@@ -851,6 +852,27 @@ class ConfigItem    //NOSONAR
         }
         // Return message OpenSSL is not available.
         return ['validations'   => __('⚠️ OpenSSL is not available, GLPI cant validate your certificate', PLUGIN_NAME)];
+    }
+
+    private function createCertificateDateTime(array $parsedCertificate, string $field): ?DateTimeImmutable
+    {
+        $timestampField = $field . '_time_t';
+        if (isset($parsedCertificate[$timestampField]) && is_numeric($parsedCertificate[$timestampField])) {
+            return (new DateTimeImmutable())->setTimestamp((int)$parsedCertificate[$timestampField]);
+        }
+
+        if (empty($parsedCertificate[$field]) || !is_string($parsedCertificate[$field])) {
+            return null;
+        }
+
+        foreach (['ymdHisT', 'YmdHisT'] as $format) {
+            $date = DateTimeImmutable::createFromFormat($format, $parsedCertificate[$field]);
+            if ($date instanceof DateTimeImmutable) {
+                return $date;
+            }
+        }
+
+        return null;
     }
 
     protected function validateCertKeyPairModulus(string $certificate, string $privateKey): bool         //NOSONAR - Maybe fix complexity in the future

@@ -112,6 +112,37 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
+         * Returns an IdP certificate whose validTo value is represented by
+         * OpenSSL as GeneralizedTime because the expiry year is 2050.
+         *
+         * @return string Pem encoded certificate.
+         */
+        private function getGeneralizedTimeCert(): string {
+            return <<<'CERT'
+-----BEGIN CERTIFICATE-----
+MIIDVTCCAj2gAwIBAgIUHWkLB0XI93oWDdwAwHWLur8/L4IwDQYJKoZIhvcNAQEL
+BQAwOTELMAkGA1UEBhMCWloxEDAOBgNVBAoMB0V4YW1wbGUxGDAWBgNVBAMMD2lk
+cC5leGFtcGxlLmNvbTAgFw0yNjA2MjkxMzMwNDVaGA8yMDUwMDYyOTEzMzA0NVow
+OTELMAkGA1UEBhMCWloxEDAOBgNVBAoMB0V4YW1wbGUxGDAWBgNVBAMMD2lkcC5l
+eGFtcGxlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMo2NVs2
+1mp0bSWKIGoOXIAb9tyvPUFpYTkYhoBhYUvWwTebWJGx+ectc3p4dauKOlMCbuNK
+vFT09IeMIURZD+Lk/iVye8b22X4vspcyADj6mG3XMyPMBZJEo/PuNdvWRYfxO2oV
+O72Qtf0Xmr3G7iN1Ug0OAAKyDULUQZvEcoq1q3V59vUqQMeEDbm5+IXRwP/snaCD
+KWLKQCZSuD+16QfISMDWcMQpq9DIwFoQZVZ1O31Oprl6OzzJMTnBFdlUSEIYAkOR
+85KVuCLaF5cuZpN8BfacVR1ld/edkNwFJ5SWFhPCWifqGO63WFsfvdeKkMs0uMG4
+LXOg8ju7lPh+oyECAwEAAaNTMFEwHQYDVR0OBBYEFE20FudzZkRUk3wc6pPIr9p6
+1AxMMB8GA1UdIwQYMBaAFE20FudzZkRUk3wc6pPIr9p61AxMMA8GA1UdEwEB/wQF
+MAMBAf8wDQYJKoZIhvcNAQELBQADggEBAJN0IHjFSME+utsgymY+ODXJzZvwzpRc
+tfaYZKY2J2TmpaKccrMYWmGi38UyJYq8Lxqe8wHvEQAegJGejqA+NdhFidLAVshR
+Ur1GpR4NtKpE3/2ghQ78jrBmPM1reLv82A2Hqi2NaLjt9AsOdNofaf5LAUG5G5Is
+rwFkfQ7J6sQKhbbvGxAWn9H+aA0uueoNMd4KSW7vSqXsRx4p21ExDnLoGCqksqjm
+1/wIWWFnWT9uvqR6ufN3LlxpyQkRKyAG6r63GO7zLouHxgk+PzoP17apUHF7kvuK
+kZwRN56BOwZzX3NO6AxOZWfm223o5LtDT58by1Ib7V+CLYYqIVfyDfU=
+-----END CERTIFICATE-----
+CERT;
+        }
+
+        /**
          * Test that a valid x509 certificate string is successfully parsed.
          *
          * @throws \Exception if the valid certificate is rejected.
@@ -128,6 +159,27 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Valid certificate missing 'validations' array.");
             }
             echo "✅ Valid X509 certificate parsing\n";
+        }
+
+        /**
+         * Test that a certificate expiring in 2050 parses without validTo errors.
+         *
+         * @throws \Exception if GeneralizedTime validity dates are rejected.
+         */
+        public function testGeneralizedTimeCertificate(): void {
+            $configItem = new TestableConfigItem();
+            $result = $configItem->testParseX509Certificate($this->getGeneralizedTimeCert());
+
+            if ($result === false) {
+                throw new \Exception("GeneralizedTime certificate rejected.");
+            }
+            if (($result['subject']['CN'] ?? '') !== 'idp.example.com') {
+                throw new \Exception("GeneralizedTime certificate subject was not parsed.");
+            }
+            if (!empty($result['validations'])) {
+                throw new \Exception("GeneralizedTime certificate produced validation errors: " . print_r($result['validations'], true));
+            }
+            echo "✅ GeneralizedTime X509 certificate parsing\n";
         }
 
         /**
@@ -181,6 +233,7 @@ namespace {
     $test = new GlpiPlugin\Samlsso\Tests\CertValidationTest();
     try {
         $test->testValidCertificate();
+        $test->testGeneralizedTimeCertificate();
         $test->testMalformedCertificate();
         if (function_exists('openssl_pkey_new')) {
             $test->testModulusMatching();
