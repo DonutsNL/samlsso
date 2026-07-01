@@ -1,5 +1,8 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/141 with JIT rules test route opening missing plugin path.
+- Fixed issue https://github.com/DonutsNL/samlsso/pull/144 to support GeneralizedTime X.509 certificate dates with validity dates beyond 2049 by @enricomv.
+- Fixed issue https://github.com/DonutsNL/samlsso/pull/140 where LogoutResponse was incorrectly processed as AuthnResponse in Acs.php by @Siruv.
 - Fix: Refactored database query and loop assignments inside conditional checks to resolve CodeFactor's "Assignment in condition" warnings.
 - Fix: Refactored translation logging messages in User defaults synchronization to use static literal strings and `sprintf` to resolve CodeFactor's "Unnecessary string concatenation" warnings.
 - Fix: Replaced raw `TODO` in base64 mock private key template to resolve CodeFactor's "Unresolved TODO comment" warnings.
