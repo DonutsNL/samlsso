@@ -333,6 +333,64 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ LoginState: inactivity timeout transitions to TIMED_OUT and is not overwritten\n";
         }
+
+        /**
+         * Test that LoginState does not overwrite the user credentials when impersonation is active.
+         */
+        public function testLoginStateImpersonationNoOverwrite(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+
+            // Mock database response with original admin credentials
+            $db->setResponse($table, [
+                [
+                    LoginState::STATE_ID => 1,
+                    LoginState::IDP_ID => 2,
+                    LoginState::USER_NAME => 'admin_user',
+                    LoginState::USER_ID => 2,
+                    LoginState::SESSION_ID => session_id(),
+                    LoginState::SESSION_NAME => session_name(),
+                    LoginState::GLPI_AUTHED => 1,
+                    LoginState::SAML_AUTHED => 1,
+                    LoginState::LOGIN_DATETIME => date('Y-m-d H:i:s'),
+                    LoginState::LAST_ACTIVITY => date('Y-m-d H:i:s'),
+                    LoginState::LOCATION => 'https://glpi.local/index.php',
+                    LoginState::ENFORCE_LOGOFF => 0,
+                    LoginState::SAML_REQUEST_ID => '',
+                    LoginState::SAML_RESPONSE_ID => '',
+                    LoginState::SAML_UNSOLICITED => 0,
+                    LoginState::LOGIN_FLOW_TRACE => serialize([]),
+                    LoginState::PHASE => LoginState::PHASE_GLPI_AUTH,
+                    LoginState::REDIRECT => '',
+                    LoginState::CLIENT_IP => '127.0.0.1',
+                    LoginState::CLIENT_COUNTRY => 'US',
+                ]
+            ]);
+
+            // Set up $_SESSION variables to mimic an impersonated user
+            $_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR] = 'impersonated_user';
+            $_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR] = session_id();
+            $_SESSION['glpiID'] = 15; // Target impersonated user ID
+            $_SESSION['impersonator_id'] = 2; // Original admin user ID (activates impersonation)
+
+            $loginState = new LoginState();
+
+            // After initialization, USER_ID and USER_NAME must NOT have been updated to the impersonated user
+            if ($loginState->getUserId() !== 2) {
+                throw new \Exception("Impersonation check failed: USER_ID was overwritten. Got: " . $loginState->getUserId());
+            }
+
+            // Clean up
+            unset($_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR]);
+            unset($_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR]);
+            unset($_SESSION['glpiID']);
+            unset($_SESSION['impersonator_id']);
+
+            echo "✅ LoginState: impersonation check prevents overwriting user ID and name\n";
+        }
     }
 }
 
@@ -345,6 +403,7 @@ namespace {
         $test->testLoginStateSessionExpiry();
         $test->testLoginStateLocationFallback();
         $test->testLoginStateInactivityTimeoutNoOverwrite();
+        $test->testLoginStateImpersonationNoOverwrite();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

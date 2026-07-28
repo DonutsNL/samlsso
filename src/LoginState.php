@@ -762,6 +762,11 @@ class LoginState extends CommonDBTM
      */
     private function setGlpiUserName(): void
     {
+        // Skip updating user details if impersonation is active to prevent corrupting state/logs
+        if (class_exists('\Session') && method_exists('\Session', 'isImpersonateActive') && \Session::isImpersonateActive()) {
+            return;
+        }
+
         // Use remote ip as username if session is anonymous.
         // https://codeberg.org/QuinQuies/glpisaml/issues/18
         $altUser = (isset($_SERVER['REMOTE_ADDR'])) ? $_SERVER['REMOTE_ADDR'] : 'CLI';

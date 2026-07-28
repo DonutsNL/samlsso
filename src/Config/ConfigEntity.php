@@ -113,6 +113,21 @@ class ConfigEntity extends ConfigItem
     public const SECURITY_WANTNAMEID = 'security_wantnameid';
 
     /**
+     * Cache for loaded database configurations to prevent duplicate queries within the same request.
+     * @var array<int, array|null>
+     */
+    private static array $dbRowCache = [];
+
+    /**
+     * Clear the static database configuration cache (mainly for testing purposes).
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        self::$dbRowCache = [];
+    }
+
+    /**
      * True, if an configuration issue is found its set to false.
      */
     private $isValid            = true;
@@ -207,10 +222,19 @@ class ConfigEntity extends ConfigItem
         $this->populationSource = 'Database:' . $id;
 
         // Get configuration from database;
-        $config = new SamlConfig();
-        if ($config->getFromDB($id)) {
+        if (!array_key_exists($id, self::$dbRowCache)) {
+            $config = new SamlConfig();
+            if ($config->getFromDB($id)) {
+                self::$dbRowCache[$id] = $config->fields;
+            } else {
+                self::$dbRowCache[$id] = null;
+            }
+        }
+
+        $fields = self::$dbRowCache[$id];
+        if ($fields !== null) {
             // Iterate through fetched fields
-            foreach ($config->fields as $field => $value) {
+            foreach ($fields as $field => $value) {
                 // Do validations on all provided fields. All fields need to be
                 // verified by GlpiPlugin\Glpisaml\Config\ConfigItem per default.
                 $this->evaluateItem((string) $field, $value);
@@ -657,6 +681,7 @@ class ConfigEntity extends ConfigItem
                 $config = new SamlConfig();
                 $config->update($fields);
                 $this->fields[self::SAML_XML_STRUCTURE] = $anonymizedXml;
+                self::$dbRowCache[(int)$id] = $this->fields;
             }
         }
     }

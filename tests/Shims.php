@@ -260,6 +260,15 @@ namespace {
             }
 
             /**
+             * Mocks if impersonation is active.
+             *
+             * @return bool
+             */
+            public static function isImpersonateActive(): bool {
+                return isset($_SESSION['impersonator_id']);
+            }
+
+            /**
              * Mocks Session destroy.
              */
             public static function destroy(): void {}
@@ -445,6 +454,8 @@ namespace {
                 return 'CommonDBTM';
             }
 
+            public static int $getFromDBCallCount = 0;
+
             /**
              * Mock loading object from DB by ID.
              *
@@ -452,6 +463,7 @@ namespace {
              * @return bool Always returns true.
              */
             public function getFromDB(int $id): bool { 
+                self::$getFromDBCallCount++;
                 return true; 
             }
 

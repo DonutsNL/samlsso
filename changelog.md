@@ -1,5 +1,7 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/151 by introducing request-level configuration caching to reduce redundant SQL queries.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/47 where user ID and username in LoginState were corrupted during GLPI impersonation.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/145 where custom GLPI_MARKETPLACE_DIR paths caused 404/installation regressions - suggested by @albertogalisteo.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/141 with JIT rules test route opening missing plugin path - suggested by @KawanCostaNs.
 - Fixed issue https://github.com/DonutsNL/samlsso/pull/144 to support GeneralizedTime X.509 certificate dates with validity dates beyond 2049 by @enricomv.

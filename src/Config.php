@@ -69,6 +69,23 @@ use GlpiPlugin\Samlsso\Controller\SamlSsoController;
  */
 class Config extends CommonDBTM
 {
+    private static ?bool $isEnforcedCache = null;
+    private static ?int $isOnlyOneConfigCache = null;
+    private static array $configIdByEmailDomainCache = [];
+    private static ?int $hideLoginFieldsCache = null;
+
+    /**
+     * Clear all static request caches (mainly for testing purposes).
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        self::$isEnforcedCache = null;
+        self::$isOnlyOneConfigCache = null;
+        self::$configIdByEmailDomainCache = [];
+        self::$hideLoginFieldsCache = null;
+    }
+
     /**
      * Tell DBTM to keep history
      * @var    bool     $dohistory
@@ -287,11 +304,15 @@ class Config extends CommonDBTM
      */
     public static function getIsEnforced(): bool
     {
+        if (self::$isEnforcedCache !== null) {
+            return self::$isEnforcedCache;
+        }
         // Get global DB object to query the configTable.
         global $DB;
 
         // Return true if we have more then one row that enforces the config
-        return (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
+        self::$isEnforcedCache = (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
+        return self::$isEnforcedCache;
     }
 
     /**
@@ -303,6 +324,9 @@ class Config extends CommonDBTM
      */
     public static function getIsOnlyOneConfig(): int
     {
+        if (self::$isOnlyOneConfigCache !== null) {
+            return self::$isOnlyOneConfigCache;
+        }
         // Get global DB object to query the configTable.
         global $DB;
 
@@ -318,12 +342,13 @@ class Config extends CommonDBTM
         if (count($res) == 1) {
             // Assign the result to a var
             $row = $res->current();
-            return (is_numeric($row[ConfigEntity::ID])) ? $row[ConfigEntity::ID] : 0;
+            self::$isOnlyOneConfigCache = (is_numeric($row[ConfigEntity::ID])) ? (int)$row[ConfigEntity::ID] : 0;
             // If we find more then one row return 0
             // because we cant enforce multiple idps
         } else {
-            return 0;
+            self::$isOnlyOneConfigCache = 0;
         }
+        return self::$isOnlyOneConfigCache;
     }
 
     /**
@@ -336,11 +361,15 @@ class Config extends CommonDBTM
      */
     public static function getConfigIdByEmailDomain(string $fielda): int
     {
+        if (array_key_exists($fielda, self::$configIdByEmailDomainCache)) {
+            return self::$configIdByEmailDomainCache[$fielda];
+        }
         // Get global DB object to query the configTable.
         global $DB;
         $upn = filter_var($fielda, FILTER_VALIDATE_EMAIL);
         if (!$upn) {
             // Username is not formatted as an email address, return 0
+            self::$configIdByEmailDomainCache[$fielda] = 0;
             return 0;
         }
         // This is now guaranteed to work since $upn is a valid email string
@@ -361,6 +390,7 @@ class Config extends CommonDBTM
         // In strict mode, we can't assume $DB->request() always returns an iterable object.
         // If the query fails, it might return false or null.
         if (!$req) {
+            self::$configIdByEmailDomainCache[$fielda] = 0;
             return 0;
         }
         // PROCESS ROWS
@@ -377,12 +407,14 @@ class Config extends CommonDBTM
                 if (in_array($userDomain, $configured_domains_array)) {
                     // FINAL VALIDATION: Ensure the ID is valid before returning.
                     if (!empty($row[ConfigEntity::ID])) {      //NOSONAR BY DESIGN
+                        self::$configIdByEmailDomainCache[$fielda] = (int) $row[ConfigEntity::ID];
                         return (int) $row[ConfigEntity::ID];
                     }
                     // If ID is bad, continue loop just in case of duplicate domain
                 } // If no match continue to the next row.
             } // If row data is not a string, this row is skipped, preventing errors.
         } // foreach Loop.
+        self::$configIdByEmailDomainCache[$fielda] = 0;
         return 0;
     }
 
@@ -396,6 +428,9 @@ class Config extends CommonDBTM
      */
     public static function getHideLoginFields(): int
     {
+        if (self::$hideLoginFieldsCache !== null) {
+            return self::$hideLoginFieldsCache;
+        }
         // Get global DB object to query the configTable.
         global $DB;
 
@@ -414,12 +449,15 @@ class Config extends CommonDBTM
                 isset($_GET[LoginFlow::SAMLBYPASS])  &&  // Is ?bypass=1 set in our uri
                 $_GET[LoginFlow::SAMLBYPASS] == 1
             ) {
+                self::$hideLoginFieldsCache = 0;
                 return 0;
             }
             // More then one result, hide the password fields.
+            self::$hideLoginFieldsCache = 1;
             return 1;
         } else {
             // Dont hide.
+            self::$hideLoginFieldsCache = 0;
             return 0;
         }
     }
