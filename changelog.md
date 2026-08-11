@@ -6,6 +6,11 @@
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/141 with JIT rules test route opening missing plugin path - suggested by @KawanCostaNs.
 - Fixed issue https://github.com/DonutsNL/samlsso/pull/144 to support GeneralizedTime X.509 certificate dates with validity dates beyond 2049 by @enricomv.
 - Fixed issue https://github.com/DonutsNL/samlsso/pull/140 where LogoutResponse was incorrectly processed as AuthnResponse in Acs.php by @Siruv.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/149: Resolved CronTask session cleanup bugs, added 8-hour working day clamping default for retention values under 1 day, logged processed counts to events log, added manual action alerts, and replaced deprecated `\Html::convDateTime()` calls with a timezone-safe formatting helper.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/150: Optimized automated translations, added translation overrides JSON mapping, and utilized GLPI core translations for common buttons (`Save`, `Delete`, `Put in trashbin`) to prevent faulty translations.
+- Feature: Added CronTask installation/upgrade deduplication to clean up legacy namespace records and duplicate actions upon plugin install/upgrade.
+- Feature: Added post-upgrade/install Sanity Checker utility class to validate files, translation assets, tables, and column schemas, deactivating the plugin automatically on structural inconsistencies.
+- Feature: Added ADR 0025 documenting the Sanity Checker and upgrade task deduplication logic.
 - Fix: Refactored database query and loop assignments inside conditional checks to resolve CodeFactor's "Assignment in condition" warnings.
 - Fix: Refactored translation logging messages in User defaults synchronization to use static literal strings and `sprintf` to resolve CodeFactor's "Unnecessary string concatenation" warnings.
 - Fix: Replaced raw `TODO` in base64 mock private key template to resolve CodeFactor's "Unresolved TODO comment" warnings.

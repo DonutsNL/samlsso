@@ -57,6 +57,9 @@ namespace {
      */
     if (!class_exists('CronTask')) {
         class CronTask {
+            public const STATE_WAITING = 1;
+            public const MODE_EXTERNAL = 2;
+
             /** @var array Task fields. */
             public array $fields = [];
             /** @var int Task volume processed. */
@@ -69,6 +72,18 @@ namespace {
              */
             public function setVolume(int $volume): void {
                 $this->volume = $volume;
+            }
+
+            public static function getTable(): string {
+                return 'glpi_crontasks';
+            }
+
+            public function getFromDBbyName(string $itemtype, string $name): bool {
+                return false;
+            }
+
+            public static function register(string $itemtype, string $name, int $frequency, array $options = []): bool {
+                return true;
             }
         }
     }
@@ -99,6 +114,10 @@ namespace GlpiPlugin\Samlsso\Tests {
             $task->fields['param'] = 30;
 
             $this->db->deletedRows = [];
+            // Mock the count query to return 5 rows
+            $this->db->setResponse(Loginstate::getTable(), [
+                ['cnt' => 5]
+            ]);
 
             $result = CronTask::cronCleanSessionSAML($task);
 
@@ -106,7 +125,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("cronCleanSessionSAML returned unexpected status: " . var_export($result, true));
             }
 
-            if ($task->volume !== 0) {
+            if ($task->volume !== 5) {
                 throw new \Exception("cronCleanSessionSAML set unexpected volume: " . $task->volume);
             }
 
@@ -135,6 +154,46 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
 
             echo "✅ CronTask: session cleanup with positive retention\n";
+        }
+
+        /**
+         * Test that SAML session cleanup clamps retention periods under 1 day to 8 hours.
+         *
+         * @throws \Exception
+         */
+        public function testCronSessionCleanupClamping(): void {
+            $task = new \CronTask();
+            $task->fields['param'] = 0.5; // less than 1 day
+
+            $this->db->deletedRows = [];
+            $this->db->setResponse(Loginstate::getTable(), [
+                ['cnt' => 3]
+            ]);
+
+            $result = CronTask::cronCleanSessionSAML($task);
+
+            if ($result !== 1) {
+                throw new \Exception("cronCleanSessionSAML returned unexpected status: " . var_export($result, true));
+            }
+
+            if ($task->volume !== 3) {
+                throw new \Exception("cronCleanSessionSAML set unexpected volume: " . $task->volume);
+            }
+
+            if (count($this->db->deletedRows) !== 1) {
+                throw new \Exception("Expected 1 delete operation, got: " . count($this->db->deletedRows));
+            }
+
+            $deleted = $this->db->deletedRows[0];
+            $where = $deleted['where'];
+            $expr = $where[Loginstate::LAST_ACTIVITY];
+            $qExpr = $expr[1];
+
+            if (!str_contains((string)$qExpr, 'INTERVAL 8 HOUR')) {
+                throw new \Exception("Expected 8-hour interval clamping for < 1 day param. Got: " . var_export($qExpr, true));
+            }
+
+            echo "✅ CronTask: session cleanup clamped to 8 hours for < 1 day retention\n";
         }
 
         /**
@@ -242,6 +301,48 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ CronTask: inactivity timeout update using LoginState constants verified\n";
         }
+
+        /**
+         * Test that CronTask::install correctly cleans up duplicates and legacy itemtype records.
+         */
+        public function testCronTaskInstallationDeduplication(): void {
+            $cronTable = \CronTask::getTable();
+            
+            // Mock a database response with 1 legacy task and 2 actual task entries (duplicates)
+            $this->db->setResponse($cronTable, [
+                ['id' => 10, 'name' => 'cleanSessionSAML', 'itemtype' => 'GlpiPlugin\\Glpisaml\\CronTask'],
+                ['id' => 11, 'name' => 'cleanSessionSAML', 'itemtype' => 'GlpiPlugin\\Samlsso\\CronTask'],
+                ['id' => 12, 'name' => 'cleanSessionSAML', 'itemtype' => 'GlpiPlugin\\Samlsso\\CronTask']
+            ]);
+
+            $this->db->deletedRows = [];
+            $this->db->updatedRows = [];
+
+            $migration = new class extends \Migration {
+                public function __construct() {}
+            };
+
+            // Run install
+            CronTask::install($migration);
+
+            // We expect ID 11 to be kept, ID 10 and 12 to be deleted
+            $deletedIds = [];
+            foreach ($this->db->deletedRows as $deleted) {
+                if ($deleted['table'] === $cronTable) {
+                    $deletedIds[] = $deleted['where']['id'];
+                }
+            }
+
+            if (!in_array(10, $deletedIds, true) || !in_array(12, $deletedIds, true)) {
+                throw new \Exception("Expected duplicate/legacy CronTasks ID 10 and 12 to be deleted. Deleted: " . var_export($deletedIds, true));
+            }
+
+            if (in_array(11, $deletedIds, true)) {
+                throw new \Exception("Actual kept CronTask ID 11 was incorrectly deleted.");
+            }
+
+            echo "✅ CronTask: duplicates and legacy records successfully cleaned up during install/upgrade\n";
+        }
     }
 }
 
@@ -252,9 +353,11 @@ namespace {
     $test = new GlpiPlugin\Samlsso\Tests\CronTaskTest();
     try {
         $test->testCronSessionCleanupPositive();
+        $test->testCronSessionCleanupClamping();
         $test->testCronSessionCleanupZero();
         $test->testCronInfo();
         $test->testCronCleanSessionInactivityTimeout();
+        $test->testCronTaskInstallationDeduplication();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

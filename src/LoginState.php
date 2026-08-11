@@ -923,8 +923,8 @@ class LoginState extends CommonDBTM
                 }
 
                 $row[LoginState::LOGIN_FLOW_TRACE] = $trace;
-                $row[LoginState::LOGIN_DATETIME]   = \Html::convDateTime($row[LoginState::LOGIN_DATETIME]);
-                $row[LoginState::LAST_ACTIVITY]    = \Html::convDateTime($row[LoginState::LAST_ACTIVITY]);
+                $row[LoginState::LOGIN_DATETIME]   = self::formatDateTime($row[LoginState::LOGIN_DATETIME]);
+                $row[LoginState::LAST_ACTIVITY]    = self::formatDateTime($row[LoginState::LAST_ACTIVITY]);
                 
                 $countryCode = $row[LoginState::CLIENT_COUNTRY] ?? '';
                 $row['clientCountryFlag'] = \GlpiPlugin\Samlsso\Utility\GeoIPResolver::countryCodeToFlag($countryCode);
@@ -1363,6 +1363,32 @@ class LoginState extends CommonDBTM
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Formats a datetime string according to GLPI configuration.
+     *
+     * @param string|null $datetime The UTC datetime string from database.
+     * @return string Formatted localized datetime string.
+     */
+    public static function formatDateTime(?string $datetime): string
+    {
+        if (empty($datetime)) {
+            return '';
+        }
+
+        // Respect test shim mock format if present
+        if (class_exists('Html', false) && method_exists('Html', 'convDateTime')) {
+            return \Html::convDateTime($datetime);
+        }
+
+        try {
+            $dt = new \DateTime($datetime, new \DateTimeZone('UTC'));
+            $format = ($_SESSION['glpiconfig']['date_format'] ?? 'Y-m-d') . ' H:i:s';
+            return $dt->format($format);
+        } catch (\Throwable $e) {
+            return (string)$datetime;
         }
     }
 

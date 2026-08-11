@@ -85,6 +85,17 @@ namespace {
         require_once '/var/www/glpi-dev_quinquies_nl/vendor/autoload.php';
     }
 
+    spl_autoload_register(function ($class) {
+        $prefix = 'GlpiPlugin\\Samlsso\\';
+        if (str_starts_with($class, $prefix)) {
+            $relativeClass = substr($class, strlen($prefix));
+            $file = dirname(__DIR__) . '/src/' . str_replace('\\', '/', $relativeClass) . '.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+    });
+
     /**
      * Define essential GLPI constants if not already defined.
      * These constants simulate the environment properties of a running GLPI instance.
@@ -97,6 +108,9 @@ namespace {
     }
     if (!defined('GLPI_ROOT')) {
         define('GLPI_ROOT', '/var/www/glpi-dev_quinquies_nl');
+    }
+    if (!defined('GLPI_SYSTEM_CRON')) {
+        define('GLPI_SYSTEM_CRON', -1);
     }
     if (!defined('PLUGIN_SAMLSSO_LOGEVENTS')) {
         define('PLUGIN_SAMLSSO_LOGEVENTS', '_events.log');
@@ -218,6 +232,10 @@ namespace {
              * @return bool True if loaded.
              */
             public static function isPluginLoaded(string $plugin): bool {
+                return true;
+            }
+
+            public function deactivate(string $plugin): bool {
                 return true;
             }
         }
@@ -450,8 +468,12 @@ namespace {
              * @param int|float|string $nb Pluralization count.
              * @return string Type name.
              */
-            public static function getTypeName($nb = 0): string {
+            public static function getTypeName($nb = 0) {
                 return 'CommonDBTM';
+            }
+
+            public function getFromDBByCrit(array $crit): bool {
+                return false;
             }
 
             public static int $getFromDBCallCount = 0;
@@ -795,6 +817,20 @@ namespace {
              * @return bool Always returns true.
              */
             public function dropTable(string $table): bool { 
+                return true; 
+            }
+
+            public function changeField(string $table, string $field, string $new_field, string $type, array $options = []): bool { 
+                return true; 
+            }
+
+            public function migrationOneTable(string $table): void {}
+
+            public function addKey(string $table, array $fields, string $keyname, string $keytype = ''): bool { 
+                return true; 
+            }
+
+            public function dropKey(string $table, string $name): bool { 
                 return true; 
             }
 

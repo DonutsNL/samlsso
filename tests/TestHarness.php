@@ -1382,6 +1382,19 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
+         * Check if column exists in table.
+         *
+         * @param string $table Table name.
+         * @param string $field Field name.
+         * @param bool $use_cache
+         * @return bool Always returns true.
+         */
+        public function fieldExists(string $table, string $field, bool $use_cache = true): bool
+        {
+            return true;
+        }
+
+        /**
          * Retrieve last query error.
          *
          * @return string Empty string for mock.

@@ -220,6 +220,20 @@ function plugin_samlsso_install(): bool                                         
         (new \Glpi\Cache\CacheManager())->resetAllCaches();
     }
 
+    // Run the sanity check after database migrations and cache clear
+    $checkResult = \GlpiPlugin\Samlsso\Utility\SanityChecker::check();
+    if (!$checkResult['status']) {
+        foreach ($checkResult['messages'] as $msg) {
+            if (str_contains($msg, '❌')) {
+                Session::addMessageAfterRedirect($msg, false, ERROR);
+            }
+        }
+        // Deactivate the plugin immediately to ensure it remains disabled
+        $pluginObj = new \Plugin();
+        $pluginObj->deactivate('samlsso');
+        return false;
+    }
+
     return true;
 }
 
