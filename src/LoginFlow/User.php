@@ -671,9 +671,10 @@ class User
             // Update the user
             $user = new glpiUser();
             if (!$user->update($userDefaults)) {
-                Toolbox::logInFile(PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS, __('Jit updated user defaults', PLUGIN_NAME) . "\n");
-            } else {
+                // https://github.com/DonutsNL/samlsso/issues/155
                 Toolbox::logInFile(PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS, __('Jit didnt update user defaults', PLUGIN_NAME) . "\n");
+            } else {
+                Toolbox::logInFile(PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS, __('Jit updated user defaults', PLUGIN_NAME) . "\n");
             }
         }
     }

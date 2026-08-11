@@ -8,7 +8,7 @@ msgstr ""
 ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-09 20:30+0200\n"
+"POT-Creation-Date: 2026-07-28 17:12+0200\n"
 "PO-Revision-Date: 2026-06-06 21:17+0200\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -32,7 +32,7 @@ msgid ""
 ""
 "⚠️ PHP memory_limit is less than 512M. This may cause crashes during SAML "
 "Login. See: "
-msgstr "⚠️ PHP memory_limit менше 512 Мб. Це може спричинити збої під час входу в систему SAML. Дивіться:"
+msgstr "⚠️ PHP memory_limit менше 512 Мб. Це може спричинити збої під час входу SAML . Дивіться:"
 
 #: hook.php:198
 msgid "⚠️ OpenSSL not available, cant verify provided certificates"
@@ -42,7 +42,7 @@ msgstr "⚠️ OpenSSL недоступний, неможливо перевір
 msgid "🆗 OpenSSL found!"
 msgstr "🆗 OpenSSL знайдено!"
 
-#: setup.php:249
+#: setup.php:250
 msgid "Installed "
 msgstr "встановлено"
 
@@ -75,7 +75,7 @@ msgstr "САМЛ вул"
 msgid "SAML Claim: %s"
 msgstr "Претензія SAML: %s"
 
-#: src/RuleSamlCollection.php:73 src/Config.php:151
+#: src/RuleSamlCollection.php:78 src/Config.php:168
 msgid "JIT import rules"
 msgstr "Правила імпорту JIT"
 
@@ -90,6 +90,11 @@ msgstr "Період зберігання сеансів SAML (у днях, 0 д
 #: src/CronTask.php:69
 msgid "Update GeoIP offline database"
 msgstr "Оновлення офлайн-бази GeoIP"
+
+#: src/Config/ConfigItem.php:88 src/LoginFlow/LoginFlowItem.php:82
+#, php-format
+msgid "⭕ Undefined or no type validation found in ConfigValidate for item: %s"
+msgstr "⭕ У ConfigValidate для елемента: %s не визначено або не знайдено перевірку типу"
 
 #: src/Config/ConfigItem.php:103 src/LoginFlow/LoginFlowItem.php:97
 msgid "⭕ ID must be a positive numeric value!"
@@ -108,7 +113,10 @@ msgid ""
 ""
 "This name is shown with the login button on the login page. Try to keep this "
 "name short and to the point."
-msgstr "Це ім’я відображається разом із кнопкою входу на сторінці входу. Намагайтеся, щоб ця назва була короткою та зрозумілою."
+msgstr ""
+""
+"Це ім’я відображається разом із кнопкою входу на сторінці входу. "
+"Намагайтеся, щоб ця назва була короткою та зрозумілою."
 
 #: src/Config/ConfigItem.php:123
 msgid "FRIENDLY NAME"
@@ -123,40 +131,49 @@ msgid "USERDOMAIN"
 msgstr "ДОМЕН КОРИСТУВАЧА"
 
 #: src/Config/ConfigItem.php:144
-msgid "⭕ "
-msgstr "⭕ "
+#, php-format
+msgid "⭕ %s"
+msgstr "⭕ %s"
 
-#: src/Config/ConfigItem.php:161
+#: src/Config/ConfigItem.php:158 src/Config/ConfigItem.php:166
 msgid ""
 ""
 "⭕ Provided certificate does not look like a valid (base64 encoded) "
 "certificate"
-msgstr "⭕ Наданий сертифікат не схожий на дійсний (у кодуванні base64)."
+msgstr "⭕ Наданий сертифікат не схожий на дійсний (закодований base64 )."
 
-#: src/Config/ConfigItem.php:166
+#: src/Config/ConfigItem.php:170
 msgid ""
 ""
 "The base64 encoded x509 service provider certificate. Used to sign and "
 "encrypt messages sent by the service provider to the identity provider. "
 "Required for most of the security options"
-msgstr "Сертифікат постачальника послуг із кодуванням base64 x509. Використовується для підпису та шифрування повідомлень, які постачальник послуг надсилає постачальнику ідентифікаційної інформації. Необхідний для більшості параметрів безпеки"
+msgstr ""
+""
+"Сертифікат постачальника послуг із кодуванням base64 x509. Використовується "
+"для підпису та шифрування повідомлень, які постачальник послуг надсилає "
+"постачальнику ідентифікаційної інформації. Необхідний для більшості "
+"параметрів безпеки"
 
-#: src/Config/ConfigItem.php:167
+#: src/Config/ConfigItem.php:171
 msgid "SP CERTIFICATE"
 msgstr "СЕРТИФІКАТ СП"
 
-#: src/Config/ConfigItem.php:184
+#: src/Config/ConfigItem.php:188
 msgid ""
 ""
 "The base64 encoded x509 service provider's private key. Should match the "
 "modulus of the provided X509 service provider certificate"
-msgstr "Приватний ключ постачальника послуг із кодуванням base64 x509. Має відповідати модулю наданого сертифіката постачальника послуг X509"
+msgstr ""
+""
+"Приватний ключ постачальника послуг із кодуванням base64 x509. Має "
+"відповідати модулю наданого сертифіката постачальника послуг X509"
 
-#: src/Config/ConfigItem.php:185
+#: src/Config/ConfigItem.php:189
 msgid "SP PRIVATE KEY"
 msgstr "SP ПРИВАТНИЙ КЛЮЧ"
 
-#: src/Config/ConfigItem.php:198
+#: src/Config/ConfigItem.php:202
 msgid ""
 ""
 "The Service Provider nameid format specifies the constraints on the name "
@@ -166,15 +183,15 @@ msgstr ""
 "Формат імені постачальника послуг визначає обмеження на ідентифікатор імені, "
 "який буде використовуватися для представлення запитаного суб’єкта."
 
-#: src/Config/ConfigItem.php:199
+#: src/Config/ConfigItem.php:203
 msgid "NAMEID FORMAT"
 msgstr "ФОРМАТ NAMEID"
 
-#: src/Config/ConfigItem.php:204
+#: src/Config/ConfigItem.php:208
 msgid "Service provider name id is a required field"
 msgstr "Ідентифікатор імені постачальника послуг є обов’язковим для заповнення"
 
-#: src/Config/ConfigItem.php:213
+#: src/Config/ConfigItem.php:217
 msgid ""
 ""
 "Identifier of the IdP entity which is an URL provided by the SAML2 Identity "
@@ -184,23 +201,23 @@ msgstr ""
 "Ідентифікатор об’єкта IdP, який є URL-адресою, наданою постачальником "
 "ідентифікаційної інформації SAML2 (IdP)"
 
-#: src/Config/ConfigItem.php:214
+#: src/Config/ConfigItem.php:218
 msgid "ENTITY ID"
 msgstr "ID ENTITY"
 
-#: src/Config/ConfigItem.php:219
+#: src/Config/ConfigItem.php:223
 msgid "⭕ Identity provider entity id is a required field"
-msgstr "⭕ Ідентифікатор організації постачальника ідентифікаційної інформації є обов’язковим для заповнення"
+msgstr "⭕ Поле постачальника посвідчень entity id є обов’язковим"
 
-#: src/Config/ConfigItem.php:233
+#: src/Config/ConfigItem.php:237
 msgid "⭕ The IdP SSO URL is a required field!<br>"
-msgstr "⭕ URL-адреса IdP SSO є обов’язковим полем!<br>"
+msgstr "⭕ Поле IdP SSO URL є обов’язковим! <br>"
 
-#: src/Config/ConfigItem.php:238
+#: src/Config/ConfigItem.php:242
 msgid "⭕ Invalid IdP SSO URL, use: scheme://host.domain.tld/path/"
-msgstr "⭕ Недійсна URL-адреса SSO IdP, використовуйте: scheme://host.domain.tld/path/"
+msgstr "⭕ Недійсний IdP SSO URL , використовуйте: scheme:// host .domain.tld/path/"
 
-#: src/Config/ConfigItem.php:246
+#: src/Config/ConfigItem.php:250
 msgid ""
 ""
 "Single Sign On Service endpoint of the IdP. URL Target of the IdP where the "
@@ -212,15 +229,15 @@ msgstr ""
 "надіслано повідомлення із запитом на автентифікацію. OneLogin PHPSAML "
 "підтримує лише прив’язку «HTTP-redirect» для цієї кінцевої точки."
 
-#: src/Config/ConfigItem.php:247
+#: src/Config/ConfigItem.php:251
 msgid "SSO URL"
 msgstr "URL-адреса SSO"
 
-#: src/Config/ConfigItem.php:270
-msgid "⭕ Invalid Idp SLO URL, use: scheme://host.domain.tld/path/"
-msgstr "⭕ Недійсна URL-адреса Idp SLO, використовуйте: scheme://host.domain.tld/path/"
-
 #: src/Config/ConfigItem.php:274
+msgid "⭕ Invalid Idp SLO URL, use: scheme://host.domain.tld/path/"
+msgstr "⭕ Недійсний Idp SLO URL , використовуйте: scheme:// host .domain.tld/path/"
+
+#: src/Config/ConfigItem.php:278
 msgid ""
 ""
 "Single Logout service endpoint of the IdP. URL Location of the IdP where SLO "
@@ -232,15 +249,16 @@ msgstr ""
 "буде надіслано запит SLO. OneLogin PHPSAML підтримує лише прив’язку «HTTP-"
 "redirect» для цієї кінцевої точки."
 
-#: src/Config/ConfigItem.php:275
+#: src/Config/ConfigItem.php:279
 msgid "SLO URL"
 msgstr "SLO URL"
 
-#: src/Config/ConfigItem.php:296
+#: src/Config/ConfigItem.php:296 src/Config/ConfigItem.php:304
+#: src/Config/ConfigItem.php:313
 msgid "⭕ Valid Idp X509 certificate is required! (base64 encoded)"
-msgstr "⭕ Потрібен дійсний сертифікат Idp X509! (закодовано base64)"
+msgstr "⭕ Потрібен дійсний сертифікат Idp X509 ! ( base64 закодовано)"
 
-#: src/Config/ConfigItem.php:301
+#: src/Config/ConfigItem.php:318
 msgid ""
 ""
 "The Public Base64 encoded x509 certificate used by the IdP. Fingerprinting "
@@ -254,11 +272,11 @@ msgstr ""
 "вимагають від вас вручну змінити масив Saml Config, розташований у "
 "ConfigEntity.php, і надати необхідні параметри конфігурації"
 
-#: src/Config/ConfigItem.php:302
+#: src/Config/ConfigItem.php:319
 msgid "X509 CERTIFICATE"
 msgstr "СЕРТИФІКАТ X509"
 
-#: src/Config/ConfigItem.php:329
+#: src/Config/ConfigItem.php:346
 msgid ""
 ""
 "Authentication context needs to be satisfied by the IdP in order to allow "
@@ -272,116 +290,124 @@ msgstr ""
 "AuthContext у AuthNRequest. Або виберіть один або кілька параметрів за "
 "допомогою комбінації «control+click»."
 
-#: src/Config/ConfigItem.php:330
+#: src/Config/ConfigItem.php:347
 msgid "REQ AUTHN CONTEXT"
 msgstr "КОНТЕКСТ АВТ"
 
-#: src/Config/ConfigItem.php:335
+#: src/Config/ConfigItem.php:352
 msgid "⭕ Requested authN context is a required field"
 msgstr "⭕ Запитаний контекст authN є обов’язковим полем"
 
-#: src/Config/ConfigItem.php:342
+#: src/Config/ConfigItem.php:359
 msgid "AUTHN Comparison attribute value"
 msgstr "Значення атрибута порівняння AUTHN"
 
-#: src/Config/ConfigItem.php:343
+#: src/Config/ConfigItem.php:360
 msgid "AUTHN COMPARISON"
 msgstr "АУТН ПОРІВНЯННЯ"
 
-#: src/Config/ConfigItem.php:348
+#: src/Config/ConfigItem.php:365
 msgid "⭕ Requested authN context comparison is a required field"
 msgstr "⭕ Запитане порівняння контексту authN є обов’язковим полем"
 
-#: src/Config/ConfigItem.php:355
+#: src/Config/ConfigItem.php:372
 #, php-format
 msgid "The FontAwesome (%s) icon to show on the button on the login page."
 msgstr ""
 ""
 "Піктограма FontAwesome (%s) для відображення на кнопці на сторінці входу."
 
-#: src/Config/ConfigItem.php:356
+#: src/Config/ConfigItem.php:373
 msgid "LOGIN ICON"
 msgstr "ЗНАЧОК ВХІДУ"
 
-#: src/Config/ConfigItem.php:361
+#: src/Config/ConfigItem.php:378
 msgid "⭕ Configuration icon is a required field"
 msgstr "⭕ Значок конфігурації є обов’язковим для заповнення"
 
-#: src/Config/ConfigItem.php:368
+#: src/Config/ConfigItem.php:385
 msgid "The comments"
 msgstr "Коментарі"
 
-#: src/Config/ConfigItem.php:369
+#: src/Config/ConfigItem.php:386
 msgid "COMMENTS"
 msgstr "КОМЕНТАРІ"
 
-#: src/Config/ConfigItem.php:381
+#: src/Config/ConfigItem.php:398
 msgid "The anonymized SAML response XML structure"
 msgstr "Анонімна XML-структура відповіді SAML"
 
-#: src/Config/ConfigItem.php:382
+#: src/Config/ConfigItem.php:399
 msgid "SAML Response XML Structure"
 msgstr "Структура XML відповіді SAML"
 
-#: src/Config/ConfigItem.php:395
+#: src/Config/ConfigItem.php:412
 msgid "The date this configuration item was created"
 msgstr "Дата створення цього елемента конфігурації"
 
-#: src/Config/ConfigItem.php:396
+#: src/Config/ConfigItem.php:413
 msgid "CREATE DATE"
 msgstr "СТВОРИТИ ДАТУ"
 
-#: src/Config/ConfigItem.php:410
+#: src/Config/ConfigItem.php:427
 msgid "The date this config was modified"
 msgstr "Дата зміни цієї конфігурації"
 
-#: src/Config/ConfigItem.php:411
+#: src/Config/ConfigItem.php:428
 msgid "MODIFICATION DATE"
 msgstr "ДАТА МОДИФІКАЦІЇ"
 
-#: src/Config/ConfigItem.php:431
+#: src/Config/ConfigItem.php:448
 msgid "Is this configuration marked as deleted by GLPI"
 msgstr "GLPI позначає цю конфігурацію як видалену"
 
-#: src/Config/ConfigItem.php:432
+#: src/Config/ConfigItem.php:449
 msgid "IS DELETED"
 msgstr "ВИДАЛЕНО"
 
-#: src/Config/ConfigItem.php:444
+#: src/Config/ConfigItem.php:461
 msgid ""
 ""
 "Indicates if this configuration is activated. Disabled configurations cannot "
 "be used to log in to GLPI and will NOT be shown on the login page."
-msgstr "Вказує, чи активовано цю конфігурацію. Вимкнені конфігурації не можна використовувати для входу в GLPI і НЕ відображатимуться на сторінці входу."
+msgstr ""
+""
+"Вказує, чи активовано цю конфігурацію. Вимкнені конфігурації не можна "
+"використовувати для входу в GLPI і НЕ відображатимуться на сторінці входу."
 
-#: src/Config/ConfigItem.php:445
+#: src/Config/ConfigItem.php:462
 msgid "IS ACTIVE"
 msgstr "АКТИВНИЙ"
 
-#: src/Config/ConfigItem.php:457
+#: src/Config/ConfigItem.php:474
 msgid ""
 ""
 "If enabled, PHPSAML will replace the default GLPI login screen with a "
 "version that does not have the default GLPI login options and only allows "
 "the user to authenticate using the configured SAML2 IDPs. This setting can "
 "be bypassed using a bypass URI parameter."
-msgstr "Якщо ввімкнено, PHPSAML замінить екран входу GLPI за замовчуванням версією, яка не має параметрів входу GLPI за замовчуванням і дозволяє користувачеві автентифікуватись лише за допомогою налаштованого SAML2 idps. Цей параметр можна обійти за допомогою параметра URI обходу"
+msgstr ""
+""
+"Якщо ввімкнено, PHPSAML замінить екран входу GLPI за замовчуванням версією, "
+"яка не має параметрів входу GLPI за замовчуванням і дозволяє користувачеві "
+"автентифікуватись лише за допомогою налаштованого SAML2 idps. Цей параметр "
+"можна обійти за допомогою параметра URI обходу"
 
-#: src/Config/ConfigItem.php:458
+#: src/Config/ConfigItem.php:475
 msgid "ENFORCED"
 msgstr "ПРИМУСОВИЙ"
 
-#: src/Config/ConfigItem.php:479
+#: src/Config/ConfigItem.php:496
 msgid "Is GLPI positioned behind a proxy that alters the SAML response scheme?"
 msgstr ""
 ""
 "Чи GLPI розташований за проксі-сервером, який змінює схему відповіді SAML?"
 
-#: src/Config/ConfigItem.php:480
+#: src/Config/ConfigItem.php:497
 msgid "REQUESTS PROXIED"
 msgstr "ЗАПИТІВ НАДАНО"
 
-#: src/Config/ConfigItem.php:492
+#: src/Config/ConfigItem.php:509
 msgid ""
 ""
 "If enabled, the OneLogin PHPSAML Toolkit will reject unsigned or unencrypted "
@@ -389,35 +415,51 @@ msgid ""
 "the messages if the SAML standard is not strictly followed: Destination, "
 "NameID, and Conditions are validated too. Strongly advised in production "
 "environments."
-msgstr "Якщо ввімкнено, OneLogin PHPSAML Toolkit відхилятиме непідписані чи незашифровані повідомлення, якщо очікує, що вони будуть підписані чи зашифровані. Також він відхиляє повідомлення, якщо стандарт SAML не дотримується суворо: Destination, NameId, Conditions також перевіряються. Настійно рекомендовано у виробничих середовищах."
+msgstr ""
+""
+"Якщо ввімкнено, OneLogin PHPSAML Toolkit відхилятиме непідписані чи "
+"незашифровані повідомлення, якщо очікує, що вони будуть підписані чи "
+"зашифровані. Також він відхиляє повідомлення, якщо стандарт SAML не "
+"дотримується суворо: Destination, NameId, Conditions також перевіряються. "
+"Настійно рекомендовано у виробничих середовищах."
 
-#: src/Config/ConfigItem.php:493
+#: src/Config/ConfigItem.php:510
 msgid "STRICT"
 msgstr "СТРОГО"
 
-#: src/Config/ConfigItem.php:505
+#: src/Config/ConfigItem.php:522
 msgid ""
 ""
 "If enabled, it will force OneLogin PHPSAML to print status and error "
 "messages. Be aware that not all messages might be captured by samlSSO and "
 "might therefore not become visible. WARNING: Enabling debug mode will expose "
 "the Service Provider metadata publicly."
-msgstr "Якщо ввімкнено, OneLogin PHPSAML друкуватиме повідомлення про статус і помилки. Майте на увазі, що не всі повідомлення можуть бути захоплені samlSSO і тому можуть не стати видимими. ПОПЕРЕДЖЕННЯ. Увімкнення режиму налагодження відкриє публічний доступ до метаданих постачальника послуг."
+msgstr ""
+""
+"Якщо ввімкнено, OneLogin PHPSAML друкуватиме повідомлення про статус і "
+"помилки. Майте на увазі, що не всі повідомлення можуть бути захоплені "
+"samlSSO і тому можуть не стати видимими. ПОПЕРЕДЖЕННЯ. Увімкнення режиму "
+"налагодження відкриє публічний доступ до метаданих постачальника послуг."
 
-#: src/Config/ConfigItem.php:518
+#: src/Config/ConfigItem.php:535
 msgid ""
 ""
 "If enabled, samlSSO will create new GLPI users on the fly and assign the "
 "properties defined in the samlSSO assignment rules. If disabled, users that "
 "do not have a valid GLPI user will not be able to log in to GLPI until a "
 "user is manually created."
-msgstr "Якщо ввімкнено, samlSSO створюватиме нових користувачів GLPI на льоту та призначатиме властивості, визначені в правилах призначення samlSSO. Якщо вимкнути, користувачі, які не мають дійсного GLPI, не зможуть увійти в GLPI, доки користувача не буде створено вручну."
+msgstr ""
+""
+"Якщо ввімкнено, samlSSO створюватиме нових користувачів GLPI на льоту та "
+"призначатиме властивості, визначені в правилах призначення samlSSO. Якщо "
+"вимкнути, користувачі, які не мають дійсного GLPI, не зможуть увійти в GLPI, "
+"доки користувача не буде створено вручну."
 
-#: src/Config/ConfigItem.php:519
+#: src/Config/ConfigItem.php:536
 msgid "JIT USER CREATION"
 msgstr "СТВОРЕННЯ КОРИСТУВАЧА JIT"
 
-#: src/Config/ConfigItem.php:537
+#: src/Config/ConfigItem.php:554
 msgid ""
 ""
 "If enabled, user fields mapped from SAML claims and assignment rules will be "
@@ -427,11 +469,11 @@ msgstr ""
 "Якщо ввімкнено, поля користувача, зіставлені з заяв SAML і правил "
 "призначення, синхронізуватимуться під час кожного успішного входу."
 
-#: src/Config/ConfigItem.php:538
+#: src/Config/ConfigItem.php:555
 msgid "SYNC ON LOGIN"
 msgstr "СИНХРОНІЗУЙТЕ ПРИ ВХІДІ"
 
-#: src/Config/ConfigItem.php:556
+#: src/Config/ConfigItem.php:573
 msgid ""
 ""
 "If enabled, GLPI will require all SAML protocol messages received from the "
@@ -442,11 +484,11 @@ msgstr ""
 "отримані від постачальника ідентифікаційної інформації (IdP), мали "
 "криптографічний підпис."
 
-#: src/Config/ConfigItem.php:557
+#: src/Config/ConfigItem.php:574
 msgid "REQUIRE SIGNED MESSAGES"
 msgstr "ВИМАГАТИ ПІДПИСНІ ПОВІДОМЛЕННЯ"
 
-#: src/Config/ConfigItem.php:575
+#: src/Config/ConfigItem.php:592
 msgid ""
 ""
 "If enabled, GLPI will require individual SAML assertions within the SAML "
@@ -456,11 +498,11 @@ msgstr ""
 "Якщо ввімкнено, GLPI вимагатиме підписання окремих тверджень SAML у "
 "повідомленні SAML. Якщо не підписані, твердження будуть відхилені."
 
-#: src/Config/ConfigItem.php:576
+#: src/Config/ConfigItem.php:593
 msgid "REQUIRE SIGNED ASSERTIONS"
 msgstr "ВИМАГАТИ ПІДПИСАНІ ТВЕРДЖЕННЯ"
 
-#: src/Config/ConfigItem.php:594
+#: src/Config/ConfigItem.php:611
 msgid ""
 ""
 "If enabled, GLPI will expect the SAML assertions containing user claims to "
@@ -471,11 +513,11 @@ msgstr ""
 "користувачів, будуть зашифровані. GLPI розшифрує їх за допомогою закритого "
 "ключа SP."
 
-#: src/Config/ConfigItem.php:595
+#: src/Config/ConfigItem.php:612
 msgid "REQUIRE ENCRYPTED ASSERTIONS"
 msgstr "ВИМАГАТИ ЗАШИФРОВАНІ ТВЕРДЖЕННЯ"
 
-#: src/Config/ConfigItem.php:613
+#: src/Config/ConfigItem.php:630
 msgid ""
 ""
 "If enabled, the SAML SP metadata XML generated by GLPI will be "
@@ -485,11 +527,11 @@ msgstr ""
 "Якщо ввімкнено, метадані SAML SP, згенеровані GLPI, будуть криптографічно "
 "підписані за допомогою сертифіката постачальника послуг."
 
-#: src/Config/ConfigItem.php:614
+#: src/Config/ConfigItem.php:631
 msgid "SIGN SP METADATA"
 msgstr "SIGN SP МЕТАДАНІ"
 
-#: src/Config/ConfigItem.php:632
+#: src/Config/ConfigItem.php:649
 msgid ""
 ""
 "If enabled, GLPI will strictly require a NameID element to be present in the "
@@ -499,88 +541,110 @@ msgstr ""
 "Якщо ввімкнено, GLPI суворо вимагатиме, щоб елемент NameID був присутній у "
 "корисному навантаженні твердження SAML."
 
-#: src/Config/ConfigItem.php:633
+#: src/Config/ConfigItem.php:650
 msgid "REQUIRE NAMEID"
 msgstr "ПОТРІБНО NAMEID"
 
-#: src/Config/ConfigItem.php:645
+#: src/Config/ConfigItem.php:662
 msgid ""
 ""
 "If enabled, the OneLogin PHPSAML toolkit will encrypt the <samlp:"
 "logoutRequest> sent by this SP using the provided SP certificate and private "
 "key. This option will be toggled \"off\" automatically if no, or no valid SP "
 "certificate and key is provided."
-msgstr "Якщо ввімкнено, набір інструментів OneLogin PHPSAML зашифрує <samlp:logoutRequest>, надісланий цим SP, за допомогою наданого сертифіката SP і закритого ключа. Цей параметр буде автоматично вимкнено, якщо не надано дійсний сертифікат і ключ SP або вони не надані."
+msgstr ""
+""
+"Якщо ввімкнено, набір інструментів OneLogin PHPSAML зашифрує <samlp:"
+"logoutRequest>, надісланий цим SP, за допомогою наданого сертифіката SP і "
+"закритого ключа. Цей параметр буде автоматично вимкнено, якщо не надано "
+"дійсний сертифікат і ключ SP або вони не надані."
 
-#: src/Config/ConfigItem.php:646
+#: src/Config/ConfigItem.php:663
 msgid "ENCRYPT NAMEID"
 msgstr "ENCRYPT NAMEID"
 
-#: src/Config/ConfigItem.php:658
+#: src/Config/ConfigItem.php:675
 msgid ""
 ""
 "If enabled, the OneLogin PHPSAML toolkit will sign the <samlp:AuthnRequest> "
 "messages sent by this SP. The IDP should consult the metadata to get the "
 "information required to validate the signatures."
-msgstr "Якщо ввімкнено, набір інструментів OneLogin PHPSAML підписуватиме повідомлення <samlp:AuthnRequest>, які надсилає цей SP. IDP має переглянути метадані, щоб отримати інформацію, необхідну для перевірки підписів."
+msgstr ""
+""
+"Якщо ввімкнено, набір інструментів OneLogin PHPSAML підписуватиме "
+"повідомлення <samlp:AuthnRequest>, які надсилає цей SP. IDP має переглянути "
+"метадані, щоб отримати інформацію, необхідну для перевірки підписів."
 
-#: src/Config/ConfigItem.php:659
+#: src/Config/ConfigItem.php:676
 msgid "SIGN AUTHN REQUEST"
 msgstr "ПІДПИСАТИ ЗАПИТ НА АВТОРИЗАЦІЮ"
 
-#: src/Config/ConfigItem.php:671
+#: src/Config/ConfigItem.php:688
 msgid ""
 ""
 "If enabled, the OneLogin PHPSAML toolkit will sign the <samlp:logoutRequest> "
 "messages sent by this SP."
-msgstr "Якщо ввімкнено, набір інструментів OneLogin PHPSAML підписуватиме повідомлення <samlp:logoutRequest>, які надсилає цей SP."
+msgstr ""
+""
+"Якщо ввімкнено, набір інструментів OneLogin PHPSAML підписуватиме "
+"повідомлення <samlp:logoutRequest>, які надсилає цей SP."
 
-#: src/Config/ConfigItem.php:672
+#: src/Config/ConfigItem.php:689
 msgid "SIGN LOGOUT REQUEST"
 msgstr "ПІДПИСАТИ ЗАПИТ НА ВИХІД"
 
-#: src/Config/ConfigItem.php:684
+#: src/Config/ConfigItem.php:701
 msgid ""
 ""
 "If enabled, the OneLogin PHPSAML toolkit will sign the <samlp:"
 "logoutResponse> messages sent by this SP."
-msgstr "Якщо ввімкнено, набір інструментів OneLogin PHPSAML підписуватиме повідомлення <samlp:logoutResponse>, які надсилає цей SP."
+msgstr ""
+""
+"Якщо ввімкнено, набір інструментів OneLogin PHPSAML підписуватиме "
+"повідомлення <samlp:logoutResponse>, які надсилає цей SP."
 
-#: src/Config/ConfigItem.php:685
+#: src/Config/ConfigItem.php:702
 msgid "SIGN LOGOUT RESPONSE"
 msgstr "ВИХІД ВІДПОВІДЬ"
 
-#: src/Config/ConfigItem.php:697
+#: src/Config/ConfigItem.php:714
 msgid ""
 ""
 "If enabled, the authentication requests sent to the IdP will be compressed "
 "by the SP."
-msgstr "Якщо ввімкнено, запити на автентифікацію, які надсилаються до IdP, будуть стиснуті SP."
+msgstr ""
+""
+"Якщо ввімкнено, запити на автентифікацію, які надсилаються до IdP, будуть "
+"стиснуті SP."
 
-#: src/Config/ConfigItem.php:698
+#: src/Config/ConfigItem.php:715
 msgid "COMPRESS REQUESTS"
 msgstr "СТИСНУТИ ЗАПИТИ"
 
-#: src/Config/ConfigItem.php:710
+#: src/Config/ConfigItem.php:727
 msgid "If enabled, the SP expects responses sent by the IdP to be compressed."
 msgstr "Якщо ввімкнено, SP очікує стиснення відповідей, надісланих IdP."
 
-#: src/Config/ConfigItem.php:711
+#: src/Config/ConfigItem.php:728
 msgid "COMPRESS RESPONSES"
 msgstr "СТИСНУТИ ВІДПОВІДІ"
 
-#: src/Config/ConfigItem.php:723
+#: src/Config/ConfigItem.php:740
 msgid ""
 ""
 "If enabled, the SP will validate all received XMLs. In order to validate the "
 "XML, the \"strict\" security setting must be enabled."
-msgstr "Якщо ввімкнено, SP перевірить усі отримані XML-файли. Щоб перевірити XML\n                                                        \"суворий\" параметр безпеки має бути істинним."
+msgstr ""
+""
+"Якщо ввімкнено, SP перевірить усі отримані XML-файли. Щоб перевірити XML\n"
+"                                                        \"суворий\" параметр "
+"безпеки має бути істинним."
 
-#: src/Config/ConfigItem.php:724
+#: src/Config/ConfigItem.php:741
 msgid "VALIDATE XML"
 msgstr "ПІДТВЕРДИТИ XML"
 
-#: src/Config/ConfigItem.php:736
+#: src/Config/ConfigItem.php:753
 msgid ""
 ""
 "If enabled, SAMLResponses with an empty value at its Destination attribute "
@@ -590,11 +654,11 @@ msgstr ""
 "Якщо ввімкнено, SAMLResponses із порожнім значенням в атрибуті Destination "
 "не буде відхилено через цей факт."
 
-#: src/Config/ConfigItem.php:737
+#: src/Config/ConfigItem.php:754
 msgid "RELAX DEST VALIDATION"
 msgstr "RELAX DEST VALIDATION"
 
-#: src/Config/ConfigItem.php:749
+#: src/Config/ConfigItem.php:766
 msgid ""
 ""
 "ADFS URL-Encodes SAML data as lowercase, and the OneLogin PHPSAML toolkit by "
@@ -606,41 +670,70 @@ msgstr ""
 "PHPSAML за умовчанням використовує верхній регістр. Увімкніть це "
 "налаштування для сумісності з ADFS під час перевірки підпису"
 
-#: src/Config/ConfigItem.php:750
+#: src/Config/ConfigItem.php:767
 msgid "LOWER CASE ENCODING"
 msgstr "КОДУВАННЯ МАЛОГО РЕГІСТРУ"
 
-#: src/Config/ConfigItem.php:813
+#: src/Config/ConfigItem.php:782 src/LoginFlow/LoginFlowItem.php:276
+#, php-format
+msgid "⭕ %s can only be 1 or 0"
+msgstr "⭕ %s може бути лише 1 або 0"
+
+#: src/Config/ConfigItem.php:816
+#, php-format
+msgid "⚠️ Warning, certificate with Common Name (CN): %s is expired: %s days"
+msgstr "⚠️ Попередження, сертифікат із загальною назвою (CN): %s закінчився: %s днів"
+
+#: src/Config/ConfigItem.php:819
+msgid "⭕ Unable to parse certificate validTo date"
+msgstr "⭕ Неможливо проаналізувати сертифікат, дійсний на дату"
+
+#: src/Config/ConfigItem.php:825
+#, php-format
+msgid ""
+""
+"⚠️ Warning, certificate with Common Name (CN): %s issued in the future (%s "
+"days)"
+msgstr ""
+
+#: src/Config/ConfigItem.php:828
+msgid "⭕ Unable to parse certificate validFrom date"
+msgstr "⭕ Неможливо проаналізувати дату дійсності сертифіката"
+
+#: src/Config/ConfigItem.php:831
 msgid ""
 ""
 "⚠️ Warning, do not use the 'withlove.from.donuts.nl' example certificates. "
 "They offer no additional protection."
-msgstr "⚠️ Попередження, не використовуйте зразки сертифікатів «withlove.from.donuts.nl». Вони не пропонують додаткового захисту."
+msgstr "⚠️ Warning, do not use the 'withlove.from.donuts.nl' example certificates. Вони не пропонують додаткового захисту."
 
-#: src/Config/ConfigItem.php:823
+#: src/Config/ConfigItem.php:841
 msgid ""
 ""
 "⭕ Certificate must be wrapped in valid BEGIN CERTIFICATE and END "
 "CERTIFICATE tags"
-msgstr "⭕ Сертифікат має бути загорнутий у дійсні теги BEGIN CERTIFICATE і END CERTIFICATE"
+msgstr ""
+""
+"⭕ Сертифікат має бути загорнутий у дійсні теги BEGIN CERTIFICATE і END "
+"CERTIFICATE"
 
-#: src/Config/ConfigItem.php:829
+#: src/Config/ConfigItem.php:847
 msgid "⭕ Certificate should not contain \"carriage returns\" [<CR>]"
-msgstr "⭕ Сертифікат не повинен містити \"повернення каретки\" [<CR>]"
+msgstr "⭕ Сертифікат не повинен містити \"повернення каретки\" [ <CR> ]"
 
-#: src/Config/ConfigItem.php:833
+#: src/Config/ConfigItem.php:851
 msgid "⭕ No valid X509 certificate found"
 msgstr "⭕ Не знайдено дійсного сертифіката X509"
 
-#: src/Config/ConfigItem.php:836
+#: src/Config/ConfigItem.php:854
 msgid "⚠️ OpenSSL is not available, GLPI cant validate your certificate"
-msgstr "⚠️ OpenSSL недоступний, GLPI не може перевірити ваш сертифікат"
+msgstr "⚠️ OpenSSL недоступний, GLPI не може підтвердити ваш сертифікат"
 
-#: src/Config/ConfigItem.php:853
+#: src/Config/ConfigItem.php:892
 msgid "⭕ Request timeout must be a positive integer (minutes)"
-msgstr "⭕ Час очікування запиту має бути додатним цілим числом (у хвилинах)"
+msgstr "⭕ Час очікування запиту має бути додатним цілим числом (хвилини)"
 
-#: src/Config/ConfigItem.php:857
+#: src/Config/ConfigItem.php:896
 msgid ""
 ""
 "The duration in minutes before an uncompleted SAML request is considered "
@@ -650,15 +743,15 @@ msgstr ""
 "Тривалість у хвилинах, після якої незавершений запит SAML вважається "
 "вичерпаним."
 
-#: src/Config/ConfigItem.php:858
+#: src/Config/ConfigItem.php:897
 msgid "REQUEST TIMEOUT (MINUTES)"
 msgstr "ТАЙМ-АУТ ЗАПИТУ (ХВ.)"
 
-#: src/Config/ConfigItem.php:883
+#: src/Config/ConfigItem.php:922
 msgid "⭕ Inactivity timeout must be a non-negative integer (minutes)"
 msgstr "⭕ Тайм-аут бездіяльності має бути цілим невід’ємним числом (у хвилинах)"
 
-#: src/Config/ConfigItem.php:887
+#: src/Config/ConfigItem.php:926
 msgid ""
 ""
 "The duration in minutes of inactivity before a session is forcefully logged "
@@ -668,68 +761,68 @@ msgstr ""
 "Тривалість у хвилинах бездіяльності перед примусовим виходом із сеансу (0 "
 "для вимкнення)."
 
-#: src/Config/ConfigItem.php:888
+#: src/Config/ConfigItem.php:927
 msgid "INACTIVITY TIMEOUT (MINUTES)"
 msgstr "ЧАС НЕАКТИВНОСТІ (ХВ.)"
 
-#: src/Config/ConfigItem.php:935 src/Config/ConfigItem.php:950
+#: src/Config/ConfigItem.php:974 src/Config/ConfigItem.php:989
 msgid "Active (Secure)"
 msgstr "Активний (захищений)"
 
-#: src/Config/ConfigItem.php:946
+#: src/Config/ConfigItem.php:985
 msgid "Condition / Parameter"
 msgstr "Умова / Параметр"
 
-#: src/Config/ConfigItem.php:946
+#: src/Config/ConfigItem.php:985
 msgid "Expected"
 msgstr "Очікуваний"
 
-#: src/Config/ConfigItem.php:946
+#: src/Config/ConfigItem.php:985
 msgid "Detected"
 msgstr "Виявлено"
 
-#: src/Config/ConfigItem.php:950
+#: src/Config/ConfigItem.php:989
 msgid "Any"
 msgstr "Будь-який"
 
-#: src/Config/ConfigItem.php:954 src/Config/ConfigItem.php:955
-#: src/Config/ConfigItem.php:956
+#: src/Config/ConfigItem.php:993 src/Config/ConfigItem.php:994
+#: src/Config/ConfigItem.php:995
 #, php-format
 msgid "Detected (%s)"
 msgstr "Виявлено (%s)"
 
-#: src/Config/ConfigItem.php:954 src/Config/ConfigItem.php:955
-#: src/Config/ConfigItem.php:956
+#: src/Config/ConfigItem.php:993 src/Config/ConfigItem.php:994
+#: src/Config/ConfigItem.php:995
 msgid "Not Detected"
 msgstr "Не виявлено"
 
-#: src/Config/ConfigItem.php:962 src/Config/ConfigItem.php:964
+#: src/Config/ConfigItem.php:1001 src/Config/ConfigItem.php:1003
 msgid "Present"
 msgstr "присутній"
 
-#: src/Config/ConfigItem.php:967
+#: src/Config/ConfigItem.php:1006
 msgid "HTTPS (Secure)"
 msgstr "HTTPS (захищений)"
 
-#: src/Config/ConfigItem.php:967
+#: src/Config/ConfigItem.php:1006
 msgid "HTTP or HTTPS"
 msgstr "HTTP або HTTPS"
 
-#: src/Config/ConfigItem.php:972
+#: src/Config/ConfigItem.php:1011
 msgid ""
 ""
 "⚠️ Conflict: Secure cookie is enabled but PHP is running in a non-secure HTTP "
 "context. Cookies will be rejected by the browser!"
-msgstr "⚠️ Конфлікт: захищений файл cookie ввімкнено, але PHP працює в незахищеному контексті HTTP. Файли cookie будуть відхилені браузером!"
+msgstr "⚠️ Конфлікт: захищений cookie увімкнено, але PHP працює в незахищеному контексті HTTP . Cookies буде відхилено браузером!"
 
-#: src/Config/ConfigItem.php:975
+#: src/Config/ConfigItem.php:1014
 msgid ""
 ""
 "⚠️ Security Warning: HTTPS is detected but session.cookie_secure is disabled. "
 "Cookies are not protected!"
-msgstr "⚠️ Попередження безпеки: HTTPS виявлено, але session.cookie_secure вимкнено. Файли cookie не захищені!"
+msgstr "⚠️ Попередження безпеки: HTTPS виявлено, але session.cookie_secure вимкнено. Cookies не захищені!"
 
-#: src/Config/ConfigItem.php:977
+#: src/Config/ConfigItem.php:1016
 msgid ""
 ""
 "Unsatisfied conditions might break the authentication flow in proxied or "
@@ -739,11 +832,11 @@ msgstr ""
 "Незадоволені умови можуть порушити потік автентифікації в проксі або "
 "контейнерних середовищах залежно від ваших налаштувань і схем імен."
 
-#: src/Config/ConfigItem.php:1037
+#: src/Config/ConfigItem.php:1076
 msgid "Current Time"
 msgstr "Поточний час"
 
-#: src/Config/ConfigItem.php:1044
+#: src/Config/ConfigItem.php:1083
 msgid ""
 ""
 "✅ Timezone Alignment: PHP and Database connection clocks are synchronized. "
@@ -753,16 +846,16 @@ msgstr ""
 "✅ Вирівнювання часового поясу: годинник PHP і підключення до бази даних "
 "синхронізовано. (Відображається, оскільки ввімкнено режим налагодження)"
 
-#: src/Config/ConfigItem.php:1052
+#: src/Config/ConfigItem.php:1091
 #, php-format
 msgid ""
 ""
 "⚠️ Timezone Mismatch: PHP and Database connection clocks differ by %s hours "
 "(%s seconds). This will cause authentication requests to time out "
 "prematurely or linger too long."
-msgstr "⚠️ Невідповідність часового поясу: Годинники PHP і з’єднання з базою даних відрізняються на %s годин (%s секунд). Це спричинить передчасне очікування запитів на автентифікацію або затримку надто довго."
+msgstr "⚠️ Невідповідність часового поясу: PHP і годинник підключення до бази даних відрізняються на %s годин ( %s секунд). Це спричинить передчасне очікування запитів на автентифікацію або затримку надто довго."
 
-#: src/Config/ConfigItem.php:1053
+#: src/Config/ConfigItem.php:1092
 msgid ""
 ""
 "Ensure GLPI's timezone usage configuration is enabled (under Setup > General "
@@ -944,101 +1037,106 @@ msgstr "Не дозволено або сталася помилка видал�
 msgid "Invalid request, redirecting back"
 msgstr "Недійсний запит, переспрямування назад"
 
-#: src/Config/ConfigForm.php:776
+#: src/Config/ConfigForm.php:773
 msgid "This claim key has not been observed in any SAML responses yet."
 msgstr "Цей ключ претензії ще не спостерігався в жодній відповіді SAML."
 
-#: src/Config/ConfigForm.php:828 src/LoginFlow/LoginFlowForm.php:187
+#: src/Config/ConfigForm.php:825 src/LoginFlow/LoginFlowForm.php:187
 msgid "Email Address"
 msgstr "Адреса електронної пошти"
 
-#: src/Config/ConfigForm.php:829 src/LoginFlow/LoginFlowForm.php:188
+#: src/Config/ConfigForm.php:826 src/LoginFlow/LoginFlowForm.php:188
 msgid "Transient"
 msgstr "Перехідний"
 
-#: src/Config/ConfigForm.php:830 src/LoginFlow/LoginFlowForm.php:189
+#: src/Config/ConfigForm.php:827 src/LoginFlow/LoginFlowForm.php:189
 msgid "Persistent"
 msgstr "Наполегливий"
 
-#: src/Config/ConfigForm.php:831 src/LoginFlow/LoginFlowForm.php:192
+#: src/Config/ConfigForm.php:828 src/LoginFlow/LoginFlowForm.php:192
 msgid "PasswordProtectedTransport"
 msgstr "PasswordProtectedTransport"
 
-#: src/Config/ConfigForm.php:833 src/LoginFlow/LoginFlowForm.php:194
+#: src/Config/ConfigForm.php:830 src/LoginFlow/LoginFlowForm.php:194
 msgid "X509"
 msgstr "X509"
 
-#: src/Config/ConfigForm.php:834 src/LoginFlow/LoginFlowForm.php:195
+#: src/Config/ConfigForm.php:831 src/LoginFlow/LoginFlowForm.php:195
 msgid "none"
 msgstr "немає"
 
-#: src/Config/ConfigForm.php:835 src/LoginFlow/LoginFlowForm.php:198
+#: src/Config/ConfigForm.php:832 src/LoginFlow/LoginFlowForm.php:198
 msgid "Exact"
 msgstr "Точний"
 
-#: src/Config/ConfigForm.php:838 src/LoginFlow/LoginFlowForm.php:201
+#: src/Config/ConfigForm.php:835 src/LoginFlow/LoginFlowForm.php:201
 msgid "Better"
 msgstr "краще"
 
-#: src/Config/ConfigForm.php:854
+#: src/Config/ConfigForm.php:851
 msgid "Microsoft"
 msgstr "Microsoft"
 
-#: src/Config/ConfigForm.php:855
+#: src/Config/ConfigForm.php:852
 msgid "Google"
 msgstr "Google"
 
-#: src/Config/ConfigForm.php:856
+#: src/Config/ConfigForm.php:853
 msgid "GitHub"
 msgstr "GitHub"
 
-#: src/Config/ConfigForm.php:857
+#: src/Config/ConfigForm.php:854
 msgid "Apple"
 msgstr "Яблуко"
 
-#: src/Config/ConfigForm.php:858
+#: src/Config/ConfigForm.php:855
 msgid "OpenID"
 msgstr "OpenID"
 
-#: src/Config/ConfigForm.php:860
+#: src/Config/ConfigForm.php:857
 msgid "Shield"
 msgstr "Щит"
 
-#: src/Config/ConfigForm.php:862
+#: src/Config/ConfigForm.php:859
 msgid "User Lock"
 msgstr "Блокування користувача"
 
-#: src/Config/ConfigForm.php:863
+#: src/Config/ConfigForm.php:860
 msgid "Cloud / Azure"
 msgstr "Хмара / Лазурне"
 
-#: src/Config/ConfigForm.php:864
+#: src/Config/ConfigForm.php:861
 msgid "Sign In"
 msgstr "Увійти"
 
-#: src/Config/ConfigEntity.php:367
+#: src/Config/ConfigEntity.php:201
+#, php-format
+msgid "Could not locate configuration template %s, please verify installation!"
+msgstr "Не вдалося знайти шаблон конфігурації %s , перевірте встановлення!"
+
+#: src/Config/ConfigEntity.php:392
 msgid ""
 ""
 "⚠️ SP private key does not seem to match provided SP certificates modulus."
-msgstr "⚠️ Закритий ключ SP, здається, не відповідає наданому модулю сертифікатів SP."
+msgstr "⚠️ Схоже, закритий ключ SP не відповідає наданому модулю сертифікатів SP ."
 
-#: src/Config/ConfigEntity.php:373
+#: src/Config/ConfigEntity.php:398
 msgid ""
 ""
 "⚠️ Will be defaulted to \"No\" because the provided SP certificate does not "
 "look valid!"
-msgstr "⚠️ За умовчанням буде встановлено значення «Ні», оскільки наданий сертифікат SP виглядає недійсним!"
+msgstr "⚠️ За умовчанням буде встановлено значення \"Ні\", оскільки наданий сертифікат SP виглядає недійсним!"
 
-#: src/Config/ConfigEntity.php:403
+#: src/Config/ConfigEntity.php:428
 msgid ""
 ""
 "⚠️ These fields are only enforced when strict mode is enabled. Your "
 "environment is at risk without strict mode."
-msgstr "⚠️ Ці поля застосовуються, лише коли ввімкнено строгий режим. Ваше оточення під загрозою без суворого режиму."
+msgstr "⚠️ Ці поля застосовуються, лише коли ввімкнено суворий режим. Ваше оточення під загрозою без суворого режиму."
 
-#: src/Config/ConfigEntity.php:443
+#: src/Config/ConfigEntity.php:468
 msgid "⚠️ IDPs cannot be enforced if more than one is present in the IDP list."
-msgstr "⚠️ ВПО не можна застосувати, якщо в списку ВПО є більше одного."
+msgstr "⚠️ IDPs не можуть бути застосовані, якщо в списку IDP присутні більше одного."
 
 #: src/Config/ClaimMapItem.php:120
 msgid "IDP configuration ID must be a positive integer"
@@ -1072,6 +1170,11 @@ msgstr "Значення за замовчуванням не може пере�
 msgid "samlFlow"
 msgstr "samlFlow"
 
+#: src/LoginFlow.php:266 src/LoginFlow.php:870
+#, php-format
+msgid "Loading login state failed with: %s"
+msgstr "Не вдалося завантажити стан входу з: %s"
+
 #: src/LoginFlow.php:272
 msgid "You have been forcefully logged out by an administrator."
 msgstr "Ви були примусово виведені з системи адміністратором."
@@ -1080,22 +1183,22 @@ msgstr "Ви були примусово виведені з системи ад
 msgid "Your session has timed out due to inactivity."
 msgstr "Ваш сеанс минув через бездіяльність."
 
-#: src/LoginFlow.php:523
+#: src/LoginFlow.php:522
 #, php-format
 msgid ""
 ""
 "Could not update the loginState and therefor stopped the loginFlow for: %s"
 msgstr "Не вдалося оновити loginState і тому зупинити loginFlow для: %s"
 
-#: src/LoginFlow.php:631
+#: src/LoginFlow.php:630
 msgid "Continue with local logout"
 msgstr "Продовжте локальний вихід"
 
-#: src/LoginFlow.php:632
+#: src/LoginFlow.php:631
 msgid "Log out everywhere"
 msgstr "Вийти всюди"
 
-#: src/LoginFlow.php:636
+#: src/LoginFlow.php:635
 #, php-format
 msgid ""
 ""
@@ -1105,9 +1208,17 @@ msgid ""
 "completely, please select <b>'%2$s'</b>. Note that this will also terminate "
 "your active sessions in all other applications connected to this Identity "
 "Provider.<br><br>If you want to leave GLPI, just close this browser tab."
-msgstr "Ви пройшли автентифікацію за допомогою постачальника ідентифікаційної інформації SAML2: <b>%1$s</b>.<br><br>Оскільки застосовується автентифікація SAML, локальний вихід із GLPI призведе до негайного автоматичного повторного входу.<br><br>Щоб повністю вийти, виберіть <b>«Вийти з усюди»</b>. Зауважте, що це також припинить ваші активні сесії в усіх інших програмах, підключених до цього постачальника ідентифікаційної інформації.<br><br>IЯкщо ви хочете вийти з GLPI, просто закрийте цю вкладку браузера."
+msgstr ""
+""
+"Ви пройшли автентифікацію за допомогою постачальника ідентифікаційної "
+"інформації SAML2: <b>%1$s</b>.<br><br>Оскільки застосовується автентифікація "
+"SAML, локальний вихід із GLPI призведе до негайного автоматичного повторного "
+"входу.<br><br>Щоб повністю вийти, виберіть <b>«Вийти з усюди»</b>. Зауважте, "
+"що це також припинить ваші активні сесії в усіх інших програмах, підключених "
+"до цього постачальника ідентифікаційної інформації.<br><br>IЯкщо ви хочете "
+"вийти з GLPI, просто закрийте цю вкладку браузера."
 
-#: src/LoginFlow.php:642
+#: src/LoginFlow.php:641
 #, php-format
 msgid ""
 ""
@@ -1116,21 +1227,27 @@ msgid ""
 "pressing <b>'%2$s'</b> (which terminates active sessions in all other "
 "applications depending on it), or perform a local logout from GLPI only by "
 "pressing <b>'%3$s'</b>."
-msgstr "Ви пройшли автентифікацію за допомогою постачальника ідентифікаційних даних SAML2: <b>%1$s</b>.<br><br>. Ви можете вийти назавжди, також вийшовши з IDP, натиснувши <b> «Вийти скрізь» </b> (що припиняє активні сеанси в усіх інших програмах залежно від цього), або виконати локальний вихід із GLPI, лише натиснувши <b> «Продовжити вихід з GLPI» </b>."
+msgstr ""
+""
+"Ви пройшли автентифікацію за допомогою постачальника ідентифікаційних даних "
+"SAML2: <b>%1$s</b>.<br><br>. Ви можете вийти назавжди, також вийшовши з IDP, "
+"натиснувши <b> «Вийти скрізь» </b> (що припиняє активні сеанси в усіх інших "
+"програмах залежно від цього), або виконати локальний вихід із GLPI, лише "
+"натиснувши <b> «Продовжити вихід з GLPI» </b>."
 
-#: src/LoginFlow.php:651
+#: src/LoginFlow.php:650
 msgid "🤔 How would you like to proceed?"
 msgstr "🤔 Як би ви хотіли продовжити?"
 
-#: src/LoginFlow.php:656
+#: src/LoginFlow.php:655
 msgid "Close tab"
 msgstr "Закрити вкладку"
 
-#: src/LoginFlow.php:711
+#: src/LoginFlow.php:710
 msgid "Login with external provider"
 msgstr "Увійти за допомогою зовнішнього провайдера"
 
-#: src/LoginFlow.php:770 src/LoginFlow.php:837
+#: src/LoginFlow.php:766 src/LoginFlow.php:833
 msgid ""
 ""
 "Something went wrong during authentication assertion and prevents you from "
@@ -1142,31 +1259,31 @@ msgstr ""
 "зверніться до свого адміністратора GLPI, щоб отримати додаткову інформацію "
 "та підтримку."
 
-#: src/LoginFlow.php:773
+#: src/LoginFlow.php:769
 msgid "⚠️ Sorry we are unable to log you in"
 msgstr "⚠️ Вибачте, ми не можемо увійти"
 
-#: src/LoginFlow.php:778 src/LoginFlow.php:844
+#: src/LoginFlow.php:774 src/LoginFlow.php:840
 msgid "Return to GLPI"
 msgstr "Повернутися до GLPI"
 
-#: src/LoginFlow.php:840
+#: src/LoginFlow.php:836
 msgid "⚠️ An error occurred"
 msgstr "⚠️ Сталася помилка"
 
-#: src/LoginFlow.php:841
+#: src/LoginFlow.php:837
 msgid "We are sorry, something went wrong while processing your request!"
 msgstr "На жаль, під час обробки вашого запиту сталася помилка!"
 
-#: src/Config.php:125
+#: src/Config.php:142
 msgid "samlSSO"
 msgstr "samlSSO"
 
-#: src/Config.php:149 src/Exclude.php:87
+#: src/Config.php:166 src/Exclude.php:87
 msgid "Excluded paths"
 msgstr "Виключені шляхи"
 
-#: src/Config.php:184
+#: src/Config.php:201
 msgid "Idp entity ID"
 msgstr "Ідентифікатор організації Idp"
 
@@ -1181,7 +1298,7 @@ msgstr ""
 msgid "Samlsso->acs->init->FetchConfig"
 msgstr "Samlsso->acs->init->FetchConfig"
 
-#: src/LoginFlow/Acs.php:156
+#: src/LoginFlow/Acs.php:169
 #, php-format
 msgid ""
 ""
@@ -1193,15 +1310,15 @@ msgstr ""
 "idpId для автентифікації користувача, див.: %s для отримання додаткової "
 "інформації"
 
-#: src/LoginFlow/Acs.php:157
+#: src/LoginFlow/Acs.php:170
 msgid "Samlsso->acs->init->NoSamlResponse"
 msgstr "Samlsso->acs->init->NoSamlResponse"
 
-#: src/LoginFlow/Acs.php:179
+#: src/LoginFlow/Acs.php:192
 msgid "Samlsso->acs->init->phpsaml->Utils->setProxyVars"
 msgstr "Samlsso->acs->init->phpsaml->Utils->setProxyVars"
 
-#: src/LoginFlow/Acs.php:198
+#: src/LoginFlow/Acs.php:211
 msgid ""
 ""
 "PHP-SAML could not initialize the settings object using the configEntity."
@@ -1210,22 +1327,22 @@ msgstr ""
 "PHP-SAML не вдалося ініціалізувати об’єкт налаштувань за допомогою "
 "configEntity."
 
-#: src/LoginFlow/Acs.php:199
+#: src/LoginFlow/Acs.php:212
 msgid "Samlsso->acs->init->phpsaml->initializeSettings"
 msgstr "Samlsso->acs->init->phpsaml->initializeSettings"
 
-#: src/LoginFlow/Acs.php:207
+#: src/LoginFlow/Acs.php:220
 msgid "PHP-SAML library could not process samlResponse and reported the error:"
 msgstr ""
 ""
 "Бібліотека PHP-SAML не змогла обробити samlResponse та повідомила про "
 "помилку:"
 
-#: src/LoginFlow/Acs.php:208
+#: src/LoginFlow/Acs.php:221
 msgid "Samlsso->acs->init->phpsaml->initializeResponse"
 msgstr "Samlsso->acs->init->phpsaml->initializeResponse"
 
-#: src/LoginFlow/Acs.php:228
+#: src/LoginFlow/Acs.php:241
 #, php-format
 msgid ""
 ""
@@ -1236,11 +1353,11 @@ msgstr ""
 "Не вдалося отримати loginState з бази даних із помилкою: "
 "<br><br>%s<br><br>Див.: %s для отримання додаткової інформації."
 
-#: src/LoginFlow/Acs.php:229
+#: src/LoginFlow/Acs.php:242
 msgid "Samlsso->acs->init->LoginState::construct"
 msgstr "Samlsso->acs->init->LoginState::construct"
 
-#: src/LoginFlow/Acs.php:255
+#: src/LoginFlow/Acs.php:268
 msgid ""
 ""
 " (Suggestion: check 'Want Assertions Encrypted' under Inbound Security in "
@@ -1250,7 +1367,7 @@ msgstr ""
 "(Пропозиція: установіть прапорець «Потрібно зашифрувати твердження» у "
 "розділі «Безпека вхідних повідомлень» на вкладці «Безпека»)"
 
-#: src/LoginFlow/Acs.php:257
+#: src/LoginFlow/Acs.php:270
 msgid ""
 ""
 " (Suggestion: check 'Want Messages Signed' under Inbound Security in the "
@@ -1260,7 +1377,7 @@ msgstr ""
 "(Пропозиція: установіть прапорець «Потрібні підписи повідомлень» у розділі "
 "«Безпека вхідних повідомлень» на вкладці «Безпека»)"
 
-#: src/LoginFlow/Acs.php:259
+#: src/LoginFlow/Acs.php:272
 msgid ""
 ""
 " (Suggestion: check 'Want Assertions Signed' under Inbound Security in the "
@@ -1270,7 +1387,7 @@ msgstr ""
 "(Пропозиція: установіть прапорець «Потрібні підписи тверджень» у розділі "
 "«Безпека вхідних повідомлень» на вкладці «Безпека»)"
 
-#: src/LoginFlow/Acs.php:261
+#: src/LoginFlow/Acs.php:274
 msgid ""
 ""
 " (Suggestion: check 'Want NameID Signed' under Inbound Security in the "
@@ -1280,14 +1397,14 @@ msgstr ""
 "(Пропозиція: установіть прапорець «Потрібний підпис NameID» у розділі "
 "«Безпека вхідних повідомлень» на вкладці «Безпека»)"
 
-#: src/LoginFlow/Acs.php:263 src/LoginFlow/Acs.php:279
+#: src/LoginFlow/Acs.php:276 src/LoginFlow/Acs.php:292
 msgid " (Suggestion: verify the Identity Provider Certificates configuration)"
 msgstr ""
 ""
 "(Пропозиція: перевірте конфігурацію сертифікатів постачальника "
 "ідентифікаційної інформації)"
 
-#: src/LoginFlow/Acs.php:265
+#: src/LoginFlow/Acs.php:278
 msgid ""
 ""
 " (Suggestion: check proxy settings or ensure request timeout has not expired)"
@@ -1296,29 +1413,29 @@ msgstr ""
 "(Пропозиція: перевірте налаштування проксі або переконайтеся, що час "
 "очікування запиту не минув)"
 
-#: src/LoginFlow/Acs.php:269
+#: src/LoginFlow/Acs.php:282
 msgid "Validation of the samlResponse document failed"
 msgstr "Не вдалося перевірити документ samlResponse"
 
-#: src/LoginFlow/Acs.php:270 src/LoginFlow/Acs.php:284
+#: src/LoginFlow/Acs.php:283 src/LoginFlow/Acs.php:297
 msgid "Samlsso->acs->assertSaml->SamlResponse::isValid"
 msgstr "Samlsso->acs->assertSaml->SamlResponse::isValid"
 
-#: src/LoginFlow/Acs.php:283
+#: src/LoginFlow/Acs.php:296
 msgid "Validation of the samlResponse document failed with a critical error"
 msgstr "Не вдалося перевірити документ samlResponse через критичну помилку"
 
-#: src/LoginFlow/Acs.php:291
+#: src/LoginFlow/Acs.php:304
 msgid ""
 ""
 "Your SAML authentication request timed out. Please try logging in again."
 msgstr "Ваш запит на автентифікацію SAML минув. Спробуйте увійти знову."
 
-#: src/LoginFlow/Acs.php:292
+#: src/LoginFlow/Acs.php:305
 msgid "Samlsso->acs->assertSaml->Timeout"
 msgstr "Samlsso->acs->assertSaml->Timeout"
 
-#: src/LoginFlow/Acs.php:311
+#: src/LoginFlow/Acs.php:324
 #, php-format
 msgid ""
 ""
@@ -1346,11 +1463,11 @@ msgstr ""
 "                    Якщо проблема не зникає, зверніться до адміністратора.\n"
 "                    Дивіться: %s для отримання додаткової інформації"
 
-#: src/LoginFlow/Acs.php:317
+#: src/LoginFlow/Acs.php:330
 msgid "Samlsso->acs->assertSaml->LoginState::checkResponseIdUnique"
 msgstr "Samlsso->acs->assertSaml->LoginState::checkResponseIdUnique"
 
-#: src/LoginFlow/Acs.php:338
+#: src/LoginFlow/Acs.php:351
 msgid ""
 ""
 "An error occured while trying to update the samlResponseId into the "
@@ -1360,11 +1477,11 @@ msgstr ""
 "Під час спроби оновити samlResponseId у базі даних LoginState сталася "
 "помилка. Щоб дізнатися більше, перегляньте журнал saml"
 
-#: src/LoginFlow/Acs.php:339
+#: src/LoginFlow/Acs.php:352
 msgid "Samlsso->acs->assertSaml->LoginState::setSamlResponseId"
 msgstr "Samlsso->acs->assertSaml->LoginState::setSamlResponseId"
 
-#: src/LoginFlow/Acs.php:352
+#: src/LoginFlow/Acs.php:365
 #, php-format
 msgid ""
 ""
@@ -1382,11 +1499,11 @@ msgstr ""
 "                    GLPI-інтерфейс. Вибачте за незручності. Див.: %s\n"
 "                    для отримання додаткової інформації"
 
-#: src/LoginFlow/Acs.php:356
+#: src/LoginFlow/Acs.php:369
 msgid "Samlsso->acs->assertSaml->PhaseMismatched"
 msgstr "Samlsso->acs->assertSaml->PhaseMismatched"
 
-#: src/LoginFlow/Acs.php:370
+#: src/LoginFlow/Acs.php:383
 msgid ""
 ""
 "An error occured while trying to update the login phase to LoginState::"
@@ -1399,13 +1516,13 @@ msgstr ""
 "                                  Щоб дізнатися більше, перегляньте журнал "
 "saml"
 
-#: src/LoginFlow/Acs.php:371
+#: src/LoginFlow/Acs.php:384
 msgid "LoginState"
 msgstr "LoginState"
 
 #: src/LoginFlow/LoginFlowItem.php:120
 msgid "⭕ IDP ID must be a positive numeric value!"
-msgstr "⭕ ID ВПО має бути додатним числовим значенням!"
+msgstr "⭕ Ідентифікатор IDP має бути додатним числовим значенням!"
 
 #: src/LoginFlow/LoginFlowItem.php:124
 msgid "What IDP ID should be enforced?"
@@ -1496,15 +1613,15 @@ msgstr ""
 msgid "APPLY RULES ON AUTH"
 msgstr "ЗАСТОСУВАТИ ПРАВИЛА АВТ"
 
-#: src/LoginFlow/Meta.php:76
+#: src/LoginFlow/Meta.php:77
 msgid "Error fetching spMetadata."
 msgstr "Помилка отримання spMetadata."
 
-#: src/LoginFlow/Meta.php:81
+#: src/LoginFlow/Meta.php:82
 msgid "Invalid id or metadata not exposed."
 msgstr "Недійсний ідентифікатор або метадані не розкриваються."
 
-#: src/LoginFlow/Meta.php:86
+#: src/LoginFlow/Meta.php:87
 msgid "Error fetching config."
 msgstr "Помилка отримання конфігурації."
 
@@ -1560,7 +1677,7 @@ msgstr ""
 "Ваш вхід у систему єдиного входу пройшов успішно, але конфігурація "
 "постачальника ідентифікаційної інформації недійсна або вимкнена."
 
-#: src/LoginFlow/User.php:221
+#: src/LoginFlow/User.php:222
 msgid ""
 ""
 "Your SSO login was successful but there is no matching GLPI user account "
@@ -1582,7 +1699,7 @@ msgstr ""
 "                                                попросіть адміністратора "
 "створити користувача GLPI вручну."
 
-#: src/LoginFlow/User.php:234
+#: src/LoginFlow/User.php:235
 msgid ""
 ""
 "Your SSO login was successful but no GLPI profile was assigned to your "
@@ -1605,7 +1722,7 @@ msgstr ""
 "                                                    попросіть адміністратора "
 "призначити профіль GLPI вручну."
 
-#: src/LoginFlow/User.php:242
+#: src/LoginFlow/User.php:243
 msgid ""
 ""
 "Critical error: samlSSO was unable to fetch newly created user from the "
@@ -1615,35 +1732,35 @@ msgstr ""
 "Критична помилка: samlSSO не вдалося отримати новоствореного користувача з "
 "бази даних!"
 
-#: src/LoginFlow/User.php:264
+#: src/LoginFlow/User.php:265
 msgid "JIT was called with params:"
 msgstr "JIT було викликано з параметрами:"
 
-#: src/LoginFlow/User.php:333
+#: src/LoginFlow/User.php:334
 msgid "Created by phpSaml Just-In-Time user creation on:"
 msgstr "Створено створенням користувача phpSaml Just-In-Time на:"
 
-#: src/LoginFlow/User.php:491
+#: src/LoginFlow/User.php:492
 msgid "JIT group already assigned:"
 msgstr "Група JIT уже призначена:"
 
-#: src/LoginFlow/User.php:502
+#: src/LoginFlow/User.php:503
 msgid "JIT failed to assign groupID:"
 msgstr "JIT не вдалося призначити ідентифікатор групи:"
 
-#: src/LoginFlow/User.php:507
+#: src/LoginFlow/User.php:508
 msgid "JIT assigned groupID:"
 msgstr "JIT призначив ідентифікатор групи:"
 
-#: src/LoginFlow/User.php:514
+#: src/LoginFlow/User.php:515
 msgid "JIT found no groupId to add."
 msgstr "JIT не знайшов ідентифікатора групи для додавання."
 
-#: src/LoginFlow/User.php:538
+#: src/LoginFlow/User.php:539
 msgid "JIT found entity for profile assignment:"
 msgstr "JIT знайшов сутність для призначення профілю:"
 
-#: src/LoginFlow/User.php:540
+#: src/LoginFlow/User.php:541
 msgid ""
 ""
 "JIT didnt find a profile for entity assignment. Profile asignment might not "
@@ -1653,94 +1770,96 @@ msgstr ""
 "JIT не знайшов профіль для призначення сутності. Призначення профілю може не "
 "працювати."
 
-#: src/LoginFlow/User.php:546
+#: src/LoginFlow/User.php:547
 msgid "JIT found to be assigned profile(s) to be recursive."
 msgstr "Виявлено, що профілі JIT призначені рекурсивними."
 
-#: src/LoginFlow/User.php:548
+#: src/LoginFlow/User.php:549
 msgid "JIT didnt find to be assigned profile(s) to be recursive."
 msgstr "JIT не виявив рекурсивних профілів."
 
-#: src/LoginFlow/User.php:565
+#: src/LoginFlow/User.php:566
 msgid "JIT profile already assigned with config:"
 msgstr "Профіль JIT уже призначено конфігурацією:"
 
-#: src/LoginFlow/User.php:571
+#: src/LoginFlow/User.php:572
 msgid "JIT was not able to assign profile with config:"
 msgstr "JIT не вдалося призначити профіль із конфігурацією:"
 
-#: src/LoginFlow/User.php:577
+#: src/LoginFlow/User.php:578
 msgid "JIT remove all default profiles from newly created user:"
 msgstr ""
 ""
 "JIT видаляє всі профілі за замовчуванням для новоствореного користувача:"
 
-#: src/LoginFlow/User.php:589
+#: src/LoginFlow/User.php:590
 msgid "JIT assigned profile with config:"
 msgstr "JIT призначений профіль із конфігурацією:"
 
-#: src/LoginFlow/User.php:622
-msgid "JIT found default groupID:"
+#: src/LoginFlow/User.php:623
+#, php-format
+msgid "JIT found default groupID: %s for userId: %s"
 msgstr "JIT знайшов ідентифікатор групи за замовчуванням:"
 
-#: src/LoginFlow/User.php:624
-msgid "Jit didnt find a default GroupID to assign, skipping\n"
-msgstr ""
-""
-"Jit не знайшов ідентифікатор групи за замовчуванням для призначення, "
-"пропускаючи\n"
+#: src/LoginFlow/User.php:625
+msgid "Jit didnt find a default GroupID to assign, skipping"
+msgstr "Jit не знайшов ідентифікатор групи за замовчуванням для призначення, пропускаючи"
 
-#: src/LoginFlow/User.php:629
-msgid "JIT found default entityID:"
+#: src/LoginFlow/User.php:630
+#, php-format
+msgid "JIT found default entityID: %s for userId: %s"
 msgstr "JIT знайшов стандартний entityID:"
 
-#: src/LoginFlow/User.php:631
-msgid "Jit didnt find a default EntityId to assign, skipping\n"
-msgstr ""
-""
-"Jit не знайшов EntityId за замовчуванням для призначення, пропускаючи\n"
+#: src/LoginFlow/User.php:632
+msgid "Jit didnt find a default EntityId to assign, skipping"
+msgstr "Jit не знайшов EntityId за замовчуванням для призначення, пропускаючи"
 
-#: src/LoginFlow/User.php:636
-msgid "JIT found default profileID:"
+#: src/LoginFlow/User.php:637
+#, php-format
+msgid "JIT found default profileID: %s for userId: %s"
 msgstr "JIT знайшов ідентифікатор профілю за замовчуванням:"
 
-#: src/LoginFlow/User.php:638
-msgid "Jit didnt find a default ProfileId to assign, skipping\n"
-msgstr ""
-""
-"Jit не знайшов ProfileId за замовчуванням для призначення, пропускаючи\n"
+#: src/LoginFlow/User.php:639
+msgid "Jit didnt find a default ProfileId to assign, skipping"
+msgstr "Jit не знайшов ProfileId за замовчуванням для призначення, пропускаючи"
 
-#: src/LoginFlow/User.php:643
-msgid "JIT found timezone:"
+#: src/LoginFlow/User.php:644
+#, php-format
+msgid "JIT found timezone: %s for userId: %s"
 msgstr "JIT знайшов часовий пояс:"
 
-#: src/LoginFlow/User.php:648
-msgid "JIT found is_active:"
+#: src/LoginFlow/User.php:649
+#, php-format
+msgid "JIT found is_active: %s for userId: %s"
 msgstr "JIT знайшов is_active:"
 
-#: src/LoginFlow/User.php:653
-msgid "JIT found locations_id:"
+#: src/LoginFlow/User.php:654
+#, php-format
+msgid "JIT found locations_id: %s for userId: %s"
 msgstr "JIT знайшов locations_id:"
 
-#: src/LoginFlow/User.php:658
-msgid "JIT found usercategories_id:"
+#: src/LoginFlow/User.php:659
+#, php-format
+msgid "JIT found usercategories_id: %s for userId: %s"
 msgstr "JIT знайшов usercategories_id:"
 
-#: src/LoginFlow/User.php:663
-msgid "JIT found usertitles_id:"
+#: src/LoginFlow/User.php:664
+#, php-format
+msgid "JIT found usertitles_id: %s for userId: %s"
 msgstr "JIT знайшов usertitles_id:"
 
-#: src/LoginFlow/User.php:668
-msgid "JIT found language:"
+#: src/LoginFlow/User.php:669
+#, php-format
+msgid "JIT found language: %s for userId: %s"
 msgstr "Мова, знайдена JIT:"
 
-#: src/LoginFlow/User.php:673
-msgid "Jit updated user defaults\n"
-msgstr "Jit оновив налаштування користувача за замовчуванням\n"
+#: src/LoginFlow/User.php:674
+msgid "Jit updated user defaults"
+msgstr "Jit оновив налаштування користувача за замовчуванням"
 
-#: src/LoginFlow/User.php:675
-msgid "Jit didnt update user defaults\n"
-msgstr "Jit не оновив налаштування користувача за замовчуванням\n"
+#: src/LoginFlow/User.php:676
+msgid "Jit didnt update user defaults"
+msgstr "Jit не оновив налаштування користувача за замовчуванням"
 
 #: src/LoginFlow/LoginFlowForm.php:72
 msgid "Identity providers"
@@ -1750,7 +1869,7 @@ msgstr "Постачальники ідентифікації"
 msgid "Configuration invalid please correct all ⭕ errors first"
 msgstr "Недійсна конфігурація, спочатку виправте всі помилки ⭕"
 
-#: src/LoginState.php:850
+#: src/LoginState.php:859
 msgid "ACS Timeout"
 msgstr "Час очікування ACS"
 
@@ -1840,7 +1959,7 @@ msgstr "Перевірка XML і призначення"
 
 #: templates/configForm/transit.html.twig:105
 msgid "⚠️ Strict is disabled, validate xml setting will not do anything."
-msgstr "⚠️ Strict вимкнено, параметр перевірки xml нічого не дасть."
+msgstr "⚠️ Strict вимкнено, перевірка параметра xml нічого не дасть."
 
 #: templates/configForm/idp.html.twig:8
 msgid "Endpoints & Configurations"
@@ -2075,7 +2194,7 @@ msgid ""
 "their {username}@{userdomain} in the glpi username field and pressing the "
 "login button. The password field is ignored and can be left blank. This is a "
 "more secure option that wont expose configured IDPs."
-msgstr "🔒 Домен користувача налаштовано. Користувачі можуть ініціювати вхід Saml, вказавши свій {username}@{userdomain} у полі імені користувача glpi та натиснувши кнопку входу. Поле пароля ігнорується, його можна залишити пустим. Це більш безпечний варіант, який не відкриває налаштовані IDP."
+msgstr "🔒 Домен користувача налаштовано. Users can trigger a Saml Login by providing their {username} @ {userdomain} in the glpi username field and pressing the login button. Поле пароля ігнорується, його можна залишити пустим. Це більш безпечний варіант, який не відкриває налаштовані IDP."
 
 #: templates/configForm/general.html.twig:333
 msgid "Comments"
@@ -2240,4 +2359,7 @@ msgid ""
 ""
 "⚠️ Warning SP metadata exposed! - ROWID: %1$s | CREATED DATE: %2$s | LAST "
 "UPDATED: %3$s"
-msgstr "⚠️ Попередження: метадані SP розкрито! - ROWID: %1$s | ДАТА СТВОРЕННЯ: %2$s | ОСТАННЯ ОНОВЛЕННЯ: %3$s"
+msgstr "⚠️ Попередження SP metadata викрито! - ROWID: %1$s | ДАТА СТВОРЕННЯ: %2$s | ОСТАННЯ ОНОВЛЕННЯ: %3$s"
+
+#~ msgid "⭕ "
+#~ msgstr "⭕ "

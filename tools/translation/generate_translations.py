@@ -9,6 +9,16 @@ import json
 import time
 
 LANGUAGES_CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), 'languages.json'))
+OVERRIDES_CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), 'overrides.json'))
+
+def load_overrides_config():
+    if os.path.exists(OVERRIDES_CONFIG_FILE):
+        try:
+            with open(OVERRIDES_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: Error loading overrides.json: {e}", flush=True)
+    return {}
 
 def load_languages_config():
     if os.path.exists(LANGUAGES_CONFIG_FILE):
@@ -28,18 +38,56 @@ def extract_leading_icon(text):
         return match.group(1), match.group(2)
     return "", text
 
+PROTECTED_TERMS = [
+    'proxy', 'proxied', 'saml', 'idp', 'sp', 'glpi', 'metadata',
+    'acs', 'slo', 'xml', 'x509', 'x.509', 'base64', 'url', 'uri', 'jwt',
+    'tls', 'ssl', 'oauth', 'php', 'mysql', 'active directory',
+    'entra id', 'entra', 'okta', 'keycloak', 'sso', 'shibboleth',
+    'onelogin', 'ldap', 'adfs', 'https', 'http', 'fqdn', 'jit', 'host',
+    'apache', 'nginx', 'iis', 'traefik', 'cookie', 'cookies', 'token',
+    'tokens', 'entity id', 'entityid', 'claim', 'claims'
+]
+
 def protect_placeholders(text):
+    # 1. Extract and protect format placeholders, tags, etc.
     pattern = r'(%[0-9]*\$?[a-zA-Z]|{[a-zA-Z0-9_]+}|<[^>]+>)'
     placeholders = re.findall(pattern, text)
     temp_text = text
     for i, ph in enumerate(placeholders):
-        temp_text = temp_text.replace(ph, f"PH{i}PH", 1)
-    return temp_text, placeholders
+        temp_text = temp_text.replace(ph, f" PH{i}PH ", 1)
 
-def restore_placeholders(translated_text, placeholders):
+    # 2. Extract and protect common IT terms
+    sorted_terms = sorted(PROTECTED_TERMS, key=len, reverse=True)
+    term_placeholders = []
+    for term in sorted_terms:
+        # Match whole word boundaries case-insensitively
+        pattern_term = r'\b' + re.escape(term) + r'\b'
+        
+        def replace_match(match):
+            original_val = match.group(0)
+            placeholder = f" TERM{len(term_placeholders)}TERM "
+            term_placeholders.append(original_val)
+            return placeholder
+            
+        temp_text = re.sub(pattern_term, replace_match, temp_text, flags=re.IGNORECASE)
+        
+    return temp_text, placeholders, term_placeholders
+
+def restore_placeholders(translated_text, placeholders, term_placeholders):
     temp_text = translated_text
+    
+    # 1. Restore IT terms
+    for i, original_val in enumerate(term_placeholders):
+        pattern = r'\s*TERM' + str(i) + r'TERM\s*'
+        temp_text = re.sub(pattern, f" {original_val} ", temp_text, count=1)
+
+    # 2. Restore format placeholders
     for i, ph in enumerate(placeholders):
-        temp_text = temp_text.replace(f"PH{i}PH", ph)
+        pattern = r'\s*PH' + str(i) + r'PH\s*'
+        temp_text = re.sub(pattern, f" {ph} ", temp_text, count=1)
+        
+    # Clean up duplicate/extra spaces
+    temp_text = re.sub(r'\s+', ' ', temp_text).strip()
     return temp_text
 
 def translate_api(text, target_lang, source_lang="en"):
@@ -50,14 +98,14 @@ def translate_api(text, target_lang, source_lang="en"):
     if not text_to_translate.strip():
         return text
         
-    protected, placeholders = protect_placeholders(text_to_translate)
+    protected, placeholders, term_placeholders = protect_placeholders(text_to_translate)
     url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={source_lang}&tl={target_lang}&dt=t&q={urllib.parse.quote(protected)}"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode('utf-8'))
             translated = "".join([part[0] for part in data[0] if part[0]])
-            restored = restore_placeholders(translated, placeholders)
+            restored = restore_placeholders(translated, placeholders, term_placeholders)
             return leading_icon + restored
     except Exception as e:
         print(f"Error calling translation API for language '{target_lang}': {e}", flush=True)
@@ -164,6 +212,7 @@ def main():
     
     # 1. Load configuration
     languages = load_languages_config()
+    overrides = load_overrides_config()
     print(f"Loaded target languages: {languages}", flush=True)
     
     # 2. Regenerate POT file
@@ -209,14 +258,26 @@ def main():
             
             if msgid_joined and (not msgstr_joined or is_fuzzy or starts_with_icon):
                 raw_text = unescape_str(msgid_joined)
-                if target_lang == 'en':
-                    translated_raw = raw_text
+                
+                # Check for overrides first
+                override_text = None
+                for lang_key in [locale, target_lang]:
+                    if lang_key in overrides and raw_text in overrides[lang_key]:
+                        override_text = overrides[lang_key][raw_text]
+                        break
+                
+                if override_text is not None:
+                    translated_raw = override_text
+                    print(f"[{locale}] Override used: \"{raw_text.strip()}\" -> \"{translated_raw.strip()}\"", flush=True)
                 else:
-                    # If it's already translated (but was fuzzy), keep it or re-translate it if empty
-                    if msgstr_joined and not starts_with_icon:
-                        translated_raw = unescape_str(msgstr_joined)
+                    if target_lang == 'en':
+                        translated_raw = raw_text
                     else:
-                        translated_raw = translate_api(raw_text, target_lang)
+                        # If it's already translated (but was fuzzy), keep it or re-translate it if empty
+                        if msgstr_joined and not starts_with_icon:
+                            translated_raw = unescape_str(msgstr_joined)
+                        else:
+                            translated_raw = translate_api(raw_text, target_lang)
                 
                 if translated_raw:
                     escaped = escape_str(translated_raw)
