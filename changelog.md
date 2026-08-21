@@ -1,5 +1,6 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/134 by adding "registration_number" to user mapping.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/145 where custom GLPI_MARKETPLACE_DIR paths caused 404/installation regressions - suggested by @albertogalisteo.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/141 with JIT rules test route opening missing plugin path - suggested by @KawanCostaNs.
 - Fixed issue https://github.com/DonutsNL/samlsso/pull/144 to support GeneralizedTime X.509 certificate dates with validity dates beyond 2049 by @enricomv.
