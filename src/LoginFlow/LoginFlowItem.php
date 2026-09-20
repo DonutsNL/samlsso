@@ -260,7 +260,7 @@ class LoginFlowItem    //NOSONAR
 
         return array_merge(
             [
-                LoginFlowItem::FORMEXPLAIN   => __('Forces samlSSO to (re)apply the rules on each succesfull auth.', PLUGIN_NAME),
+                LoginFlowItem::FORMEXPLAIN   => __('Forces samlSSO to (re)apply the rules on each successful auth.', PLUGIN_NAME),
                 LoginFlowItem::FORMTITLE     => __('APPLY RULES ON AUTH', PLUGIN_NAME),
                 LoginFlowItem::FIELD         => __function__,
                 LoginFlowItem::VALIDATOR     => __method__,
