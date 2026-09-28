@@ -891,7 +891,7 @@ class LoginFlow extends CommonDBTM
                     <body>&nbsp;</body>
                 </html>',
             \htmlescape($url),
-            'Auth succesfull'
+            'Auth successful'
         );
         exit;
     }
