@@ -61,23 +61,24 @@ class ClaimMapItem
     /**
      * Allowed target fields for claim mapping.
      */
-    public const FIELD_USERNAME      = 'username';
-    public const FIELD_EMAIL         = 'email';
-    public const FIELD_REALNAME      = 'realname';
-    public const FIELD_FIRSTNAME     = 'firstname';
-    public const FIELD_PHONE         = 'phone';
-    public const FIELD_MOBILE        = 'mobile';
-    public const FIELD_JOBTITLE      = 'jobtitle';
-    public const FIELD_COUNTRY       = 'country';
-    public const FIELD_CITY          = 'city';
-    public const FIELD_STREET        = 'street';
-    public const FIELD_GROUPS        = 'groups';
-    public const FIELD_DEPARTMENT    = 'department';
-    public const FIELD_COMPANY       = 'company';
-    public const FIELD_EMPLOYEE_TYPE = 'employee_type';
-    public const FIELD_LOCATION      = 'location';
-    public const FIELD_LOCALE        = 'locale';
-    public const FIELD_MANAGER       = 'manager';
+    public const FIELD_USERNAME           = 'username';
+    public const FIELD_EMAIL              = 'email';
+    public const FIELD_REALNAME           = 'realname';
+    public const FIELD_FIRSTNAME          = 'firstname';
+    public const FIELD_PHONE              = 'phone';
+    public const FIELD_MOBILE             = 'mobile';
+    public const FIELD_REGISTRATIONNUMBER = 'registration_number';
+    public const FIELD_JOBTITLE           = 'jobtitle';
+    public const FIELD_COUNTRY            = 'country';
+    public const FIELD_CITY               = 'city';
+    public const FIELD_STREET             = 'street';
+    public const FIELD_GROUPS             = 'groups';
+    public const FIELD_DEPARTMENT         = 'department';
+    public const FIELD_COMPANY            = 'company';
+    public const FIELD_EMPLOYEE_TYPE      = 'employee_type';
+    public const FIELD_LOCATION           = 'location';
+    public const FIELD_LOCALE             = 'locale';
+    public const FIELD_MANAGER            = 'manager';
 
     public const ALLOWED_USER_FIELDS = [
         self::FIELD_USERNAME,
@@ -86,6 +87,7 @@ class ClaimMapItem
         self::FIELD_FIRSTNAME,
         self::FIELD_PHONE,
         self::FIELD_MOBILE,
+        self::FIELD_REGISTRATIONNUMBER,
         self::FIELD_JOBTITLE,
         self::FIELD_COUNTRY,
         self::FIELD_CITY,
