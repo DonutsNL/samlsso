@@ -52,7 +52,6 @@ use Throwable;
 use Group_User;
 use Profile_User;
 use User as glpiUser;
-use Glpi\Toolbox\Sanitizer;
 use OneLogin\Saml2\Response;
 use GlpiPlugin\Samlsso\LoginFlow;
 use GlpiPlugin\Samlsso\LoginState;
@@ -194,6 +193,26 @@ class User
     }
 
     /**
+     * Sanitize an input array for the running GLPI core.
+     *
+     * GLPI 11 expects plugin-supplied add()/update() payloads to be
+     * sanitized through Glpi\Toolbox\Sanitizer. GLPI 12 removed that class
+     * from core (payloads stay raw; the core escapes at query time), so the
+     * call is version-selected here instead of at the call sites.
+     *
+     * @param array $input Raw or sanitized payload, depending on core version.
+     * @return array Payload shaped the way the running core expects.
+     * @since 1.3.3
+     */
+    private static function sanitizeInput(array $input): array
+    {
+        if (class_exists('Glpi\Toolbox\Sanitizer')) {
+            return \Glpi\Toolbox\Sanitizer::sanitize($input);
+        }
+        return $input;
+    }
+
+    /**
      * Performs Just-In-Time (JIT) user creation dynamically.
      *
      * @param array $userFields User attributes from SAML claims.
@@ -217,7 +236,7 @@ class User
             // Build the input array using the provided attributes (claims)
             // from the samlResponse. maybe use this method in the future
             // to also validate provided claims in one go.
-            $id = $user->add(Sanitizer::sanitize($userFields));
+            $id = $user->add(self::sanitizeInput($userFields));
             if (!$id) {
                 LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but there is no matching GLPI user account and
                                                 we failed to create one dynamically using Just In Time user creation. Please
@@ -471,7 +490,7 @@ class User
             unset($updateFields[User::EMAIL]);
         }
 
-        $user->update(Sanitizer::sanitize($updateFields));
+        $user->update(self::sanitizeInput($updateFields));
         $this->runRulesEngine((int)$user->fields[User::USERID], $userFields, $state);
     }
 
