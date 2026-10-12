@@ -1,4 +1,15 @@
 
+**V1.3.3**
+- Feature: Added GLPI 12 compatibility while keeping GLPI 11 support unchanged - resolves https://github.com/DonutsNL/samlsso/issues/167.
+- Feature: Added `src/compat.php`, one abstract intermediate class per plugin class declaring the GLPI 12 core property types (`$rightname`, `$dohistory`, `$menu_option`) selected at load time from `GLPI_VERSION`, so `Config`, `Exclude`, `LoginFlow`, `RuleSaml` and `RuleSamlCollection` load on both GLPI 11 and GLPI 12.
+- Bugfix: Resolved the `Plugin::getWebDir()` removal on GLPI 12 by resolving the plugin web directory at call time with a `method_exists` fallback, keeping GLPI 11 behaviour identical.
+- Bugfix: Exposed absolute ACS/SLO URLs to php-saml and the IdP to fix `sp_acs_url_invalid` / `sp_sls_url_invalid` when `setup.php` is loaded during kernel boot before `url_base` is available (issue https://github.com/DonutsNL/samlsso/issues/167).
+- Bugfix: Set `Auth::$auth_succeded` to `true` (typed `bool` on GLPI 12) to prevent the fatal `TypeError` on SSO login.
+- Bugfix: Guarded `Glpi\Toolbox\Sanitizer` behind `class_exists` because it was removed from GLPI 12 core, keeping GLPI 11 sanitization behaviour unchanged.
+- Bugfix: Made the configuration and login-flow form pages render under Twig `strict_variables` by defaulting optional field keys, guarding IdP certificate mappings and providing `currentUserId` / `currentUsername` to the render context.
+- Architecture: Added ADR 0024 documenting the typed-property compatibility layer introduced for GLPI 12 support.
+- Tests: Added `tests/Glpi12CompatTest.php` verifying the GLPI 12 compatibility wiring (compat layer selection, absolute web-dir helper, no core patches, no obfuscation).
+
 **V1.3.2**
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/145 where custom GLPI_MARKETPLACE_DIR paths caused 404/installation regressions - suggested by @albertogalisteo.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/141 with JIT rules test route opening missing plugin path - suggested by @KawanCostaNs.
