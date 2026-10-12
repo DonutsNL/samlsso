@@ -129,6 +129,22 @@ namespace {
     }
 
     /**
+     * Shim for the plugin web-directory helper declared in setup.php.
+     *
+     * setup.php is not loaded by the unit tests, but production code
+     * (LoginFlow) calls samlsso_plugin_web_dir(). Provide the same contract
+     * here: the web path of the plugin WITHOUT a trailing slash, consistent
+     * with the PLUGIN_SAMLSSO_WEBDIR constant shimmed above.
+     *
+     * @return string Web path without trailing slash, e.g. "/plugins/samlsso".
+     */
+    if (!function_exists('samlsso_plugin_web_dir')) {
+        function samlsso_plugin_web_dir(): string {
+            return rtrim(PLUGIN_SAMLSSO_WEBDIR, '/');
+        }
+    }
+
+    /**
      * Shim for plugin_version_samlsso function to supply version details in tests.
      *
      * @return array
