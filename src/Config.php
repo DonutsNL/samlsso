@@ -55,32 +55,28 @@ namespace GlpiPlugin\Samlsso;
 
 use Session;
 use Migration;
-use CommonDBTM;
 use DBConnection;
+use GlpiPlugin\Samlsso\Compat\ConfigCompat;
 use GlpiPlugin\Samlsso\Config\ConfigItem;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\Controller\SamlSsoController;
+
+// Version-selected compatibility layer (GLPI 11 untyped / GLPI 12 typed core
+// properties). Must be required before the class below extends ConfigCompat.
+require_once __DIR__ . '/compat.php';
 
 /**
  * This class Handles the installation and listing of configuration front/config.php
  * is is also the baseClass that extends the CommonDBTM GLPI object. All other
  * glpisaml config classes reference this class for CRUD operations on the config
  * database.
+ *
+ * $dohistory (true) and $rightname ('config') are carried by ConfigCompat,
+ * version-typed for GLPI 11 and GLPI 12; redeclaring them here would be a
+ * fatal type-invariance error on one of the two cores.
  */
-class Config extends CommonDBTM
+class Config extends ConfigCompat
 {
-    /**
-     * Tell DBTM to keep history
-     * @var    bool     $dohistory
-     */
-    public $dohistory = true;
-
-    /**
-     * Tell CommonGLPI to use config (Setup->Setup in UI) rights.
-     * @var    string   $rightname
-     */
-    public static $rightname = 'config';
-
     /**
      * Overloads missing canCreate Setup right and returns canUpdate instead
      *
@@ -400,10 +396,17 @@ class Config extends CommonDBTM
         global $DB;
 
         // Verify there is at least 'one' domain.tld configured.
+        // Only ACTIVE, non-deleted configurations are taken into account:
+        // hiding the password field while no enabled IdP can consume the
+        // login would lock every user out of the login form
+        // ('Empty login or password'). This aligns with getConfigIdByEmailDomain()
+        // and getLoginButtons(), which both require an active configuration.
         $req = $DB->request([
             'SELECT'   =>  ConfigEntity::CONF_DOMAIN,
             'FROM'     =>  Config::getTable(),
             'WHERE' => [
+                ConfigEntity::IS_ACTIVE => 1,
+                ConfigEntity::IS_DELETED => 0,
                 'NOT' => [ConfigEntity::CONF_DOMAIN => ['youruserdomain.tld', '']]
             ]
         ]);

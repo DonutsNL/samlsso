@@ -46,7 +46,6 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Samlsso;
 
-use Rule;
 use Group;
 use Entity;
 use Session;
@@ -56,15 +55,19 @@ use UserCategory;
 use UserTitle;
 
 use GlpiPlugin\Samlsso\Config\ClaimMapItem;
+use GlpiPlugin\Samlsso\Compat\RuleSamlCompat;
 
-class RuleSaml extends Rule
+// Version-selected compatibility layer (GLPI 11 untyped / GLPI 12 typed core
+// properties). Must be required before the class below extends RuleSamlCompat.
+require_once __DIR__ . '/compat.php';
+
+/**
+ * Rule executed on JIT provisioning, extending the core Rule object through
+ * the version-selected compatibility layer: $rightname ('rule_import') is
+ * carried by RuleSamlCompat, version-typed for GLPI 11 and GLPI 12.
+ **/
+class RuleSaml extends RuleSamlCompat
 {
-    /**
-     * Define Rights
-     * defines the rights a user must posses to be able to access this menu option in the rules section
-     **/
-    static $rightname = 'rule_import';
-
     /**
      *
      **/
