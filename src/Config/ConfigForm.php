@@ -100,8 +100,8 @@ class ConfigForm    //NOSONAR complexity by design.
      */
     private function renderBackupRestoreCard(): void
     {
-        $exportUrl   = PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE . '?action=backup_all';
-        $restoreUrl  = PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE . '?action=restore_all';
+        $exportUrl   = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=backup_all';
+        $restoreUrl  = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=restore_all';
         $csrfToken   = \Session::getNewCSRFToken();
 
         echo <<<HTML
@@ -253,13 +253,13 @@ HTML;
         $uploadedFile = $request->files->get('restore_file');
         if ($uploadedFile === null || !$uploadedFile->isValid()) {
             Session::addMessageAfterRedirect(__('Restore failed: no valid backup file was uploaded.', PLUGIN_NAME), false, ERROR);
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
         }
 
         $json = file_get_contents($uploadedFile->getPathname());
         if ($json === false || trim($json) === '') {
             Session::addMessageAfterRedirect(__('Restore failed: unable to read the uploaded file.', PLUGIN_NAME), false, ERROR);
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
         }
 
         $data = $this->decodeAndHealBackupJson($json);
@@ -273,7 +273,7 @@ HTML;
                 false,
                 ERROR
             );
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
         }
 
         // --- 2. Purge existing data (clean restore) ---
@@ -328,7 +328,7 @@ HTML;
             Session::addMessageAfterRedirect(__('Restore completed but no configurations were imported.', PLUGIN_NAME), false, WARNING);
         }
 
-        return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+        return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
     }
 
     /**
@@ -440,7 +440,7 @@ HTML;
             $config = new Config();
             if (!$config->canUpdate()) {
                 Session::addMessageAfterRedirect(__('You do not have permission to perform this action.', PLUGIN_NAME), false, ERROR);
-                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIGFORM_ROUTE);
+                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
             }
             $stateId = (int)$request->get('state_id');
             if ($stateId > 0) {
@@ -460,7 +460,7 @@ HTML;
                 }
             }
             $idpId = !empty($request->get('id')) ? (int) $request->get('id') : -1;
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $idpId . '#logging');
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $idpId . '#logging');
         }
 
         $inputBag = $request->getPayload();                                     // Assign the inputBag
@@ -549,7 +549,7 @@ HTML;
                 $claimMapEntity->save($claimMap);
                 // Leave succes message for user and redirect
                 Session::addMessageAfterRedirect(__('Successfully added new samlSSO configuration.', PLUGIN_NAME));
-                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$id);
+                return new RedirectResponse(samlsso_webdir().SamlSsoController::CONFIGFORM_ROUTE.'?id='.$id);
             } else {
                 // Leave error message for user and regenerate form with values
                 Session::addMessageAfterRedirect(__('Unable to add new samlSSO configuration, please review error logging', PLUGIN_NAME));
@@ -594,11 +594,11 @@ HTML;
                 $claimMapEntity->save($claimMap);
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
-                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
+                return new RedirectResponse(samlsso_webdir().SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
             } else {
                 // Leave a failed message
                 Session::addMessageAfterRedirect(__('Configuration update failed, check your update rights or error logging', PLUGIN_NAME));
-                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
+                return new RedirectResponse(samlsso_webdir().SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
             }
         }else{
             // Leave an error message and reload the form with provided values and errors
@@ -623,11 +623,11 @@ HTML;
            $config->delete((array) $postData)){
             // Leave success message and redirect
             Session::addMessageAfterRedirect(__('Configuration deleted successfully', PLUGIN_NAME));
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE);
+            return new RedirectResponse(samlsso_webdir().SamlSsoController::CONFIG_ROUTE);
         } else {
             // Leave fail message and redirect back to config.
             Session::addMessageAfterRedirect(__('Not allowed or error deleting SAML configuration!', PLUGIN_NAME));
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE.'?id='.$postData['id']);
+            return new RedirectResponse(samlsso_webdir().SamlSsoController::CONFIG_ROUTE.'?id='.$postData['id']);
         }
     }
 
@@ -791,6 +791,23 @@ HTML;
             $page = 1;
         }
         
+        // Twig strict_variables compatibility (GLPI 12 instances running with
+        // kernel.debug=true, e.g. a git checkout install): the form templates
+        // below read errors/formtitle/formexplain/validate for every field,
+        // but validation does not always populate those sub-keys. Default the
+        // optional sub-keys so strict mode renders exactly like production
+        // (where undefined keys resolve to an empty string).
+        foreach ($fields as $fkey => $fval) {
+            if (!is_array($fval)) {
+                continue;
+            }
+            foreach ([ConfigItem::ERRORS, ConfigItem::FORMTITLE, ConfigItem::FORMEXPLAIN, ConfigItem::VALIDATE, ConfigItem::FIELD, ConfigItem::VALUE] as $skey) {
+                if (!array_key_exists($skey, $fval)) {
+                    $fields[$fkey][$skey] = '';
+                }
+            }
+        }
+
         // Define static field translations
         $tplVars = array_merge($tplVars, [
             'claim_mappings'            =>  $claimMappings,
@@ -806,7 +823,9 @@ HTML;
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
             'csrf_token'                =>  \Session::getNewCSRFToken(),
-            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'currentUserId'             =>  (int) \Session::getLoginUserID(),
+            'currentUsername'           =>  (string) ($_SESSION['glpiname'] ?? ''),
+            'glpi_rootdoc'              =>  samlsso_webdir().SamlSsoController::CONFIGFORM_ROUTE.'?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
             'inputfields'               =>  $fields,
             'buttonsHiddenWarn'         =>  ($configEntity->getConfigDomain()) ? true : false,
@@ -816,9 +835,9 @@ HTML;
             'logging_total_pages'       =>  $totalPages,
             'logging_total_count'       =>  $totalCount,
             'entityID'                  =>  $CFG_GLPI['url_base'].'/',
-            'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::ACS_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
-            'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::META_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
-            'sloUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::SLO_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'acsUrl'                    =>  samlsso_webdir().SamlSsoController::ACS_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'metaUrl'                   =>  samlsso_webdir().SamlSsoController::META_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'sloUrl'                    =>  samlsso_webdir().SamlSsoController::SLO_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
             'inputOptionsBool'          =>  [ 1                                 => __('Yes', PLUGIN_NAME),
                                               0                                 => __('No', PLUGIN_NAME)],
             'inputOptionsNameFormat'    =>  [Saml2Const::NAMEID_UNSPECIFIED     => __('Unspecified', PLUGIN_NAME),
