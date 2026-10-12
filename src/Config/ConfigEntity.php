@@ -534,10 +534,10 @@ class ConfigEntity extends ConfigItem
                 'sp' => [
                     'entityId'                          => $CFG_GLPI['url_base'] . '/',
                     'assertionConsumerService'          => [
-                        'url'                           => PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::ACS_ROUTE . '/' . $this->fields[ConfigEntity::ID],
+                        'url'                           => samlsso_webdir() . SamlSsoController::ACS_ROUTE . '/' . $this->fields[ConfigEntity::ID],
                     ],
                     'singleLogoutService'               => [
-                        'url'                           => PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::SLO_ROUTE,
+                        'url'                           => samlsso_webdir() . SamlSsoController::SLO_ROUTE,
                     ],
                     'x509cert'                          => $this->fields[ConfigEntity::SP_CERTIFICATE],
                     'privateKey'                        => $this->fields[ConfigEntity::SP_KEY],
