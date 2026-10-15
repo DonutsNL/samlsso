@@ -1,5 +1,6 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/158: Preserved deep links across SAML authentication by capturing initial `REQUEST_URI` and `RelayState` in `LoginState::setRedirect()`, sending the deep link target in the SAML AuthN request, and restoring target redirects in `LoginFlow::performBrowserRedirect()`.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/166: Optimized ticket action performance by fast-pathing authenticated user requests in `LoginFlow::doAuth()`, bypassing global session cleanups during active user operations, and throttling `updateLastActivity()` database writes to 60-second intervals.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/151: Optimized stale ACS and inactivity session cleanups to execute targeted SQL queries filtered by cutoff timestamp instead of iterating all active sessions, and throttled execution to 5-minute intervals for unauthenticated requests.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/165: Expanded `glpi_plugin_samlsso_loginstates.redirect` column from `VARCHAR(255)` to `TEXT` to accommodate long search URLs with multiple filter criteria and eliminate HTTP 500 MySQL 1406 "Data too long" errors.

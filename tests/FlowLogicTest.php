@@ -389,6 +389,33 @@ namespace GlpiPlugin\Samlsso\Tests {
             unset($_SESSION['glpiID']);
             echo "✅ Authenticated user ticket action fast-path verified (Issue #166)\n";
         }
+
+        /**
+         * Test that deep link paths are preserved when constructing the SAML IdP login request (Issue #158).
+         *
+         * @throws \Exception if deep link is not passed to IdP or browser redirect URL is incorrect.
+         */
+        public function testDeepLinkRelayStatePreservation(): void {
+            global $CFG_GLPI;
+            $CFG_GLPI['url_base'] = 'https://glpi.local';
+            $CFG_GLPI['root_doc'] = '';
+
+            $state = new Loginstate();
+            $state->idpId = 1;
+            $state->redirect = '/front/ticket.form.php?id=99';
+
+            $safeRedirect = $state->getSafeRedirect();
+            if ($safeRedirect !== '/front/ticket.form.php?id=99') {
+                throw new \Exception("Expected safe redirect '/front/ticket.form.php?id=99', got: " . $safeRedirect);
+            }
+
+            $returnTo = rtrim($CFG_GLPI['url_base'], '/') . $safeRedirect;
+            if ($returnTo !== 'https://glpi.local/front/ticket.form.php?id=99') {
+                throw new \Exception("Expected RelayState returnTo 'https://glpi.local/front/ticket.form.php?id=99', got: " . $returnTo);
+            }
+
+            echo "✅ Deep link RelayState preservation verified (Issue #158)\n";
+        }
     }
 }
 
@@ -410,6 +437,7 @@ namespace {
         $test->testLogoutPageRenderingEnforced();
         $test->testForceLogoffRedirect();
         $test->testAuthenticatedUserFastPath();
+        $test->testDeepLinkRelayStatePreservation();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

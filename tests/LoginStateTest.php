@@ -538,6 +538,111 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ LoginState: expireStaleCleanups periodic throttling verified (Issues #151, #166)\n";
         }
+
+        /**
+         * Test deep linking preservation, RelayState handling, and open redirect protection (Issue #158).
+         *
+         * @throws \Exception if deep link preservation or open redirect validation fails.
+         */
+        public function testRedirectDeepLinkingAndValidation(): void
+        {
+            global $CFG_GLPI;
+            $CFG_GLPI['url_base'] = 'https://glpi.local';
+            $CFG_GLPI['root_doc'] = '';
+
+            $stateData = [
+                LoginState::STATE_ID          => 1,
+                LoginState::IDP_ID            => 2,
+                LoginState::USER_NAME         => 'test_user',
+                LoginState::SESSION_ID        => session_id(),
+                LoginState::SESSION_NAME      => 'sid',
+                LoginState::GLPI_AUTHED       => 0,
+                LoginState::SAML_AUTHED       => 0,
+                LoginState::LOGIN_DATETIME    => date('Y-m-d H:i:s'),
+                LoginState::LAST_ACTIVITY     => date('Y-m-d H:i:s'),
+                LoginState::LOCATION          => 'https://glpi.local/index.php',
+                LoginState::ENFORCE_LOGOFF    => 0,
+                LoginState::SAML_REQUEST_ID   => '',
+                LoginState::SAML_RESPONSE_ID  => '',
+                LoginState::SAML_UNSOLICITED  => 0,
+                LoginState::LOGIN_FLOW_TRACE  => serialize([]),
+                LoginState::PHASE             => LoginState::PHASE_INITIAL,
+                LoginState::REDIRECT          => '',
+                LoginState::CLIENT_IP         => '127.0.0.1',
+                LoginState::CLIENT_COUNTRY    => 'US',
+            ];
+
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+            $db->setResponse($table, [$stateData]);
+
+            $_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR] = 'test_user';
+            $_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR] = session_id();
+
+            /**
+             * 1. Deep link capture from REQUEST_URI.
+             */
+            $_SERVER['REQUEST_URI'] = '/front/ticket.form.php?id=123';
+            unset($_GET[LoginState::REDIRECT]);
+            unset($_POST['RelayState']);
+
+            $loginState = new LoginState();
+            $loginState->setRedirect();
+
+            if ($loginState->getRedirect() !== '/front/ticket.form.php?id=123') {
+                throw new \Exception("Expected deep link '/front/ticket.form.php?id=123', got: " . $loginState->getRedirect());
+            }
+            if ($loginState->getSafeRedirect() !== '/front/ticket.form.php?id=123') {
+                throw new \Exception("Expected safe redirect '/front/ticket.form.php?id=123', got: " . $loginState->getSafeRedirect());
+            }
+
+            /**
+             * 2. GLPI internal token via GET redirect.
+             */
+            $_GET[LoginState::REDIRECT] = 'ticket_2_Ticket$main';
+            $loginState->setRedirect();
+            if ($loginState->getSafeRedirect() !== 'ticket_2_Ticket$main') {
+                throw new \Exception("Expected GLPI token 'ticket_2_Ticket\$main', got: " . $loginState->getSafeRedirect());
+            }
+            unset($_GET[LoginState::REDIRECT]);
+
+            /**
+             * 3. Local absolute URL normalized to relative.
+             */
+            $loginState->setRedirect('https://glpi.local/front/faq.php');
+            if ($loginState->getSafeRedirect() !== '/front/faq.php') {
+                throw new \Exception("Expected normalized local path '/front/faq.php', got: " . $loginState->getSafeRedirect());
+            }
+
+            /**
+             * 4. Open redirect attack vectors blocked.
+             */
+            $loginState->setRedirect('https://evil.attacker.com/malicious');
+            if ($loginState->getSafeRedirect() !== '') {
+                throw new \Exception("Open redirect URL was not blocked: " . $loginState->getSafeRedirect());
+            }
+
+            $loginState->setRedirect('//evil.attacker.com/malicious');
+            if ($loginState->getSafeRedirect() !== '') {
+                throw new \Exception("Protocol-relative URL was not blocked: " . $loginState->getSafeRedirect());
+            }
+
+            /**
+             * 5. Excluded non-deep-link paths should not be preserved.
+             */
+            $_SERVER['REQUEST_URI'] = '/index.php';
+            $db->setResponse($table, [$stateData]);
+            $loginState2 = new LoginState();
+            $loginState2->setRedirect();
+            if ($loginState2->getRedirect() !== '') {
+                throw new \Exception("Index path was incorrectly preserved as redirect: " . $loginState2->getRedirect());
+            }
+
+            echo "✅ LoginState: deep link preservation and open redirect validation verified (Issue #158)\n";
+        }
     }
 }
 
@@ -554,6 +659,7 @@ namespace {
         $test->testLoginStateRefreshLoginDateTimeOnNewRequest();
         $test->testUpdateLastActivityThrottling();
         $test->testExpireStaleCleanupsThrottling();
+        $test->testRedirectDeepLinkingAndValidation();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

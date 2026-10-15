@@ -991,8 +991,11 @@ namespace GlpiPlugin\Samlsso {
              * @param string $redirect Target URL.
              * @return bool True if updated.
              */
-            public function setRedirect(string $redirect = ''): bool
+            public function setRedirect(?string $redirect = null): bool
             {
+                if ($redirect !== null) {
+                    $this->redirect = $redirect;
+                }
                 return true;
             }
 
@@ -1126,13 +1129,23 @@ namespace GlpiPlugin\Samlsso {
             }
 
             /**
+             * Mocks retrieving redirect URL.
+             *
+             * @return string Redirect URL.
+             */
+            public function getRedirect(): string
+            {
+                return $this->redirect ?? '';
+            }
+
+            /**
              * Mocks retrieving safe redirect URL.
              *
              * @return string Redirect URL.
              */
             public function getSafeRedirect(): string
             {
-                return '';
+                return $this->redirect ?? '';
             }
         }
     }

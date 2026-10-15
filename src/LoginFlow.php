@@ -488,16 +488,28 @@ class LoginFlow extends LoginFlowCompat
             // Added version 1.2.0
             // Capture and register requestId in database
             // before performing the redirect so we don't need Cookies
-            // https://codeberg.org/QuinQuies/glpisaml/issues/45
+            /**
+             * Resolve return target URL for RelayState (Issue #158).
+             */
+            $returnTo = $CFG_GLPI['url_base'];
+            $safeRedirect = $this->state->getSafeRedirect();
+            if (!empty($safeRedirect)) {
+                if (str_starts_with($safeRedirect, '/')) {
+                    $returnTo = rtrim($CFG_GLPI['url_base'], '/') . $safeRedirect;
+                } else {
+                    $returnTo = rtrim($CFG_GLPI['url_base'], '/') . '/?redirect=' . rawurlencode($safeRedirect);
+                }
+            }
+
             try {
                 $ssoBuiltUrl = $auth->login(
-                    $CFG_GLPI["url_base"],  // $returnTo (1st param)
-                    array(),                // $parameters (2nd param, empty array)
-                    false,                  // $forceAuthn (3rd param)
-                    false,                  // $isPassive (4th param)
-                    true,                   // $stay (5th param)
-                    true,                   // $setNameIdPolicy (6th param)
-                    null,                   // $nameIdValueReq pass Subject, not supported by Microsoft $this->subject
+                    $returnTo,
+                    array(),
+                    false,
+                    false,
+                    true,
+                    true,
+                    null
                 );
             } catch (Throwable $e) {
                 $this->printError($e->getMessage(), 'Saml::Auth->init', var_export($auth->getErrors(), true));
@@ -864,11 +876,20 @@ class LoginFlow extends LoginFlowCompat
             LoginFlow::printError(sprintf(__("Loading login state failed with: %s", PLUGIN_NAME), (string)$e));
         }
 
-        // Restore stored redirect requests.
-        // https://github.com/DonutsNL/samlsso/issues/2
+        /**
+         * Restore stored redirect requests or RelayState returned by the IdP (Issues #2, #158).
+         */
+        if ($state !== null && empty($state->getRedirect()) && isset($_POST['RelayState']) && is_string($_POST['RelayState'])) {
+            $state->setRedirect($_POST['RelayState']);
+        }
+
         $safeRedirect = $state !== null ? $state->getSafeRedirect() : '';
         if (!empty($safeRedirect)) {
-            $url = $CFG_GLPI['url_base'] . '?redirect=' . $safeRedirect;
+            if (str_starts_with($safeRedirect, '/')) {
+                $url = rtrim($CFG_GLPI['url_base'], '/') . $safeRedirect;
+            } else {
+                $url = rtrim($CFG_GLPI['url_base'], '/') . '/?redirect=' . rawurlencode($safeRedirect);
+            }
         } else {
             $url = $CFG_GLPI['url_base'];
         }

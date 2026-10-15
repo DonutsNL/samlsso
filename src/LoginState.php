@@ -626,22 +626,63 @@ class LoginState extends CommonDBTM
 
 
     /**
-     * Update the redirect from the get if any in the state database.
-     * @param int   $phase ID
-     * @since       1.0.0
-     * @see         LoginState::PHASE_## constants for valid values
+     * Update the redirect in the state database.
+     * Checks explicit parameter, GET parameter, POST RelayState, or deep link in REQUEST_URI.
+     *
+     * @param string|null $redirect Optional explicit redirect URL.
+     * @return bool True if state updated.
+     * @since 1.0.0
+     * @see https://github.com/DonutsNL/samlsso/issues/158
      */
-    public function setRedirect(): bool
+    public function setRedirect(?string $redirect = null): bool
     {
-        if (isset($this->state[LoginState::STATE_ID])) {
-            // https://github.com/DonutsNL/glpisaml/issues/22
-            // https://github.com/DonutsNL/samlsso/issues/2
-            $redirect_url = filter_input(INPUT_GET, loginstate::REDIRECT, FILTER_DEFAULT);
-            if ($redirect_url) {
-                $this->state[LoginState::REDIRECT] = $redirect_url;
-                return (bool)$this->update($this->state);
+        if (!isset($this->state[LoginState::STATE_ID])) {
+            return false;
+        }
+
+        global $CFG_GLPI;
+
+        $target = $redirect;
+
+        if (empty($target)) {
+            $target = filter_input(INPUT_GET, LoginState::REDIRECT, FILTER_DEFAULT);
+            if (empty($target) && isset($_GET[LoginState::REDIRECT]) && is_string($_GET[LoginState::REDIRECT])) {
+                $target = $_GET[LoginState::REDIRECT];
             }
-        } // If the state doesnt have an ID (initial) we silently ignore it.
+        }
+
+        if (empty($target) && isset($_POST['RelayState']) && is_string($_POST['RelayState'])) {
+            $target = $_POST['RelayState'];
+        }
+
+        if (empty($target) && isset($_SERVER['REQUEST_URI']) && is_string($_SERVER['REQUEST_URI'])) {
+            $uri = $_SERVER['REQUEST_URI'];
+            $path = parse_url($uri, PHP_URL_PATH) ?? '';
+            $rootDoc = $CFG_GLPI['root_doc'] ?? '';
+            $relativePath = (!empty($rootDoc) && str_starts_with($path, $rootDoc))
+                ? substr($path, strlen($rootDoc))
+                : $path;
+
+            /**
+             * Only preserve deep links; exclude entry points, login/logout screens, and plugin assets.
+             */
+            $isExcludedPath = in_array($relativePath, ['', '/', '/index.php', '/front/login.php'], true)
+                || str_contains($relativePath, 'front/logout')
+                || str_starts_with($relativePath, '/plugins/samlsso');
+
+            if (!$isExcludedPath) {
+                $relativeUri = (!empty($rootDoc) && str_starts_with($uri, $rootDoc))
+                    ? substr($uri, strlen($rootDoc))
+                    : $uri;
+                $target = $relativeUri;
+            }
+        }
+
+        if (!empty($target)) {
+            $this->state[LoginState::REDIRECT] = (string)$target;
+            return (bool)$this->update($this->state);
+        }
+
         return false;
     }
 
@@ -1074,12 +1115,27 @@ class LoginState extends CommonDBTM
      */
     public function getSafeRedirect(): string
     {
+        global $CFG_GLPI;
+
         $redirect = $this->getRedirect();
         if (empty($redirect)) {
             return '';
         }
 
-        // Block protocol-relative (//) and absolute (scheme://) URLs.
+        /**
+         * If the redirect is an absolute URL pointing to our own GLPI base URL, strip the base URL
+         * to normalize it to a safe relative path.
+         */
+        if (!empty($CFG_GLPI['url_base']) && str_starts_with($redirect, $CFG_GLPI['url_base'])) {
+            $redirect = substr($redirect, strlen($CFG_GLPI['url_base']));
+            if (empty($redirect)) {
+                return '';
+            }
+        }
+
+        /**
+         * Block protocol-relative (//) and absolute (scheme://) URLs pointing outside.
+         */
         if (!preg_match('/^(\/\/|\w+:\/\/)/', $redirect) && (str_starts_with($redirect, '/') || preg_match('/^\w+/', $redirect))) {
             return $redirect;
         }
