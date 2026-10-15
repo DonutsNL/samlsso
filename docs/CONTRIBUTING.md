@@ -17,18 +17,18 @@ This repository is maintained with an "AI-First" mindset. Whether you are a huma
 
 ### 3. Change Traceability
 - **Changelog Updates**: Every single change (no matter how small) **MUST** be recorded in [changelog.md](changelog.md) under the appropriate version header. Always group the changes clearly by subject (e.g., Static Analysis, Bugfixes, Translation, Quality/Code Standards) in a clean list format.
-- **Wiki Updates**: If a change modifies a functional behavior that the user must be aware of, for instance configurations option, or endpoints, you **MUST** suggest an update for the corresponding [Project Wiki](https://github.com/DonutsNL/samlsso/wiki) pages that describes this new features.
+- **Wiki Updates**: If a change modifies a functional behavior that the user must be aware of, for instance configurations option, or endpoints, you **MUST** suggest, draft and after aproval update the corresponding [Project Wiki](https://github.com/DonutsNL/samlsso/wiki) pages that describes this new features.
 
 ### 4. Code Standards
 - **user first coding**: Always consider the end user. Avoid technical jargon where simple language will suffice. Ensure error messages are clear and actionable. Do not show raw technical data to the end-user.
 - **Developer-first coding**: Always propose changes to the developer. Dont automatically implement them. Only add code if the user explicitly asks you to. You are only allowed to assist the developer by analyzing, suggesting issues, solutions or optimizations to the developer that he can choose to implement or not with or without your help.
 - **Document every method and major logic block** with detailed docblocks explaining what the method does, what parameters it takes, what it returns, and what exceptions it throws. Also add comments to major logic blocks explaining why the code is there and what it does.
-- **PSR Compliance**: Follow PSR-12 coding standards.
+- **PSR Compliance**: You **MUST** Follow PSR-12 and Teclib/GLPI specific coding standards.
 - **Linting Enforcement**: Static analysis and linting tools such as **Intelephense** and **SonarLint** must be executed against the codebase. All linting errors and warnings must be corrected and resolved before releasing code or submitting a pull request.
-- **Native GLPI Components**: Always use native GLPI core components (e.g., `CommonDBTM`, `Session`, `Html`, `Toolbox`) where possible for maximum compatibility.
-- **Sanitization**: Never trust external input. Always use GLPI's `Sanitizer` or native filter functions.
-- **Error Handling**: Do not use `die()`. Always use `Html::displayError()` or throw a PluginException.
-- **Return Values**: Ensure all code paths return a value. If a code path is theoretically unreachable, return an empty string or the appropriate default value to satisfy static analysis.
+- **Native GLPI Components**: Always use native GLPI core components (e.g., `CommonDBTM`, `Session`, `Html`, `Toolbox`) where possible for maximum compatibility prevent writing own implementations if alternatives exist in the GLPI core.
+- **Sanitization**: you **MUST** never trust external input. Always use input sanatizers or native filter functions.
+- **Error Handling**: Do not use `die()`. Always use `Html::displayError()` or throw a PluginException as not to break the automated testing suite.
+- **Return Values**: Ensure all code paths return a value and are valid. Dont allow 'blind' unhandled conditions in the application logic or a lack of default returns. For that reason, if a code path is theoretically unreachable, return the appropriate default value or throw a PluginException to satisfy static analysis. All code paths **SHOULD** be traversable for testing (100% code coverage) purposes.
 - **PluginContext**: Always use `PluginContext::get()` for global plugin configuration instead of directly accessing `Config` or static methods.
 - **Inline Comments**: Do not use inline comments. Use DocBlocks instead and make sure every line of code is commented on why it is there and what it does and is easy to understand.
 - **Indentation**: Use 4 spaces for indentation.

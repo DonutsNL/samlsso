@@ -189,7 +189,7 @@ class LoginState extends CommonDBTM
             foreach ($sessionIterator as $sessionState) {
                 $this->state = array_merge($this->state, [
                     LoginState::STATE_ID          => $sessionState[LoginState::STATE_ID],
-                    LoginState::USER_ID           => $sessionState[LoginState::USER_ID],
+                    LoginState::USER_ID           => $sessionState[LoginState::USER_ID] ?? 0,
                     LoginState::SESSION_ID        => $sessionState[LoginState::SESSION_ID],
                     LoginState::SESSION_NAME      => $sessionState[LoginState::SESSION_NAME],
                     LoginState::LOCATION          => $sessionState[LoginState::LOCATION],
@@ -429,7 +429,7 @@ class LoginState extends CommonDBTM
             foreach ($sessionIterator as $sessionState) {
                 $this->state = array_merge($this->state, [
                     LoginState::STATE_ID          => $sessionState[LoginState::STATE_ID],
-                    LoginState::USER_ID           => $sessionState[LoginState::USER_ID],
+                    LoginState::USER_ID           => $sessionState[LoginState::USER_ID] ?? 0,
                     LoginState::SESSION_ID        => $sessionState[LoginState::SESSION_ID],
                     LoginState::SESSION_NAME      => $sessionState[LoginState::SESSION_NAME],
                     LoginState::LOCATION          => $sessionState[LoginState::LOCATION],
@@ -560,12 +560,41 @@ class LoginState extends CommonDBTM
             // would checking if the phase is always higher provide an additional layer of security?
             if ($phase > 0 && $phase <= 9) {
                 $this->state[LoginState::PHASE] = $phase;
+                if ($phase === LoginState::PHASE_SAML_ACS) {
+                    $this->state[LoginState::LOGIN_DATETIME] = date('Y-m-d H:i:s');
+                }
                 return ($this->update($this->state)) ? true : false;
             }
             return false;
         } else {
             throw new LoginStateException('Tried to update phase of non existing state');
         }
+    }
+
+    /**
+     * Refreshes the login timestamp to the current time.
+     * Ensures that subsequent authentication attempts on existing session rows
+     * do not falsely trigger timeout errors.
+     *
+     * @return bool True on successful update.
+     */
+    public function refreshLoginDateTime(): bool
+    {
+        if (isset($this->state[LoginState::STATE_ID])) {
+            $this->state[LoginState::LOGIN_DATETIME] = date('Y-m-d H:i:s');
+            return (bool)$this->update($this->state);
+        }
+        return false;
+    }
+
+    /**
+     * Gets the login datetime recorded in the state.
+     *
+     * @return string
+     */
+    public function getLoginDateTime(): string
+    {
+        return (string)($this->state[LoginState::LOGIN_DATETIME] ?? '');
     }
 
 
@@ -687,6 +716,7 @@ class LoginState extends CommonDBTM
         if (isset($this->state[LoginState::STATE_ID])) {
             $this->state[LoginState::SAML_REQUEST_ID] = $requestId;
             $this->state[LoginState::SAML_RESPONSE_ID] = '';
+            $this->state[LoginState::LOGIN_DATETIME] = date('Y-m-d H:i:s');
             return ($this->update($this->state)) ? true : false;
         } else {
             throw new LoginStateException('Tried to add SamlRequestId to non existing state');

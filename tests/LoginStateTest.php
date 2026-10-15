@@ -391,6 +391,69 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ LoginState: impersonation check prevents overwriting user ID and name\n";
         }
+
+        /**
+         * Test that initiating a new SAML request (or transitioning to PHASE_SAML_ACS)
+         * refreshes LOGIN_DATETIME, preventing false timeout errors on re-login (Issue #162).
+         */
+        public function testLoginStateRefreshLoginDateTimeOnNewRequest(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+
+            // Set up a session that was first seen 2 hours ago (7200s stale)
+            $twoHoursAgo = date('Y-m-d H:i:s', time() - 7200);
+
+            $db->setResponse($table, [
+                [
+                    LoginState::STATE_ID => 42,
+                    LoginState::IDP_ID => 1,
+                    LoginState::USER_NAME => 'relogin_user',
+                    LoginState::SESSION_ID => session_id(),
+                    LoginState::SESSION_NAME => 'sid',
+                    LoginState::GLPI_AUTHED => 0,
+                    LoginState::SAML_AUTHED => 0,
+                    LoginState::LOGIN_DATETIME => $twoHoursAgo,
+                    LoginState::LAST_ACTIVITY => $twoHoursAgo,
+                    LoginState::LOCATION => 'https://glpi.local/index.php',
+                    LoginState::ENFORCE_LOGOFF => 0,
+                    LoginState::SAML_REQUEST_ID => '',
+                    LoginState::SAML_RESPONSE_ID => '',
+                    LoginState::SAML_UNSOLICITED => 0,
+                    LoginState::LOGIN_FLOW_TRACE => serialize([]),
+                    LoginState::PHASE => LoginState::PHASE_INITIAL,
+                    LoginState::REDIRECT => '',
+                    LoginState::CLIENT_IP => '127.0.0.1',
+                    LoginState::CLIENT_COUNTRY => 'US',
+                ]
+            ]);
+
+            $loginState = new LoginState();
+
+            // Verify initial state had the stale 2-hour-old loginTime
+            if ($loginState->getLoginDateTime() !== $twoHoursAgo) {
+                throw new \Exception("Initial state did not load expected stale login time.");
+            }
+
+            // Simulate starting a new SAML request via setRequestId and setPhase(PHASE_SAML_ACS)
+            $loginState->setRequestId('ONELOGIN_fresh_request_123');
+            $loginState->setPhase(LoginState::PHASE_SAML_ACS);
+
+            // Verify that LOGIN_DATETIME has been refreshed close to current timestamp
+            $refreshedTime = strtotime($loginState->getLoginDateTime());
+            if (abs(time() - $refreshedTime) > 5) {
+                throw new \Exception("LOGIN_DATETIME was not refreshed to current time upon starting new SAML request.");
+            }
+
+            // Verify that phase is PHASE_SAML_ACS and NOT falsely marked as PHASE_TIMED_OUT
+            if ($loginState->getPhase() !== LoginState::PHASE_SAML_ACS) {
+                throw new \Exception("LoginState phase was corrupted or timed out unexpectedly. Got: " . $loginState->getPhase());
+            }
+
+            echo "✅ LoginState: LOGIN_DATETIME refresh on new SAML request verified (Issue #162)\n";
+        }
     }
 }
 
@@ -404,6 +467,7 @@ namespace {
         $test->testLoginStateLocationFallback();
         $test->testLoginStateInactivityTimeoutNoOverwrite();
         $test->testLoginStateImpersonationNoOverwrite();
+        $test->testLoginStateRefreshLoginDateTimeOnNewRequest();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
