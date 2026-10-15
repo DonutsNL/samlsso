@@ -45,25 +45,20 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Samlsso;
 
-use RuleCollection;
+use GlpiPlugin\Samlsso\Compat\RuleSamlCollectionCompat;
 
-class RuleSamlCollection extends RuleCollection
+// Version-selected compatibility layer (GLPI 11 untyped / GLPI 12 typed core
+// properties). Must be required before the class below extends the compat one.
+require_once __DIR__ . '/compat.php';
+
+/**
+ * JIT import rule collection, extending the core RuleCollection through the
+ * version-selected compatibility layer: $rightname ('rule_import') and
+ * $menu_option ('Saml') are carried by RuleSamlCollectionCompat, version-typed
+ * for GLPI 11 and GLPI 12. $stop_on_first_match keeps the core default (false).
+ **/
+class RuleSamlCollection extends RuleSamlCollectionCompat
 {
-
-    /**
-     *
-     **/
-    public $stop_on_first_match = false;                    //NOSONAR - Default GLPI property name
-
-    /**
-     *
-     **/
-    static $rightname = "rule_import";
-
-    /**
-     * @see Rule::getCriterias()
-     **/
-    public $menu_option = "Saml";                               //NOSONAR - Default GLPI property name
 
     /**
      * @see Rule::getCriterias()

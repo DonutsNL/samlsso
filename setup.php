@@ -58,7 +58,7 @@ global $CFG_GLPI;
 define('PLUGIN_NAME', 'samlsso');                                                               // Plugin name
 define('PLUGIN_SAMLSSO_VERSION', '1.3.2');                                                      // Plugin version
 define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.0');                                                    // Min required GLPI version
-define('PLUGIN_SAMLSSO_MAX_GLPI', '11.9.99');                                                   // Max GLPI compat version
+define('PLUGIN_SAMLSSO_MAX_GLPI', '12.99.99');                                                   // Max GLPI compat version
 define('PLUGIN_SAMLSSO_LOGEVENTS', 'events');                                                    // specifies log extention
 define('PLUGIN_SAMLSSO_SRCDIR', __DIR__ . '/src');                                              // Location of the main classes
 /**
@@ -85,11 +85,70 @@ define('PLUGIN_SAMLSSO_CLASSES', [
 ]);
 
 
+/**
+ * Returns the web path of the plugin, relative to the GLPI base URI.
+ *
+ * GLPI 12 removed Plugin::getWebDir() (see GLPI CHANGELOG) and mandates that
+ * all plugin URLs start with '/plugins', for plugins installed in 'plugins'
+ * as well as in 'marketplace'. On GLPI 11 the core method still exists and
+ * handles both install locations, so it is preferred when available.
+ *
+ * @return string Web path without trailing slash, e.g. "/glpi/plugins/samlsso".
+ */
+function samlsso_plugin_web_dir(): string                                                      // NOSONAR - GLPI default naming.
+{
+    global $CFG_GLPI;
+
+    if (method_exists('Plugin', 'getWebDir')) {
+        // GLPI <= 11: core resolves the correct location (plugins/ or marketplace/).
+        $webDir = Plugin::getWebDir(PLUGIN_NAME);
+        if (is_string($webDir) && $webDir !== '') {
+            return $webDir;
+        }
+    }
+
+    // GLPI >= 12: Plugin::getWebDir() no longer exists. Every plugin, whatever
+    // its install directory, is served from the '/plugins' path under root_doc.
+    $rootDoc = (isset($CFG_GLPI['root_doc'])) ? (string) $CFG_GLPI['root_doc'] : '';
+    return $rootDoc . '/plugins/' . PLUGIN_NAME;
+}
+
 // Deal with GLPI ability to place plugin in multiple locations.
 // https://github.com/DonutsNL/samlsso/issues/41
-$webDir = Plugin::getWebDir('samlsso');
-$urlBase = (is_array($CFG_GLPI) && isset($CFG_GLPI['url_base'])) ? $CFG_GLPI['url_base'] : '';
-define('PLUGIN_SAMLSSO_WEBDIR', $urlBase . $webDir . '/');
+//
+// Composed exactly as before the GLPI 12 migration: the constant is the
+// absolute base URL ('url_base') followed by the plugin web path, so every
+// consumer (ACS/SLO/metadata URLs exposed to the IdP, redirects) keeps the
+// same shape it had on GLPI 11. Only the 'Plugin::getWebDir()' call that
+// produced the web path had to be replaced; see samlsso_plugin_web_dir().
+$urlBase = (isset($CFG_GLPI) && is_array($CFG_GLPI) && isset($CFG_GLPI['url_base'])) ? $CFG_GLPI['url_base'] : '';
+define('PLUGIN_SAMLSSO_WEBDIR', $urlBase . samlsso_plugin_web_dir() . '/');
+
+/**
+ * Returns the absolute plugin web base URL, computed at call time.
+ *
+ * On GLPI >= 12, 'setup.php' may be included during the kernel boot phase
+ * (PostBootListener 'BootPlugins'), which runs BEFORE the GLPI configuration
+ * ('glpi_configs' values such as 'url_base') is loaded from the database.
+ * The PLUGIN_SAMLSSO_WEBDIR constant is therefore evaluated with an empty
+ * 'url_base' on GLPI 12 and produces relative URLs. Relative ACS/SLO URLs are
+ * rejected by php-saml in strict mode ('sp_acs_url_invalid',
+ * 'sp_sls_url_invalid') and copy/pasted IdP metadata URLs become unusable.
+ *
+ * This function must be preferred over the constant everywhere an absolute
+ * URL is required (php-saml settings, metadata/ACS/SLO URLs exposed to the
+ * administrator). Redirect targets tolerate relative URLs but use this
+ * function as well for consistency.
+ *
+ * @return string Absolute base URL of the plugin, with a trailing slash.
+ * @see https://github.com/DonutsNL/samlsso/issues/41
+ */
+function samlsso_webdir(): string
+{
+    global $CFG_GLPI;
+    $urlBase = (isset($CFG_GLPI['url_base'])) ? rtrim((string) $CFG_GLPI['url_base'], '/') : '';
+    return $urlBase . samlsso_plugin_web_dir() . '/';
+}
 
 
 // METHODS

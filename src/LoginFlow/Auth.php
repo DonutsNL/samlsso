@@ -73,9 +73,12 @@ class Auth extends glpiAuth
         $this->user = (new User())->getOrCreateUser($userFields, $configEntity, $state);
 
         // Setting this property actually authorizes the login for the user.
-        // Be aware (sic) Succeeded is spelled incorrectly in parent GLPI object
-        // as per Auth.php:1043
-        $this->auth_succeded = $this->user;
+        // The core consumes it as a boolean (Session::check_login_status does a
+        // truthiness check; AuthLDAP/HL Router assign true the same way), and
+        // GLPI 12 types it as `bool`, so assigning the user object there is a
+        // fatal TypeError. Be aware (sic) Succeeded is spelled incorrectly in
+        // parent GLPI object as per Auth.php:1043
+        $this->auth_succeded = true;
 
         // Return this object for injection into the session.
         return $this;

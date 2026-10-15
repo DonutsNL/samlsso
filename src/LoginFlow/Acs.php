@@ -155,7 +155,7 @@ class Acs extends LoginFlow
              */
             $decoded = base64_decode($samlResponse);
             if (strpos($decoded, 'LogoutResponse') !== false) {
-                \Html::redirect(PLUGIN_SAMLSSO_WEBDIR . \GlpiPlugin\Samlsso\Controller\SamlSsoController::SLO_ROUTE);
+                \Html::redirect(samlsso_webdir() . \GlpiPlugin\Samlsso\Controller\SamlSsoController::SLO_ROUTE);
             }
             
             $this->setupSamlResponse($samlResponse);

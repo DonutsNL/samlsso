@@ -52,12 +52,11 @@ declare(strict_types=1);
 namespace GlpiPlugin\Samlsso;
 
 use Html;
-use Plugin;
 use Session;
 use Toolbox;
 use Throwable;
 use Migration;
-use CommonDBTM;
+use GlpiPlugin\Samlsso\Compat\LoginFlowCompat;
 use OneLogin\Saml2\Auth as samlAuth;
 use OneLogin\Saml2\Response;
 use Glpi\Application\View\TemplateRenderer;
@@ -67,12 +66,20 @@ use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\LoginFlow\User;
 use GlpiPlugin\Samlsso\LoginFlow\Auth as GlpiAuth;
 
+// Version-selected compatibility layer (GLPI 11 untyped / GLPI 12 typed core
+// properties). Must be required before the class below extends LoginFlowCompat.
+require_once __DIR__ . '/compat.php';
+
 /**
  * This object brings it all together. It is responsible to handle the
  * main logic concerned with the Saml login and logout flows.
  * it will call upon various supporting objects to perform its tasks.
+ *
+ * $dohistory (true) and $rightname ('config') are carried by LoginFlowCompat,
+ * version-typed for GLPI 11 and GLPI 12; redeclaring them here would be a
+ * fatal type-invariance error on one of the two cores.
  */
-class LoginFlow extends CommonDBTM
+class LoginFlow extends LoginFlowCompat
 {
     // Database fields
     public const ID                 =   'id';
@@ -120,18 +127,6 @@ class LoginFlow extends CommonDBTM
      * @var string subject
      */
     protected ?string $subject;
-
-    /**
-     * Tell DBTM to keep history
-     * @var    bool     $dohistory
-     */
-    public $dohistory = true;
-
-    /**
-     * Tell CommonGLPI to use config (Setup->Setup in UI) rights.
-     * @var    string   $rightname
-     */
-    public static $rightname = 'config';
 
     /**
      * Overloads missing canCreate Setup right and returns canUpdate instead
@@ -706,7 +701,7 @@ class LoginFlow extends CommonDBTM
         $tplVars = Config::getLoginButtons(12);         // Fetch the global DB object;
         if (!empty($tplVars)) {                           // Only show the interface if we have buttons to show.
             // Define static translatable elements
-            $tplVars['action']     = Plugin::getWebDir(PLUGIN_NAME, true);
+            $tplVars['action']     = samlsso_plugin_web_dir();
             $tplVars['header']     = __('Login with external provider', PLUGIN_NAME);
             $tplVars['showbuttons']    = true;
             $tplVars['postfield']  = LoginFlow::POSTFIELD;
