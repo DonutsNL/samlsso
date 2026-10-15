@@ -1,5 +1,6 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/159: Added configurable login screen header text (`login_header_text`) and custom button icon image URL (`conf_icon_url`) to IdP configuration, allowing administrators to customize the login screen header and display custom image/logo icons on login buttons without CSS overrides.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/153: Allowed additive multi-profile assignments across multiple JIT rules by removing the destructive loop in `User::assignProfileRights()` that deleted existing profile authorizations.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/156: Supported `_entities_id_default` and `_profiles_id_default` in `User::assignProfileRights()`, defaulted profile recursive assignment to `0` unless explicitly enabled, and replaced initial dynamic Root (0) authorization for the assigned profile to prevent users from being retained in Root entity.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/148: Ensured JIT rule outputs with `_profiles_id_default` and `_entities_id_default` are handled across both `User::assignProfileRights()` and `User::updateUserDefaults()`, and prevented false negative warning logs when database fields already match current settings.

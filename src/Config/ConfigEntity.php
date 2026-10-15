@@ -70,6 +70,14 @@ class ConfigEntity extends ConfigItem
     public const NAME            = 'name';                                   // Configuration name, not used in SAML handling
     public const CONF_DOMAIN     = 'conf_domain';                            // Configuration domain, used to identify saml handled logins
     public const CONF_ICON       = 'conf_icon';                              // Configuration ICON to use in UI elements
+    /**
+     * @var string Database column: custom image or logo URL for the login button icon.
+     */
+    public const CONF_ICON_URL   = 'conf_icon_url';
+    /**
+     * @var string Database column: custom header text displayed above login buttons on the login screen.
+     */
+    public const LOGIN_HEADER_TEXT = 'login_header_text';
     public const ENFORCE_SSO     = 'enforce_sso';                            // Enforce SSO
     public const PROXIED         = 'proxied';                                // Handle proxied responses (X-forwarded-for)
     public const STRICT          = 'strict';                                 // Enforce encryption
@@ -376,6 +384,26 @@ class ConfigEntity extends ConfigItem
         return (key_exists(ConfigEntity::CONF_DOMAIN, $this->fields) &&
             !empty($this->fields[ConfigEntity::CONF_DOMAIN])     &&
             $this->fields[ConfigEntity::CONF_DOMAIN] != 'youruserdomain.tld') ? $this->fields[ConfigEntity::CONF_DOMAIN] : '';
+    }
+
+    /**
+     * Returns custom icon image URL if configured.
+     *
+     * @return string|null
+     */
+    public function getConfIconUrl(): ?string
+    {
+        return !empty($this->fields[self::CONF_ICON_URL]) ? (string)$this->fields[self::CONF_ICON_URL] : null;
+    }
+
+    /**
+     * Returns custom login screen header text if configured.
+     *
+     * @return string|null
+     */
+    public function getLoginHeaderText(): ?string
+    {
+        return !empty($this->fields[self::LOGIN_HEADER_TEXT]) ? (string)$this->fields[self::LOGIN_HEADER_TEXT] : null;
     }
 
 

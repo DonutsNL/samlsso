@@ -165,7 +165,8 @@ HTML;
         $claimMapTable  = ClaimMap::getTable();
         $exportFields   = [
             ConfigEntity::ID, ConfigEntity::NAME, ConfigEntity::CONF_DOMAIN,
-            ConfigEntity::CONF_ICON, ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
+            ConfigEntity::CONF_ICON, ConfigEntity::CONF_ICON_URL, ConfigEntity::LOGIN_HEADER_TEXT,
+            ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
             ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT,
             ConfigEntity::SYNC_ON_LOGIN, ConfigEntity::REQUEST_TIMEOUT, ConfigEntity::INACTIVITY_TIMEOUT,
             ConfigEntity::SECURITY_WANTMESSAGESSIGNED,

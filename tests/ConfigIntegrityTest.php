@@ -532,6 +532,44 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Config: force_authn configuration mapping and validation verified (Issue #130)\n";
         }
+
+        /**
+         * Test that custom button icon URL and login screen header text are correctly
+         * configured, validated, and retrievable via ConfigEntity (Issue #159).
+         */
+        public function testCustomLoginScreenHeaderAndButtonIcon(): void {
+            if (ConfigEntity::CONF_ICON_URL !== 'conf_icon_url') {
+                throw new \Exception("ConfigEntity::CONF_ICON_URL should be 'conf_icon_url'");
+            }
+            if (ConfigEntity::LOGIN_HEADER_TEXT !== 'login_header_text') {
+                throw new \Exception("ConfigEntity::LOGIN_HEADER_TEXT should be 'login_header_text'");
+            }
+
+            $entity = new ConfigEntity();
+            $fields = $entity->getFields();
+            if (!array_key_exists(ConfigEntity::CONF_ICON_URL, $fields)) {
+                throw new \Exception("conf_icon_url not present in ConfigEntity getFields()");
+            }
+            if (!array_key_exists(ConfigEntity::LOGIN_HEADER_TEXT, $fields)) {
+                throw new \Exception("login_header_text not present in ConfigEntity getFields()");
+            }
+
+            $iconUrlRefl = new \ReflectionMethod(ConfigItem::class, 'conf_icon_url');
+            $iconUrlRefl->setAccessible(true);
+            $resIcon = $iconUrlRefl->invoke($entity, 'https://example.com/logo.png');
+            if ($resIcon[ConfigItem::VALUE] !== 'https://example.com/logo.png') {
+                throw new \Exception("conf_icon_url validator did not store value");
+            }
+
+            $headerRefl = new \ReflectionMethod(ConfigItem::class, 'login_header_text');
+            $headerRefl->setAccessible(true);
+            $resHeader = $headerRefl->invoke($entity, 'Sign in with Corporate SSO');
+            if ($resHeader[ConfigItem::VALUE] !== 'Sign in with Corporate SSO') {
+                throw new \Exception("login_header_text validator did not store value");
+            }
+
+            echo "✅ Config: custom login screen header and icon URL verified (Issue #159)\n";
+        }
     }
 }
 
@@ -548,6 +586,7 @@ namespace {
         $test->testStrictDisabledAutoDisableInboundSecurity();
         $test->testSpPrivateKeySources();
         $test->testForceAuthnConfig();
+        $test->testCustomLoginScreenHeaderAndButtonIcon();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

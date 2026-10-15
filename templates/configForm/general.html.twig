@@ -324,6 +324,44 @@
                             }
                         ) }}
                     </div>
+
+                    <!-- custom icon url field -->
+                    <div class="mb-3">
+                        {% set error_helper %}
+                            {% if inputfields.conf_icon_url.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.conf_icon_url.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+
+                        {{ fields.textField(
+                            inputfields.conf_icon_url.field, 
+                            inputfields.conf_icon_url.value, 
+                            inputfields.conf_icon_url.formtitle, 
+                            {
+                                'add_field_html': error_helper|raw,
+                                helper: inputfields.conf_icon_url.formexplain,
+                            }
+                        ) }}
+                    </div>
+
+                    <!-- custom login screen header text field -->
+                    <div class="mb-3">
+                        {% set error_helper %}
+                            {% if inputfields.login_header_text.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.login_header_text.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+
+                        {{ fields.textField(
+                            inputfields.login_header_text.field, 
+                            inputfields.login_header_text.value, 
+                            inputfields.login_header_text.formtitle, 
+                            {
+                                'add_field_html': error_helper|raw,
+                                helper: inputfields.login_header_text.formexplain,
+                            }
+                        ) }}
+                    </div>
                 </div>
             </div>
 

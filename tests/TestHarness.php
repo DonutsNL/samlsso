@@ -495,6 +495,8 @@ namespace GlpiPlugin\Samlsso\Config {
             public const NAME            = 'name';
             public const CONF_DOMAIN     = 'conf_domain';
             public const CONF_ICON       = 'conf_icon';
+            public const CONF_ICON_URL   = 'conf_icon_url';
+            public const LOGIN_HEADER_TEXT = 'login_header_text';
             public const ENFORCE_SSO     = 'enforce_sso';
             public const PROXIED         = 'proxied';
             public const STRICT          = 'strict';
@@ -760,7 +762,14 @@ namespace GlpiPlugin\Samlsso {
              */
             public static function getLoginButtons(int $limit = 12): array
             {
-                return self::$mockConfig['login_buttons'] ?? [];
+                if (isset(self::$mockConfig['login_buttons'])) {
+                    $val = self::$mockConfig['login_buttons'];
+                    if (is_array($val) && !empty($val) && isset($val[0]) && !isset($val['buttons'])) {
+                        return ['buttons' => $val];
+                    }
+                    return $val;
+                }
+                return [];
             }
 
             /**
@@ -1406,6 +1415,8 @@ namespace GlpiPlugin\Samlsso\Tests {
                         ['Field' => 'security_nameidencrypted', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_authnrequestssigned', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'force_authn', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'conf_icon_url', 'Type' => 'varchar(255)', 'Null' => 'YES'],
+                        ['Field' => 'login_header_text', 'Type' => 'varchar(255)', 'Null' => 'YES'],
                         ['Field' => 'security_logoutrequestsigned', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_logoutresponsesigned', 'Type' => 'tinyint', 'Null' => 'NO'],
                     ];

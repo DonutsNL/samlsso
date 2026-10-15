@@ -416,6 +416,35 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Deep link RelayState preservation verified (Issue #158)\n";
         }
+
+        /**
+         * Test that custom login screen header text and button icon URL are passed
+         * to the loginScreen template (Issue #159).
+         */
+        public function testCustomLoginScreenHeaderAndButtonIconRendering(): void {
+            unset($_POST['login_name']);
+            unset($_GET[LoginFlow::SAMLBYPASS]);
+            MockConfig::$mockConfig['enforced'] = false;
+            MockConfig::$mockConfig['login_buttons'] = [
+                'header'  => 'Sign in with Corporate Single Sign-On',
+                'buttons' => [
+                    [
+                        'id'       => 1,
+                        'name'     => 'Corporate IDP',
+                        'icon'     => 'fa-solid fa-key',
+                        'icon_url' => 'https://example.com/logo.png'
+                    ]
+                ]
+            ];
+            $flow = new LoginFlow();
+            ob_start();
+            $flow->showLoginScreen();
+            $output = ob_get_clean();
+            if (!str_contains($output, 'Sign in with Corporate Single Sign-On')) {
+                throw new \Exception("Custom login screen header text was not passed to template.\nOutput: " . $output);
+            }
+            echo "✅ Custom login screen header rendering verified (Issue #159)\n";
+        }
     }
 }
 
@@ -438,6 +467,7 @@ namespace {
         $test->testForceLogoffRedirect();
         $test->testAuthenticatedUserFastPath();
         $test->testDeepLinkRelayStatePreservation();
+        $test->testCustomLoginScreenHeaderAndButtonIconRendering();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

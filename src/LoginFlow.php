@@ -719,7 +719,7 @@ class LoginFlow extends LoginFlowCompat
         if (!empty($tplVars)) {                           // Only show the interface if we have buttons to show.
             // Define static translatable elements
             $tplVars['action']     = samlsso_plugin_web_dir();
-            $tplVars['header']     = __('Login with external provider', PLUGIN_NAME);
+            $tplVars['header']     = !empty($tplVars['header']) ? $tplVars['header'] : __('Login with external provider', PLUGIN_NAME);
             $tplVars['showbuttons']    = true;
             $tplVars['postfield']  = LoginFlow::POSTFIELD;
             $tplVars['enforced']   = Config::getIsEnforced();

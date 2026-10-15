@@ -399,6 +399,44 @@ class ConfigItem    //NOSONAR
         ];
     }
 
+    /**
+     * Validates custom button icon URL.
+     *
+     * @param mixed $var Image URL or path.
+     * @return array
+     */
+    protected function conf_icon_url(mixed $var): array
+    {
+        return [
+            ConfigItem::FORMEXPLAIN => __('Optional custom image or logo URL for the login button (e.g. /plugins/samlsso/pics/logo.png). If set, this image replaces the FontAwesome icon.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('CUSTOM BUTTON ICON URL', PLUGIN_NAME),
+            ConfigItem::EVAL        => ConfigItem::VALID,
+            ConfigItem::VALUE       => (string) $var,
+            ConfigItem::VALIDATOR   => __method__,
+            ConfigItem::FIELD       => __function__,
+            ConfigItem::ERRORS      => false,
+        ];
+    }
+
+    /**
+     * Validates custom login screen header text.
+     *
+     * @param mixed $var Header text string.
+     * @return array
+     */
+    protected function login_header_text(mixed $var): array
+    {
+        return [
+            ConfigItem::FORMEXPLAIN => __('Optional custom header text displayed above the login buttons on the login screen. If empty, the default translatable text is used.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('LOGIN SCREEN HEADER TEXT', PLUGIN_NAME),
+            ConfigItem::EVAL        => ConfigItem::VALID,
+            ConfigItem::VALUE       => (string) $var,
+            ConfigItem::VALIDATOR   => __method__,
+            ConfigItem::FIELD       => __function__,
+            ConfigItem::ERRORS      => false,
+        ];
+    }
+
     protected function comment(mixed $var): array                       //NOSONAR
     {
         return [

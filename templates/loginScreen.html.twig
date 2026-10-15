@@ -9,8 +9,12 @@
         <div class="col-sm-6">
             <button action="submit" name="{{ postfield }}" value="{{ button.id|abs }}" class="btn btn-light" style="width:125px; margin-bottom:30px;"> 
                 <div class="" style="cursor:pointer; margin:10px 0px 5px 0px;">
-                    <div class="d-flex flex-column">
-                        <i class="{{ button.icon|striptags }} fa-5x" ></i>
+                    <div class="d-flex flex-column align-items-center">
+                        {% if button.icon_url is defined and button.icon_url %}
+                            <img src="{{ button.icon_url|striptags }}" alt="{{ button.name|striptags }}" style="max-height: 80px; max-width: 80px; object-fit: contain; margin-bottom: 10px;" />
+                        {% else %}
+                            <i class="{{ button.icon|striptags }} fa-5x" ></i>
+                        {% endif %}
                         <span><b>{{ button.name|striptags }}</b></span>
                     </div>
                 </div>

@@ -278,10 +278,14 @@ class Config extends ConfigCompat
             ) {     // Must not have a domain configured
                 // Populate the button we found in the array.
                 $tplvars['buttons'][] = [
-                    'id'      => $value[ConfigEntity::ID],
-                    'icon'    => $value[ConfigEntity::CONF_ICON],
-                    'name'    => sprintf("%." . $length . "s", $value[ConfigEntity::NAME])
+                    'id'       => $value[ConfigEntity::ID],
+                    'icon'     => $value[ConfigEntity::CONF_ICON],
+                    'icon_url' => !empty($value[ConfigEntity::CONF_ICON_URL]) ? $value[ConfigEntity::CONF_ICON_URL] : null,
+                    'name'     => sprintf("%." . $length . "s", $value[ConfigEntity::NAME])
                 ];
+                if (!empty($value[ConfigEntity::LOGIN_HEADER_TEXT]) && empty($tplvars['header'])) {
+                    $tplvars['header'] = $value[ConfigEntity::LOGIN_HEADER_TEXT];
+                }
             }
         }
 
@@ -496,6 +500,8 @@ class Config extends ConfigCompat
             `name`                          VARCHAR(255) NOT NULL,
             `conf_domain`                   VARCHAR(50) NOT NULL,
             `conf_icon`                     VARCHAR(50) NOT NULL,
+            `conf_icon_url`                 VARCHAR(255) NULL,
+            `login_header_text`             VARCHAR(255) NULL,
             `enforce_sso`                   tinyint NOT NULL DEFAULT '0',
             `proxied`                       tinyint NOT NULL DEFAULT '0',
             `strict`                        tinyint NOT NULL DEFAULT '0',
@@ -593,6 +599,14 @@ class Config extends ConfigCompat
 
             if (!$DB->fieldExists($table, 'force_authn', false)) {
                 $migration->addField($table, 'force_authn', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'conf_icon_url', false)) {
+                $migration->addField($table, 'conf_icon_url', 'varchar', ['len' => '255', 'null' => true, 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'login_header_text', false)) {
+                $migration->addField($table, 'login_header_text', 'varchar', ['len' => '255', 'null' => true, 'update' => true]);
             }
 
             Session::addMessageAfterRedirect("🆗 Updated: $table layout.");
