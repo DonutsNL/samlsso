@@ -590,6 +590,7 @@ class ClaimMapEntity extends ClaimMapItem
             ClaimMapItem::FIELD_FIRSTNAME,
             ClaimMapItem::FIELD_PHONE,
             ClaimMapItem::FIELD_MOBILE,
+            ClaimMapItem::FIELD_REGISTRATIONNUMBER,
             ClaimMapItem::FIELD_JOBTITLE,
             ClaimMapItem::FIELD_COUNTRY,
             ClaimMapItem::FIELD_CITY,
