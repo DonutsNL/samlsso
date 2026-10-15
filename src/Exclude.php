@@ -263,7 +263,7 @@ class Exclude extends ExcludeCompat
                 // Do we need to validate client agent?
                 if (
                     !empty($exclude[Exclude::CLIENTAGENT])                                        &&         //NOSONAR - Maybe fix verbosity in future.
-                    strpos($_SERVER['HTTP_USER_AGENT'], $exclude[Exclude::CLIENTAGENT]) !== false
+                    strpos($_SERVER['HTTP_USER_AGENT'] ?? '', $exclude[Exclude::CLIENTAGENT]) !== false
                 ) {
                     return ($exclude[Exclude::ACTION]) ? true : false;
                 } else {

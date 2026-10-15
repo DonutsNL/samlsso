@@ -419,6 +419,15 @@ class ConfigEntity extends ConfigItem
                     } else {
                         $resolvedKey = (string)$envVal;
                     }
+                } elseif ($spKeySource === 'define') {
+                    if (!defined($spKeyInput) || empty(constant($spKeyInput))) {
+                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ PHP constant (define) is not defined or is empty.', PLUGIN_NAME);
+                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
+                        $this->isValid = false;
+                        $disable = true;
+                    } else {
+                        $resolvedKey = (string)constant($spKeyInput);
+                    }
                 } else {
                     $resolvedKey = $spKeyInput;
                 }
@@ -571,10 +580,11 @@ class ConfigEntity extends ConfigItem
      */
     public function getRequestedAuthnContextArray(): array
     {
-        if (strstr($this->fields[ConfigEntity::AUTHN_CONTEXT], ':')) {
-            return explode(':', $this->fields[ConfigEntity::AUTHN_CONTEXT]);
+        $context = (string)($this->fields[ConfigEntity::AUTHN_CONTEXT] ?? '');
+        if (str_contains($context, ':')) {
+            return explode(':', $context);
         } else {
-            return [$this->fields[ConfigEntity::AUTHN_CONTEXT]];
+            return [$context];
         }
     }
 
@@ -602,6 +612,8 @@ class ConfigEntity extends ConfigItem
             return '';
         } elseif ($source === 'env') {
             return (string)getenv($input);
+        } elseif ($source === 'define') {
+            return defined($input) ? (string)constant($input) : '';
         }
         return $input;
     }

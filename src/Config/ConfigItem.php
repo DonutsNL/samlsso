@@ -197,7 +197,7 @@ class ConfigItem    //NOSONAR
     protected function sp_private_key_source(mixed $var): array //NOSONAR
     {
         $val = (string) $var;
-        $allowed = ['db', 'file', 'env'];
+        $allowed = ['db', 'file', 'env', 'define'];
         $error = false;
         if (!in_array($val, $allowed)) {
             $error = __('⭕ Invalid private key source selected.', PLUGIN_NAME);

@@ -463,19 +463,42 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("File path inside GLPI_ROOT should have failed docroot validation.");
             }
 
-            // 3c. Non-existent file
+            /**
+             * 4. Test 'define' source (Issue #142)
+             */
+            if (!defined('GLPI_SAML_TEST_SP_PRIVATE_KEY')) {
+                define('GLPI_SAML_TEST_SP_PRIVATE_KEY', $privateKeyStr);
+            }
             ConfigEntity::clearCache();
-            $postDataFileMissing = array_merge($basePostData, [
-                ConfigEntity::SP_KEY_SOURCE => 'file',
-                ConfigEntity::SP_KEY        => '/var/www/non_existent_key_file.key',
+            $postDataDefine = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'define',
+                ConfigEntity::SP_KEY        => 'GLPI_SAML_TEST_SP_PRIVATE_KEY',
             ]);
-            $entityFileMissing = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataFileMissing]);
-            $entityFileMissing->getFields();
-            if ($entityFileMissing->isValid()) {
-                throw new \Exception("Non-existent file path should have failed validation.");
+            $entityDefine = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataDefine]);
+            $entityDefine->getFields();
+            if (!$entityDefine->isValid()) {
+                throw new \Exception("Valid 'define' source failed validation.");
+            }
+            $phpSamlConfigDefine = $entityDefine->getPhpSamlConfig();
+            if ($phpSamlConfigDefine['sp']['privateKey'] !== $privateKeyStr) {
+                throw new \Exception("Failed to read private key from Define source.");
             }
 
-            echo "✅ Config: SP private key source (db, file, env) loading and docroot validation verified\n";
+            /**
+             * 4b. Invalid/missing define constant
+             */
+            ConfigEntity::clearCache();
+            $postDataDefineInvalid = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'define',
+                ConfigEntity::SP_KEY        => 'NON_EXISTENT_DEFINE_CONST_123',
+            ]);
+            $entityDefineInvalid = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataDefineInvalid]);
+            $entityDefineInvalid->getFields();
+            if ($entityDefineInvalid->isValid()) {
+                throw new \Exception("Invalid 'define' source should have failed validation.");
+            }
+
+            echo "✅ Config: SP private key source (db, file, env, define) loading and docroot validation verified\n";
         }
     }
 }

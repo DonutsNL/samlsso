@@ -986,6 +986,16 @@ namespace GlpiPlugin\Samlsso {
             }
 
             /**
+             * Mocks refreshing login datetime on new SAML request.
+             *
+             * @return bool True.
+             */
+            public function refreshLoginDateTime(): bool
+            {
+                return true;
+            }
+
+            /**
              * Store redirect URL.
              *
              * @param string $redirect Target URL.

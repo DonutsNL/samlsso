@@ -175,6 +175,14 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("GetExcludeAction should return false for unmatched path /front/home.php");
             }
 
+            /**
+             * 6. Undefined HTTP_USER_AGENT does not throw TypeError under PHP 8.1+ (Issue #137).
+             */
+            unset($_SERVER['HTTP_USER_AGENT']);
+            if (Exclude::GetExcludeAction('/admin/') !== false) {
+                throw new \Exception("GetExcludeAction should return false for /admin/ without HTTP_USER_AGENT");
+            }
+
             echo "✅ Exclude: Database configured exclusion rules\n";
         }
     }

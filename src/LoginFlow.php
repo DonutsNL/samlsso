@@ -437,7 +437,7 @@ class LoginFlow extends LoginFlowCompat
     private function resolveIdpFromLoginForm(): ?int
     {
         foreach ($_POST as $key => $value) {
-            if (strstr($key, 'login_name') && !empty($_POST[$key])) {
+            if (str_contains((string)$key, 'login_name') && !empty($_POST[$key])) {
                 $id = Config::getConfigIdByEmailDomain($_POST[$key]);
                 if ($id) {
                     $this->state->addLoginFlowTrace(['loginViaUserfield' => 'user:' . $_POST[$key] . ',idpId:' . $id]);
@@ -524,6 +524,7 @@ class LoginFlow extends LoginFlowCompat
             // while handling the received SamlResponse. Any other state will force Acs
             // into an error state. This is to prevent unexpected (possibly replayed)
             // samlResponses from being processed. to prevent playback attacks.
+            $this->state->refreshLoginDateTime();
             if (!$this->state->setPhase(LoginState::PHASE_SAML_ACS)) {
                 $this->printError(sprintf(__('Could not update the loginState and therefor stopped the loginFlow for: %s', PLUGIN_NAME), $_POST[LoginFlow::POSTFIELD]));
             }
