@@ -221,6 +221,33 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Validated compatibility layer: no obfuscation or dynamic code execution in src/compat.php.\n";
         }
+
+        /**
+         * Test that the Single Logout (SLO) endpoint is properly registered as
+         * stateless in plugin_samlsso_boot() to prevent GLPI CSRF 403 on
+         * asynchronous LogoutResponse from IdPs (Issue #164).
+         *
+         * @throws \Exception if the stateless path registration is missing.
+         */
+        public function testStatelessPathRegistration(): void
+        {
+            $setup = $this->readPluginFile('setup.php');
+            $errors = [];
+
+            if (!str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/front/logout#')")) {
+                $errors[] = "setup.php does not register '#^/front/logout#' as a stateless path.";
+            }
+            if (!str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#')") &&
+                !str_contains($setup, "RegisterPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#')")) {
+                $errors[] = "setup.php does not register '#^/front/acs/#' as a stateless path.";
+            }
+
+            if (!empty($errors)) {
+                throw new \Exception("Stateless path registration failed:\n" . implode("\n", $errors));
+            }
+
+            echo "✅ Validated stateless path registration: ACS and SLO (/front/logout) registered to prevent CSRF 403.\n";
+        }
     }
 }
 
@@ -234,6 +261,7 @@ namespace {
         $test->testPluginClassesExtendVersionTypedCompat();
         $test->testAbsoluteWebDirHelperAndMaxGlpiVersion();
         $test->testCompatLayerContainsNoObfuscation();
+        $test->testStatelessPathRegistration();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

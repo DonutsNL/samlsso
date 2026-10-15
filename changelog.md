@@ -1,5 +1,6 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/164: Registered '#^/front/logout#' as a stateless path in `setup.php` to prevent GLPI CSRF 403 Forbidden errors when IdPs post asynchronous SAML LogoutResponse messages.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/170: Adopted codebase for GLPI 12 compatibility, including PHP 8 property-type invariance, removed API migrations, strict form rendering, and test refactoring.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/134 by adding "registration_number" to user claim mapping by @froberts0n (PR https://github.com/DonutsNL/samlsso/pull/157).
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/167 / PR https://github.com/DonutsNL/samlsso/pull/169 by @beeone42: implemented dual GLPI 11 and GLPI 12 inheritance compatibility layer (`src/compat.php`) resolving PHP 8 property type invariance fatal errors on `$dohistory`, `$rightname`, and `$menu_option`.
