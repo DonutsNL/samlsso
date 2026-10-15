@@ -1553,6 +1553,10 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function getFromDB(int $id, $instance): bool
         {
+            if ($this->mockUserData && ($this->mockUserData['id'] ?? null) === $id) {
+                $instance->fields = $this->mockUserData;
+                return true;
+            }
             if ($this->createdUserData && $this->createdUserData['id'] === $id) {
                 $instance->fields = $this->createdUserData;
                 return true;

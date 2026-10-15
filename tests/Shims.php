@@ -765,18 +765,27 @@ namespace {
     if (!class_exists('Profile_User', false)) {
         class Profile_User extends CommonDBTM {
             public static array $added = [];
+            public static array $deleted = [];
+            public static array $userProfiles = [];
             /**
              * Get profile links for a user.
              *
              * @param int $id User ID.
              * @return array Mock profile list.
              */
-            public static function getForUser(int $id): array { 
-                return [1 => ['profiles_id' => 1]]; 
+            public static function getForUser(int $id): array {
+                if (isset(self::$userProfiles[$id])) {
+                    return self::$userProfiles[$id];
+                }
+                return [1 => ['profiles_id' => 1, 'entities_id' => 0]];
             }
             public function add(array $input, array $options = [], bool $history = true): int {
                 self::$added[] = $input;
                 return 1;
+            }
+            public function delete(array $input, bool $force = false): bool {
+                self::$deleted[] = $input;
+                return parent::delete($input, $force);
             }
         }
     }

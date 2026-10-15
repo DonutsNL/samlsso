@@ -446,6 +446,141 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ sync_on_login does not overwrite attributes with empty/false claims (Issue #146)\n";
         }
+
+        /**
+         * Test that multiple JIT rules assigning different profiles are additive
+         * and do not delete previously assigned profiles (Issue #153).
+         */
+        public function testAdditiveProfileAssignments(): void {
+            $samlUser = new SamlUser();
+            \Profile_User::$added = [];
+            \Profile_User::$deleted = [];
+
+            /* Rule 1 assigns profile 5 */
+            $params1 = [
+                SamlUser::RULEOUTPUT => [
+                    SamlUser::USERSID    => 101,
+                    SamlUser::PROFILESID => 5,
+                    SamlUser::ENTITY_ID  => 1
+                ]
+            ];
+            $samlUser->updateUserRights($params1);
+
+            /* Rule 2 assigns profile 8 */
+            $params2 = [
+                SamlUser::RULEOUTPUT => [
+                    SamlUser::USERSID    => 101,
+                    SamlUser::PROFILESID => 8,
+                    SamlUser::ENTITY_ID  => 1
+                ]
+            ];
+            $samlUser->updateUserRights($params2);
+
+            if (count(\Profile_User::$added) < 2) {
+                throw new \Exception("Expected at least 2 profile assignments, found " . count(\Profile_User::$added));
+            }
+
+            /* Verify that profile 5 was NOT deleted by Rule 2 */
+            foreach (\Profile_User::$deleted as $del) {
+                if (isset($del['profiles_id']) && (int)$del['profiles_id'] === 5) {
+                    throw new \Exception("Profile 5 was incorrectly deleted when assigning profile 8 (non-additive).");
+                }
+            }
+
+            echo "✅ JIT multi-profile assignments are additive across rules (Issue #153)\n";
+        }
+
+        /**
+         * Test JIT rule assigning profile and entity via _profiles_id_default and
+         * _entities_id_default, defaulting recursive to 0, and cleaning up initial
+         * Root entity profile authorization (Issue #156).
+         */
+        public function testProfileAndEntityAssignmentDefaultsAndRootCleanup(): void {
+            $samlUser = new SamlUser();
+            \Profile_User::$added = [];
+            \Profile_User::$deleted = [];
+
+            /* Emulate existing initial user profile in Root entity (0) */
+            \Profile_User::$userProfiles[202] = [
+                1 => ['id' => 1, 'profiles_id' => 9, 'entities_id' => 0]
+            ];
+
+            $params = [
+                SamlUser::RULEOUTPUT => [
+                    SamlUser::USERSID         => 202,
+                    SamlUser::PROFILE_DEFAULT => 9,
+                    SamlUser::ENTITY_DEFAULT  => 27
+                ]
+            ];
+
+            $samlUser->updateUserRights($params);
+
+            /* 1. Verify profile 9 assigned to entity 27 with is_recursive = 0 */
+            $foundTarget = false;
+            foreach (\Profile_User::$added as $entry) {
+                if (
+                    (int)($entry[SamlUser::PROFILESID] ?? 0) === 9 &&
+                    (int)($entry[SamlUser::ENTITY_ID] ?? 0) === 27 &&
+                    (int)($entry[SamlUser::PROFILE_RECURSIVE] ?? 1) === 0
+                ) {
+                    $foundTarget = true;
+                    break;
+                }
+            }
+            if (!$foundTarget) {
+                throw new \Exception("Profile 9 with entity 27 and is_recursive=0 was not added via Profile_User.");
+            }
+
+            /* 2. Verify root profile authorization (id => 1) was deleted */
+            $deletedRoot = false;
+            foreach (\Profile_User::$deleted as $del) {
+                if (isset($del['id']) && (int)$del['id'] === 1) {
+                    $deletedRoot = true;
+                    break;
+                }
+            }
+            if (!$deletedRoot) {
+                throw new \Exception("Initial Root entity profile authorization was not cleaned up when assigning non-root entity.");
+            }
+
+            echo "✅ Profile/Entity assignment with defaults and Root cleanup verified (Issue #156)\n";
+        }
+
+        /**
+         * Test that identical user defaults do not trigger failure or unnecessary update
+         * when database fields already match current settings (Issue #148).
+         */
+        public function testIdempotentUserDefaultsNoLogWarning(): void {
+            $samlUser = new SamlUser();
+
+            \User::$mockObject->mockUserData = [
+                'id'          => 303,
+                'name'        => 'existing_jit_user',
+                'entities_id' => 0,
+                'profiles_id' => 3,
+                'is_active'   => 1
+            ];
+
+            \User::$mockObject->mockUpdateCalled = false;
+
+            $params = [
+                SamlUser::RULEOUTPUT => [
+                    SamlUser::USERSID         => 303,
+                    SamlUser::PROFILE_DEFAULT => 3,
+                    SamlUser::ENTITY_DEFAULT  => 0,
+                    'is_active'               => 1
+                ]
+            ];
+
+            $samlUser->updateUserRights($params);
+
+            /* Since fields already matched in DB, mock update should not be invoked needlessly */
+            if (\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("User update was unnecessarily called when DB fields already match current settings.");
+            }
+
+            echo "✅ Idempotent user defaults update does not fail or warn needlessly (Issue #148)\n";
+        }
     }
 }
 
@@ -464,6 +599,9 @@ namespace {
         $test->testSyncOnLoginTraceLogging();
         $test->testSyncOnLoginCaseInsensitiveEmail();
         $test->testSyncOnLoginDoesNotOverwriteWithEmptyClaims();
+        $test->testAdditiveProfileAssignments();
+        $test->testProfileAndEntityAssignmentDefaultsAndRootCleanup();
+        $test->testIdempotentUserDefaultsNoLogWarning();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
