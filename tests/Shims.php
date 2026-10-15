@@ -512,6 +512,32 @@ namespace {
                 return false;
             }
 
+            public function find($condition = [], $order = [], $limit = null)
+            {
+                global $DB;
+                $criteria = [
+                    'FROM' => static::getTable(),
+                ];
+                if (!empty($condition)) {
+                    $criteria['WHERE'] = $condition;
+                }
+                if (!empty($order)) {
+                    $criteria['ORDERBY'] = is_array($order) ? $order : [$order];
+                }
+                if ($limit !== null) {
+                    $criteria['LIMIT'] = $limit;
+                }
+                $results = [];
+                $iterator = $DB->request($criteria);
+                if ($iterator) {
+                    foreach ($iterator as $row) {
+                        $id = $row['id'] ?? count($results) + 1;
+                        $results[$id] = $row;
+                    }
+                }
+                return $results;
+            }
+
             public static int $getFromDBCallCount = 0;
 
             public function getFromDB(int $id): bool { 
@@ -719,6 +745,10 @@ namespace {
     if (!class_exists('Group_User', false)) {
         class Group_User extends CommonDBTM {
             public static array $added = [];
+            public static array $mockMemberships = [];
+            public static function isUserInGroup($users_id, $groups_id): bool {
+                return in_array([$users_id, $groups_id], self::$mockMemberships, true);
+            }
             public function add(array $input, array $options = [], bool $history = true): int {
                 self::$added[] = $input;
                 return 1;

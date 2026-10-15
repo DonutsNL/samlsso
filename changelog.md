@@ -1,5 +1,6 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/146: Filtered out empty/false SAML claims in `User::syncUserFieldsOnLogin()` before calling user update, preventing unasserted claims from wiping existing GLPI user attributes.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/162: Refreshed `LoginState::LOGIN_DATETIME` upon initiating new SAML authentication requests and transitioning to `PHASE_SAML_ACS`, preventing false "SAML request timed out" errors when re-authenticating from existing sessions.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/164: Registered '#^/front/logout#' as a stateless path in `setup.php` to prevent GLPI CSRF 403 Forbidden errors when IdPs post asynchronous SAML LogoutResponse messages.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/170: Adopted codebase for GLPI 12 compatibility, including PHP 8 property-type invariance, removed API migrations, strict form rendering, and test refactoring.

@@ -141,26 +141,31 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @throws \Exception if the JIT process does not trigger a PrintFatalLoginError exception.
          */
         public function testJitDisabledRespectsIdpConfig(): void {
-            $userData = $this->getFullUserData('new.user', 'new.user@example.com');
-            \User::$mockObject->mockUserData = null;
-            
-            // Setup ConfigEntity with JIT disabled and valid ID
-            MockConfigEntity::$mockFields[ConfigEntity::USER_JIT] = 0;
-            MockConfigEntity::$mockFields[ConfigEntity::NAME] = 'Disabled JIT IDP';
-            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
-
-            $configEntity = new ConfigEntity(5);
-            $samlUser = new SamlUser();
-
+            \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = true;
             try {
-                $samlUser->getOrCreateUser($userData, $configEntity);
-                throw new \Exception("Expected PrintFatalLoginError due to disabled JIT, but method completed.");
-            } catch (\Exception $e) {
-                if (str_contains($e->getMessage(), 'is disabled for: Disabled JIT IDP')) {
-                    echo "✅ JIT disabled respects IDP config\n";
-                } else {
-                    throw $e;
+                $userData = $this->getFullUserData('new.user', 'new.user@example.com');
+                \User::$mockObject->mockUserData = null;
+                
+                // Setup ConfigEntity with JIT disabled and valid ID
+                MockConfigEntity::$mockFields[ConfigEntity::USER_JIT] = 0;
+                MockConfigEntity::$mockFields[ConfigEntity::NAME] = 'Disabled JIT IDP';
+                MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+
+                $configEntity = new ConfigEntity(5);
+                $samlUser = new SamlUser();
+
+                try {
+                    $samlUser->getOrCreateUser($userData, $configEntity);
+                    throw new \Exception("Expected PrintFatalLoginError due to disabled JIT, but method completed.");
+                } catch (\Exception $e) {
+                    if (str_contains($e->getMessage(), 'is disabled for: Disabled JIT IDP')) {
+                        echo "✅ JIT disabled respects IDP config\n";
+                    } else {
+                        throw $e;
+                    }
                 }
+            } finally {
+                \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = false;
             }
         }
 
@@ -175,14 +180,9 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             $actionKeys = array_keys($actions);
 
-            $reflector = new \ReflectionMethod(SamlUser::class, 'updateUserRights');
+            $reflector = new \ReflectionClass(SamlUser::class);
             $fileName = $reflector->getFileName();
-            $startLine = $reflector->getStartLine() - 1;
-            $endLine = $reflector->getEndLine();
-            $length = $endLine - $startLine;
-
-            $source = file($fileName);
-            $methodSource = implode('', array_slice($source, $startLine, $length));
+            $classSource = file_get_contents($fileName);
 
             $mapping = [
                 'entities_id'          => 'User::ENTITY_ID',
@@ -202,8 +202,8 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             foreach ($actionKeys as $key) {
                 $searchString = $mapping[$key] ?? $key;
-                if (!str_contains($methodSource, $searchString)) {
-                    throw new \Exception("Rule action key '{$key}' does not have a corresponding handler in User::updateUserRights.");
+                if (!str_contains($classSource, $searchString)) {
+                    throw new \Exception("Rule action key '{$key}' does not have a corresponding handler in User class.");
                 }
             }
 
@@ -389,6 +389,63 @@ namespace GlpiPlugin\Samlsso\Tests {
             
             echo "✅ Case-insensitive user email comparison on sync_on_login verified\n";
         }
+
+        /**
+         * Test that synchronization on login does not overwrite existing GLPI user
+         * attributes when SAML claims are absent (evaluating to false/null) (Issue #146).
+         */
+        public function testSyncOnLoginDoesNotOverwriteWithEmptyClaims(): void {
+            $samlUser = new SamlUser();
+            $configEntity = new ConfigEntity();
+
+            \User::$mockObject->mockUserData = [
+                'id'         => 999,
+                'name'       => 'existing_user',
+                'email'      => 'existing@example.com',
+                'mobile'     => '+31612345678',
+                'phone'      => '+31201234567',
+                'is_deleted' => 0,
+                'is_active'  => 1
+            ];
+
+            MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+
+            $this->db->setResponse('glpi_useremails', [
+                ['email' => 'existing@example.com']
+            ]);
+
+            // Incoming SAML assertion has realname, but mobile and phone claims are absent (false/null)
+            $userFields = [
+                SamlUser::NAME          => 'existing_user',
+                SamlUser::REALNAME      => 'NewRealName',
+                SamlUser::FIRSTNAME     => 'NewFirstName',
+                SamlUser::MOBILE        => false,
+                SamlUser::PHONE         => null,
+                SamlUser::EMAIL         => ['existing@example.com'],
+            ];
+
+            \User::$mockObject->mockUpdateCalled = false;
+            \User::$mockObject->updatedUserData = null;
+
+            $samlUser->getOrCreateUser($userFields, $configEntity);
+
+            if (!\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("User update was not called when valid fields changed.");
+            }
+
+            $updatePayload = \User::$mockObject->updatedUserData ?? [];
+            if (array_key_exists(SamlUser::MOBILE, $updatePayload)) {
+                throw new \Exception("Empty/false SAML claim 'mobile' was included in update payload, overwriting existing user data.");
+            }
+            if (array_key_exists(SamlUser::PHONE, $updatePayload)) {
+                throw new \Exception("Empty/null SAML claim 'phone' was included in update payload, overwriting existing user data.");
+            }
+            if (!isset($updatePayload[SamlUser::REALNAME]) || $updatePayload[SamlUser::REALNAME] !== 'NewRealName') {
+                throw new \Exception("Valid SAML claim 'realname' was not updated.");
+            }
+
+            echo "✅ sync_on_login does not overwrite attributes with empty/false claims (Issue #146)\n";
+        }
     }
 }
 
@@ -406,6 +463,7 @@ namespace {
         $test->testSyncOnLogin();
         $test->testSyncOnLoginTraceLogging();
         $test->testSyncOnLoginCaseInsensitiveEmail();
+        $test->testSyncOnLoginDoesNotOverwriteWithEmptyClaims();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
