@@ -65,6 +65,21 @@ namespace GlpiPlugin\Samlsso\Tests {
         public array $addFieldCalls = [];
 
         /**
+         * @var array
+         */
+        public array $changeFieldCalls = [];
+
+        /**
+         * @var array
+         */
+        public array $addKeyCalls = [];
+
+        /**
+         * @var array
+         */
+        public array $migrationOneTableCalls = [];
+
+        /**
          * Intercept call to addField.
          *
          * @param string $table Table name
@@ -94,6 +109,13 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @return bool
          */
         public function changeField(string $table, string $field, string $new_field, string $type, array $options = []): bool {
+            $this->changeFieldCalls[] = [
+                'table'     => $table,
+                'field'     => $field,
+                'new_field' => $new_field,
+                'type'      => $type,
+                'options'   => $options,
+            ];
             return true;
         }
 
@@ -103,7 +125,9 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @param string $table Table name
          * @return void
          */
-        public function migrationOneTable(string $table): void {}
+        public function migrationOneTable(string $table): void {
+            $this->migrationOneTableCalls[] = $table;
+        }
 
         /**
          * Stub addKey method.
@@ -115,6 +139,12 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @return bool
          */
         public function addKey(string $table, array $fields, string $keyname, string $keytype = ''): bool {
+            $this->addKeyCalls[] = [
+                'table'   => $table,
+                'fields'  => $fields,
+                'keyname' => $keyname,
+                'keytype' => $keytype,
+            ];
             return true;
         }
     }
@@ -123,6 +153,13 @@ namespace GlpiPlugin\Samlsso\Tests {
      * Simple mock DB implementation to support running migration checks.
      */
     class SimpleMockDB {
+        /**
+         * Map of existing fields per table.
+         *
+         * @var array
+         */
+        public array $existingFields = [];
+
         /**
          * Check if table exists in mock DB.
          *
@@ -152,7 +189,7 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @return bool
          */
         public function fieldExists(string $table, string $field, bool $cache = true): bool {
-            return false;
+            return in_array($field, $this->existingFields[$table] ?? [], true);
         }
 
         /**
@@ -231,6 +268,85 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Database Migrations: Verified all addField calls are order-independent (no 'after' or 'before' options found in " . count($migration->addFieldCalls) . " field updates)\n";
         }
+
+        /**
+         * Verifies that the phase column is converted to tinyint unsigned and indexed (Issue #160),
+         * and redirect is migrated or added as TEXT (Issue #165).
+         *
+         * @throws \Exception if migration calls do not match expectations.
+         */
+        public function testLoginStatePhaseAndRedirectMigration(): void {
+            global $DB;
+
+            /**
+             * Case 1: Fresh upgrade where redirect does not yet exist.
+             */
+            $DB = new SimpleMockDB();
+            $migration = new InterceptingMigration('1.3.2');
+            LoginState::install($migration);
+
+            $table = getTableForItemType(LoginState::class);
+
+            $phaseChanged = false;
+            foreach ($migration->changeFieldCalls as $call) {
+                if ($call['table'] === $table && $call['field'] === 'phase') {
+                    if (str_contains($call['type'], 'tinyint') && str_contains($call['type'], 'DEFAULT 1')) {
+                        $phaseChanged = true;
+                        break;
+                    }
+                }
+            }
+            if (!$phaseChanged) {
+                throw new \Exception("Expected phase column to be changed to tinyint unsigned DEFAULT 1 (Issue #160).");
+            }
+
+            $phaseKeyAdded = false;
+            foreach ($migration->addKeyCalls as $call) {
+                if ($call['table'] === $table && $call['keyname'] === 'phase') {
+                    $phaseKeyAdded = true;
+                    break;
+                }
+            }
+            if (!$phaseKeyAdded) {
+                throw new \Exception("Expected phase index to be added to LoginState (Issue #160).");
+            }
+
+            $redirectAdded = false;
+            foreach ($migration->addFieldCalls as $call) {
+                if ($call['table'] === $table && $call['field'] === LoginState::REDIRECT) {
+                    if (strtolower($call['type']) === 'text') {
+                        $redirectAdded = true;
+                        break;
+                    }
+                }
+            }
+            if (!$redirectAdded) {
+                throw new \Exception("Expected redirect column to be added as TEXT when not existing (Issue #165).");
+            }
+
+            /**
+             * Case 2: Existing upgrade where redirect was previously varchar(255).
+             */
+            $DB = new SimpleMockDB();
+            $DB->existingFields[$table] = [LoginState::REDIRECT];
+            $migrationExisting = new InterceptingMigration('1.3.2');
+            LoginState::install($migrationExisting);
+
+            $redirectChanged = false;
+            foreach ($migrationExisting->changeFieldCalls as $call) {
+                if ($call['table'] === $table && $call['field'] === LoginState::REDIRECT) {
+                    if (strtolower($call['type']) === 'text') {
+                        $redirectChanged = true;
+                        break;
+                    }
+                }
+            }
+            if (!$redirectChanged) {
+                throw new \Exception("Expected existing redirect column to be changed to TEXT (Issue #165).");
+            }
+
+            echo "✅ Database Migrations: Verified phase is tinyint with index (#160) and redirect is TEXT (#165)\n";
+        }
     }
 }
 
@@ -241,6 +357,7 @@ namespace {
     $test = new GlpiPlugin\Samlsso\Tests\DatabaseUpdateTest();
     try {
         $test->testUpdateProcedureNoAfterBefore();
+        $test->testLoginStatePhaseAndRedirectMigration();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

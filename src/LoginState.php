@@ -1125,10 +1125,12 @@ class LoginState extends CommonDBTM
                 `serverParams`              text NULL,
                 `requestParams`             text NULL,
                 `loggedOff`                 tinyint {$default_key_sign} NULL,
-                `phase`                     text NULL,
+                `phase`                     tinyint {$default_key_sign} NOT NULL DEFAULT 1,
+                `redirect`                  text NULL,
                 `clientIp`                  varchar(45) NULL,
                 `clientCountry`             varchar(2) NULL,
-                PRIMARY KEY (`id`)
+                PRIMARY KEY (`id`),
+                KEY `phase` (`phase`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
             $DB->doQuery($query) or die($DB->error());
@@ -1144,6 +1146,26 @@ class LoginState extends CommonDBTM
              */
             $migration->changeField($table, 'idpId', 'idpId', "int {$default_key_sign} NULL");
             $migration->migrationOneTable($table);
+        }
+
+        /**
+         * Upgrade phase column to tinyint unsigned and add index (Issue #160).
+         * Prevents full table scans on WHERE phase = ? queries executed on every request.
+         */
+        if ($DB->tableExists($table)) {
+            $migration->changeField($table, 'phase', 'phase', "tinyint {$default_key_sign} NOT NULL DEFAULT 1");
+            $phase_index = $DB->request([
+                'SELECT' => 'INDEX_NAME',
+                'FROM'   => 'information_schema.STATISTICS',
+                'WHERE'  => [
+                    'TABLE_SCHEMA' => $_SESSION['glpidbname'] ?? $DB->dbdefault,
+                    'TABLE_NAME'   => $table,
+                    'INDEX_NAME'   => 'phase'
+                ]
+            ]);
+            if ($phase_index->count() === 0) {
+                $migration->addKey($table, ['phase'], 'phase');
+            }
         }
 
         // Add new requestId field for version 1.1.2.
@@ -1181,14 +1203,22 @@ class LoginState extends CommonDBTM
             }
         }
 
-        // @see https://github.com/DonutsNL/glpisaml/issues/22
-        if (
-            $DB->tableExists($table)                                                                                                                       &&   // Table should exist
-            !$DB->fieldExists($table, LoginState::REDIRECT, false)                                                                                          &&   // Field should not exist
-            $migration->addField($table, LoginState::REDIRECT, 'str', ['null' => true, 'update' => true])
-        ) {   // @see Migration::fieldFormat()
-            Session::addMessageAfterRedirect("🆗 Added field LoginState::REDIRECT for v1.1.12");
-        } // We silently ignore errors. Most common cause for an error is if the field already exists.
+        /**
+         * Upgrade redirect column to text (Issue #165).
+         * Expands redirect URL storage from varchar(255) to text to accommodate
+         * long URLs with complex search criteria and avoid MySQL 1406 errors.
+         *
+         * @see https://github.com/DonutsNL/glpisaml/issues/22
+         * @see https://github.com/DonutsNL/samlsso/issues/165
+         */
+        if ($DB->tableExists($table)) {
+            if (!$DB->fieldExists($table, LoginState::REDIRECT, false)) {
+                $migration->addField($table, LoginState::REDIRECT, 'text', ['null' => true, 'update' => true]);
+                Session::addMessageAfterRedirect("🆗 Added field LoginState::REDIRECT");
+            } else {
+                $migration->changeField($table, LoginState::REDIRECT, LoginState::REDIRECT, 'text', ['null' => true]);
+            }
+        }
 
         // Drop excluded path field if still present in table.
         if (
@@ -1246,6 +1276,13 @@ class LoginState extends CommonDBTM
                 // Do nothing
                 Session::addMessageAfterRedirect("🆗 Index already exists, skipping.");
             }
+        }
+
+        /**
+         * Execute all queued DDL migration operations for the table.
+         */
+        if ($DB->tableExists($table)) {
+            $migration->migrationOneTable($table);
         }
 
         // Clean old cookies

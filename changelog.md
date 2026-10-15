@@ -1,5 +1,7 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/165: Expanded `glpi_plugin_samlsso_loginstates.redirect` column from `VARCHAR(255)` to `TEXT` to accommodate long search URLs with multiple filter criteria and eliminate HTTP 500 MySQL 1406 "Data too long" errors.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/160: Converted `glpi_plugin_samlsso_loginstates.phase` column from `TEXT` to `tinyint unsigned NOT NULL DEFAULT 1` and added index on `phase` to eliminate full table scans during request authentication.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/146: Filtered out empty/false SAML claims in `User::syncUserFieldsOnLogin()` before calling user update, preventing unasserted claims from wiping existing GLPI user attributes.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/162: Refreshed `LoginState::LOGIN_DATETIME` upon initiating new SAML authentication requests and transitioning to `PHASE_SAML_ACS`, preventing false "SAML request timed out" errors when re-authenticating from existing sessions.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/164: Registered '#^/front/logout#' as a stateless path in `setup.php` to prevent GLPI CSRF 403 Forbidden errors when IdPs post asynchronous SAML LogoutResponse messages.
