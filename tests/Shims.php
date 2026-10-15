@@ -350,7 +350,7 @@ namespace {
              * Mocks Session getLoginUserID.
              */
             public static function getLoginUserID($force_human = true) {
-                return self::$userId;
+                return self::$userId !== false ? self::$userId : ($_SESSION['glpiID'] ?? false);
             }
         }
     }
@@ -562,7 +562,10 @@ namespace {
              * @param array $options Additional options.
              * @return bool Always returns true.
              */
+            public static int $updateCallCount = 0;
+
             public function update(array $input, bool $history = true, array $options = []): bool { 
+                self::$updateCallCount++;
                 return true; 
             }
 

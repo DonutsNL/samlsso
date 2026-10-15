@@ -204,10 +204,6 @@ class LoginFlow extends LoginFlowCompat
             return;
         }
 
-        // Run invalidation logic at the earliest possible moment
-        LoginState::expireStaleAcsRequests();
-        LoginState::expireStaleGlpiSessions();
-
         // Do not process login flow if the user is already logged in, unless they are logging out
         $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
         if (!is_string($requestPath)) {
@@ -217,16 +213,11 @@ class LoginFlow extends LoginFlowCompat
                     isset($_GET[self::SLOLOGOUT]) ||
                     isset($_GET[self::LOCALLOGOUT]);
 
-
         // Dont process anything if we are handling an ACS call.
         // Generating a state in this phase will taint it because we
         // have a new sessionId that wont align with existing entries
         // and need to use the samlRequestId to populate the stateobj.
         // https://github.com/DonutsNL/samlsso/issues/29
-        $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
-        if (!is_string($requestPath)) {
-            $requestPath = '';
-        }
         if (strpos($requestPath, 'front/acs') !== false) {
             return;
         }
@@ -236,6 +227,14 @@ class LoginFlow extends LoginFlowCompat
         // implementing this functionality prior to this validation.
         if (Exclude::isExcluded()) {
             return;
+        }
+
+        /**
+         * Run invalidation logic for unauthenticated flows, throttled periodically (Issues #151, #166).
+         */
+        if ($isLogout || Session::getLoginUserID() === false) {
+            LoginState::expireStaleAcsRequests();
+            LoginState::expireStaleGlpiSessions();
         }
 
         // Make the GLPI configuration available.

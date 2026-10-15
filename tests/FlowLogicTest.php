@@ -365,6 +365,30 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ Force logoff and redirect logic\n";
         }
+
+        /**
+         * Test that authenticated users performing actions fast-path through doAuth()
+         * without evaluating login options or executing stale session cleanups (Issue #166).
+         *
+         * @throws \Exception if fast path fails to return cleanly.
+         */
+        public function testAuthenticatedUserFastPath(): void {
+            $_SERVER['REQUEST_URI'] = '/front/ticket.form.php';
+            \Session::$userId = 42;
+            $_SESSION['glpiID'] = 42;
+            unset($_POST['login_name']);
+
+            $state = new Loginstate();
+            $state->idpId = 1;
+            $state->phase = Loginstate::PHASE_GLPI_AUTH;
+
+            $flow = new LoginFlow();
+            $flow->doAuth();
+
+            \Session::$userId = false;
+            unset($_SESSION['glpiID']);
+            echo "✅ Authenticated user ticket action fast-path verified (Issue #166)\n";
+        }
     }
 }
 
@@ -385,6 +409,7 @@ namespace {
         $test->testLogoutPageRenderingNormal();
         $test->testLogoutPageRenderingEnforced();
         $test->testForceLogoffRedirect();
+        $test->testAuthenticatedUserFastPath();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

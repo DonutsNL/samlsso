@@ -1,5 +1,7 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/166: Optimized ticket action performance by fast-pathing authenticated user requests in `LoginFlow::doAuth()`, bypassing global session cleanups during active user operations, and throttling `updateLastActivity()` database writes to 60-second intervals.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/151: Optimized stale ACS and inactivity session cleanups to execute targeted SQL queries filtered by cutoff timestamp instead of iterating all active sessions, and throttled execution to 5-minute intervals for unauthenticated requests.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/165: Expanded `glpi_plugin_samlsso_loginstates.redirect` column from `VARCHAR(255)` to `TEXT` to accommodate long search URLs with multiple filter criteria and eliminate HTTP 500 MySQL 1406 "Data too long" errors.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/160: Converted `glpi_plugin_samlsso_loginstates.phase` column from `TEXT` to `tinyint unsigned NOT NULL DEFAULT 1` and added index on `phase` to eliminate full table scans during request authentication.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/146: Filtered out empty/false SAML claims in `User::syncUserFieldsOnLogin()` before calling user update, preventing unasserted claims from wiping existing GLPI user attributes.

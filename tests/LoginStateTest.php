@@ -454,6 +454,90 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ LoginState: LOGIN_DATETIME refresh on new SAML request verified (Issue #162)\n";
         }
+
+        /**
+         * Test that updateLastActivity throttles database updates within the throttle window (Issue #166).
+         *
+         * @throws \Exception if throttling fails to suppress redundant updates or fails to update when forced.
+         */
+        public function testUpdateLastActivityThrottling(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+            $recentTime = date('Y-m-d H:i:s', time() - 10);
+
+            $db->setResponse($table, [
+                [
+                    LoginState::STATE_ID          => 1,
+                    LoginState::IDP_ID            => 2,
+                    LoginState::USER_NAME         => 'test_user',
+                    LoginState::SESSION_ID        => session_id(),
+                    LoginState::SESSION_NAME      => 'sid',
+                    LoginState::GLPI_AUTHED       => 1,
+                    LoginState::SAML_AUTHED       => 1,
+                    LoginState::LOGIN_DATETIME    => $recentTime,
+                    LoginState::LAST_ACTIVITY     => $recentTime,
+                    LoginState::LOCATION          => 'https://glpi.local/index.php',
+                    LoginState::ENFORCE_LOGOFF    => 0,
+                    LoginState::SAML_REQUEST_ID   => '',
+                    LoginState::SAML_RESPONSE_ID  => '',
+                    LoginState::SAML_UNSOLICITED  => 0,
+                    LoginState::LOGIN_FLOW_TRACE  => serialize([]),
+                    LoginState::PHASE             => LoginState::PHASE_GLPI_AUTH,
+                    LoginState::REDIRECT          => '',
+                    LoginState::CLIENT_IP         => '127.0.0.1',
+                    LoginState::CLIENT_COUNTRY    => 'US',
+                ]
+            ]);
+
+            $_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR] = 'test_user';
+            $_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR] = session_id();
+
+            $loginState = new LoginState();
+
+            \CommonDBTM::$updateCallCount = 0;
+
+            /**
+             * Calling updateLastActivity within the 60s throttle window should NOT update DB.
+             */
+            $loginState->updateLastActivity(60);
+            if (\CommonDBTM::$updateCallCount !== 0) {
+                throw new \Exception("updateLastActivity should have throttled DB write within 60s window.");
+            }
+
+            /**
+             * Calling with throttleSeconds = 0 should force DB update.
+             */
+            $loginState->updateLastActivity(0);
+            if (\CommonDBTM::$updateCallCount !== 1) {
+                throw new \Exception("updateLastActivity with throttleSeconds = 0 should have executed DB update.");
+            }
+
+            echo "✅ LoginState: updateLastActivity throttling verified (Issue #166)\n";
+        }
+
+        /**
+         * Test that expireStaleAcsRequests and expireStaleGlpiSessions throttle executions (Issues #151, #166).
+         *
+         * @throws \Exception if throttling logic behaves unexpectedly.
+         */
+        public function testExpireStaleCleanupsThrottling(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            LoginState::resetCleanupThrottle();
+
+            LoginState::expireStaleAcsRequests();
+            LoginState::expireStaleGlpiSessions();
+
+            LoginState::expireStaleAcsRequests();
+            LoginState::expireStaleGlpiSessions();
+
+            echo "✅ LoginState: expireStaleCleanups periodic throttling verified (Issues #151, #166)\n";
+        }
     }
 }
 
@@ -468,6 +552,8 @@ namespace {
         $test->testLoginStateInactivityTimeoutNoOverwrite();
         $test->testLoginStateImpersonationNoOverwrite();
         $test->testLoginStateRefreshLoginDateTimeOnNewRequest();
+        $test->testUpdateLastActivityThrottling();
+        $test->testExpireStaleCleanupsThrottling();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
