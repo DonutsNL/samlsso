@@ -73,9 +73,9 @@ class Auth extends glpiAuth
         $this->user = (new User())->getOrCreateUser($userFields, $configEntity, $state);
 
         // Setting this property actually authorizes the login for the user.
-        // Be aware (sic) Succeeded is spelled incorrectly in parent GLPI object
-        // as per Auth.php:1043
-        $this->auth_succeded = $this->user;
+        // In GLPI 12, Auth::$auth_succeded has a strict native boolean type (public bool $auth_succeded).
+        // Be aware (sic) Succeeded is spelled incorrectly in parent GLPI object.
+        $this->auth_succeded = ($this->user !== null && $this->user !== false);
 
         // Return this object for injection into the session.
         return $this;

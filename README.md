@@ -1,7 +1,7 @@
 # samlSSO
 [![CodeFactor](https://www.codefactor.io/repository/github/donutsnl/samlsso/badge)](https://www.codefactor.io/repository/github/donutsnl/samlsso)
 [![GLPI Compatibility](https://img.shields.io/badge/GLPI-%E2%89%A5%2011.0.0-green.svg)](https://github.com/DonutsNL/samlsso)
-[![Tests Passing](https://img.shields.io/badge/tests-16%20suites%20passed-brightgreen.svg)](tests/RunAllTests.php)
+[![Tests Passing](https://img.shields.io/badge/tests-18%20suites%20passed-brightgreen.svg)](tests/RunAllTests.php)
 [![GitHub release](https://img.shields.io/github/v/release/DonutsNL/samlsso.svg)](https://github.com/DonutsNL/samlsso/releases)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
@@ -57,7 +57,9 @@ If you have coding experience (or are learning to code) and want to add meaningf
 # Credits
 OSS depends on community effort! So honor where honours are due 🫶:
 - Raul, @gambware, Koen, Marc-henri, Vijay Nayani, Fabio Grasso, for supporting  the OSS-community.
-- @MikeDevresse, @eduardomozart, @Neozlag, @tomas321 for providing fixes to the codebase.
+- @beeone42 (Sebastien BENOIT) for architecting the dual GLPI 11/12 property typing compatibility layer, call-time webdir helpers, and Twig strict mode fixes (#169, #167).
+- @froberts0n (Frank Robertson, Synairgis) for adding registration_number to user claims mapping (#134, #157).
+- @MikeDevresse, @eduardomozart, @Neozlag, @tomas321, @albertogalisteo, @KawanCostaNs, @enricomv, @Siruv for providing fixes and improvements to the codebase.
 - @andreaPress for figuring out and sharing the docker config needed.
 - @SpyK-01 for licensing and sharing the logo via https://elements.envato.com/letter-shield-gradient-colorful-logo-XZ7LYCM.
 - @dollierp for adding a cleanup task

@@ -330,6 +330,153 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Inbound Security Auto-Disable when strict mode disabled verified\n";
         }
+
+        /**
+         * Test that SP private key sources (db, file, env) are loaded and validated correctly.
+         */
+        public function testSpPrivateKeySources(): void {
+            // Generate matching cert and private key
+            $res = \openssl_pkey_new([
+                "private_key_bits" => 2048,
+                "private_key_type" => OPENSSL_KEYTYPE_RSA,
+            ]);
+            $dn = ["countryName" => "NL", "organizationName" => "Test", "commonName" => "localhost"];
+            $csr = \openssl_csr_new($dn, $res);
+            $certRes = \openssl_csr_sign($csr, null, $res, 365);
+            \openssl_x509_export($certRes, $certStr);
+            \openssl_pkey_export($res, $privateKeyStr);
+
+            $basePostData = [
+                ConfigEntity::ID                 => '1',
+                ConfigEntity::NAME               => 'Test IDP',
+                ConfigEntity::CONF_DOMAIN        => 'example.com',
+                ConfigEntity::IS_ACTIVE          => '1',
+                ConfigEntity::IS_DELETED         => '0',
+                ConfigEntity::STRICT             => '1',
+                ConfigEntity::DEBUG              => '0',
+                ConfigEntity::SP_CERTIFICATE     => $certStr,
+                ConfigEntity::IDP_ENTITY_ID      => 'http://idp.example.com',
+                ConfigEntity::IDP_SSO_URL        => 'http://idp.example.com/sso',
+                ConfigEntity::IDP_SLO_URL        => 'http://idp.example.com/slo',
+                ConfigEntity::IDP_CERTIFICATE    => $certStr,
+                ConfigEntity::REQUEST_TIMEOUT    => '15',
+                ConfigEntity::INACTIVITY_TIMEOUT => '0',
+                ConfigEntity::ENFORCE_SSO        => '1',
+                ConfigEntity::PROXIED            => '0',
+                ConfigEntity::USER_JIT           => '1',
+                ConfigEntity::SYNC_ON_LOGIN      => '0',
+                ConfigEntity::ENCRYPT_NAMEID     => '0',
+                ConfigEntity::SIGN_AUTHN         => '0',
+                ConfigEntity::SIGN_SLO_REQ       => '0',
+                ConfigEntity::SIGN_SLO_RES       => '0',
+                ConfigEntity::COMPRESS_REQ       => '1',
+                ConfigEntity::COMPRESS_RES       => '1',
+                ConfigEntity::XML_VALIDATION     => '1',
+                ConfigEntity::DEST_VALIDATION    => '1',
+                ConfigEntity::LOWERCASE_URL      => '0',
+                ConfigEntity::SECURITY_WANTMESSAGESSIGNED => '0',
+                ConfigEntity::SECURITY_WANTASSERTIONSSIGNED => '0',
+                ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED => '0',
+                ConfigEntity::SECURITY_SIGNMETADATA => '0',
+                ConfigEntity::SECURITY_WANTNAMEID => '0',
+                ConfigEntity::SP_NAME_FORMAT => 'unspecified',
+                ConfigEntity::AUTHN_CONTEXT => 'none',
+                ConfigEntity::AUTHN_COMPARE => 'exact',
+            ];
+
+            // 1. Test legacy 'db' source
+            ConfigEntity::clearCache();
+            $postDataDb = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'db',
+                ConfigEntity::SP_KEY        => $privateKeyStr,
+            ]);
+            $entityDb = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataDb]);
+            $entityDb->getFields();
+            if (!$entityDb->isValid()) {
+                throw new \Exception("Legacy 'db' source failed validation.");
+            }
+            $phpSamlConfigDb = $entityDb->getPhpSamlConfig();
+            if ($phpSamlConfigDb['sp']['privateKey'] !== $privateKeyStr) {
+                throw new \Exception("Failed to read private key from DB source.");
+            }
+
+            // 2. Test 'env' source
+            // 2a. Valid env var
+            putenv("TEST_SAMLSSO_SP_KEY=" . $privateKeyStr);
+            ConfigEntity::clearCache();
+            $postDataEnv = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'env',
+                ConfigEntity::SP_KEY        => 'TEST_SAMLSSO_SP_KEY',
+            ]);
+            $entityEnv = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataEnv]);
+            $fieldsEnv = $entityEnv->getFields();
+            if (!$entityEnv->isValid()) {
+                $err = $fieldsEnv[ConfigEntity::SP_KEY][ConfigItem::ERRORS] ?? 'unknown';
+                throw new \Exception("Valid 'env' source failed validation. Error: " . $err);
+            }
+            $phpSamlConfigEnv = $entityEnv->getPhpSamlConfig();
+            if ($phpSamlConfigEnv['sp']['privateKey'] !== $privateKeyStr) {
+                throw new \Exception("Failed to read private key from Env source.");
+            }
+            // 2b. Invalid/missing env var
+            ConfigEntity::clearCache();
+            $postDataEnvInvalid = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'env',
+                ConfigEntity::SP_KEY        => 'NON_EXISTENT_ENV_VAR_123',
+            ]);
+            $entityEnvInvalid = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataEnvInvalid]);
+            $entityEnvInvalid->getFields();
+            if ($entityEnvInvalid->isValid()) {
+                throw new \Exception("Invalid 'env' source should have failed validation.");
+            }
+
+            // 3. Test 'file' source
+            // 3a. Valid file path outside GLPI_ROOT
+            $outsidePath = sys_get_temp_dir() . '/saml_test_key.key';
+            file_put_contents($outsidePath, $privateKeyStr);
+            ConfigEntity::clearCache();
+            $postDataFile = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'file',
+                ConfigEntity::SP_KEY        => $outsidePath,
+            ]);
+            $entityFile = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataFile]);
+            $entityFile->getFields();
+            $isValid = $entityFile->isValid();
+            @unlink($outsidePath);
+            if (!$isValid) {
+                throw new \Exception("Valid 'file' source outside docroot failed validation.");
+            }
+
+            // 3b. Invalid path inside GLPI_ROOT
+            $insidePath = GLPI_ROOT . '/plugins/samlsso/tests/saml_test_key.key';
+            file_put_contents($insidePath, $privateKeyStr);
+            ConfigEntity::clearCache();
+            $postDataFileInside = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'file',
+                ConfigEntity::SP_KEY        => $insidePath,
+            ]);
+            $entityFileInside = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataFileInside]);
+            $entityFileInside->getFields();
+            $isValidInside = $entityFileInside->isValid();
+            @unlink($insidePath);
+            if ($isValidInside) {
+                throw new \Exception("File path inside GLPI_ROOT should have failed docroot validation.");
+            }
+
+            // 3c. Non-existent file
+            ConfigEntity::clearCache();
+            $postDataFileMissing = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'file',
+                ConfigEntity::SP_KEY        => '/var/www/non_existent_key_file.key',
+            ]);
+            $entityFileMissing = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataFileMissing]);
+            $entityFileMissing->getFields();
+            if ($entityFileMissing->isValid()) {
+                throw new \Exception("Non-existent file path should have failed validation.");
+            }
+
+            echo "✅ Config: SP private key source (db, file, env) loading and docroot validation verified\n";
+        }
     }
 }
 
@@ -344,6 +491,7 @@ namespace {
         $test->testDeadConfigDetection();
         $test->testMultiIdpEnforceAutoDisable();
         $test->testStrictDisabledAutoDisableInboundSecurity();
+        $test->testSpPrivateKeySources();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

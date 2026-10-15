@@ -64,6 +64,7 @@ class ConfigDefaultTpl {
                  ConfigEntity::PROXIED          => false,
                  ConfigEntity::STRICT           => false,
                  ConfigEntity::DEBUG            => false,
+                 ConfigEntity::SP_KEY_SOURCE    => 'db',
                  ConfigEntity::USER_JIT         => true,
                  ConfigEntity::SP_CERTIFICATE   => '-----BEGIN CERTIFICATE-----
 MIIF1TCCA72gAwIBAgIUB6hrJz15hIkxxAtAhtzJA6GQjt0wDQYJKoZIhvcNAQEL

@@ -1348,6 +1348,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                         ['Field' => 'name', 'Type' => 'varchar(255)', 'Null' => 'YES'],
                         ['Field' => 'sp_certificate', 'Type' => 'text', 'Null' => 'YES'],
                         ['Field' => 'sp_private_key', 'Type' => 'text', 'Null' => 'YES'],
+                        ['Field' => 'sp_private_key_source', 'Type' => 'varchar(25)', 'Null' => 'NO'],
                         ['Field' => 'strict', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_wantmessagessigned', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_wantassertionssigned', 'Type' => 'tinyint', 'Null' => 'NO'],

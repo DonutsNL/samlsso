@@ -104,7 +104,7 @@ namespace {
         define('PLUGIN_NAME', 'samlsso');
     }
     if (!defined('GLPI_VERSION')) {
-        define('GLPI_VERSION', '10.0.12');
+        define('GLPI_VERSION', '12.0.0');
     }
     if (!defined('GLPI_ROOT')) {
         define('GLPI_ROOT', '/var/www/glpi-dev_quinquies_nl');
@@ -140,6 +140,33 @@ namespace {
             'GlpiPlugin\\Samlsso\\ObservedClaim',
             'GlpiPlugin\\Samlsso\\CronTask',
         ]);
+    }
+
+    /**
+     * Shim for the plugin web-directory helper declared in setup.php.
+     *
+     * setup.php is not loaded by the unit tests, but production code
+     * (LoginFlow) calls samlsso_plugin_web_dir(). Provide the same contract
+     * here: the web path of the plugin WITHOUT a trailing slash, consistent
+     * with the PLUGIN_SAMLSSO_WEBDIR constant shimmed above.
+     *
+     * @return string Web path without trailing slash, e.g. "/plugins/samlsso".
+     */
+    if (!function_exists('samlsso_plugin_web_dir')) {
+        function samlsso_plugin_web_dir(): string {
+            return rtrim(PLUGIN_SAMLSSO_WEBDIR, '/');
+        }
+    }
+
+    /**
+     * Shim for samlsso_webdir function to supply absolute web base URL in tests.
+     *
+     * @return string Absolute base URL of the plugin, with a trailing slash.
+     */
+    if (!function_exists('samlsso_webdir')) {
+        function samlsso_webdir(): string {
+            return PLUGIN_SAMLSSO_WEBDIR;
+        }
     }
 
     /**
@@ -214,16 +241,8 @@ namespace {
      */
     if (!class_exists('Plugin', false)) {
         class Plugin {
-            /**
-             * Returns the web directory path for a plugin.
-             *
-             * @param string $plugin Plugin name.
-             * @param bool $full Whether to return absolute or relative path.
-             * @return string The web directory path.
-             */
-            public static function getWebDir(string $plugin, bool $full = false): string {
-                return "/plugins/$plugin";
-            }
+            /** @var array Mock fields */
+            public array $fields = ['id' => 1];
 
             /**
              * Checks if a plugin is loaded.
@@ -235,7 +254,24 @@ namespace {
                 return true;
             }
 
-            public function deactivate(string $plugin): bool {
+            public function isInstalled(string $plugin): bool {
+                return true;
+            }
+
+            public function isActivated(string $plugin): bool {
+                return true;
+            }
+
+            public static function registerClass(string $class, array $options = []): bool {
+                return true;
+            }
+
+            public function unactivate(int $id): bool {
+                return true;
+            }
+
+            public function getFromDBByCrit(array $crit): bool {
+                $this->fields['id'] = 1;
                 return true;
             }
         }
@@ -451,7 +487,7 @@ namespace {
              * @param string|null $classname Class name to resolve.
              * @return string Resolves the table name based on GLPI conventions.
              */
-            public static function getTable(?string $classname = null): string {
+            public static function getTable($classname = null) {
                 $class = $classname ?? static::class;
                 $parts = explode('\\', strtolower($class));
                 if (count($parts) >= 3 && $parts[0] === 'glpiplugin') {
@@ -478,15 +514,18 @@ namespace {
 
             public static int $getFromDBCallCount = 0;
 
-            /**
-             * Mock loading object from DB by ID.
-             *
-             * @param int $id Object ID.
-             * @return bool Always returns true.
-             */
             public function getFromDB(int $id): bool { 
                 self::$getFromDBCallCount++;
-                return true; 
+                global $DB;
+                $iterator = $DB->request([
+                    'FROM' => static::getTable(),
+                    'WHERE' => ['id' => $id]
+                ]);
+                if (count($iterator) > 0) {
+                    $this->fields = $iterator->current();
+                    return true;
+                }
+                return false; 
             }
 
             /**
@@ -878,25 +917,9 @@ namespace {
             }
         }
     }
-}
 
-namespace Glpi\Toolbox {
-    /**
-     * Shim for GLPI's Sanitizer class.
-     * Mocks the request parameter sanitization process.
-     */
-    if (!class_exists('Glpi\Toolbox\Sanitizer', false)) {
-        class Sanitizer {
-            /**
-             * Simulates filtering input variables.
-             *
-             * @param array $input Input parameters.
-             * @return array Sanitized input parameters.
-             */
-            public static function sanitize(array $input): array { 
-                return $input; 
-            }
-        }
+    if (!class_exists('Glpi\DBAL\QueryExpression', false)) {
+        class_alias('QueryExpression', 'Glpi\DBAL\QueryExpression');
     }
 }
 

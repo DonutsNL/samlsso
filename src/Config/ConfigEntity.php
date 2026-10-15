@@ -77,6 +77,7 @@ class ConfigEntity extends ConfigItem
     public const USER_JIT        = 'user_jit';                               // Enable Just In Time user creation
     public const SP_CERTIFICATE  = 'sp_certificate';                         // Service provider certificate
     public const SP_KEY          = 'sp_private_key';                         // Service provider certificate key
+    public const SP_KEY_SOURCE   = 'sp_private_key_source';                  // Service provider private key source
     public const SP_NAME_FORMAT  = 'sp_nameid_format';                       // Service provider nameID formatting
     public const IDP_ENTITY_ID   = 'idp_entity_id';                          // Identity provider Entity ID
     public const IDP_SSO_URL     = 'idp_single_sign_on_service';             // Identity provider Single Sign On Url
@@ -383,15 +384,53 @@ class ConfigEntity extends ConfigItem
     private function validateAdvancedConfig(array $fields): array
     {
         $disable = false;
-        if (isset($fields[configEntity::SP_CERTIFICATE]) && isset($fields[configEntity::SP_KEY])) {
-            if (empty($fields[configEntity::SP_CERTIFICATE][ConfigItem::VALUE]) || empty($fields[configEntity::SP_KEY][ConfigItem::VALUE])) {
+        if (isset($fields[self::SP_CERTIFICATE]) && isset($fields[self::SP_KEY])) {
+            $spCert = $fields[self::SP_CERTIFICATE][ConfigItem::VALUE] ?? '';
+            $spKeySource = $fields[self::SP_KEY_SOURCE][ConfigItem::VALUE] ?? 'db';
+            $spKeyInput = $fields[self::SP_KEY][ConfigItem::VALUE] ?? '';
+
+            if (empty($spCert) || empty($spKeyInput)) {
                 $disable = true;
             } else {
-                // Perform key validation
-                if (!$this->validateCertKeyPairModulus($fields[configEntity::SP_CERTIFICATE][configItem::VALUE], $fields[configEntity::SP_KEY][configItem::VALUE])) {
-                    $fields[configEntity::SP_KEY][configItem::ERRORS] = __('⚠️ SP private key does not seem to match provided SP certificates modulus.', PLUGIN_NAME);
-                    $disable = true;
-                } // Only show key issue on error.
+                $resolvedKey = '';
+                if ($spKeySource === 'file') {
+                    $realGLPIRoot = realpath(GLPI_ROOT);
+                    $realPath = realpath($spKeyInput);
+                    if ($realPath === false || $realGLPIRoot === false || str_starts_with($realPath, $realGLPIRoot)) {
+                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ Private key file path must be located outside the GLPI root directory (docroot) for security.', PLUGIN_NAME);
+                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
+                        $this->isValid = false;
+                        $disable = true;
+                    } elseif (!is_readable($realPath) || !is_file($realPath)) {
+                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ Private key file does not exist or is not readable.', PLUGIN_NAME);
+                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
+                        $this->isValid = false;
+                        $disable = true;
+                    } else {
+                        $resolvedKey = file_get_contents($realPath) ?: '';
+                    }
+                } elseif ($spKeySource === 'env') {
+                    $envVal = getenv($spKeyInput);
+                    if ($envVal === false || empty($envVal)) {
+                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ Environment variable is not defined or is empty.', PLUGIN_NAME);
+                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
+                        $this->isValid = false;
+                        $disable = true;
+                    } else {
+                        $resolvedKey = (string)$envVal;
+                    }
+                } else {
+                    $resolvedKey = $spKeyInput;
+                }
+
+                if (!$disable) {
+                    if (!$this->validateCertKeyPairModulus($spCert, $resolvedKey)) {
+                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ SP private key does not seem to match provided SP certificates modulus.', PLUGIN_NAME);
+                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
+                        $this->isValid = false;
+                        $disable = true;
+                    }
+                }
             }
         }
         if ($disable) {
@@ -540,6 +579,34 @@ class ConfigEntity extends ConfigItem
     }
 
     /**
+     * Resolves the Service Provider private key from its configured source.
+     *
+     * @param string $source The key source ('db', 'file', or 'env')
+     * @param string $input The key value/path/variable name
+     * @return string The private key content, or empty string on failure
+     */
+    private function resolvePrivateKey(string $source, string $input): string
+    {
+        if (empty($input)) {
+            return '';
+        }
+        if ($source === 'file') {
+            $realGLPIRoot = realpath(GLPI_ROOT);
+            $realPath = realpath($input);
+            if ($realPath === false || $realGLPIRoot === false || str_starts_with($realPath, $realGLPIRoot)) {
+                return '';
+            }
+            if (is_readable($realPath) && is_file($realPath)) {
+                return file_get_contents($realPath) ?: '';
+            }
+            return '';
+        } elseif ($source === 'env') {
+            return (string)getenv($input);
+        }
+        return $input;
+    }
+
+    /**
      * Populates and returns the configuration array for the PHP-saml library.
      *
      * @return          array   $config
@@ -558,13 +625,16 @@ class ConfigEntity extends ConfigItem
                 'sp' => [
                     'entityId'                          => $CFG_GLPI['url_base'] . '/',
                     'assertionConsumerService'          => [
-                        'url'                           => PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::ACS_ROUTE . '/' . $this->fields[ConfigEntity::ID],
+                        'url'                           => samlsso_webdir() . SamlSsoController::ACS_ROUTE . '/' . $this->fields[ConfigEntity::ID],
                     ],
                     'singleLogoutService'               => [
-                        'url'                           => PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::SLO_ROUTE,
+                        'url'                           => samlsso_webdir() . SamlSsoController::SLO_ROUTE,
                     ],
                     'x509cert'                          => $this->fields[ConfigEntity::SP_CERTIFICATE],
-                    'privateKey'                        => $this->fields[ConfigEntity::SP_KEY],
+                    'privateKey'                        => $this->resolvePrivateKey(
+                        $this->fields[self::SP_KEY_SOURCE] ?? 'db',
+                        $this->fields[self::SP_KEY] ?? ''
+                    ),
                     'NameIDFormat'                      => (isset($this->fields[ConfigEntity::SP_NAME_FORMAT]) ? $this->fields[ConfigEntity::SP_NAME_FORMAT]
                         : 'unspecified'),
                 ],

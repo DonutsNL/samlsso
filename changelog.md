@@ -1,5 +1,19 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/170: Adopted codebase for GLPI 12 compatibility, including PHP 8 property-type invariance, removed API migrations, strict form rendering, and test refactoring.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/134 by adding "registration_number" to user claim mapping by @froberts0n (PR https://github.com/DonutsNL/samlsso/pull/157).
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/167 / PR https://github.com/DonutsNL/samlsso/pull/169 by @beeone42: implemented dual GLPI 11 and GLPI 12 inheritance compatibility layer (`src/compat.php`) resolving PHP 8 property type invariance fatal errors on `$dohistory`, `$rightname`, and `$menu_option`.
+- Fixed issue https://github.com/DonutsNL/samlsso/pull/169 by @beeone42: added call-time `samlsso_webdir()` and `samlsso_plugin_web_dir()` helpers resolving boot-time empty `url_base` regressions and relative ACS/SLO URL rejections in php-saml strict mode.
+- Fixed issue https://github.com/DonutsNL/samlsso/pull/169 by @beeone42: added dual-version `User::sanitizeInput()` helper preserving Sanitizer on GLPI 11 while preventing missing class fatal errors on GLPI 12.
+- Fixed issue https://github.com/DonutsNL/samlsso/pull/169 by @beeone42: hardened form rendering and template contexts against Twig `strict_variables` exceptions in GLPI 12 debug mode, and prevented local login lockout when configured IdPs are inactive.
+- Added `Glpi12CompatTest.php` automated test suite to validate the GLPI 12 compatibility wiring, call-time webdir helpers, and anti-obfuscation rules.
+- Updated `QueryExpression` in CronTask.php to `Glpi\DBAL\QueryExpression` for GLPI 12 database abstraction compatibility.
+- Fixed TypeError in Auth.php by ensuring `auth_succeded` is assigned a strict boolean value matching GLPI 12 property type.
+- Guarded `_glpi_csrf_token` and `Session::getNewCSRFToken()` calls across forms and templates to accommodate GLPI 12 header-based CSRF protection.
+- Fixed plugin deactivation call in hook.php by replacing non-existent `deactivate()` method with native `unactivate()`.
+- Refactored test harness and shims to simulate GLPI 12.0.0, aligning `CommonDBTM::getTable` signature with real core.
+- Fixed permission denied error in ConfigIntegrityTest.php by using system temporary directory for key verification outside docroot.
+- Added ADR 0026 documenting GLPI 12 compatibility refactoring, compatibility layer architecture, and test harness alignment.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/151 by introducing request-level configuration caching to reduce redundant SQL queries.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/47 where user ID and username in LoginState were corrupted during GLPI impersonation.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/145 where custom GLPI_MARKETPLACE_DIR paths caused 404/installation regressions - suggested by @albertogalisteo.

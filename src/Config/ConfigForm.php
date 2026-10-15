@@ -100,9 +100,10 @@ class ConfigForm    //NOSONAR complexity by design.
      */
     private function renderBackupRestoreCard(): void
     {
-        $exportUrl   = PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE . '?action=backup_all';
-        $restoreUrl  = PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE . '?action=restore_all';
-        $csrfToken   = \Session::getNewCSRFToken();
+        $exportUrl   = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=backup_all';
+        $restoreUrl  = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=restore_all';
+        $csrfToken   = method_exists(\Session::class, 'getNewCSRFToken') ? \Session::getNewCSRFToken() : '';
+        $csrfField   = $csrfToken !== '' ? "<input type=\"hidden\" name=\"_glpi_csrf_token\" value=\"{$csrfToken}\">" : '';
 
         echo <<<HTML
 <div class="container-fluid mb-2 d-flex justify-content-end" id="samlsso-backup-toggle-container">
@@ -124,7 +125,7 @@ class ConfigForm    //NOSONAR complexity by design.
       </div>
       <div class="col-auto">
         <form method="POST" action="{$restoreUrl}" enctype="multipart/form-data" id="samlsso-restore-form" onsubmit="return samlssoConfirmRestore()">
-          <input type="hidden" name="_glpi_csrf_token" value="{$csrfToken}">
+          {$csrfField}
           <div class="input-group input-group-sm">
             <input type="file" name="restore_file" id="samlsso-restore-file" accept=".json,application/json" class="form-control form-control-sm" required onchange="document.getElementById('samlsso-restore-btn').disabled = false;">
             <button class="btn btn-danger" type="submit" id="samlsso-restore-btn" disabled>
@@ -172,7 +173,7 @@ HTML;
             ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
             ConfigEntity::SECURITY_SIGNMETADATA,
             ConfigEntity::SECURITY_WANTNAMEID,
-            ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY, ConfigEntity::SP_NAME_FORMAT,
+            ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY_SOURCE, ConfigEntity::SP_KEY, ConfigEntity::SP_NAME_FORMAT,
             ConfigEntity::IDP_ENTITY_ID, ConfigEntity::IDP_SSO_URL, ConfigEntity::IDP_SLO_URL,
             ConfigEntity::IDP_CERTIFICATE, ConfigEntity::AUTHN_CONTEXT, ConfigEntity::AUTHN_COMPARE,
             ConfigEntity::ENCRYPT_NAMEID, ConfigEntity::SIGN_AUTHN, ConfigEntity::SIGN_SLO_REQ,
@@ -253,13 +254,13 @@ HTML;
         $uploadedFile = $request->files->get('restore_file');
         if ($uploadedFile === null || !$uploadedFile->isValid()) {
             Session::addMessageAfterRedirect(__('Restore failed: no valid backup file was uploaded.', PLUGIN_NAME), false, ERROR);
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
         }
 
         $json = file_get_contents($uploadedFile->getPathname());
         if ($json === false || trim($json) === '') {
             Session::addMessageAfterRedirect(__('Restore failed: unable to read the uploaded file.', PLUGIN_NAME), false, ERROR);
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
         }
 
         $data = $this->decodeAndHealBackupJson($json);
@@ -273,7 +274,7 @@ HTML;
                 false,
                 ERROR
             );
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
         }
 
         // --- 2. Purge existing data (clean restore) ---
@@ -294,7 +295,7 @@ HTML;
             ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
             ConfigEntity::SECURITY_SIGNMETADATA,
             ConfigEntity::SECURITY_WANTNAMEID,
-            ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY, ConfigEntity::SP_NAME_FORMAT,
+            ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY_SOURCE, ConfigEntity::SP_KEY, ConfigEntity::SP_NAME_FORMAT,
             ConfigEntity::IDP_ENTITY_ID, ConfigEntity::IDP_SSO_URL, ConfigEntity::IDP_SLO_URL,
             ConfigEntity::IDP_CERTIFICATE, ConfigEntity::AUTHN_CONTEXT, ConfigEntity::AUTHN_COMPARE,
             ConfigEntity::ENCRYPT_NAMEID, ConfigEntity::SIGN_AUTHN, ConfigEntity::SIGN_SLO_REQ,
@@ -328,7 +329,7 @@ HTML;
             Session::addMessageAfterRedirect(__('Restore completed but no configurations were imported.', PLUGIN_NAME), false, WARNING);
         }
 
-        return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIG_ROUTE);
+        return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
     }
 
     /**
@@ -440,7 +441,7 @@ HTML;
             $config = new Config();
             if (!$config->canUpdate()) {
                 Session::addMessageAfterRedirect(__('You do not have permission to perform this action.', PLUGIN_NAME), false, ERROR);
-                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIGFORM_ROUTE);
+                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
             }
             $stateId = (int)$request->get('state_id');
             if ($stateId > 0) {
@@ -460,7 +461,7 @@ HTML;
                 }
             }
             $idpId = !empty($request->get('id')) ? (int) $request->get('id') : -1;
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $idpId . '#logging');
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $idpId . '#logging');
         }
 
         $inputBag = $request->getPayload();                                     // Assign the inputBag
@@ -549,7 +550,7 @@ HTML;
                 $claimMapEntity->save($claimMap);
                 // Leave succes message for user and redirect
                 Session::addMessageAfterRedirect(__('Successfully added new samlSSO configuration.', PLUGIN_NAME));
-                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$id);
+                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $id);
             } else {
                 // Leave error message for user and regenerate form with values
                 Session::addMessageAfterRedirect(__('Unable to add new samlSSO configuration, please review error logging', PLUGIN_NAME));
@@ -583,8 +584,10 @@ HTML;
         if($configEntity->isValid() && $claimMapValid){
             // Get the normalized database fields
             $fields = $configEntity->getDBFields([ConfigEntity::CREATE_DATE, ConfigEntity::IS_DELETED]);
-            // Add the cross site request forgery token to the fields
-            $fields['_glpi_csrf_token'] = $postData['_glpi_csrf_token'];
+            // Add the cross site request forgery token to the fields if present (legacy GLPI)
+            if (isset($postData['_glpi_csrf_token'])) {
+                $fields['_glpi_csrf_token'] = $postData['_glpi_csrf_token'];
+            }
             // Get instance of SamlConfig for db update.
             $config = new Config();
             // Perform database update using fields.
@@ -594,11 +597,11 @@ HTML;
                 $claimMapEntity->save($claimMap);
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
-                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
+                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $postData['id']);
             } else {
                 // Leave a failed message
                 Session::addMessageAfterRedirect(__('Configuration update failed, check your update rights or error logging', PLUGIN_NAME));
-                return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$postData['id']);
+                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $postData['id']);
             }
         }else{
             // Leave an error message and reload the form with provided values and errors
@@ -623,11 +626,11 @@ HTML;
            $config->delete((array) $postData)){
             // Leave success message and redirect
             Session::addMessageAfterRedirect(__('Configuration deleted successfully', PLUGIN_NAME));
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
         } else {
             // Leave fail message and redirect back to config.
             Session::addMessageAfterRedirect(__('Not allowed or error deleting SAML configuration!', PLUGIN_NAME));
-            return new RedirectResponse(PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIG_ROUTE.'?id='.$postData['id']);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?id=' . $postData['id']);
         }
     }
 
@@ -673,6 +676,7 @@ HTML;
                                                 configEntity::DEST_VALIDATION,
                                                 configEntity::LOWERCASE_URL],
                       'provider_warning'    => [configEntity::SP_CERTIFICATE,
+                                                configEntity::SP_KEY_SOURCE,
                                                 configEntity::SP_KEY,
                                                 configEntity::SP_NAME_FORMAT],
                       'idp_warning'         => [configEntity::IDP_ENTITY_ID,
@@ -790,7 +794,24 @@ HTML;
             $totalPages = 1;
             $page = 1;
         }
-        
+
+        // Twig strict_variables compatibility (GLPI 12 instances running with
+        // kernel.debug=true, e.g. a git checkout install): the form templates
+        // below read errors/formtitle/formexplain/validate for every field,
+        // but validation does not always populate those sub-keys. Default the
+        // optional sub-keys so strict mode renders exactly like production
+        // (where undefined keys resolve to an empty string).
+        foreach ($fields as $fkey => $fval) {
+            if (!is_array($fval)) {
+                continue;
+            }
+            foreach ([ConfigItem::ERRORS, ConfigItem::FORMTITLE, ConfigItem::FORMEXPLAIN, ConfigItem::VALIDATE, ConfigItem::FIELD, ConfigItem::VALUE] as $skey) {
+                if (!array_key_exists($skey, $fval)) {
+                    $fields[$fkey][$skey] = '';
+                }
+            }
+        }
+
         // Define static field translations
         $tplVars = array_merge($tplVars, [
             'claim_mappings'            =>  $claimMappings,
@@ -805,8 +826,10 @@ HTML;
             'saml_xml_structure'        =>  $fields[ConfigEntity::SAML_XML_STRUCTURE]['value'] ?? '',
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
-            'csrf_token'                =>  \Session::getNewCSRFToken(),
-            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::CONFIGFORM_ROUTE.'?id='.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'csrf_token'                =>  method_exists(\Session::class, 'getNewCSRFToken') ? \Session::getNewCSRFToken() : '',
+            'currentUserId'             =>  (int) \Session::getLoginUserID(),
+            'currentUsername'           =>  (string) ($_SESSION['glpiname'] ?? ''),
+            'glpi_rootdoc'              =>  samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
             'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
             'inputfields'               =>  $fields,
             'buttonsHiddenWarn'         =>  ($configEntity->getConfigDomain()) ? true : false,
@@ -816,15 +839,18 @@ HTML;
             'logging_total_pages'       =>  $totalPages,
             'logging_total_count'       =>  $totalCount,
             'entityID'                  =>  $CFG_GLPI['url_base'].'/',
-            'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::ACS_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
-            'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::META_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
-            'sloUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR.SamlSsoController::SLO_ROUTE.'/'.$fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'acsUrl'                    =>  samlsso_webdir() . SamlSsoController::ACS_ROUTE . '/' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'metaUrl'                   =>  samlsso_webdir() . SamlSsoController::META_ROUTE . '/' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
+            'sloUrl'                    =>  samlsso_webdir() . SamlSsoController::SLO_ROUTE . '/' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
             'inputOptionsBool'          =>  [ 1                                 => __('Yes', PLUGIN_NAME),
                                               0                                 => __('No', PLUGIN_NAME)],
             'inputOptionsNameFormat'    =>  [Saml2Const::NAMEID_UNSPECIFIED     => __('Unspecified', PLUGIN_NAME),
                                              Saml2Const::NAMEID_EMAIL_ADDRESS   => __('Email Address', PLUGIN_NAME),
                                              Saml2Const::NAMEID_TRANSIENT       => __('Transient', PLUGIN_NAME),
                                              Saml2Const::NAMEID_PERSISTENT      => __('Persistent', PLUGIN_NAME)],
+            'inputOptionsKeySource'     =>  ['db'   => __('Database (legacy)', PLUGIN_NAME),
+                                             'file' => __('Secure File Path', PLUGIN_NAME),
+                                             'env'  => __('Environment Variable', PLUGIN_NAME)],
             'inputOptionsAuthnContext'  =>  ['PasswordProtectedTransport'   => __('PasswordProtectedTransport', PLUGIN_NAME),
                                              'Password'                     => __('Password', PLUGIN_NAME),
                                              'X509'                         => __('X509', PLUGIN_NAME),

@@ -51,15 +51,23 @@ use Search;
 use Session;
 use Migration;
 use DBConnection;
-use CommonDropdown;
+use GlpiPlugin\Samlsso\Compat\ExcludeCompat;
 use GlpiPlugin\Samlsso\Controller\SamlSsoController;
+
+// Version-selected compatibility layer (GLPI 11 untyped / GLPI 12 typed core
+// properties). Must be required before the class below extends ExcludeCompat.
+require_once __DIR__ . '/compat.php';
 
 /**
  * Be careful with PSR4 Namespaces when extending common GLPI objects.
  * Only Characters are allowed in namespaces extending glpi Objects.
  * @see https://github.com/pluginsGLPI/example/issues/51
+ *
+ * $rightname ('config') is carried by ExcludeCompat, version-typed for GLPI 11
+ * and GLPI 12; redeclaring it here would be a fatal type-invariance error on
+ * one of the two cores.
  */
-class Exclude extends CommonDropdown
+class Exclude extends ExcludeCompat
 {
     /**
      * Exclude DB fields
@@ -70,9 +78,6 @@ class Exclude extends CommonDropdown
     const CLIENTAGENT       = 'ClientAgent';
     const EXCLUDEPATH       = 'ExcludePath';
     const ACTION            = 'action';
-
-
-    public static $rightname = 'config';
 
     /**
      * getTypeName(int nb) : string -

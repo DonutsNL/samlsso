@@ -791,7 +791,9 @@
 
 <!-- Standalone form for Force Logoff & Disable to prevent nested form submissions -->
 <form id="samlsso-forcelogoff-form" action="{{ glpi_rootdoc }}" method="POST" style="display:none;">
+    {% if csrf_token %}
     <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+    {% endif %}
     <input type="hidden" name="action" value="forcelogoff">
     <input type="hidden" name="state_id" id="samlsso-forcelogoff-state-id" value="">
     <input type="hidden" name="id" id="samlsso-forcelogoff-config-id" value="">

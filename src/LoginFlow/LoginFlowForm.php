@@ -94,8 +94,10 @@ class LoginFlowForm    //NOSONAR complexity by design.
         if ($loginFlowEntity->isValid()) {
             // Get the normalized database fields
             $fields = $loginFlowEntity->getDBFields([loginFlowEntity::CREATE_DATE, loginFlowEntity::IS_DELETED]);
-            // Add the cross site request forgery token to the fields
-            $fields['_glpi_csrf_token'] = $postData['_glpi_csrf_token'];
+            // Add the cross site request forgery token to the fields if present (legacy GLPI)
+            if (isset($postData['_glpi_csrf_token'])) {
+                $fields['_glpi_csrf_token'] = $postData['_glpi_csrf_token'];
+            }
             // Get instance of SamlConfig for db update.
             $config = new LoginFlow();
             // Perform database update using fields.
@@ -105,11 +107,11 @@ class LoginFlowForm    //NOSONAR complexity by design.
             ) {
                 // Leave a success message for the user and redirect using ID.
                 Session::addMessageAfterRedirect(__('Configuration updated successfully', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::FLOWFORM_ROUTE . '/' . $postData['id']);
+                Html::redirect(samlsso_webdir() . SamlSsoController::FLOWFORM_ROUTE . '/' . $postData['id']);
             } else {
                 // Leave a failed message
                 Session::addMessageAfterRedirect(__('Configuration update failed, check your update rights or error logging', PLUGIN_NAME));
-                Html::redirect(PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::FLOWFORM_ROUTE . '/' . $postData['id']);
+                Html::redirect(samlsso_webdir() . SamlSsoController::FLOWFORM_ROUTE . '/' . $postData['id']);
             }
         } else {
             // Leave an error message and reload the form with provided values and errors
@@ -167,17 +169,32 @@ class LoginFlowForm    //NOSONAR complexity by design.
             $logging = [];
         }
 
+        // Twig strict_variables compatibility (GLPI 12 instances running with
+        // kernel.debug=true): see ConfigForm::showConfigForm() for the same
+        // normalization. Default the optional field sub-keys used by the form
+        // templates so strict mode renders like production.
+        foreach ($fields as $fkey => $fval) {
+            if (!is_array($fval)) {
+                continue;
+            }
+            foreach ([LoginFlowItem::ERRORS, LoginFlowItem::FORMTITLE, LoginFlowItem::FORMEXPLAIN, LoginFlowItem::VALIDATE, LoginFlowItem::FIELD, LoginFlowItem::VALUE] as $skey) {
+                if (!array_key_exists($skey, $fval)) {
+                    $fields[$fkey][$skey] = '';
+                }
+            }
+        }
+
         // Define static field translations
         $tplVars = array_merge($tplVars, [
             'plugin'                    =>  PLUGIN_NAME,
             'close_form'                =>  Html::closeForm(false),
-            'glpi_rootdoc'              =>  PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::FLOWFORM_ROUTE . '?id=' . $fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
+            'glpi_rootdoc'              =>  samlsso_webdir() . SamlSsoController::FLOWFORM_ROUTE . '?id=' . $fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
             'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
             'inputfields'               =>  $fields,
             'loggingfields'             =>  $logging,
             'entityID'                  =>  $CFG_GLPI['url_base'] . '/',
-            'acsUrl'                    =>  PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::ACS_ROUTE . '?id=' . $fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
-            'metaUrl'                   =>  PLUGIN_SAMLSSO_WEBDIR . SamlSsoController::META_ROUTE . '?id=' . $fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
+            'acsUrl'                    =>  samlsso_webdir() . SamlSsoController::ACS_ROUTE . '?id=' . $fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
+            'metaUrl'                   =>  samlsso_webdir() . SamlSsoController::META_ROUTE . '?id=' . $fields[LoginFlowEntity::ID][LoginFlowItem::VALUE],
             'inputOptionsBool'          =>  [
                 1                                 => __('Yes', PLUGIN_NAME),
                 0                                 => __('No', PLUGIN_NAME)

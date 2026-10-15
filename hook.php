@@ -230,7 +230,13 @@ function plugin_samlsso_install(): bool                                         
         }
         // Deactivate the plugin immediately to ensure it remains disabled
         $pluginObj = new \Plugin();
-        $pluginObj->deactivate('samlsso');
+        if (method_exists($pluginObj, 'unactivate')) {
+            if ($pluginObj->getFromDBByCrit(['directory' => 'samlsso'])) {
+                $pluginObj->unactivate((int)$pluginObj->fields['id']);
+            }
+        } elseif (method_exists($pluginObj, 'deactivate')) {
+            $pluginObj->deactivate('samlsso');
+        }
         return false;
     }
 

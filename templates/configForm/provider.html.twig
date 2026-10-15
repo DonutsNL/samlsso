@@ -149,6 +149,22 @@
                         }}
                     </div>
 
+                    <!-- sp_private_key_source -->
+                    <div class="mb-3">
+                        {% if inputfields.sp_private_key_source.errors == true %}
+                            <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.sp_private_key_source.errors }}</div>
+                        {% endif %}
+                        {{ fields.dropdownArrayField(
+                            inputfields.sp_private_key_source.field,
+                            inputfields.sp_private_key_source.value,
+                            inputOptionsKeySource,
+                            inputfields.sp_private_key_source.formtitle,
+                            {
+                                helper: inputfields.sp_private_key_source.formexplain,
+                            }) 
+                        }}
+                    </div>
+
                     <!-- sp_private_key -->
                     <div class="mb-3">
                         {{ fields.textareaField( 

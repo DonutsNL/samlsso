@@ -194,6 +194,26 @@ class ConfigItem    //NOSONAR
         ];
     }
 
+    protected function sp_private_key_source(mixed $var): array //NOSONAR
+    {
+        $val = (string) $var;
+        $allowed = ['db', 'file', 'env'];
+        $error = false;
+        if (!in_array($val, $allowed)) {
+            $error = __('⭕ Invalid private key source selected.', PLUGIN_NAME);
+            $val = 'db';
+        }
+        return [
+            ConfigItem::FORMEXPLAIN => __('Specify where the Service Provider\'s private key is stored. Keep keys outside the database for enhanced security.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('SP PRIVATE KEY SOURCE', PLUGIN_NAME),
+            ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE     => $val,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => $error,
+        ];
+    }
+
 
 
     protected function sp_nameid_format(mixed $var): array //NOSONAR
