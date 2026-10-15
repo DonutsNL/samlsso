@@ -234,9 +234,20 @@ class Acs extends LoginFlow
             $inResponseTo = $this->samlResponse->getXMLDocument()->documentElement->getAttribute('InResponseTo');
             $this->state = new LoginState($inResponseTo);
             LoginFlow::$activeState = $this->state;
+
+            /**
+             * When the SAML response is unsolicited (IdP-initiated, no InResponseTo),
+             * initialize the state to PHASE_SAML_ACS and record the IdP ID and unsolicited flag.
+             */
+            if (empty($inResponseTo)) {
+                if (!$this->state->getStateId()) {
+                    $this->state->writeState();
+                }
+                $this->state->setIdpId($this->idpId);
+                $this->state->setPhase(LoginState::PHASE_SAML_ACS);
+                $this->state->setUnsolicited(true);
+            }
         } catch (Throwable $e) {
-            // All references to state removed when state doesnt exist yet.
-            // Fix for: https://github.com/DonutsNL/samlsso/issues/104
             $this->printError(
                 sprintf(__("Could not fetch loginState from database with error: <br><br>%s<br><br>See: %s for more information.", PLUGIN_NAME), $e, 'https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php'),
                 __('Samlsso->acs->init->LoginState::construct', PLUGIN_NAME)
@@ -254,13 +265,16 @@ class Acs extends LoginFlow
      */
     public function assertSaml(): void
     {
-        // Perform validation by phpSaml library
-        // This MUST be the first thing we do to prevent DoS attacks where an attacker
-        // triggers phase changes or response registrations without a valid signature.
-        // We pass the expected RequestID to allow phpSaml to validate the InResponseTo attribute.
-        // https://github.com/DonutsNL/samlsso/issues/104
+        /**
+         * Perform validation by phpSaml library.
+         * For SP-initiated requests, validate that InResponseTo matches the expected RequestID.
+         * For IdP-initiated / unsolicited responses (empty InResponseTo), pass null so that
+         * phpSaml does not reject the response due to a missing InResponseTo attribute.
+         */
         try {
-            if (!$this->samlResponse->isValid($this->state->getSamlRequestId())) {
+            $inResponseTo = $this->samlResponse->getXMLDocument()->documentElement->getAttribute('InResponseTo');
+            $expectedRequestId = !empty($inResponseTo) ? $this->state->getSamlRequestId() : null;
+            if (!$this->samlResponse->isValid($expectedRequestId)) {
                 $errorStr = $this->samlResponse->getError(false) ?: '';
                 $suggestion = '';
                 if ($errorStr !== '') {

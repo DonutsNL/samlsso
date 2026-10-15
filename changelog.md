@@ -1,5 +1,6 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/147: Supported IdP-initiated (unsolicited) SAML login flows by validating incoming assertions with null expected request ID when InResponseTo is absent, and transitioning new unsolicited sessions to PHASE_SAML_ACS.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/130: Added configurable "Force re-authentication" (`force_authn`) option to IdP configuration, setting `ForceAuthn="true"` on outgoing SAML AuthnRequests to ensure IdPs execute fresh authentication and authorization checks on every login.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/142: Added support for loading the SP private key from PHP defined constants (`define`) via `ConfigEntity::resolvePrivateKey()` and configuration dropdown options, allowing keys to be defined in `local_define.php` outside the database.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/137: Hardened codebase against PHP 8.0+ type regressions by guarding `$_SERVER['HTTP_USER_AGENT']` nullability in `Exclude::isExcluded()`, casting `requested_authn_context` before string operations in `ConfigEntity::getRequestedAuthnContextArray()`, and casting `$_POST` array keys to string in `LoginFlow::resolveIdpFromLoginForm()`.

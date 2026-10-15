@@ -831,6 +831,31 @@ class LoginState extends CommonDBTM
     }
 
     /**
+     * Sets the unsolicited status in the login state.
+     *
+     * @param bool $unsolicited Whether the request is unsolicited/IdP-initiated.
+     * @return bool True on successful update.
+     */
+    public function setUnsolicited(bool $unsolicited = true): bool
+    {
+        $this->state[LoginState::SAML_UNSOLICITED] = $unsolicited ? '1' : '0';
+        if (isset($this->state[LoginState::STATE_ID])) {
+            return (bool)$this->update($this->state);
+        }
+        return true;
+    }
+
+    /**
+     * Checks if the login state is flagged as unsolicited.
+     *
+     * @return bool True if unsolicited.
+     */
+    public function isUnsolicited(): bool
+    {
+        return !empty($this->state[LoginState::SAML_UNSOLICITED]);
+    }
+
+    /**
      * Verifies the requestId is not present in the state
      * database.
      * @return  bool

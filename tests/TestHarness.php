@@ -1065,6 +1065,31 @@ namespace GlpiPlugin\Samlsso {
                 return $this->samlAuthed;
             }
 
+            /** @var bool Active unsolicited status. */
+            public bool $unsolicited = false;
+
+            /**
+             * Sets the unsolicited status.
+             *
+             * @param bool $unsolicited Unsolicited flag.
+             * @return bool True.
+             */
+            public function setUnsolicited(bool $unsolicited = true): bool
+            {
+                $this->unsolicited = $unsolicited;
+                return true;
+            }
+
+            /**
+             * Checks if unsolicited.
+             *
+             * @return bool Unsolicited status.
+             */
+            public function isUnsolicited(): bool
+            {
+                return $this->unsolicited;
+            }
+
             /**
              * Gets the recorded SAML response ID.
              *

@@ -571,6 +571,36 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
+         * Test that IdP-initiated (unsolicited) SAML response without InResponseTo attribute
+         * is accepted, validated without expecting a request ID, and completes authentication.
+         */
+        public function testIdpInitiatedUnsolicitedLogin(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 5
+            ]);
+            \OneLogin\Saml2\Response::$mockId = 'UNSOLICITED_RESPONSE_ID_777';
+            \OneLogin\Saml2\Response::$mockInResponseTo = '';
+            \OneLogin\Saml2\Response::$mockValid = true;
+
+            $state = new Loginstate();
+            $state->setIdpId(5);
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
+
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have completed login and initiated redirect for unsolicited assertion.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'Redirect to:')) {
+                    throw new \Exception("Unsolicited login failed with: " . $e->getMessage());
+                }
+            }
+            echo "✅ ACS: IdP-initiated / unsolicited login flow verified (Issue #147)\n";
+        }
+
+        /**
          * Test that a validation failure sets the state phase to PHASE_ERROR (9).
          */
         public function testPhaseErrorTransitionOnFailure(): void {
@@ -651,6 +681,7 @@ namespace {
         $runTest('testSetPhaseThrows');
         $runTest('testPhaseErrorTransitionOnFailure');
         $runTest('testSuccessfulAcsLogin');
+        $runTest('testIdpInitiatedUnsolicitedLogin');
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
