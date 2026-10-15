@@ -152,7 +152,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                         throw new \Exception("Field '$field' should be TEXT, found $actualType");
                     }
                 } elseif (in_array($actualType, ['TINYINT', 'INT', 'VARCHAR', 'TEXT', 'TIMESTAMP'])) {
-                    $boolPrefixes = ['enforce_', 'proxied', 'strict', 'debug', 'user_jit', 'security_', 'compress_', 'validate_', 'lowercase_', 'is_'];
+                    $boolPrefixes = ['enforce_', 'proxied', 'strict', 'debug', 'user_jit', 'security_', 'compress_', 'validate_', 'lowercase_', 'is_', 'force_'];
                     foreach ($boolPrefixes as $prefix) {
                         if (str_starts_with($field, $prefix) && $actualType !== 'TINYINT') {
                             throw new \Exception("Flag field '$field' should be TINYINT, found $actualType");
@@ -500,6 +500,38 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Config: SP private key source (db, file, env, define) loading and docroot validation verified\n";
         }
+
+        /**
+         * Test that force_authn configuration option is mapped and propagated correctly.
+         *
+         * @throws \Exception if force_authn behavior is incorrect.
+         */
+        public function testForceAuthnConfig(): void {
+            if (ConfigEntity::FORCE_AUTHN !== 'force_authn') {
+                throw new \Exception("ConfigEntity::FORCE_AUTHN should be 'force_authn'");
+            }
+
+            $entity = new ConfigEntity();
+            $fields = $entity->getFields();
+            if (!array_key_exists(ConfigEntity::FORCE_AUTHN, $fields)) {
+                throw new \Exception("force_authn not present in ConfigEntity getFields()");
+            }
+
+            $reflectionMethod = new \ReflectionMethod(ConfigItem::class, 'force_authn');
+            $reflectionMethod->setAccessible(true);
+
+            $res = $reflectionMethod->invoke($entity, 1);
+            if (empty($res[ConfigItem::VALUE])) {
+                throw new \Exception("force_authn validator did not handle 1 as active value");
+            }
+
+            $resOff = $reflectionMethod->invoke($entity, 0);
+            if (!empty($resOff[ConfigItem::VALUE])) {
+                throw new \Exception("force_authn validator did not handle 0 as inactive value");
+            }
+
+            echo "✅ Config: force_authn configuration mapping and validation verified (Issue #130)\n";
+        }
     }
 }
 
@@ -515,6 +547,7 @@ namespace {
         $test->testMultiIdpEnforceAutoDisable();
         $test->testStrictDisabledAutoDisableInboundSecurity();
         $test->testSpPrivateKeySources();
+        $test->testForceAuthnConfig();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

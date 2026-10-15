@@ -701,6 +701,25 @@ class ConfigItem    //NOSONAR
         );
     }
 
+    /**
+     * Validates and structures the force_authn configuration field.
+     *
+     * @param mixed $var Raw input value.
+     * @return array Configuration field definition array.
+     */
+    protected function force_authn(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled, the SP will set ForceAuthn="true" on outgoing AuthnRequests, requiring the IdP to re-authenticate the user directly and execute all authorization checks.', PLUGIN_NAME)),
+                ConfigItem::FORMTITLE     => __('FORCE RE-AUTHENTICATION', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::FORCE_AUTHN)
+        );
+    }
+
     protected function security_logoutrequestsigned(mixed $var): array //NOSONAR
     {
         return array_merge(

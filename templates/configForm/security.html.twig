@@ -275,6 +275,24 @@
                         }}
                     </div>
 
+                    <!-- force_authn -->
+                    <div class="mb-3">
+                        {% set error_helper %}
+                            {% if inputfields.force_authn.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:{% if '⚠️' in inputfields.force_authn.errors %}rgb(180, 120, 8){% else %}red{% endif %};">{{ inputfields.force_authn.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.sliderField(
+                            inputfields.force_authn.field,
+                            inputfields.force_authn.value,
+                            inputfields.force_authn.formtitle,
+                            {
+                                'add_field_html': error_helper|raw,
+                                helper: inputfields.force_authn.formexplain,
+                            }) 
+                        }}
+                    </div>
+
                     <!-- security_logoutrequestsigned -->
                     <div class="mb-3">
                         {% set error_helper %}

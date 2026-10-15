@@ -511,6 +511,7 @@ namespace GlpiPlugin\Samlsso\Config {
             public const AUTHN_COMPARE   = 'requested_authn_context_comparison';
             public const ENCRYPT_NAMEID  = 'security_nameidencrypted';
             public const SIGN_AUTHN      = 'security_authnrequestssigned';
+            public const FORCE_AUTHN     = 'force_authn';
             public const SIGN_SLO_REQ    = 'security_logoutrequestsigned';
             public const SIGN_SLO_RES    = 'security_logoutresponsesigned';
             public const COMPRESS_REQ    = 'compress_requests';
@@ -1379,6 +1380,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                         ['Field' => 'security_wantnameid', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_nameidencrypted', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_authnrequestssigned', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'force_authn', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_logoutrequestsigned', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_logoutresponsesigned', 'Type' => 'tinyint', 'Null' => 'NO'],
                     ];

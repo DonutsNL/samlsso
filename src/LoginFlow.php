@@ -501,11 +501,16 @@ class LoginFlow extends LoginFlowCompat
                 }
             }
 
+            $forceAuthn = false;
+            if ($configEntity !== null) {
+                $forceAuthn = (bool) $configEntity->getField(ConfigEntity::FORCE_AUTHN);
+            }
+
             try {
                 $ssoBuiltUrl = $auth->login(
                     $returnTo,
                     array(),
-                    false,
+                    $forceAuthn,
                     false,
                     true,
                     true,

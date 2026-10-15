@@ -87,6 +87,10 @@ class ConfigEntity extends ConfigItem
     public const AUTHN_COMPARE   = 'requested_authn_context_comparison';     // Requested authn context comparison (to be evaluated by Idp)
     public const ENCRYPT_NAMEID  = 'security_nameidencrypted';               // Encrypt nameId field using service provider certificate
     public const SIGN_AUTHN      = 'security_authnrequestssigned';           // Sign authN request using service provider certificate
+    /**
+     * @var string Database column: flag to force IdP re-authentication on outgoing AuthnRequests.
+     */
+    public const FORCE_AUTHN     = 'force_authn';
     public const SIGN_SLO_REQ    = 'security_logoutrequestsigned';           // Sign logout request using service provider certificate
     public const SIGN_SLO_RES    = 'security_logoutresponsesigned';          // Sign logout response using service provider certificate
     public const COMPRESS_REQ    = 'compress_requests';                      // Compress all requests
@@ -667,6 +671,7 @@ class ConfigEntity extends ConfigItem
                 'security'                              => [
                     'nameIdEncrypted'                   => (bool) $this->fields[ConfigEntity::ENCRYPT_NAMEID],
                     'authnRequestsSigned'               => (bool) $this->fields[ConfigEntity::SIGN_AUTHN],
+                    'forceAuthn'                        => (bool) ($this->fields[ConfigEntity::FORCE_AUTHN] ?? false),
                     'logoutRequestSigned'               => (bool) $this->fields[ConfigEntity::SIGN_SLO_REQ],
                     'logoutResponseSigned'              => (bool) $this->fields[ConfigEntity::SIGN_SLO_RES],
                     'wantMessagesSigned'                => (bool)$this->fields[ConfigEntity::SECURITY_WANTMESSAGESSIGNED],

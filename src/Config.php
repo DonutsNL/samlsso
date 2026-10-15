@@ -516,6 +516,7 @@ class Config extends ConfigCompat
             `requested_authn_context_comparison` VARCHAR(25) NOT NULL,
             `security_nameidencrypted`      tinyint NOT NULL DEFAULT '0',
             `security_authnrequestssigned`  tinyint NOT NULL DEFAULT '0',
+            `force_authn`                   tinyint NOT NULL DEFAULT '0',
             `security_logoutrequestsigned`  tinyint NOT NULL DEFAULT '0',
             `security_logoutresponsesigned` tinyint NOT NULL DEFAULT '0',
             `security_wantmessagessigned`   tinyint NOT NULL DEFAULT '0',
@@ -588,6 +589,10 @@ class Config extends ConfigCompat
 
             if (!$DB->fieldExists($table, 'sp_private_key_source', false)) {
                 $migration->addField($table, 'sp_private_key_source', 'varchar', ['len' => '25', 'null' => false, 'default' => 'db', 'update' => true]);
+            }
+
+            if (!$DB->fieldExists($table, 'force_authn', false)) {
+                $migration->addField($table, 'force_authn', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
             }
 
             Session::addMessageAfterRedirect("🆗 Updated: $table layout.");
