@@ -47,6 +47,7 @@ declare(strict_types=1);
 namespace GlpiPlugin\Samlsso\Utility;
 
 use GlpiPlugin\Samlsso\Config;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\Exclude;
 use GlpiPlugin\Samlsso\LoginState;
 use GlpiPlugin\Samlsso\ClaimMap;
@@ -66,13 +67,22 @@ class SanityChecker
         $status = true;
         $messages = [];
 
-        // 1. Validate Plugin Files Consistency
+        /**
+         * Resolve the plugin root directory relative to this file.
+         * Using dirname(__DIR__, 2) supports installations in both standard
+         * plugins/ and alternative marketplace/ directories.
+         */
+        $pluginRoot = dirname(__DIR__, 2);
+
+        /**
+         * 1. Validate Plugin Files Consistency
+         */
         $requiredFiles = [
-            GLPI_ROOT . '/plugins/samlsso/setup.php',
-            GLPI_ROOT . '/plugins/samlsso/hook.php',
-            GLPI_ROOT . '/plugins/samlsso/src/Config.php',
-            GLPI_ROOT . '/plugins/samlsso/src/CronTask.php',
-            GLPI_ROOT . '/plugins/samlsso/src/LoginState.php',
+            $pluginRoot . '/setup.php',
+            $pluginRoot . '/hook.php',
+            $pluginRoot . '/src/Config.php',
+            $pluginRoot . '/src/CronTask.php',
+            $pluginRoot . '/src/LoginState.php',
         ];
 
         foreach ($requiredFiles as $file) {
@@ -82,8 +92,10 @@ class SanityChecker
             }
         }
 
-        // 2. Validate Translation Assets
-        $localesDir = GLPI_ROOT . '/plugins/samlsso/locales';
+        /**
+         * 2. Validate Translation Assets
+         */
+        $localesDir = $pluginRoot . '/locales';
         if (!is_dir($localesDir)) {
             $status = false;
             $messages[] = "❌ Locales directory is missing.";
@@ -95,13 +107,38 @@ class SanityChecker
             }
         }
 
-        // 3. Validate Database Tables
+        /**
+         * 3. Validate Database Tables and Column Definitions
+         *
+         * Uses class constants for column names to avoid raw string literals
+         * and ensures exact casing alignment with table definitions (e.g.
+         * Exclude::EXCLUDEPATH and ObservedClaim::SAML_CLAIM).
+         */
         $expectedTables = [
-            'glpi_plugin_samlsso_configs'        => ['id', 'name', 'inactivity_timeout'],
-            'glpi_plugin_samlsso_excludes'       => ['id', 'excludePath'],
-            'glpi_plugin_samlsso_loginstates'    => ['id', 'lastClickTime', 'phase'],
-            'glpi_plugin_samlsso_claimmaps'      => ['id', 'configs_id', 'target_type'],
-            'glpi_plugin_samlsso_observedclaims' => ['id', 'configs_id', 'claim_key']
+            getTableForItemType(Config::class)        => [
+                ConfigEntity::ID,
+                ConfigEntity::NAME,
+                ConfigEntity::INACTIVITY_TIMEOUT,
+            ],
+            getTableForItemType(Exclude::class)       => [
+                'id',
+                defined(Exclude::class . '::EXCLUDEPATH') ? Exclude::EXCLUDEPATH : 'ExcludePath',
+            ],
+            getTableForItemType(LoginState::class)    => [
+                LoginState::STATE_ID,
+                LoginState::LAST_ACTIVITY,
+                LoginState::PHASE,
+            ],
+            getTableForItemType(ClaimMap::class)      => [
+                ClaimMap::ID,
+                ClaimMap::CONFIGS_ID,
+                ClaimMap::TARGET_TYPE,
+            ],
+            getTableForItemType(ObservedClaim::class) => [
+                ObservedClaim::ID,
+                ObservedClaim::CONFIGS_ID,
+                ObservedClaim::SAML_CLAIM,
+            ],
         ];
 
         foreach ($expectedTables as $table => $columns) {
@@ -125,7 +162,7 @@ class SanityChecker
 
         return [
             'status'   => $status,
-            'messages' => $messages
+            'messages' => $messages,
         ];
     }
 }

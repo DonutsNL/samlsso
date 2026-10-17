@@ -811,6 +811,8 @@ namespace GlpiPlugin\Samlsso {
         if (!class_exists('GlpiPlugin\Samlsso\Exclude', false)) {
             class Exclude
             {
+                public const EXCLUDEPATH = 'ExcludePath';
+
                 /**
                  * Mock checks if the request is excluded from SSO rules.
                  *

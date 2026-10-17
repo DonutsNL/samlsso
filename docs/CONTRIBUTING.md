@@ -30,15 +30,15 @@ This repository is maintained with an "AI-First" mindset. Whether you are a huma
 - **Error Handling**: Do not use `die()`. Always use `Html::displayError()` or throw a PluginException as not to break the automated testing suite.
 - **Return Values**: Ensure all code paths return a value and are valid. Dont allow 'blind' unhandled conditions in the application logic or a lack of default returns. For that reason, if a code path is theoretically unreachable, return the appropriate default value or throw a PluginException to satisfy static analysis. All code paths **SHOULD** be traversable for testing (100% code coverage) purposes.
 - **PluginContext**: Always use `PluginContext::get()` for global plugin configuration instead of directly accessing `Config` or static methods.
-- **Inline Comments**: Do not use inline comments. Use DocBlocks instead and make sure every line of code is commented on why it is there and what it does and is easy to understand.
+- **Inline Comments**: Do not use inline comments. Use DocBlocks instead and make sure every line of code is commented on why it is there and what it does and is easy to understand for community inspection, review and evaluation.
 - **Indentation**: Use 4 spaces for indentation.
 - **Line Length**: Keep lines under 120 characters where possible.
 - **Spacing**: Do not use extra spaces, tabs or newlines. Keep the code clean and easy to read.
-- **Variable Names**: Use descriptive variable names and follow the naming conventions of the plugin.
-- **Function Names**: Use descriptive function names and follow the naming conventions of the plugin.
-- **Class Names**: Use descriptive class names and follow the naming conventions of GLPI first then the plugin.
-- **Constants**: Use descriptive constant names and follow the naming conventions of GLPI first then the plugin.
-- **Add ADRs**: Take note of and provide the rationale, consequences, alternatives, pros, and cons of your changes in an ADR (Architecture Decision Record) in the [ ADRS folder.](ADRS/0001-authentication-system.md)
+- **Variable Names**: You **MUST** use descriptive variable names and follow the naming conventions of the plugin.
+- **Function Names**: You **MUST** use descriptive function names and follow the naming conventions of the plugin.
+- **Class Names**: You **MUST** use descriptive class names and follow the naming conventions of GLPI first then the plugin.
+- **Constants**: You **MUST** use descriptive constant names and follow the naming conventions of GLPI first then the plugin.
+- **Add ADRs**: Use `/grill-me` for complex changes,Take note of and provide the rationale, consequences, alternatives, pros, and cons of your changes in an ADR (Architecture Decision Record) in the [ ADRS folder.](ADRS/0001-authentication-system.md)
 - **Obfuscations**: Never allow obfuscations (e.g. minifications, magic strings, hashed strings, encoded payloads etc) in the code. If you detect one in the code downloaded from the repository report it to the maintainer and do not include it in the code you propose. Try to uncover the goal of the obfuscation and try to remove it and document this in an issue. The only exception is when obfuscation is used for security purposes and is documented as such in an ADR.
 - **Add Tests**: When adding new functionality, you **MUST** add new tests to the `tests` folder to verify the new functionality. Try to follow the style of the existing tests. If the tests fail, fix the tests and make sure they pass before proposing the change. Also try to improve the existing tests if applicable.
 

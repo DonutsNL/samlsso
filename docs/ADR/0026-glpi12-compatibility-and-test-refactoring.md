@@ -1,4 +1,4 @@
-# ADR 0026: GLPI 12 Compatibility, Property-Type Invariance, and Test Suite Mock Refactoring
+# ADR 0026: GLPI 12 Compatibility, Property-Type Invariance, and Test Suite Mock Refactoring, proposed by @beeone42 (Sebastien BENOIT).
 
 ## Status
 Accepted
