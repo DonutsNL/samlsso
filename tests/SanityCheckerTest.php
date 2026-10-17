@@ -83,7 +83,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                     ConfigEntity::INACTIVITY_TIMEOUT => true,
                 ],
                 getTableForItemType(Exclude::class) => [
-                    'id' => true,
+                    Exclude::ID => true,
                     Exclude::EXCLUDEPATH => true,
                 ],
                 getTableForItemType(LoginState::class) => [

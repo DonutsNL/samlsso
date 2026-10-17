@@ -811,6 +811,7 @@ namespace GlpiPlugin\Samlsso {
         if (!class_exists('GlpiPlugin\Samlsso\Exclude', false)) {
             class Exclude
             {
+                public const ID          = 'id';
                 public const EXCLUDEPATH = 'ExcludePath';
 
                 /**

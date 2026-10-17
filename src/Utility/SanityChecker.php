@@ -121,7 +121,7 @@ class SanityChecker
                 ConfigEntity::INACTIVITY_TIMEOUT,
             ],
             getTableForItemType(Exclude::class)       => [
-                'id',
+                defined(Exclude::class . '::ID') ? Exclude::ID : 'id',
                 defined(Exclude::class . '::EXCLUDEPATH') ? Exclude::EXCLUDEPATH : 'ExcludePath',
             ],
             getTableForItemType(LoginState::class)    => [

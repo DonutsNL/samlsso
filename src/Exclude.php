@@ -72,6 +72,7 @@ class Exclude extends ExcludeCompat
     /**
      * Exclude DB fields
      */
+    const ID                = 'id';
     const NAME              = 'name';
     const DATE_CREATION     = 'date_creation';
     const DATE_MOD          = 'date_mod';

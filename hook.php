@@ -61,7 +61,9 @@ use GlpiPlugin\Samlsso\LoginFlow\User;
  */
 include_once __DIR__ . '/vendor/autoload.php';
 
-// METHODS
+/**
+ * Hook implementations and lifecycle callback methods.
+ */
 
 /**
  * This function is hooked by rule engine if an user import rule matches configured criteria.
@@ -220,7 +222,9 @@ function plugin_samlsso_install(): bool                                         
         (new \Glpi\Cache\CacheManager())->resetAllCaches();
     }
 
-    // Run the sanity check after database migrations and cache clear
+    /**
+     * Run the sanity check after database migrations and cache reset.
+     */
     $checkResult = \GlpiPlugin\Samlsso\Utility\SanityChecker::check();
     if (!$checkResult['status']) {
         foreach ($checkResult['messages'] as $msg) {
@@ -228,7 +232,9 @@ function plugin_samlsso_install(): bool                                         
                 Session::addMessageAfterRedirect($msg, false, ERROR);
             }
         }
-        // Deactivate the plugin immediately to ensure it remains disabled
+        /**
+         * Deactivate the plugin immediately to ensure it remains disabled.
+         */
         $pluginObj = new \Plugin();
         if (method_exists($pluginObj, 'unactivate')) {
             if ($pluginObj->getFromDBByCrit(['directory' => 'samlsso'])) {
