@@ -264,9 +264,15 @@ namespace GlpiPlugin\Samlsso\Tests {
                 if (array_key_exists('before', $opts)) {
                     throw new \Exception("Detected forbidden 'before' option in field addition: Table={$call['table']}, Field={$call['field']}, before={$opts['before']}");
                 }
+                if (strtolower($call['type']) === 'varchar') {
+                    throw new \Exception("Detected invalid bare 'varchar' type in addField (Issue #173): Table={$call['table']}, Field={$call['field']}. Use 'string' instead.");
+                }
+                if ($call['field'] === 'force_authn' && !empty($opts['update']) && $opts['update'] === true) {
+                    throw new \Exception("Detected 'update' => true on force_authn in addField (Issue #173), which causes accidental activation on upgrade.");
+                }
             }
 
-            echo "✅ Database Migrations: Verified all addField calls are order-independent (no 'after' or 'before' options found in " . count($migration->addFieldCalls) . " field updates)\n";
+            echo "✅ Database Migrations: Verified all addField calls are order-independent and use valid types (no bare 'varchar' or forbidden order options found in " . count($migration->addFieldCalls) . " field updates)\n";
         }
 
         /**

@@ -593,20 +593,24 @@ class Config extends ConfigCompat
                 $migration->addField($table, 'security_wantnameid', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
             }
 
-            if (!$DB->fieldExists($table, 'sp_private_key_source', false)) {
-                $migration->addField($table, 'sp_private_key_source', 'varchar', ['len' => '25', 'null' => false, 'default' => 'db', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::SP_KEY_SOURCE, false)) {
+                $migration->addField($table, ConfigEntity::SP_KEY_SOURCE, 'string', ['value' => 'db', 'default' => 'db', 'null' => false]);
             }
 
-            if (!$DB->fieldExists($table, 'force_authn', false)) {
-                $migration->addField($table, 'force_authn', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::FORCE_AUTHN, false)) {
+                $migration->addField($table, ConfigEntity::FORCE_AUTHN, 'bool', ['value' => '0', 'default' => '0', 'null' => false]);
             }
 
-            if (!$DB->fieldExists($table, 'conf_icon_url', false)) {
-                $migration->addField($table, 'conf_icon_url', 'varchar', ['len' => '255', 'null' => true, 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::CONF_ICON_URL, false)) {
+                $migration->addField($table, ConfigEntity::CONF_ICON_URL, 'string', ['null' => true]);
             }
 
-            if (!$DB->fieldExists($table, 'login_header_text', false)) {
-                $migration->addField($table, 'login_header_text', 'varchar', ['len' => '255', 'null' => true, 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::LOGIN_HEADER_TEXT, false)) {
+                $migration->addField($table, ConfigEntity::LOGIN_HEADER_TEXT, 'string', ['null' => true]);
+            }
+
+            if ($DB->fieldExists($table, ConfigEntity::FORCE_AUTHN, false)) {
+                $DB->doQuery("UPDATE `$table` SET `" . ConfigEntity::FORCE_AUTHN . "` = 0 WHERE `" . ConfigEntity::FORCE_AUTHN . "` IS NULL");
             }
 
             Session::addMessageAfterRedirect("🆗 Updated: $table layout.");

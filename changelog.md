@@ -1,5 +1,6 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/173 and https://github.com/DonutsNL/samlsso/issues/171: Resolved SQL syntax error 1064 during table upgrade and plugin activation by converting column definitions in `Migration::addField()` from unsupported 'varchar' to 'string', removing conflicting 'update' => true on boolean/string fields to prevent accidental activation of 'force_authn', and normalizing any null values.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/171: Resolved false-positive schema validation failure and deactivation in SanityChecker on fresh installation by aligning column names with class constants (`ObservedClaim::SAML_CLAIM` and `Exclude::EXCLUDEPATH`) and making plugin path detection dynamic.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/159: Added configurable login screen header text (`login_header_text`) and custom button icon image URL (`conf_icon_url`) to IdP configuration, allowing administrators to customize the login screen header and display custom image/logo icons on login buttons without CSS overrides.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/153: Allowed additive multi-profile assignments across multiple JIT rules by removing the destructive loop in `User::assignProfileRights()` that deleted existing profile authorizations.
