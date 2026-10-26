@@ -7,6 +7,8 @@
  * interval. Without input no request is sent, so idle sessions still time out.
  *
  * Loaded by setup.php for authenticated users when an inactivity timeout is configured.
+ * The interval (seconds) is provided by the meta tag "samlsso-keepalive-interval" and is
+ * half the configured timeout, so a ping always arrives before the session times out.
  */
 (function () {
     'use strict';
@@ -21,18 +23,41 @@
     if (url === script.src) {
         return;
     }
-    var interval = 60 * 1000;
-    var lastPing = Date.now(); // The page load itself already counted as activity.
 
-    function onActivity() {
-        var now = Date.now();
-        if (now - lastPing < interval) {
-            return;
+    // Read on first use so the order of the meta tag and this script in the page does not matter.
+    var interval = null;
+    function getInterval() {
+        if (interval === null) {
+            var meta = document.querySelector('meta[name="samlsso-keepalive-interval"]');
+            var seconds = meta ? parseInt(meta.getAttribute('content'), 10) : NaN;
+            interval = (seconds > 0 ? seconds : 30) * 1000;
         }
-        lastPing = now;
+        return interval;
+    }
+
+    var lastPing = Date.now(); // The page load itself already counted as activity.
+    var trailing = null;
+
+    function ping() {
+        lastPing = Date.now();
+        trailing = null;
         // No X-Requested-With header on purpose: doAuth() skips AJAX requests and
         // would not count this request as activity.
         fetch(url, { credentials: 'same-origin', cache: 'no-store' }).catch(function () {});
+    }
+
+    // Ping right away if the interval has passed, otherwise once at the end of the
+    // interval, so input shortly after a ping is reported as well.
+    function onActivity() {
+        var wait = getInterval() - (Date.now() - lastPing);
+        if (wait <= 0) {
+            if (trailing !== null) {
+                clearTimeout(trailing);
+            }
+            ping();
+        } else if (trailing === null) {
+            trailing = setTimeout(ping, wait);
+        }
     }
 
     var events = ['keydown', 'input', 'mousedown', 'touchstart'];

@@ -209,34 +209,46 @@ namespace GlpiPlugin\Samlsso\Tests {
         /**
          * The keepalive script is only needed when an active configuration uses an inactivity timeout.
          */
-        public function testHasInactivityTimeoutLookup(): void {
+        public function testMinInactivityTimeoutAndInterval(): void {
             global $DB;
             $db = new ParamsMockDB();
             $DB = $db;
 
             Config::clearCache();
-            if (Config::getHasInactivityTimeout() !== false) {
-                throw new \Exception("Expected no inactivity timeout without matching configurations");
+            if (Config::getMinInactivityTimeout() !== 0 || Config::getKeepaliveInterval() !== 0) {
+                throw new \Exception("Expected no keepalive without matching configurations");
             }
             $where = $db->lastParams['WHERE'] ?? [];
             if (($where['inactivity_timeout'] ?? null) !== ['>', 0] || ($where['is_active'] ?? null) !== 1 || ($where['is_deleted'] ?? null) !== 0) {
                 throw new \Exception("Unexpected WHERE clause: " . json_encode($where));
             }
 
-            Config::clearCache();
-            $db->setResponse(Config::getTable(), [['id' => 1, 'inactivity_timeout' => 5]]);
-            if (Config::getHasInactivityTimeout() !== true) {
-                throw new \Exception("Expected inactivity timeout to be detected");
+            // Smallest timeout wins, interval is half the timeout and at most 60 seconds.
+            $cases = [
+                [[5, 15], 5, 60],
+                [[2], 2, 60],
+                [[30, 1], 1, 30],
+            ];
+            foreach ($cases as [$timeouts, $expectedMin, $expectedInterval]) {
+                Config::clearCache();
+                $db->setResponse(Config::getTable(), array_map(fn($t) => ['inactivity_timeout' => $t], $timeouts));
+                if (Config::getMinInactivityTimeout() !== $expectedMin || Config::getKeepaliveInterval() !== $expectedInterval) {
+                    throw new \Exception(sprintf(
+                        "Timeouts %s: expected min %d / interval %d, got %d / %d",
+                        json_encode($timeouts), $expectedMin, $expectedInterval,
+                        Config::getMinInactivityTimeout(), Config::getKeepaliveInterval()
+                    ));
+                }
             }
 
             // Cached for the rest of the request.
             $db->setResponse(Config::getTable(), []);
-            if (Config::getHasInactivityTimeout() !== true) {
+            if (Config::getMinInactivityTimeout() !== 1) {
                 throw new \Exception("Expected cached result");
             }
             Config::clearCache();
 
-            echo "✅ Keepalive: inactivity timeout lookup and caching\n";
+            echo "✅ Keepalive: smallest inactivity timeout, ping interval and caching\n";
         }
 
         /**
@@ -244,9 +256,11 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function testKeepaliveWiring(): void {
             $setup = file_get_contents(__DIR__ . '/../setup.php');
-            $pattern = '/getLoginUserID\(\)\s*!==\s*false\s*&&\s*Config::getHasInactivityTimeout\(\)\)\s*\{\s*\$PLUGIN_HOOKS\[\'add_javascript\'\]\[PLUGIN_NAME\]\s*=\s*\[\'js\/keepalive\.js\'\]/';
+            $pattern = '/\$keepaliveInterval\s*=\s*\(Session::getLoginUserID\(\)\s*!==\s*false\)\s*\?\s*Config::getKeepaliveInterval\(\)\s*:\s*0;\s*'
+                     . 'if\s*\(\$keepaliveInterval\s*>\s*0\)\s*\{\s*\$PLUGIN_HOOKS\[\'add_javascript\'\]\[PLUGIN_NAME\]\s*=\s*\[\'js\/keepalive\.js\'\];\s*'
+                     . '\$PLUGIN_HOOKS\[\'add_header_tag\'\]\[PLUGIN_NAME\].*\'samlsso-keepalive-interval\'.*\$keepaliveInterval/s';
             if (!preg_match($pattern, $setup)) {
-                throw new \Exception("setup.php does not register js/keepalive.js for authenticated users with inactivity timeout");
+                throw new \Exception("setup.php does not register js/keepalive.js and its interval meta tag for authenticated users with inactivity timeout");
             }
 
             $controller = file_get_contents(__DIR__ . '/../src/Controller/SamlSsoController.php');
@@ -272,7 +286,7 @@ namespace {
     $test = new GlpiPlugin\Samlsso\Tests\KeepaliveTest();
     try {
         $test->testKeepaliveKeepsTypingUserLoggedIn();
-        $test->testHasInactivityTimeoutLookup();
+        $test->testMinInactivityTimeoutAndInterval();
         $test->testKeepaliveWiring();
         $test = null;
     } catch (\Exception $e) {

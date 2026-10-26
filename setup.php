@@ -214,8 +214,13 @@ function plugin_init_samlsso(): void                                            
 
         // Register keepalive script so typing (e.g. long ticket answers) counts as
         // activity for the inactivity timeout. Only needed for authenticated users.
-        if (Session::getLoginUserID() !== false && Config::getHasInactivityTimeout()) {
+        $keepaliveInterval = (Session::getLoginUserID() !== false) ? Config::getKeepaliveInterval() : 0;
+        if ($keepaliveInterval > 0) {
             $PLUGIN_HOOKS['add_javascript'][PLUGIN_NAME]    = ['js/keepalive.js'];
+            $PLUGIN_HOOKS['add_header_tag'][PLUGIN_NAME]    = [[
+                'tag'        => 'meta',
+                'properties' => ['name' => 'samlsso-keepalive-interval', 'content' => (string)$keepaliveInterval],
+            ]];
         }
 
         // Register and hook the samlRules to Hooks::RULE_MATCHED
