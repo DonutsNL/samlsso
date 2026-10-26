@@ -1,4 +1,5 @@
 
+- Bugfix: Corrected the translation of the "INACTIVITY TIMEOUT (MINUTES)" label in de_DE, el_GR, es_AR, es_ES, fi_FI, fr_FR, hi_IN, it_IT, nl_NL, pt_BR and sv_SE. Most of these reused the "REQUEST TIMEOUT (MINUTES)" translation, so both timeout fields on the security tab showed the same label.
 **V1.3.2**
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/177: Redirects to static assets (js, css, images, fonts) are no longer stored or used as post login target, preventing unauthenticated asset requests from overwriting deep links or sending users to raw assets after SSO login.
 - Added ADR 0028 documenting the static asset redirect handling for issue https://github.com/DonutsNL/samlsso/issues/177.

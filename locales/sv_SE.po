@@ -641,7 +641,7 @@ msgstr "Varaktigheten i minuter av inaktivitet innan en session tvångsloggas ut
 
 #: src/Config/ConfigItem.php:927
 msgid "INACTIVITY TIMEOUT (MINUTES)"
-msgstr "INAKTIVITET TIMEOUT (MINUTTER)"
+msgstr "TIMEOUT FÖR INAKTIVITET (MINUTER)"
 
 #: src/Config/ConfigItem.php:974 src/Config/ConfigItem.php:989
 msgid "Active (Secure)"
