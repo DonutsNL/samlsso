@@ -213,4 +213,21 @@ final class SamlSsoController extends AbstractController
         return new Response();
     }
 
+
+    ####################################################################
+    // Keepalive route
+    // Pinged by public/js/keepalive.js while the user is typing or clicking.
+    // The request itself is the activity: LoginFlow::doAuth() (POST_INIT hook)
+    // refreshes the last activity of the login state like on any page load.
+    public const KEEPALIVE_ROUTE = 'front/keepalive';                   // Route being registered by __class__
+    public const KEEPALIVE_NAME  = 'samlsso_KEEPALIVE';                 // Route name
+
+    // Explicit strategy: the route fallback is central_access, which would reject simplified interface (helpdesk) users.
+    #[SecurityStrategy(Firewall::STRATEGY_AUTHENTICATED)]               // Any authenticated session, central and helpdesk
+    #[Route(self::KEEPALIVE_ROUTE, name: self::KEEPALIVE_NAME)]         // Decorator to register route to controller
+    public function keepalive(Request $request): Response               // What to do if route is invoked.
+    {
+        return new Response('', Response::HTTP_NO_CONTENT);
+    }
+
 }

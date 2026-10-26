@@ -81,6 +81,7 @@ class Config extends ConfigCompat
     private static ?int $isOnlyOneConfigCache = null;
     private static array $configIdByEmailDomainCache = [];
     private static ?int $hideLoginFieldsCache = null;
+    private static ?bool $hasInactivityTimeoutCache = null;
 
     /**
      * Clear all static request caches (mainly for testing purposes).
@@ -92,6 +93,7 @@ class Config extends ConfigCompat
         self::$isOnlyOneConfigCache = null;
         self::$configIdByEmailDomainCache = [];
         self::$hideLoginFieldsCache = null;
+        self::$hasInactivityTimeoutCache = null;
     }
 
     /**
@@ -418,6 +420,34 @@ class Config extends ConfigCompat
         return 0;
     }
 
+
+    /**
+     * Returns true if at least one active, non-deleted configuration has an
+     * inactivity timeout configured. Used to decide if the keepalive script
+     * needs to be loaded.
+     *
+     * @return  bool
+     * @see             public/js/keepalive.js
+     * @since           1.3.2
+     */
+    public static function getHasInactivityTimeout(): bool
+    {
+        if (self::$hasInactivityTimeoutCache !== null) {
+            return self::$hasInactivityTimeoutCache;
+        }
+        // Get global DB object to query the configTable.
+        global $DB;
+
+        self::$hasInactivityTimeoutCache = (count($DB->request([
+            'FROM'  => Config::getTable(),
+            'WHERE' => [
+                ConfigEntity::IS_ACTIVE          => 1,
+                ConfigEntity::IS_DELETED         => 0,
+                ConfigEntity::INACTIVITY_TIMEOUT => ['>', 0],
+            ]
+        ])) > 0);
+        return self::$hasInactivityTimeoutCache;
+    }
 
     /**
      * If we have a IDP with a valid email configured, then
