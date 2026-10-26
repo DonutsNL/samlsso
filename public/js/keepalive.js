@@ -1,5 +1,5 @@
 /**
- * samlSSO keepalive
+ * samlSSO keepalive, see ADR 0028.
  *
  * The inactivity timeout only sees full page requests. Typing a long ticket
  * answer causes no such requests, so users were logged out on submit and lost
@@ -18,13 +18,21 @@
         return;
     }
 
-    // Plugin web path is shared by public assets and routes: .../samlsso/js/keepalive(.min).js -> .../samlsso/front/keepalive
+    /**
+     * Plugin public assets and routes share the plugin web path:
+     * .../samlsso/js/keepalive(.min).js -> .../samlsso/front/keepalive.
+     * An unexpected script name disables the keepalive instead of pinging a wrong URL.
+     */
     var url = script.src.replace(/\/js\/keepalive(\.min)?\.js(\?.*)?$/, '/front/keepalive');
     if (url === script.src) {
         return;
     }
 
-    // Read on first use so the order of the meta tag and this script in the page does not matter.
+    /**
+     * Ping interval in milliseconds, read on first use so the order of the meta tag
+     * and this script in the page does not matter. Falls back to 30 seconds, which
+     * is safe for the smallest possible timeout of 1 minute.
+     */
     var interval = null;
     function getInterval() {
         if (interval === null) {
@@ -35,19 +43,24 @@
         return interval;
     }
 
-    var lastPing = Date.now(); // The page load itself already counted as activity.
+    /** The page load itself already counted as activity on the server. */
+    var lastPing = Date.now();
     var trailing = null;
 
+    /**
+     * Sends the keepalive request. No X-Requested-With header on purpose:
+     * LoginFlow::doAuth() skips AJAX requests (ADR 0011) and would not count it as activity.
+     */
     function ping() {
         lastPing = Date.now();
         trailing = null;
-        // No X-Requested-With header on purpose: doAuth() skips AJAX requests and
-        // would not count this request as activity.
         fetch(url, { credentials: 'same-origin', cache: 'no-store' }).catch(function () {});
     }
 
-    // Ping right away if the interval has passed, otherwise once at the end of the
-    // interval, so input shortly after a ping is reported as well.
+    /**
+     * Pings right away if the interval has passed, otherwise once at the end of the
+     * interval, so input shortly after a ping is reported as well.
+     */
     function onActivity() {
         var wait = getInterval() - (Date.now() - lastPing);
         if (wait <= 0) {
@@ -62,6 +75,7 @@
 
     var events = ['keydown', 'input', 'mousedown', 'touchstart'];
 
+    /** Registers the activity listeners on a document. */
     function listen(target) {
         events.forEach(function (name) {
             target.addEventListener(name, onActivity, { capture: true, passive: true });
@@ -70,13 +84,17 @@
 
     listen(document);
 
-    // Rich text editors (TinyMCE) run in an iframe, their events do not reach this document.
-    // GLPI loads TinyMCE on demand, possibly after this script, so retry until it is available.
+    /**
+     * Rich text editors (TinyMCE) run in an iframe, their events do not reach this document.
+     * GLPI loads TinyMCE on demand, possibly after this script, so retry until it is available.
+     */
     function listenEditor(editor) {
         editor.on('keydown input mousedown', onActivity);
     }
 
     var hookTimer = null;
+
+    /** Hooks existing and future TinyMCE editors, returns false while TinyMCE is not loaded. */
     function hookTinymce() {
         if (!window.tinymce || typeof window.tinymce.on !== 'function') {
             return false;

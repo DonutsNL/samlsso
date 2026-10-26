@@ -83,6 +83,9 @@ class Config extends ConfigCompat
     private static ?int $hideLoginFieldsCache = null;
     private static ?int $minInactivityTimeoutCache = null;
 
+    /** Upper limit of the keepalive ping interval in seconds, see ADR 0028. */
+    public const KEEPALIVE_MAX_INTERVAL = 60;
+
     /**
      * Clear all static request caches (mainly for testing purposes).
      * @return void
@@ -435,9 +438,12 @@ class Config extends ConfigCompat
         if (self::$minInactivityTimeoutCache !== null) {
             return self::$minInactivityTimeoutCache;
         }
-        // Get global DB object to query the configTable.
         global $DB;
 
+        /**
+         * Only active, non-deleted configurations with an inactivity timeout are relevant.
+         * The smallest timeout determines the interval, so the ping is in time for every IdP.
+         */
         $min = 0;
         foreach ($DB->request([
             'SELECT' => ConfigEntity::INACTIVITY_TIMEOUT,
@@ -459,8 +465,8 @@ class Config extends ConfigCompat
 
     /**
      * Returns the keepalive ping interval in seconds, or 0 if no keepalive is needed.
-     * Half the smallest inactivity timeout, at most 60 seconds, so a ping always
-     * arrives well before the session would time out (1 minute timeout: 30 seconds).
+     * Half the smallest inactivity timeout, at most KEEPALIVE_MAX_INTERVAL seconds, so a
+     * ping always arrives well before the session would time out (1 minute timeout: 30 s).
      *
      * @return  int     Interval in seconds, 0 if no inactivity timeout is configured.
      * @see             public/js/keepalive.js
@@ -469,7 +475,10 @@ class Config extends ConfigCompat
     public static function getKeepaliveInterval(): int
     {
         $timeout = self::getMinInactivityTimeout();
-        return ($timeout > 0) ? min(60, $timeout * 30) : 0;
+        if ($timeout <= 0) {
+            return 0;
+        }
+        return min(self::KEEPALIVE_MAX_INTERVAL, intdiv($timeout * 60, 2));
     }
 
     /**

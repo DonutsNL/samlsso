@@ -215,18 +215,40 @@ final class SamlSsoController extends AbstractController
 
 
     ####################################################################
-    // Keepalive route
-    // Pinged by public/js/keepalive.js while the user is typing or clicking.
-    // The request itself is the activity: LoginFlow::doAuth() (POST_INIT hook)
-    // refreshes the last activity of the login state like on any page load.
-    public const KEEPALIVE_ROUTE = 'front/keepalive';                   // Route being registered by __class__
-    public const KEEPALIVE_NAME  = 'samlsso_KEEPALIVE';                 // Route name
+    /**
+     * Keepalive route, see ADR 0028.
+     * Pinged by public/js/keepalive.js while the user types or clicks, so writing
+     * a long ticket answer is not treated as inactivity by the inactivity timeout.
+     */
+    public const KEEPALIVE_ROUTE  = 'front/keepalive';
+    /** Route name of the keepalive route. */
+    public const KEEPALIVE_NAME   = 'samlsso_KEEPALIVE';
+    /** Plugin public script that performs the keepalive pings, registered in setup.php. */
+    public const KEEPALIVE_SCRIPT = 'js/keepalive.js';
+    /** Name of the meta tag that passes the ping interval in seconds to the keepalive script. */
+    public const KEEPALIVE_META   = 'samlsso-keepalive-interval';
 
-    // Explicit strategy: the route fallback is central_access, which would reject simplified interface (helpdesk) users.
-    #[SecurityStrategy(Firewall::STRATEGY_AUTHENTICATED)]               // Any authenticated session, central and helpdesk
-    #[Route(self::KEEPALIVE_ROUTE, name: self::KEEPALIVE_NAME)]         // Decorator to register route to controller
-    public function keepalive(Request $request): Response               // What to do if route is invoked.
+    /**
+     * Answers a keepalive ping with an empty response.
+     *
+     * The request itself is the activity: LoginFlow::doAuth() (POST_INIT hook) runs
+     * for this request like for any page load, evaluates the inactivity timeout and
+     * refreshes the last activity of the login state. A session that already timed
+     * out is therefore still logged out and not revived by a ping.
+     *
+     * The firewall strategy is set explicitly because the fallback for controller
+     * routes is central_access, which would reject simplified interface (helpdesk)
+     * users. Session::checkLoginUser() verifies the authenticated session again as
+     * required for every plugin entry point.
+     *
+     * @param  Request  $request    Incoming keepalive request, no parameters are used.
+     * @return Response             HTTP 204 No Content.
+     */
+    #[SecurityStrategy(Firewall::STRATEGY_AUTHENTICATED)]
+    #[Route(self::KEEPALIVE_ROUTE, name: self::KEEPALIVE_NAME)]
+    public function keepalive(Request $request): Response
     {
+        \Session::checkLoginUser();
         return new Response('', Response::HTTP_NO_CONTENT);
     }
 
