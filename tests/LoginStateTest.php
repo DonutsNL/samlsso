@@ -641,7 +641,67 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Index path was incorrectly preserved as redirect: " . $loginState2->getRedirect());
             }
 
+            /**
+             * 6. Static assets must not overwrite a captured deep link.
+             */
+            $_SERVER['REQUEST_URI'] = '/front/ticket.form.php?id=123';
+            $db->setResponse($table, [$stateData]);
+            $loginState3 = new LoginState();
+            $loginState3->setRedirect();
+
+            $_SERVER['REQUEST_URI'] = '/var/lib/glpi/plugins/news/js/news.js?v=f22165add49ef7b74dc816f0f9b88d54fe8753f8';
+            $loginState3->setRedirect();
+            $_GET[LoginState::REDIRECT] = '%2Fplugins%2Fnews%2Fjs%2Fnews.js%3Fv%3D1';
+            $loginState3->setRedirect();
+            unset($_GET[LoginState::REDIRECT]);
+            $loginState3->setRedirect('/css/glpi.min.CSS');
+
+            if ($loginState3->getSafeRedirect() !== '/front/ticket.form.php?id=123') {
+                throw new \Exception("Static asset overwrote deep link, got: " . $loginState3->getRedirect());
+            }
+
             echo "✅ LoginState: deep link preservation and open redirect validation verified (Issue #158)\n";
+        }
+
+        /**
+         * Test that static asset detection matches assets only and getSafeRedirect drops stored assets.
+         */
+        public function testStaticAssetRedirectDetection(): void {
+            $assets = [
+                '/var/lib/glpi/plugins/news/js/news.js?v=f22165add49ef7b74dc816f0f9b88d54fe8753f8',
+                '%2Fplugins%2Fnews%2Fjs%2Fnews.js%3Fv%3D1',
+                '/css/glpi.min.CSS',
+                '/pics/logos/logo.png',
+                '/lib/fonts/tabler-icons.woff2',
+            ];
+            foreach ($assets as $asset) {
+                if (!LoginState::isStaticAssetRedirect($asset)) {
+                    throw new \Exception("Expected static asset redirect to be detected: " . $asset);
+                }
+            }
+
+            $pages = ['/front/ticket.form.php?id=42', 'ticket_2_Ticket$main', '/front/central.php', ''];
+            foreach ($pages as $page) {
+                if (LoginState::isStaticAssetRedirect($page)) {
+                    throw new \Exception("Page redirect was incorrectly detected as static asset: " . $page);
+                }
+            }
+
+            // A previously stored asset redirect must not be returned by getSafeRedirect.
+            global $DB;
+            $DB = new MockDB();
+            $loginState = new LoginState();
+            $refObj = new \ReflectionObject($loginState);
+            $refProp = $refObj->getProperty('state');
+            $refProp->setAccessible(true);
+            $state = $refProp->getValue($loginState);
+            $state[LoginState::REDIRECT] = $assets[0];
+            $refProp->setValue($loginState, $state);
+            if ($loginState->getSafeRedirect() !== '') {
+                throw new \Exception("getSafeRedirect returned a static asset: " . $loginState->getSafeRedirect());
+            }
+
+            echo "✅ LoginState: static asset redirects are ignored as post login target\n";
         }
     }
 }
@@ -660,6 +720,7 @@ namespace {
         $test->testUpdateLastActivityThrottling();
         $test->testExpireStaleCleanupsThrottling();
         $test->testRedirectDeepLinkingAndValidation();
+        $test->testStaticAssetRedirectDetection();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

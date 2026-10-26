@@ -678,7 +678,12 @@ class LoginState extends CommonDBTM
             }
         }
 
-        if (!empty($target)) {
+        /**
+         * Ignore static assets (js, css, images, fonts). Browsers request these on the
+         * login page before authentication and they would otherwise overwrite the page
+         * the user actually requested.
+         */
+        if (!empty($target) && !self::isStaticAssetRedirect((string)$target)) {
             $this->state[LoginState::REDIRECT] = (string)$target;
             return (bool)$this->update($this->state);
         }
@@ -1166,6 +1171,13 @@ class LoginState extends CommonDBTM
         }
 
         /**
+         * Static assets are never a valid landing page after login.
+         */
+        if (self::isStaticAssetRedirect($redirect)) {
+            return '';
+        }
+
+        /**
          * Block protocol-relative (//) and absolute (scheme://) URLs pointing outside.
          */
         if (!preg_match('/^(\/\/|\w+:\/\/)/', $redirect) && (str_starts_with($redirect, '/') || preg_match('/^\w+/', $redirect))) {
@@ -1173,6 +1185,28 @@ class LoginState extends CommonDBTM
         }
 
         return '';
+    }
+
+    /**
+     * Returns true if the redirect points to a static asset (script, stylesheet,
+     * image or font) instead of a GLPI page. Browsers request these assets on the
+     * login page before authentication; capturing them as deep link or via
+     * ?redirect=<asset> must not make them the post login target.
+     *
+     * @param  string $redirect Redirect value or request URI.
+     * @return bool
+     * @since  1.3.2
+     */
+    public static function isStaticAssetRedirect(string $redirect): bool
+    {
+        $path = parse_url(rawurldecode($redirect), PHP_URL_PATH);
+        if (!is_string($path) || $path === '') {
+            return false;
+        }
+        return (bool) preg_match(
+            '/\.(js|mjs|css|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot|otf)$/i',
+            $path
+        );
     }
 
     /**
