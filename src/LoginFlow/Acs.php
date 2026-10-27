@@ -142,6 +142,14 @@ class Acs extends LoginFlow
                 );
             }
 
+            $entityId = $this->configEntity->getField(ConfigEntity::ID);
+            if (!$this->configEntity->isValid() || !$this->configEntity->isActive() || $this->configEntity->isDeleted() || ((int)$entityId !== $this->idpId && $entityId !== null)) {
+                $this->printError(
+                    sprintf(__('The requested IdP configuration with id %s is inactive, deleted, or invalid.', PLUGIN_NAME), (string)$this->idpId),
+                    __('Samlsso->acs->init->InactiveOrDeletedIdp', PLUGIN_NAME)
+                );
+            }
+
             $this->debug = ($this->configEntity->getField(ConfigEntity::DEBUG)) ? true : false;
 
             $this->configureProxyVars();
@@ -376,6 +384,27 @@ class Acs extends LoginFlow
                     "The following error was reported: $e"
                 );
             }
+        }
+
+        /**
+         * Verify that the IdP on the ACS route matches the IdP that initiated the session.
+         * For unsolicited flows, state IdP was initialized to the route IdP in fetchRequestState().
+         * For SP-initiated flows, this prevents cross-IdP assertion substitution attacks.
+         */
+        $stateIdpId = (int) $this->state->getIdpId();
+        if ($stateIdpId > 0 && $stateIdpId !== (int) $this->idpId) {
+            $this->printError(
+                sprintf(
+                    __("The IdP ID in the session state (%d) does not match the ACS route IdP ID (%d).", PLUGIN_NAME),
+                    $stateIdpId,
+                    $this->idpId
+                ),
+                __('Samlsso->acs->assertSaml->IdpMismatch', PLUGIN_NAME),
+                Acs::EXTENDED_HEADER .
+                    sprintf("IdP mismatch detected: session expected IdP ID %d, but assertion was received on ACS route for IdP ID %d.\n", $stateIdpId, $this->idpId) .
+                    Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
+                    Acs::EXTENDED_FOOTER . "\n"
+            );
         }
 
         // Only if the registered session is in phase PHASE_SAML_ACS (2) do we allow further

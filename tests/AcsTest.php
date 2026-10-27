@@ -640,6 +640,110 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ ACS: phase transitions to PHASE_ERROR (9) and logs trace on failure\n";
         }
+
+        /**
+         * Test inactive IdP is rejected by Acs::init().
+         */
+        public function testInactiveIdpRejected(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 5
+            ]);
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsActive = false;
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because IdP is inactive.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'inactive, deleted, or invalid')) {
+                    throw new \Exception("Unexpected failure message on inactive IdP: " . $e->getMessage());
+                }
+            } finally {
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsActive = true;
+            }
+            echo "✅ ACS: inactive IdP configuration rejected\n";
+        }
+
+        /**
+         * Test deleted IdP is rejected by Acs::init().
+         */
+        public function testDeletedIdpRejected(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 5
+            ]);
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsDeleted = true;
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because IdP is deleted.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'inactive, deleted, or invalid')) {
+                    throw new \Exception("Unexpected failure message on deleted IdP: " . $e->getMessage());
+                }
+            } finally {
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsDeleted = false;
+            }
+            echo "✅ ACS: deleted IdP configuration rejected\n";
+        }
+
+        /**
+         * Test invalid ConfigEntity is rejected by Acs::init().
+         */
+        public function testInvalidConfigEntityRejected(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 5
+            ]);
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsValid = false;
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because ConfigEntity is invalid.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'inactive, deleted, or invalid')) {
+                    throw new \Exception("Unexpected failure message on invalid ConfigEntity: " . $e->getMessage());
+                }
+            } finally {
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsValid = true;
+            }
+            echo "✅ ACS: invalid IdP configuration rejected\n";
+        }
+
+        /**
+         * Test state IdP ID mismatch is rejected by Acs::assertSaml().
+         */
+        public function testStateIdpMismatchRejected(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 2
+            ]);
+
+            Response::$mockId = 'UNIQUE_RESPONSE_ID_MISMATCH';
+            Response::$mockInResponseTo = 'REQ_ID_IDP_1';
+
+            // Set up a mock state belonging to IdP 1
+            $state = new \GlpiPlugin\Samlsso\Loginstate('REQ_ID_IDP_1');
+            $state->setIdpId(1);
+            $state->setPhase(Loginstate::PHASE_SAML_ACS);
+            $state->setRequestId('REQ_ID_IDP_1');
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
+
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because session state IdP does not match route IdP.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'does not match the ACS route IdP ID')) {
+                    throw new \Exception("Unexpected failure message on IdP mismatch: " . $e->getMessage());
+                }
+            }
+            echo "✅ ACS: state IdP ID mismatch rejected\n";
+        }
     }
 }
 
@@ -662,6 +766,9 @@ namespace {
             \OneLogin\Saml2\Utils::$mockThrow = null;
             \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockThrow = null;
             \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields = [];
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsValid = true;
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsActive = true;
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsDeleted = false;
 
             $test->$name();
         };
@@ -671,6 +778,9 @@ namespace {
         $runTest('testMalformedResponseAssertion');
         $runTest('testMissingResponseOrIdpId');
         $runTest('testConfigEntityThrows');
+        $runTest('testInactiveIdpRejected');
+        $runTest('testDeletedIdpRejected');
+        $runTest('testInvalidConfigEntityRejected');
         $runTest('testProxyVarsThrows');
         $runTest('testSettingsInitializationThrows');
         $runTest('testResponseProcessingThrows');
@@ -679,6 +789,7 @@ namespace {
         $runTest('testSetSamlResponseIdThrows');
         $runTest('testPhaseMismatchAfterRegistration');
         $runTest('testSetPhaseThrows');
+        $runTest('testStateIdpMismatchRejected');
         $runTest('testPhaseErrorTransitionOnFailure');
         $runTest('testSuccessfulAcsLogin');
         $runTest('testIdpInitiatedUnsolicitedLogin');

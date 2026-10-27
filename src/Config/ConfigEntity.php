@@ -597,12 +597,24 @@ class ConfigEntity extends ConfigItem
 
 
     /**
-     * Returns the validity state of the currently loaded ConfigEntity
+     * Returns whether the currently loaded ConfigEntity is active.
+     *
      * @return bool
      */
     public function isActive(): bool
     {
-        return (bool) $this->fields[ConfigEntity::IS_ACTIVE];
+        return (bool) ($this->fields[ConfigEntity::IS_ACTIVE] ?? false);
+    }
+
+
+    /**
+     * Returns whether the currently loaded ConfigEntity is marked as deleted.
+     *
+     * @return bool
+     */
+    public function isDeleted(): bool
+    {
+        return (bool) ($this->fields[ConfigEntity::IS_DELETED] ?? false);
     }
 
 

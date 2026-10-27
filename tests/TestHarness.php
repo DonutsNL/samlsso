@@ -541,6 +541,12 @@ namespace GlpiPlugin\Samlsso\Config {
             private int $id = -1;
             /** @var ?\Throwable Static throwable mock trigger. */
             public static ?\Throwable $mockThrow = null;
+            /** @var bool Static validity mock flag. */
+            public static bool $mockIsValid = true;
+            /** @var bool Static active mock flag. */
+            public static bool $mockIsActive = true;
+            /** @var bool Static deleted mock flag. */
+            public static bool $mockIsDeleted = false;
 
             /**
              * ConfigEntity constructor.
@@ -562,6 +568,9 @@ namespace GlpiPlugin\Samlsso\Config {
              */
             public function getField(string $field): mixed
             {
+                if ($field === self::ID) {
+                    return self::$mockFields[$field] ?? $this->id;
+                }
                 return self::$mockFields[$field] ?? null;
             }
 
@@ -582,7 +591,7 @@ namespace GlpiPlugin\Samlsso\Config {
              */
             public function isValid(): bool
             {
-                return true;
+                return self::$mockIsValid;
             }
 
             /**
@@ -592,7 +601,17 @@ namespace GlpiPlugin\Samlsso\Config {
              */
             public function isActive(): bool
             {
-                return true;
+                return self::$mockIsActive && ((self::$mockFields[self::IS_ACTIVE] ?? 1) == 1);
+            }
+
+            /**
+             * Checks if configuration is marked as deleted.
+             *
+             * @return bool True if deleted.
+             */
+            public function isDeleted(): bool
+            {
+                return self::$mockIsDeleted || !empty(self::$mockFields[self::IS_DELETED]);
             }
 
             /**
