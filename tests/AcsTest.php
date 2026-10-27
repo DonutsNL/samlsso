@@ -744,6 +744,25 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ ACS: state IdP ID mismatch rejected\n";
         }
+
+        /**
+         * Test that ACS endpoint rejects HTTP GET requests and queries with SAMLResponse in URL parameters.
+         */
+        public function testAcsRejectsGetRequest(): void {
+            // GET request with SAMLResponse in query string
+            $request = Request::create('/plugins/samlsso/front/acs.php?SAMLResponse=TEST&idpId=1', 'GET');
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because GET request is not allowed.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'did not contain the required samlResponse POST body')) {
+                    throw new \Exception("Unexpected failure message on GET request check: " . $e->getMessage());
+                }
+            }
+            echo "✅ ACS: GET requests and query-parameter responses rejected\n";
+        }
     }
 }
 
@@ -790,6 +809,7 @@ namespace {
         $runTest('testPhaseMismatchAfterRegistration');
         $runTest('testSetPhaseThrows');
         $runTest('testStateIdpMismatchRejected');
+        $runTest('testAcsRejectsGetRequest');
         $runTest('testPhaseErrorTransitionOnFailure');
         $runTest('testSuccessfulAcsLogin');
         $runTest('testIdpInitiatedUnsolicitedLogin');

@@ -453,12 +453,20 @@ HTML;
     public function invokeForm(Request $request): Response|RedirectResponse     // NOSONAR - CRUDE returns by design.
     {
         if ($request->get('action') === 'forcelogoff') {
+            if (!$request->isMethod('POST')) {
+                Session::addMessageAfterRedirect(__('Invalid request method for force logoff.', PLUGIN_NAME), false, ERROR);
+                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
+            }
+            if (method_exists(\Session::class, 'validateCSRF') && !\Session::validateCSRF($request->request->all())) {
+                Session::addMessageAfterRedirect(__('Security token expired or invalid.', PLUGIN_NAME), false, ERROR);
+                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
+            }
             $config = new Config();
             if (!$config->canUpdate()) {
                 Session::addMessageAfterRedirect(__('You do not have permission to perform this action.', PLUGIN_NAME), false, ERROR);
                 return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
             }
-            $stateId = (int)$request->get('state_id');
+            $stateId = (int)$request->request->get('state_id');
             if ($stateId > 0) {
                 $loginState = new LoginState();
                 if ($loginState->getFromID($stateId)) {
@@ -475,7 +483,7 @@ HTML;
                     Session::addMessageAfterRedirect(__('Login state session not found.', PLUGIN_NAME), false, ERROR);
                 }
             }
-            $idpId = !empty($request->get('id')) ? (int) $request->get('id') : -1;
+            $idpId = !empty($request->request->get('id')) ? (int) $request->request->get('id') : -1;
             return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $idpId . '#logging');
         }
 

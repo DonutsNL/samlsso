@@ -129,7 +129,18 @@ class Acs extends LoginFlow
      */
     public function init(Request $request)             #NOSONAR Yes TLDR not fixing it.
     {
-        $samlResponse = $request->get('SAMLResponse');         // Get post fields if any
+        if (!$request->isMethod('POST')) {
+            $this->printError(
+                sprintf(__('The received idp response did not contain the required samlResponse POST body or idpId to authenticate the user, see: %s for more information', PLUGIN_NAME), 'https://codeberg.org/QuinQuies/glpisaml/wiki/ACS.php'),
+                __('Samlsso->acs->init->NoSamlResponse', PLUGIN_NAME),
+                Acs::EXTENDED_HEADER .
+                    Acs::SERVER_OBJ . $this->getSafeServerContext() . "\n\n" .
+                    Acs::EXTENDED_FOOTER . "\n"
+            );
+            return;
+        }
+
+        $samlResponse = $request->request->get('SAMLResponse');         // Get post fields only
         $this->idpId = !empty($request->get(LoginState::IDP_ID)) ? (int) $request->get(LoginState::IDP_ID) : -1;
 
         if (!empty($samlResponse) && is_numeric($this->idpId)) {

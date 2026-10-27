@@ -602,6 +602,25 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Config: SP private key excluded from search options, marked undisclosed, and encrypted\n";
         }
+
+        /**
+         * Test that forcelogoff requires POST method and rejects GET requests (CSRF protection).
+         */
+        public function testForceLogoffCsrfProtection(): void {
+            $configForm = new \GlpiPlugin\Samlsso\Config\ConfigForm();
+
+            // GET request with forcelogoff action
+            $requestGet = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php?action=forcelogoff&state_id=999',
+                'GET'
+            );
+            $response = $configForm->invokeForm($requestGet);
+            if (!($response instanceof \Symfony\Component\HttpFoundation\RedirectResponse)) {
+                throw new \Exception("Expected RedirectResponse when forcelogoff is invoked via GET");
+            }
+
+            echo "✅ ConfigForm: forcelogoff GET request rejected (CSRF protection)\n";
+        }
     }
 }
 
@@ -620,6 +639,7 @@ namespace {
         $test->testForceAuthnConfig();
         $test->testCustomLoginScreenHeaderAndButtonIcon();
         $test->testSpPrivateKeySecurity();
+        $test->testForceLogoffCsrfProtection();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);
