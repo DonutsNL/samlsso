@@ -205,7 +205,16 @@ class Acs extends LoginFlow
     {
         $samlSettings = null;
         try {
-            $samlSettings = new Settings($this->configEntity->getPhpSamlConfig());
+            $phpSamlConfig = $this->configEntity->getPhpSamlConfig();
+            // Force strict mode for all ACS evaluations to prevent replay and signature wrapping vulnerabilities
+            $phpSamlConfig['strict'] = true;
+
+            // If neither assertions nor messages are signed, enforce assertions signed
+            if (empty($phpSamlConfig['security']['wantMessagesSigned']) && empty($phpSamlConfig['security']['wantAssertionsSigned'])) {
+                $phpSamlConfig['security']['wantAssertionsSigned'] = true;
+            }
+
+            $samlSettings = new Settings($phpSamlConfig);
         } catch (Throwable $e) {
             $this->printError(
                 __('PHP-SAML could not initialize the settings object using the configEntity.', PLUGIN_NAME) . $e->getMessage(),

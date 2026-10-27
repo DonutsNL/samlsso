@@ -62,7 +62,7 @@ class ConfigDefaultTpl {
                  ConfigEntity::CONF_ICON        => 'fa-brands fa-microsoft',
                  ConfigEntity::ENFORCE_SSO      => false,
                  ConfigEntity::PROXIED          => false,
-                 ConfigEntity::STRICT           => false,
+                 ConfigEntity::STRICT           => true,
                  ConfigEntity::DEBUG            => false,
                  ConfigEntity::SP_KEY_SOURCE    => 'db',
                  ConfigEntity::USER_JIT         => true,
