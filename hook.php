@@ -76,7 +76,7 @@ include_once __DIR__ . '/vendor/autoload.php';
  * @see - call - src\LoginFlow\User.php->getOrCreateUser();
  * @see - impl - src\LoginFlow\User.php->updateUserRights();
  */
-function updateUser(array $params): void
+function plugin_samlsso_updateUser(array $params): void
 {
     /**
      * The GLPI rule engine fires all registered rule collections without
@@ -86,6 +86,19 @@ function updateUser(array $params): void
      */
     if ($params['sub_type'] == RuleSaml::class) {
         (new User)->updateUserRights($params);
+    }
+}
+
+if (!function_exists('updateUser')) {
+    /**
+     * Backward-compatible alias for plugin_samlsso_updateUser.
+     *
+     * @param array $params
+     * @return void
+     */
+    function updateUser(array $params): void
+    {
+        plugin_samlsso_updateUser($params);
     }
 }
 

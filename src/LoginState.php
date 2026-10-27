@@ -195,7 +195,7 @@ class LoginState extends CommonDBTM
         if ($sessionIterator->numrows() > 0) {
 
             // We should never get more then one row
-            if (!$sessionIterator->numrows() == 1) {
+            if ($sessionIterator->numrows() !== 1) {
                 throw new LoginStateException('Found duplicated states in samlsso state table!');
             }
 
@@ -696,7 +696,7 @@ class LoginState extends CommonDBTM
     {
         if ($this->state[LoginState::STATE_ID]) {
             if (!empty($this->state[LoginState::LOGIN_FLOW_TRACE])) {
-                $trace = unserialize($this->state[LoginState::LOGIN_FLOW_TRACE]);
+                $trace = unserialize($this->state[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false]);
                 if (is_array($trace)) {
                     $trace = array_merge($trace, $condition);
                 } else {
@@ -960,7 +960,7 @@ class LoginState extends CommonDBTM
                 if (!empty($row[LoginState::LOGIN_FLOW_TRACE])) {
                     $i = 1;
                     $trace = '';
-                    $decodedTrace = unserialize($row[LoginState::LOGIN_FLOW_TRACE]);
+                    $decodedTrace = unserialize($row[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false]);
                     if (is_array($decodedTrace)) {
                         foreach ($decodedTrace as $key => $value) {
                             // Translate main trace step keys
@@ -1526,7 +1526,7 @@ class LoginState extends CommonDBTM
 
         $trace = [];
         if (!empty($sessionState[LoginState::LOGIN_FLOW_TRACE])) {
-            $unserialized = unserialize($sessionState[LoginState::LOGIN_FLOW_TRACE]);
+            $unserialized = unserialize($sessionState[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false]);
             if (is_array($unserialized)) {
                 $trace = $unserialized;
             }
@@ -1609,7 +1609,7 @@ class LoginState extends CommonDBTM
 
         $trace = [];
         if (!empty($sessionState[LoginState::LOGIN_FLOW_TRACE])) {
-            $unserialized = unserialize($sessionState[LoginState::LOGIN_FLOW_TRACE]);
+            $unserialized = unserialize($sessionState[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false]);
             if (is_array($unserialized)) {
                 $trace = $unserialized;
             }

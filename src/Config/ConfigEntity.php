@@ -892,7 +892,7 @@ class ConfigEntity extends ConfigItem
         $dom->preserveWhiteSpace = false;
         $dom->formatOutput = true;
 
-        if (!@$dom->loadXML($xml, LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR | LIBXML_NOCDATA)) {
+        if (!@$dom->loadXML($xml, LIBXML_NONET | LIBXML_NOCDATA)) {
             if (\PHP_VERSION_ID < 80000 && $old_entity_loader !== null) {
                 libxml_disable_entity_loader($old_entity_loader);
             }

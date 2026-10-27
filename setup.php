@@ -236,7 +236,7 @@ function plugin_init_samlsso(): void                                            
 
         // Register and hook the samlRules to Hooks::RULE_MATCHED
         Plugin::registerClass(RuleSamlCollection::class, ['rulecollections_types' => true]);
-        $PLUGIN_HOOKS[Hooks::RULE_MATCHED][PLUGIN_NAME]     = 'updateUser';
+        $PLUGIN_HOOKS[Hooks::RULE_MATCHED][PLUGIN_NAME]     = 'plugin_samlsso_updateUser';
 
         // Register and hook the loginFlow to Hooks::POST_INIT.
         Plugin::registerClass(LoginFlow::class);

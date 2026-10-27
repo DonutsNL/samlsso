@@ -607,11 +607,11 @@ class LoginFlow extends LoginFlowCompat
         Session::start();                   // Create a new statefull one.
 
         if ($auth !== null) {
-            Session::init($auth);
-
             if (!empty($auth->getErrors())) {
                 LoginFlow::PrintFatalLoginError(implode("<br />", $auth->getErrors()));
             }
+
+            Session::init($auth);
         }
 
         // Update the samlState table with the new sessionId.
