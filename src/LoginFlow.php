@@ -196,14 +196,6 @@ class LoginFlow extends LoginFlowCompat
     {
 
 
-        /**
-         * Skip authentication logic for AJAX requests to avoid session state
-         * corruption during background operations.
-         */
-        if (\Toolbox::isAjax()) {
-            return;
-        }
-
         // Do not process login flow if the user is already logged in, unless they are logging out
         $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
         if (!is_string($requestPath)) {
@@ -222,21 +214,6 @@ class LoginFlow extends LoginFlowCompat
             return;
         }
 
-        // If we hit an excluded file, we return and do nothing, not even log the
-        // event. Possibly we want to enable the user to perform SIEM calls by
-        // implementing this functionality prior to this validation.
-        if (Exclude::isExcluded()) {
-            return;
-        }
-
-        /**
-         * Run invalidation logic for unauthenticated flows, throttled periodically (Issues #151, #166).
-         */
-        if ($isLogout || Session::getLoginUserID() === false) {
-            LoginState::expireStaleAcsRequests();
-            LoginState::expireStaleGlpiSessions();
-        }
-
         // Make the GLPI configuration available.
         global $CFG_GLPI;
 
@@ -245,24 +222,18 @@ class LoginFlow extends LoginFlowCompat
         try {
             $this->state = new Loginstate();
             self::$activeState = $this->state;
-            // We need to check if this is the initial state, if so we write it to database.
-            // This logic cant be part of the objects logic because its reinitialized by the
-            // CommonDBTM object causing the sessions to be duplicated. This should also be
-            // the only place where we call the writeState() method.
-            // https://github.com/DonutsNL/samlsso/issues/26
-            if ($this->state->getStateId() == -1) {
-                // Dont write anything if we are in the middle of an ACS request statelessly
-                // This logic is always called by the GLPI hook this could or should also
-                // be an exclusion but this is safer.
-                $this->state->writeState();
-            } // We loaded a valid state from the database, do nothing more.
         } catch (Throwable $e) {
             $this->printError(sprintf(__("Loading login state failed with: %s", PLUGIN_NAME), (string)$e));
         }
 
+        // Evaluate forced logoff and inactivity timeout BEFORE Ajax and Exclude early returns (Finding 13)
         if ($this->state->getPhase() === LoginState::PHASE_FORCE_LOG) {
             $this->state->setPhase(LoginState::PHASE_LOGOFF);
             Session::cleanOnLogout();
+            if (\Toolbox::isAjax()) {
+                http_response_code(401);
+                exit;
+            }
             Session::addMessageAfterRedirect(__('You have been forcefully logged out by an administrator.', PLUGIN_NAME), false, ERROR);
             header('Location: ' . $CFG_GLPI['url_base'] . '/index.php?noAuto=1');
             exit;
@@ -271,9 +242,41 @@ class LoginFlow extends LoginFlowCompat
         if ($this->state->getPhase() === LoginState::PHASE_TIMED_OUT) {
             $this->state->setPhase(LoginState::PHASE_LOGOFF);
             Session::cleanOnLogout();
+            if (\Toolbox::isAjax()) {
+                http_response_code(401);
+                exit;
+            }
             Session::addMessageAfterRedirect(__('Your session has timed out due to inactivity.', PLUGIN_NAME), false, ERROR);
             header('Location: ' . $CFG_GLPI['url_base'] . '/index.php?noAuto=1');
             exit;
+        }
+
+        /**
+         * Skip authentication logic for AJAX requests to avoid session state
+         * corruption during background operations.
+         */
+        if (\Toolbox::isAjax()) {
+            return;
+        }
+
+        // If we hit an excluded file, we return and do nothing, not even log the
+        // event. Possibly we want to enable the user to perform SIEM calls by
+        // implementing this functionality prior to this validation.
+        if (Exclude::isExcluded()) {
+            return;
+        }
+
+        // If this is an initial state, write it to database
+        if ($this->state->getStateId() == -1) {
+            $this->state->writeState();
+        }
+
+        /**
+         * Run invalidation logic for unauthenticated flows, throttled periodically (Issues #151, #166).
+         */
+        if ($isLogout || Session::getLoginUserID() === false) {
+            LoginState::expireStaleAcsRequests();
+            LoginState::expireStaleGlpiSessions();
         }
 
         if (!$isLogout && Session::getLoginUserID() !== false) {

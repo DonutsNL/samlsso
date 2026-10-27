@@ -1484,12 +1484,13 @@ class LoginState extends CommonDBTM
                     LoginState::LOGIN_DATETIME => ['<', $cutoff]
                 ];
 
-                $iterator = $DB->request(['FROM' => LoginState::getTable(), 'WHERE' => $where]);
-                if ($iterator) {
-                    foreach ($iterator as $sessionState) {
-                        self::markAcsRecordTimedOut($sessionState);
-                    }
-                }
+                $DB->update(
+                    LoginState::getTable(),
+                    [
+                        LoginState::PHASE => LoginState::PHASE_TIMED_OUT
+                    ],
+                    $where
+                );
             }
         }
 
@@ -1504,12 +1505,13 @@ class LoginState extends CommonDBTM
         if (!empty($handledIdpIds)) {
             $whereOrphan['NOT'] = [LoginState::IDP_ID => $handledIdpIds];
         }
-        $orphanIterator = $DB->request(['FROM' => LoginState::getTable(), 'WHERE' => $whereOrphan]);
-        if ($orphanIterator) {
-            foreach ($orphanIterator as $sessionState) {
-                self::markAcsRecordTimedOut($sessionState);
-            }
-        }
+        $DB->update(
+            LoginState::getTable(),
+            [
+                LoginState::PHASE => LoginState::PHASE_TIMED_OUT
+            ],
+            $whereOrphan
+        );
     }
 
     /**
@@ -1584,12 +1586,13 @@ class LoginState extends CommonDBTM
                     LoginState::LAST_ACTIVITY => ['<', $cutoff]
                 ];
 
-                $iterator = $DB->request(['FROM' => LoginState::getTable(), 'WHERE' => $where]);
-                if ($iterator) {
-                    foreach ($iterator as $sessionState) {
-                        self::markSessionInactivityTimedOut($sessionState);
-                    }
-                }
+                $DB->update(
+                    LoginState::getTable(),
+                    [
+                        LoginState::PHASE => LoginState::PHASE_TIMED_OUT
+                    ],
+                    $where
+                );
             }
         }
     }

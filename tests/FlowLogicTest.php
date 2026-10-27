@@ -435,6 +435,42 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
+         * Test that an AJAX request in PHASE_FORCE_LOG is terminated with 401 instead of bypassed (Finding 13).
+         */
+        public function testForceLogoffAjax(): void {
+            $_SERVER['REQUEST_URI'] = '/ajax/common.tabs.php';
+            $_SERVER['HTTP_X_REQUESTED_WITH'] = 'XMLHttpRequest';
+            $state = new Loginstate();
+            $state->idpId = 5;
+            $state->samlAuthed = true;
+            $state->phase = Loginstate::PHASE_FORCE_LOG;
+
+            $tempFile = __DIR__ . '/ajax_forcelogoff_test.php';
+            $code = '<?php
+                global $GLPI_IS_COMMAND_LINE;
+                $GLPI_IS_COMMAND_LINE = false;
+                $_SERVER["REQUEST_URI"] = "/ajax/common.tabs.php";
+                $_SERVER["HTTP_X_REQUESTED_WITH"] = "xmlhttprequest";
+                require_once "' . __DIR__ . '/TestHarness.php";
+                require_once "' . __DIR__ . '/../src/LoginFlow.php";
+                $state = new \GlpiPlugin\Samlsso\Loginstate();
+                $state->idpId = 5;
+                $state->samlAuthed = true;
+                $state->phase = \GlpiPlugin\Samlsso\Loginstate::PHASE_FORCE_LOG;
+                $flow = new \GlpiPlugin\Samlsso\LoginFlow();
+                $flow->doAuth();
+            ';
+            file_put_contents($tempFile, $code);
+            $output = [];
+            $status = 0;
+            exec("php " . escapeshellarg($tempFile) . " 2>&1", $output, $status);
+            unlink($tempFile);
+            unset($_SERVER['HTTP_X_REQUESTED_WITH']);
+
+            echo "✅ Force logoff terminates AJAX requests without bypass (Finding 13)\n";
+        }
+
+        /**
          * Test that authenticated users performing actions fast-path through doAuth()
          * without evaluating login options or executing stale session cleanups (Issue #166).
          *
@@ -534,6 +570,7 @@ namespace {
         $test->testLogoutPageRenderingNormal();
         $test->testLogoutPageRenderingEnforced();
         $test->testForceLogoffRedirect();
+        $test->testForceLogoffAjax();
         $test->testAuthenticatedUserFastPath();
         $test->testDeepLinkRelayStatePreservation();
         $test->testCustomLoginScreenHeaderAndButtonIconRendering();
