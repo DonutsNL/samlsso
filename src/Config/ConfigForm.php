@@ -76,13 +76,15 @@ class ConfigForm    //NOSONAR complexity by design.
         Session::checkRight('config', READ);
         $action = (string) $request->get('action', '');
 
-        // Handle bulk export (download) action - no page rendering needed
+        // Handle bulk export (download) action - requires config UPDATE right to export secrets
         if ($action === 'backup_all') {
+            Session::checkRight('config', UPDATE);
             return $this->exportAllConfigs();
         }
 
-        // Handle bulk restore (upload) action
+        // Handle bulk restore (upload) action - requires config UPDATE right
         if ($action === 'restore_all' && $request->isMethod('POST')) {
+            Session::checkRight('config', UPDATE);
             return $this->restoreAllConfigs($request);
         }
         $this->displayUIHeader();
@@ -100,6 +102,9 @@ class ConfigForm    //NOSONAR complexity by design.
      */
     private function renderBackupRestoreCard(): void
     {
+        if (!Session::haveRight('config', UPDATE)) {
+            return;
+        }
         $exportUrl   = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=backup_all';
         $restoreUrl  = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=restore_all';
         $csrfToken   = method_exists(\Session::class, 'getNewCSRFToken') ? \Session::getNewCSRFToken() : '';
@@ -249,6 +254,7 @@ HTML;
      */
     private function restoreAllConfigs(Request $request): RedirectResponse
     {
+        Session::checkRight('config', UPDATE);
         global $DB;
 
         // --- 1. Read and parse the uploaded JSON file ---
@@ -408,6 +414,14 @@ HTML;
             } elseif (array_key_exists($field, $defaultTpl)) {
                 $insertRow[$field] = is_bool($defaultTpl[$field]) ? ($defaultTpl[$field] ? 1 : 0) : $defaultTpl[$field];
             }
+        }
+
+        // Validate restored configuration row through ConfigEntity before insertion
+        $validationEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => $insertRow]);
+        if (!$validationEntity->isValid()) {
+            $errList = implode('; ', array_values($validationEntity->getInvalidMessages()));
+            $errors[] = sprintf(__('Entry %d (%s) failed validation: %s', PLUGIN_NAME), $index, $cfgData[ConfigEntity::NAME] ?? '?', $errList);
+            return false;
         }
 
         // Direct DB insert to preserve original ID
