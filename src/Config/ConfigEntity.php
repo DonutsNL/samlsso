@@ -461,7 +461,7 @@ class ConfigEntity extends ConfigItem
                         $resolvedKey = (string)constant($spKeyInput);
                     }
                 } else {
-                    $resolvedKey = $spKeyInput;
+                    $resolvedKey = self::decryptPrivateKey($spKeyInput);
                 }
 
                 if (!$disable) {
@@ -659,7 +659,64 @@ class ConfigEntity extends ConfigItem
         } elseif ($source === 'define') {
             return defined($input) ? (string)constant($input) : '';
         }
-        return $input;
+        return self::decryptPrivateKey($input);
+    }
+
+    /**
+     * Decrypts a private key if it was encrypted with GLPIKey.
+     * If the string already starts with '-----BEGIN' or GLPIKey is unavailable/fails, returns the input.
+     *
+     * @param string $keyInput
+     * @return string
+     */
+    public static function decryptPrivateKey(string $keyInput): string
+    {
+        $trimmed = trim($keyInput);
+        if (empty($trimmed) || str_starts_with($trimmed, '-----BEGIN')) {
+            return $keyInput;
+        }
+
+        if (class_exists('\GLPIKey')) {
+            try {
+                $glpiKey = new \GLPIKey();
+                $decrypted = $glpiKey->decrypt($keyInput);
+                if (!empty($decrypted) && str_starts_with(trim($decrypted), '-----BEGIN')) {
+                    return $decrypted;
+                }
+            } catch (\Throwable $e) {
+                // Return original input if decryption fails
+            }
+        }
+
+        return $keyInput;
+    }
+
+    /**
+     * Encrypts a private key using GLPIKey if available and not already encrypted.
+     *
+     * @param string $keyInput
+     * @return string
+     */
+    public static function encryptPrivateKey(string $keyInput): string
+    {
+        $trimmed = trim($keyInput);
+        if (empty($trimmed)) {
+            return '';
+        }
+
+        if (str_starts_with($trimmed, '-----BEGIN') && class_exists('\GLPIKey')) {
+            try {
+                $glpiKey = new \GLPIKey();
+                $encrypted = $glpiKey->encrypt($keyInput);
+                if (!empty($encrypted)) {
+                    return $encrypted;
+                }
+            } catch (\Throwable $e) {
+                // Fallback to original input if encryption fails
+            }
+        }
+
+        return $keyInput;
     }
 
     /**

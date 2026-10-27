@@ -179,7 +179,7 @@ HTML;
             ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
             ConfigEntity::SECURITY_SIGNMETADATA,
             ConfigEntity::SECURITY_WANTNAMEID,
-            ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY_SOURCE, ConfigEntity::SP_KEY, ConfigEntity::SP_NAME_FORMAT,
+            ConfigEntity::SP_CERTIFICATE, ConfigEntity::SP_KEY_SOURCE, ConfigEntity::SP_NAME_FORMAT,
             ConfigEntity::IDP_ENTITY_ID, ConfigEntity::IDP_SSO_URL, ConfigEntity::IDP_SLO_URL,
             ConfigEntity::IDP_CERTIFICATE, ConfigEntity::AUTHN_CONTEXT, ConfigEntity::AUTHN_COMPARE,
             ConfigEntity::ENCRYPT_NAMEID, ConfigEntity::SIGN_AUTHN, ConfigEntity::SIGN_SLO_REQ,

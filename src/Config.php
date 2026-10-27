@@ -218,7 +218,8 @@ class Config extends ConfigCompat
                 $field[ConfigItem::FIELD] != ConfigEntity::NAME          &&
                 $field[ConfigItem::FIELD] != ConfigEntity::IDP_ENTITY_ID &&
                 $field[ConfigItem::FIELD] != ConfigEntity::IS_ACTIVE     &&
-                $field[ConfigItem::FIELD] != ConfigEntity::IS_DELETED
+                $field[ConfigItem::FIELD] != ConfigEntity::IS_DELETED    &&
+                $field[ConfigItem::FIELD] != ConfigEntity::SP_KEY
             ) {
                 // Remap DB fields to Search dataTypes
                 if (strstr($field[ConfigItem::TYPE], 'varchar')) {
@@ -618,6 +619,54 @@ class Config extends ConfigCompat
     }
 
     /**
+     * Return list of fields that must not be disclosed in history logs or search.
+     *
+     * @return array
+     */
+    public static function getUndisclosedFields(): array
+    {
+        return [ConfigEntity::SP_KEY];
+    }
+
+    /**
+     * Prepare input for adding a new configuration entry.
+     * Encrypts the SP private key using GLPIKey if provided.
+     *
+     * @param array $input
+     * @return array|false
+     */
+    public function prepareInputForAdd($input)
+    {
+        $input = parent::prepareInputForAdd($input);
+        if ($input === false) {
+            return false;
+        }
+        if (!empty($input[ConfigEntity::SP_KEY])) {
+            $input[ConfigEntity::SP_KEY] = ConfigEntity::encryptPrivateKey($input[ConfigEntity::SP_KEY]);
+        }
+        return $input;
+    }
+
+    /**
+     * Prepare input for updating an existing configuration entry.
+     * Encrypts the SP private key using GLPIKey if provided.
+     *
+     * @param array $input
+     * @return array|false
+     */
+    public function prepareInputForUpdate($input)
+    {
+        $input = parent::prepareInputForUpdate($input);
+        if ($input === false) {
+            return false;
+        }
+        if (!empty($input[ConfigEntity::SP_KEY])) {
+            $input[ConfigEntity::SP_KEY] = ConfigEntity::encryptPrivateKey($input[ConfigEntity::SP_KEY]);
+        }
+        return $input;
+    }
+
+    /**
      * Uninstall table needed for Ticket Filter configuration dropdowns
      * @param   Migration $migration    - Plugin migration information;
      * @return  void
@@ -625,7 +674,12 @@ class Config extends ConfigCompat
      */
     public static function uninstall(Migration $migration): void
     {
+        global $DB;
         $table = getTableForItemType(static::class);
+        // Clear sensitive private keys before backing up table on uninstall
+        if ($DB->tableExists($table) && $DB->fieldExists($table, ConfigEntity::SP_KEY, false)) {
+            $DB->update($table, [ConfigEntity::SP_KEY => ''], [ConfigEntity::ID => ['>', 0]]);
+        }
         // Make this smarter in the future. Never create a backup
         // when the source table is empty and an existing table is
         // populated! Allow user to restore from backup table. Current

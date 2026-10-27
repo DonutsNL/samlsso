@@ -372,6 +372,33 @@ namespace {
     }
 
     /**
+     * Shim for GLPI's GLPIKey class.
+     */
+    if (!class_exists('GLPIKey', false)) {
+        class GLPIKey
+        {
+            public function encrypt(string $string, ?string $key = null): string
+            {
+                if (empty($string)) {
+                    return '';
+                }
+                return 'GLPICRYPT:' . base64_encode($string);
+            }
+
+            public function decrypt(?string $string, ?string $key = null): ?string
+            {
+                if (empty($string)) {
+                    return $string;
+                }
+                if (str_starts_with($string, 'GLPICRYPT:')) {
+                    return base64_decode(substr($string, 10));
+                }
+                return $string;
+            }
+        }
+    }
+
+    /**
      * Shim for GLPI's Html class.
      * Mock HTML helper, header, footer and redirect methods.
      */

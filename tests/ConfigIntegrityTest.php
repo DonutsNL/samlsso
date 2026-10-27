@@ -570,6 +570,38 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Config: custom login screen header and icon URL verified (Issue #159)\n";
         }
+
+        /**
+         * Test that sp_private_key is excluded from rawSearchOptions(),
+         * included in getUndisclosedFields(), and encrypted with GLPIKey.
+         */
+        public function testSpPrivateKeySecurity(): void
+        {
+            $config = new Config();
+            $options = $config->rawSearchOptions();
+            foreach ($options as $opt) {
+                if (($opt['field'] ?? '') === ConfigEntity::SP_KEY) {
+                    throw new \Exception("sp_private_key must NOT be exposed in rawSearchOptions()");
+                }
+            }
+
+            if (!in_array(ConfigEntity::SP_KEY, Config::getUndisclosedFields())) {
+                throw new \Exception("sp_private_key must be registered in getUndisclosedFields()");
+            }
+
+            // Test GLPIKey encryption / decryption helpers in ConfigEntity
+            $pemKey = "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQD\n-----END PRIVATE KEY-----";
+            $encrypted = ConfigEntity::encryptPrivateKey($pemKey);
+            if ($encrypted === $pemKey) {
+                throw new \Exception("encryptPrivateKey did not encrypt the PEM key");
+            }
+            $decrypted = ConfigEntity::decryptPrivateKey($encrypted);
+            if ($decrypted !== $pemKey) {
+                throw new \Exception("decryptPrivateKey did not return original PEM key");
+            }
+
+            echo "✅ Config: SP private key excluded from search options, marked undisclosed, and encrypted\n";
+        }
     }
 }
 
@@ -587,6 +619,7 @@ namespace {
         $test->testSpPrivateKeySources();
         $test->testForceAuthnConfig();
         $test->testCustomLoginScreenHeaderAndButtonIcon();
+        $test->testSpPrivateKeySecurity();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

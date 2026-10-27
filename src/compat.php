@@ -122,6 +122,7 @@ namespace GlpiPlugin\Samlsso\Compat {
         {
             public bool $dohistory = true;
             public static string $rightname = 'config';
+            public static array $undisclosedFields = ['sp_private_key'];
         }
 
         /**
@@ -185,6 +186,7 @@ namespace GlpiPlugin\Samlsso\Compat {
         {
             public $dohistory = true;
             public static $rightname = 'config';
+            public static $undisclosedFields = ['sp_private_key'];
         }
 
         /**
