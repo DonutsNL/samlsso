@@ -581,6 +581,125 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Idempotent user defaults update does not fail or warn needlessly (Issue #148)\n";
         }
+
+        /**
+         * Test that attempting to link or log in to a local GLPI account (authtype = Auth::DB_GLPI)
+         * or the local super-admin 'glpi' is blocked with a fatal login error.
+         */
+        public function testLocalAccountLinkingBlocked(): void {
+            \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = true;
+            try {
+                $userData = $this->getFullUserData('local_admin', 'local_admin@example.com');
+                \User::$mockObject->mockUserData = [
+                    'id'        => 501,
+                    'name'      => 'local_admin',
+                    'email'     => 'local_admin@example.com',
+                    'authtype'  => 1,
+                    'is_deleted' => 0,
+                    'is_active' => 1
+                ];
+
+                $configEntity = new ConfigEntity(5);
+                $samlUser = new SamlUser();
+
+                try {
+                    $samlUser->getOrCreateUser($userData, $configEntity);
+                    throw new \Exception("Expected fatal login error when linking local GLPI account, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'uses local GLPI authentication and cannot be linked')) {
+                        throw $e;
+                    }
+                }
+
+                // Also test 'glpi' username block even if authtype is not explicitly 1
+                $glpiData = $this->getFullUserData('glpi', 'glpi@example.com');
+                \User::$mockObject->mockUserData = [
+                    'id'        => 1,
+                    'name'      => 'glpi',
+                    'email'     => 'glpi@example.com',
+                    'authtype'  => 0,
+                    'is_deleted' => 0,
+                    'is_active' => 1
+                ];
+                try {
+                    $samlUser->getOrCreateUser($glpiData, $configEntity);
+                    throw new \Exception("Expected fatal login error when linking glpi super-admin account, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'uses local GLPI authentication and cannot be linked')) {
+                        throw $e;
+                    }
+                }
+
+                echo "✅ Local GLPI account linking blocked\n";
+            } finally {
+                \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = false;
+            }
+        }
+
+        /**
+         * Test that syncUserFieldsOnLogin strips protected fields (authtype, password, comment, user_dn, etc.)
+         * and never passes them to User::update().
+         */
+        public function testSyncUserFieldsProtectsSensitiveFields(): void {
+            $samlUser = new SamlUser();
+
+            \User::$mockObject->mockUserData = [
+                'id'        => 502,
+                'name'      => 'sso_user',
+                'email'     => 'sso_user@example.com',
+                'authtype'  => 4,
+                'is_deleted' => 0,
+                'is_active' => 1
+            ];
+
+            \User::$mockObject->mockUpdateCalled = false;
+            \User::$mockObject->updatedUserData = null;
+
+            // Enable SYNC_ON_LOGIN
+            MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+
+            $configEntity = new ConfigEntity(5);
+
+            $maliciousClaims = [
+                SamlUser::NAME       => 'sso_user',
+                SamlUser::REALNAME   => 'Updated Realname',
+                SamlUser::FIRSTNAME  => 'Updated Firstname',
+                SamlUser::AUTHTYPE   => 1,
+                SamlUser::PASSWORD   => 'hacked_password',
+                SamlUser::PASSWORDN  => 'hacked_password',
+                SamlUser::COMMENT    => 'malicious comment overwrite',
+                'user_dn'            => 'cn=malicious,dc=example,dc=com',
+                'auths_id'           => 99,
+                'api_token'          => 'malicious_token',
+                'personal_token'     => 'malicious_personal_token'
+            ];
+
+            $glpiUser = new \User();
+            $glpiUser->fields = \User::$mockObject->mockUserData;
+
+            $method = new \ReflectionMethod(SamlUser::class, 'syncUserFieldsOnLogin');
+            $method->setAccessible(true);
+            $method->invoke($samlUser, $glpiUser, $maliciousClaims, null);
+
+            if (!\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("Expected User::update to be called during syncUserFieldsOnLogin.");
+            }
+
+            $updated = \User::$mockObject->updatedUserData;
+            $forbiddenKeys = ['authtype', 'password', 'password2', 'comment', 'user_dn', 'auths_id', 'api_token', 'personal_token'];
+            foreach ($forbiddenKeys as $forbidden) {
+                if (isset($updated[$forbidden])) {
+                    throw new \Exception("Forbidden field '$forbidden' was present in User::update() payload!");
+                }
+            }
+
+            if (($updated[SamlUser::REALNAME] ?? '') !== 'Updated Realname') {
+                throw new \Exception("Legitimate field 'realname' was not updated properly.");
+            }
+
+            echo "✅ Protected fields stripped during syncUserFieldsOnLogin\n";
+        }
     }
 }
 
@@ -602,6 +721,8 @@ namespace {
         $test->testAdditiveProfileAssignments();
         $test->testProfileAndEntityAssignmentDefaultsAndRootCleanup();
         $test->testIdempotentUserDefaultsNoLogWarning();
+        $test->testLocalAccountLinkingBlocked();
+        $test->testSyncUserFieldsProtectsSensitiveFields();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

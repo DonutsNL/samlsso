@@ -356,6 +356,22 @@ namespace {
     }
 
     /**
+     * Shim for GLPI's Auth class.
+     */
+    if (!class_exists('Auth', false)) {
+        class Auth
+        {
+            public const NOT_YET_AUTHENTICATED = 0;
+            public const DB_GLPI = 1;
+            public const MAIL = 2;
+            public const LDAP = 3;
+            public const EXTERNAL = 4;
+            public const CAS = 5;
+            public const X509 = 6;
+        }
+    }
+
+    /**
      * Shim for GLPI's Html class.
      * Mock HTML helper, header, footer and redirect methods.
      */

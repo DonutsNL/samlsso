@@ -94,6 +94,7 @@ class User
     public const ENTITY_ID          = 'entities_id';
     public const ENTITY_DEFAULT     = '_entities_id_default';
     public const AUTHTYPE           = 'authtype';
+    public const AUTHTYPE_LOCAL     = 1;
     public const SYNCDATE           = 'date_sync';  //Y-m-d H:i:s
     public const SAMLGROUPS         = 'samlClaimedGroups';
     public const SAMLJOBTITLE       = 'samlClaimedJobTitle';
@@ -163,6 +164,18 @@ class User
             return $this->performJIT($userFields, $configEntity);
         } else {
             /* User is found, check if we are allowed to use it. */
+
+            /* Verify the found user does not use local GLPI database authentication */
+            $authtype = (int)($user->fields[User::AUTHTYPE] ?? 0);
+            $localAuthType = class_exists('\Auth') && defined('\Auth::DB_GLPI') ? \Auth::DB_GLPI : self::AUTHTYPE_LOCAL;
+            if ($authtype === $localAuthType || strtolower($user->fields[User::NAME] ?? '') === 'glpi') {
+                LoginFlow::PrintFatalLoginError(
+                    sprintf(
+                        __("User account '%s' uses local GLPI authentication and cannot be linked or accessed via SAML SSO.", PLUGIN_NAME),
+                        $user->fields[User::NAME] ?? $name
+                    )
+                );
+            }
 
             /* Verify the found user is not deleted (in trashcan) */
             if ($user->fields[User::DELETED] == 1) {
@@ -481,13 +494,30 @@ class User
             }
         }
 
-        unset($userFields[User::PASSWORD]);
-        unset($userFields[User::PASSWORDN]);
+        $protectedFields = [
+            User::AUTHTYPE,
+            User::PASSWORD,
+            User::PASSWORDN,
+            User::COMMENT,
+            'user_dn',
+            'auths_id',
+            'password_md5',
+            'api_token',
+            'personal_token',
+        ];
+        foreach ($protectedFields as $protectedField) {
+            unset($userFields[$protectedField]);
+        }
+
         $userFields['id'] = $user->fields[User::USERID];
 
         $updateFields = array_filter($userFields, static function ($value) {
             return $value !== false && $value !== null;
         });
+
+        foreach ($protectedFields as $protectedField) {
+            unset($updateFields[$protectedField]);
+        }
 
         if ($emailExists) {
             unset($updateFields[User::EMAIL]);
