@@ -145,11 +145,11 @@ namespace GlpiPlugin\Samlsso\Compat {
         }
 
         /**
-         * RuleSaml intermediate: import-classified rule, GLPI 12 typing.
+         * RuleSaml intermediate: user-rights-classified rule, GLPI 12 typing.
          */
         abstract class RuleSamlCompat extends Rule
         {
-            public static string $rightname = 'rule_import';
+            public static string $rightname = 'rule_ldap';
         }
 
         /**
@@ -160,7 +160,7 @@ namespace GlpiPlugin\Samlsso\Compat {
         if (class_exists('RuleCollection')) {
             abstract class RuleSamlCollectionCompat extends RuleCollection
             {
-                public static string $rightname = 'rule_import';
+                public static string $rightname = 'rule_ldap';
                 public string $menu_option = "Saml";
             }
         }
@@ -208,11 +208,11 @@ namespace GlpiPlugin\Samlsso\Compat {
         }
 
         /**
-         * RuleSaml intermediate: import-classified rule, GLPI 11 shape.
+         * RuleSaml intermediate: user-rights-classified rule, GLPI 11 shape.
          */
         abstract class RuleSamlCompat extends Rule
         {
-            public static $rightname = 'rule_import';
+            public static $rightname = 'rule_ldap';
         }
 
         /**
@@ -223,7 +223,7 @@ namespace GlpiPlugin\Samlsso\Compat {
         if (class_exists('RuleCollection')) {
             abstract class RuleSamlCollectionCompat extends RuleCollection
             {
-                public static $rightname = 'rule_import';
+                public static $rightname = 'rule_ldap';
                 public $menu_option = "Saml";
             }
         }

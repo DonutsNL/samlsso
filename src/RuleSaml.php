@@ -63,7 +63,7 @@ require_once __DIR__ . '/compat.php';
 
 /**
  * Rule executed on JIT provisioning, extending the core Rule object through
- * the version-selected compatibility layer: $rightname ('rule_import') is
+ * the version-selected compatibility layer: $rightname ('rule_ldap') is
  * carried by RuleSamlCompat, version-typed for GLPI 11 and GLPI 12.
  **/
 class RuleSaml extends RuleSamlCompat

@@ -53,7 +53,7 @@ require_once __DIR__ . '/compat.php';
 
 /**
  * JIT import rule collection, extending the core RuleCollection through the
- * version-selected compatibility layer: $rightname ('rule_import') and
+ * version-selected compatibility layer: $rightname ('rule_ldap') and
  * $menu_option ('Saml') are carried by RuleSamlCollectionCompat, version-typed
  * for GLPI 11 and GLPI 12. $stop_on_first_match keeps the core default (false).
  **/

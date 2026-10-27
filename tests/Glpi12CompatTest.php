@@ -248,6 +248,28 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Validated stateless path registration: ACS and SLO (/front/logout) registered to prevent CSRF 403.\n";
         }
+
+        /**
+         * Test that RuleSamlCompat and RuleSamlCollectionCompat use 'rule_ldap'
+         * for authorization rights instead of 'rule_import'.
+         *
+         * @throws \Exception if the rightname is not 'rule_ldap'.
+         */
+        public function testRuleSamlRightnameIsRuleLdap(): void
+        {
+            $compat = $this->readPluginFile('src/compat.php');
+            if (str_contains($compat, "public static string \$rightname = 'rule_import'") ||
+                str_contains($compat, "public static \$rightname = 'rule_import'")) {
+                throw new \Exception("src/compat.php still references 'rule_import' instead of 'rule_ldap'.");
+            }
+
+            require_once realpath(__DIR__ . '/../src/compat.php');
+            if (\GlpiPlugin\Samlsso\Compat\RuleSamlCompat::$rightname !== 'rule_ldap') {
+                throw new \Exception("RuleSamlCompat::\$rightname is not 'rule_ldap'. Got: " . \GlpiPlugin\Samlsso\Compat\RuleSamlCompat::$rightname);
+            }
+
+            echo "✅ Validated RuleSaml rightname: governed by 'rule_ldap' for user identity rights.\n";
+        }
     }
 }
 
@@ -262,6 +284,7 @@ namespace {
         $test->testAbsoluteWebDirHelperAndMaxGlpiVersion();
         $test->testCompatLayerContainsNoObfuscation();
         $test->testStatelessPathRegistration();
+        $test->testRuleSamlRightnameIsRuleLdap();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
