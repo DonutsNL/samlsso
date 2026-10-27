@@ -177,7 +177,7 @@ class Acs extends LoginFlow
                 sprintf(__('The received idp response did not contain the required samlResponse POST body or idpId to authenticate the user, see: %s for more information', PLUGIN_NAME), 'https://codeberg.org/QuinQuies/glpisaml/wiki/ACS.php'),
                 __('Samlsso->acs->init->NoSamlResponse', PLUGIN_NAME),
                 Acs::EXTENDED_HEADER .
-                    Acs::SERVER_OBJ . var_export($_SERVER, true) . "\n\n" .
+                    Acs::SERVER_OBJ . $this->getSafeServerContext() . "\n\n" .
                     Acs::EXTENDED_FOOTER . "\n"
             );
         }
@@ -362,7 +362,7 @@ class Acs extends LoginFlow
                 Acs::EXTENDED_HEADER .
                     "samlResponse with registered ID was replayed in acs.php. Possibly the user pressed F5 when encountering
                     a different error or the response was send successively to the acs\n\n" .
-                    Acs::SERVER_OBJ . var_export($_SERVER, true) . "\n\n" .
+                    Acs::SERVER_OBJ . $this->getSafeServerContext() . "\n\n" .
                     Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
                     Acs::STATE_OBJ . var_export($this->samlResponse->getXMLDocument(), true) . "\n\n" .
                     Acs::EXTENDED_FOOTER . "\n"
@@ -444,4 +444,32 @@ class Acs extends LoginFlow
         // prob not passed back to GLPI after the IDP redirect causing GLPI to reset the PHP sessionId.
         $this->performGlpiLogin($this->samlResponse, $this->state);
     }
+
+    /**
+     * Return safe request attributes for logging without leaking sensitive environment or header values.
+     *
+     * @return string
+     */
+    private function getSafeServerContext(): string
+    {
+        $allowed = [
+            'REQUEST_METHOD',
+            'REMOTE_ADDR',
+            'SERVER_NAME',
+            'SERVER_PORT',
+            'REQUEST_URI',
+            'HTTP_HOST',
+            'HTTP_USER_AGENT',
+        ];
+
+        $safe = [];
+        foreach ($allowed as $key) {
+            if (isset($_SERVER[$key])) {
+                $safe[$key] = $_SERVER[$key];
+            }
+        }
+
+        return var_export($safe, true);
+    }
 }
+

@@ -482,13 +482,13 @@ class ClaimMapEntity extends ClaimMapItem
         if (empty($usernameVal) && $isUsernameRequired) {
             \GlpiPlugin\Samlsso\LoginFlow::printError(__('NameId attribute is missing in samlResponse', PLUGIN_NAME),
                                 'getUserInputFieldsFromSamlClaim',
-                                var_export($response, true));
+                                sprintf("Response ID: %s", $response->getId()));
         }
 
         if (!empty($usernameVal) && strstr($usernameVal, '#EXT#@')) {
             \GlpiPlugin\Samlsso\LoginFlow::printError(__('Detected a default guest user in samlResponse, this is not supported by glpiSAML.', PLUGIN_NAME),
                                  'getUserInputFieldsFromSamlClaim',
-                                  var_export($response, true));
+                                  sprintf("Response ID: %s, guest NameID: %s", $response->getId(), $usernameVal));
         }
 
         return $usernameVal;
@@ -544,7 +544,7 @@ class ClaimMapEntity extends ClaimMapItem
         if (empty($emailVal)) {
             \GlpiPlugin\Samlsso\LoginFlow::printError(__('invalid values where used to identify the user during auth', PLUGIN_NAME),
                                  'getUserInputFieldsFromSamlClaim',
-                                  var_export($response, true));
+                                  sprintf("Response ID: %s, NameID: %s", $response->getId(), (string)$usernameVal));
         }
 
         return $emailVal;
@@ -632,7 +632,7 @@ class ClaimMapEntity extends ClaimMapItem
             if (empty($val) && $isRequired) {
                 \GlpiPlugin\Samlsso\LoginFlow::printError(sprintf(__('Required user field "%s" is missing or invalid in SAML response', PLUGIN_NAME), $field),
                                      'getUserInputFieldsFromSamlClaim',
-                                      var_export($response, true));
+                                      sprintf("Response ID: %s, field: %s", $response->getId(), $field));
             }
 
             $keyMap = [
@@ -674,7 +674,7 @@ class ClaimMapEntity extends ClaimMapItem
         if (empty($groupsVal) && $isGroupsRequired) {
             \GlpiPlugin\Samlsso\LoginFlow::printError(__('Required rule field "groups" is missing in SAML response', PLUGIN_NAME),
                                  'getUserInputFieldsFromSamlClaim',
-                                  var_export($response, true));
+                                  sprintf("Response ID: %s, field: groups", $response->getId()));
         }
 
         $result = [
@@ -732,7 +732,7 @@ class ClaimMapEntity extends ClaimMapItem
         if (empty($val) && $isRequired) {
             \GlpiPlugin\Samlsso\LoginFlow::printError(sprintf(__('Required rule field "%s" is missing or invalid in SAML response', PLUGIN_NAME), $field),
                                  'getUserInputFieldsFromSamlClaim',
-                                  var_export($response, true));
+                                  sprintf("Response ID: %s, field: %s", $response->getId(), $field));
         }
 
         return $val;

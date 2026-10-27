@@ -482,7 +482,11 @@ class LoginFlow extends LoginFlowCompat
             try {
                 $auth = new samlAuth($samlConfig);
             } catch (Throwable $e) {
-                $this->printError($e->getMessage(), 'Saml::Auth->init', var_export($samlConfig, true));
+                $safeConfig = $samlConfig;
+                if (isset($safeConfig['sp']['privateKey'])) {
+                    $safeConfig['sp']['privateKey'] = '***REDACTED***';
+                }
+                $this->printError($e->getMessage(), 'Saml::Auth->init', var_export($safeConfig, true));
             }
 
             // Added version 1.2.0
