@@ -272,6 +272,8 @@ function plugin_samlsso_install(): bool                                         
  */
 function plugin_samlsso_uninstall(): bool                                         // NOSONAR - Default GLPI naming
 {
+    global $DB;
+
     /**
      * Initialise the GLPI Migration object scoped to the current plugin version.
      * Passed to each class's uninstall() method so backup and drop operations
@@ -290,6 +292,33 @@ function plugin_samlsso_uninstall(): bool                                       
             $class::uninstall($migration);
         }
     }
+
+    /**
+     * Clean up SAML JIT rules from GLPI core rule tables to prevent dangling rule references.
+     */
+    try {
+        $ruleSubType = RuleSaml::class;
+        $rules = $DB->request([
+            'SELECT' => ['id'],
+            'FROM'   => 'glpi_rules',
+            'WHERE'  => ['sub_type' => $ruleSubType]
+        ]);
+        $ruleIds = [];
+        if ($rules) {
+            foreach ($rules as $r) {
+                $ruleIds[] = (int)$r['id'];
+            }
+        }
+
+        if (!empty($ruleIds)) {
+            $DB->delete('glpi_rulecriterias', ['rules_id' => $ruleIds]);
+            $DB->delete('glpi_ruleactions', ['rules_id' => $ruleIds]);
+            $DB->delete('glpi_rules', ['id' => $ruleIds]);
+        }
+    } catch (\Throwable $e) {
+        // Core rule tables may not exist in mock/test environments
+    }
+
     return true;
 }
 

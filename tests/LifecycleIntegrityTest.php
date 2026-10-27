@@ -288,6 +288,39 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Validated cache reset: CacheManager::resetAllCaches() is called during installation.\n";
         }
+
+        /**
+         * Test that plugin_samlsso_uninstall removes RuleSaml entries from glpi_rules,
+         * glpi_rulecriterias, and glpi_ruleactions.
+         */
+        public function testUninstallCleansJitRules(): void {
+            global $DB;
+            require_once realpath(__DIR__ . '/../hook.php');
+
+            $db = new MockDB();
+            $DB = $db;
+
+            // Set up mock rules table with a RuleSaml rule
+            $db->setResponse('glpi_rules', [
+                ['id' => 101, 'sub_type' => \GlpiPlugin\Samlsso\RuleSaml::class]
+            ]);
+
+            $result = plugin_samlsso_uninstall();
+            if (!$result) {
+                throw new \Exception("plugin_samlsso_uninstall returned false");
+            }
+
+            // Verify that delete was called on glpi_rules, glpi_rulecriterias, and glpi_ruleactions
+            $deletedTables = array_column($db->deletedRows, 'table');
+            if (!in_array('glpi_rules', $deletedTables) ||
+                !in_array('glpi_rulecriterias', $deletedTables) ||
+                !in_array('glpi_ruleactions', $deletedTables)
+            ) {
+                throw new \Exception("plugin_samlsso_uninstall failed to delete rules from glpi_rules/glpi_rulecriterias/glpi_ruleactions");
+            }
+
+            echo "✅ Validated JIT rule cleanup on uninstall: glpi_rules, glpi_rulecriterias, glpi_ruleactions purged.\n";
+        }
     }
 }
 
@@ -297,6 +330,7 @@ namespace {
         $test->testLifecycleClasses();
         $test->testPrimaryKeyAndForeignKeySigning();
         $test->testInstallResetsCache();
+        $test->testUninstallCleansJitRules();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
