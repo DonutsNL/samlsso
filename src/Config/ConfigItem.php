@@ -1066,10 +1066,13 @@ class ConfigItem    //NOSONAR
         $expectedCookie = $isHttps ? __('Active (Secure)', PLUGIN_NAME) : __('Any', PLUGIN_NAME);
         $table .= '<tr><td>session.cookie_secure</td><td>' . $expectedCookie . '</td><td>' . $cookieSecure . '</td><td>' . $statusCookie . '</td></tr>';
         
-        // Proxy headers
-        $detectedXff = !empty($xff) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $xff) : __('Not Detected', PLUGIN_NAME);
-        $detectedXfp = !empty($xfp) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $xfp) : __('Not Detected', PLUGIN_NAME);
-        $detectedXfh = !empty($xfh) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $xfh) : __('Not Detected', PLUGIN_NAME);
+        // Proxy headers (HTML escaped to prevent header injection/XSS)
+        $safeXff = htmlspecialchars($xff, ENT_QUOTES, 'UTF-8');
+        $safeXfp = htmlspecialchars($xfp, ENT_QUOTES, 'UTF-8');
+        $safeXfh = htmlspecialchars($xfh, ENT_QUOTES, 'UTF-8');
+        $detectedXff = !empty($xff) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $safeXff) : __('Not Detected', PLUGIN_NAME);
+        $detectedXfp = !empty($xfp) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $safeXfp) : __('Not Detected', PLUGIN_NAME);
+        $detectedXfh = !empty($xfh) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $safeXfh) : __('Not Detected', PLUGIN_NAME);
         
         $linkXff = '<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For" target="_blank" rel="noopener noreferrer">X-Forwarded-For</a>';
         $linkXfp = '<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto" target="_blank" rel="noopener noreferrer">X-Forwarded-Proto</a>';

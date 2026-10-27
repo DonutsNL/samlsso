@@ -1031,13 +1031,20 @@ class LoginState extends CommonDBTM
                                         } else {
                                             $valStr = (string)$jsonVal;
                                         }
-                                        $formattedParts[] = "<strong>$label:</strong> $valStr";
+                                        $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
+                                        $safeValStr = htmlspecialchars($valStr, ENT_QUOTES, 'UTF-8');
+                                        $formattedParts[] = "<strong>$safeLabel:</strong> $safeValStr";
                                     }
                                     $value = implode("<br/>&nbsp;&nbsp;↳ ", $formattedParts);
+                                } else {
+                                    $value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
                                 }
+                            } else {
+                                $value = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
                             }
 
-                            $trace .= "<strong>$i. $displayKey</strong><br/>&nbsp;&nbsp;↳ $value<br/>";
+                            $safeDisplayKey = htmlspecialchars($displayKey, ENT_QUOTES, 'UTF-8');
+                            $trace .= "<strong>$i. $safeDisplayKey</strong><br/>&nbsp;&nbsp;↳ $value<br/>";
                             $i++;
                         }
                     }

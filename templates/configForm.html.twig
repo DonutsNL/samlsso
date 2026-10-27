@@ -53,7 +53,7 @@
 
             // Initialize Bootstrap Popover
             const popoverInstance = new bootstrap.Popover(el, {
-                sanitize: false,
+                sanitize: true,
                 trigger: 'manual',
                 customClass: customClass,
                 html: html,
@@ -280,8 +280,8 @@
                     // Add error icon next to the label if it's not already there
                     var $iconsSpan = alignLabelIcons($row);
                     if ($iconsSpan && !$iconsSpan.find('.fa-exclamation-triangle.text-danger').length) {
-                        var $warnSpan = $('<span class="text-danger ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-samlsso-type="error"><i class="fas fa-exclamation-triangle"></i></span>');
-                        $warnSpan.attr('data-bs-content', $errorText.html() || $errorText.text());
+                        var $warnSpan = $('<span class="text-danger ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="false" data-samlsso-type="error"><i class="fas fa-exclamation-triangle"></i></span>');
+                        $warnSpan.attr('data-bs-content', $errorText.text().trim());
                         $warnSpan.attr('title', 'Error');
                         $iconsSpan.prepend($warnSpan);
                         SamlSsoPopoverManager.init($warnSpan[0]);
@@ -303,8 +303,8 @@
                     // Add warning icon next to the label
                     var $iconsSpan = alignLabelIcons($row);
                     if ($iconsSpan && !$iconsSpan.find('.fa-exclamation-triangle.text-warning').length) {
-                        var $warnSpan = $('<span class="text-warning ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-samlsso-type="warning"><i class="fas fa-exclamation-triangle"></i></span>');
-                        $warnSpan.attr('data-bs-content', $warnText.html() || $warnText.text());
+                        var $warnSpan = $('<span class="text-warning ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="false" data-samlsso-type="warning"><i class="fas fa-exclamation-triangle"></i></span>');
+                        $warnSpan.attr('data-bs-content', $warnText.text().trim());
                         $warnSpan.attr('title', 'Warning');
                         $iconsSpan.prepend($warnSpan);
                         SamlSsoPopoverManager.init($warnSpan[0]);
@@ -326,8 +326,8 @@
                     // Add info icon next to the label
                     var $iconsSpan = alignLabelIcons($row);
                     if ($iconsSpan && !$iconsSpan.find('.fa-info-circle.text-info').length) {
-                        var $infoSpan = $('<span class="text-info ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-samlsso-type="success"><i class="fas fa-info-circle"></i></span>');
-                        $infoSpan.attr('data-bs-content', $infoText.html() || $infoText.text());
+                        var $infoSpan = $('<span class="text-info ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="false" data-samlsso-type="success"><i class="fas fa-info-circle"></i></span>');
+                        $infoSpan.attr('data-bs-content', $infoText.text().trim());
                         $infoSpan.attr('title', 'Info');
                         $iconsSpan.prepend($infoSpan);
                         SamlSsoPopoverManager.init($infoSpan[0]);
@@ -565,7 +565,9 @@
                 <ul class="dropdown-menu dropdown-menu-end" style="max-height: 200px; overflow-y: auto;">
             `;
             observedClaims.forEach(claim => {
-                dropdownHtml += `<li><a class="dropdown-item" href="#" onclick="selectClaim(this, '${claim}'); return false;">${claim}</a></li>`;
+                const safeClaim = $('<div>').text(claim).html();
+                const safeAttr = encodeURIComponent(claim);
+                dropdownHtml += `<li><a class="dropdown-item" href="#" data-claim="${safeAttr}" onclick="selectClaim(this, decodeURIComponent(this.getAttribute('data-claim'))); return false;">${safeClaim}</a></li>`;
             });
             dropdownHtml += `</ul>`;
         }
