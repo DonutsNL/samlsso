@@ -130,6 +130,74 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
+         * Test that bypass parameter requires configured secret token when SAMLSSO_BYPASS_TOKEN is set.
+         *
+         * @throws \Exception if bypass hardening verification fails.
+         */
+        public function testBypassTokenHardening(): void {
+            putenv('SAMLSSO_BYPASS_TOKEN=SecretToken12345');
+            $_SESSION['glpi_plugins']['samlsso'] = [];
+            $_POST = [];
+            $_GET = [];
+
+            // Case 1: bypass without token should fail
+            $_GET = [LoginFlow::SAMLBYPASS => 1];
+            $flow = new LoginFlow();
+            try {
+                ob_start();
+                $flow->doAuth();
+                ob_end_clean();
+            } catch (\Exception $e) {
+                if (str_contains($e->getMessage(), 'Redirect to:')) {
+                    putenv('SAMLSSO_BYPASS_TOKEN');
+                    throw new \Exception("Bypass should NOT redirect when secret token is missing!");
+                }
+            }
+            if (!empty($_SESSION['glpi_plugins']['samlsso']['bypass'])) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                throw new \Exception("Bypass session flag was set without valid token!");
+            }
+
+            // Case 2: bypass with invalid token should fail
+            $_GET = [LoginFlow::SAMLBYPASS => 1, 'token' => 'WrongToken'];
+            $flow = new LoginFlow();
+            try {
+                ob_start();
+                $flow->doAuth();
+                ob_end_clean();
+            } catch (\Exception $e) {
+                if (str_contains($e->getMessage(), 'Redirect to:')) {
+                    putenv('SAMLSSO_BYPASS_TOKEN');
+                    throw new \Exception("Bypass should NOT redirect when wrong token is provided!");
+                }
+            }
+
+            // Case 3: bypass with correct token should succeed
+            $_GET = [LoginFlow::SAMLBYPASS => 1, 'token' => 'SecretToken12345'];
+            $flow = new LoginFlow();
+            $redirected = false;
+            try {
+                $flow->doAuth();
+            } catch (\Exception $e) {
+                if (str_contains($e->getMessage(), 'Redirect to: http://glpi.local/?bypass=1&noAUTO=1&token=SecretToken12345')) {
+                    $redirected = true;
+                }
+            }
+            putenv('SAMLSSO_BYPASS_TOKEN');
+            if (!$redirected) {
+                throw new \Exception("Bypass failed to redirect with valid token!");
+            }
+            if (empty($_SESSION['glpi_plugins']['samlsso']['bypass']) || $_SESSION['glpi_plugins']['samlsso']['bypass_token'] !== 'SecretToken12345') {
+                throw new \Exception("Bypass token was not stored in session!");
+            }
+
+            // Clean up
+            unset($_GET[LoginFlow::SAMLBYPASS], $_GET['token']);
+            unset($_SESSION['glpi_plugins']['samlsso']);
+            echo "✅ Bypass token hardening\n";
+        }
+
+        /**
          * Test that the login screen is correctly rendered when SSO is not enforced and no bypass is set.
          *
          * @throws \Exception if the login page template name is not found in the output buffer.
@@ -457,6 +525,7 @@ namespace {
         $test->testEnforcedRedirect();
         $test->testDomainSelection();
         $test->testBypassParameter();
+        $test->testBypassTokenHardening();
         $test->testLoginPageRendering();
         $test->testAcsProcessing();
         $test->testSloLogoutRedirect();

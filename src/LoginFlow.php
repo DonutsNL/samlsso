@@ -410,18 +410,29 @@ class LoginFlow extends LoginFlowCompat
     {
         global $CFG_GLPI;
 
-        if (isset($_GET[LoginFlow::SAMLBYPASS]) && $_GET[LoginFlow::SAMLBYPASS] == 1) {
-            $_SESSION['glpi_plugins']['samlsso']['bypass'] = true;
-        }
-
         $bypassRequested = (isset($_GET[LoginFlow::SAMLBYPASS]) && $_GET[LoginFlow::SAMLBYPASS] == 1);
         $noAutoRequested = isset($_GET['noAuto']);
         $noAutoUpperSet = isset($_GET['noAUTO']);
 
         if ($bypassRequested || $noAutoRequested) {
+            $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN') ? PLUGIN_SAMLSSO_BYPASS_TOKEN : getenv('SAMLSSO_BYPASS_TOKEN');
+            $providedToken = $_GET['token'] ?? $_GET['bypass_token'] ?? null;
+
+            if (!empty($requiredToken)) {
+                if ($providedToken === null || !hash_equals((string)$requiredToken, (string)$providedToken)) {
+                    return false;
+                }
+                $_SESSION['glpi_plugins']['samlsso']['bypass_token'] = $providedToken;
+            }
+
+            $_SESSION['glpi_plugins']['samlsso']['bypass'] = true;
+
             if (!$bypassRequested || !$noAutoUpperSet) {
                 $this->state->addLoginFlowTrace(['bypassUsed' => true]);
                 $url = $CFG_GLPI['url_base'] . '/?' . LoginFlow::SAMLBYPASS . '=1&noAUTO=1';
+                if (!empty($providedToken)) {
+                    $url .= '&token=' . urlencode((string)$providedToken);
+                }
                 header('Location:' . $url);
                 exit();
             }

@@ -185,16 +185,38 @@ function plugin_init_samlsso(): void                                            
     // Check if bypass flag exists in the whitelisted plugin session namespace
     $is_bypassed = !empty($_SESSION['glpi_plugins']['samlsso']['bypass']);
 
-    if ($is_login_post && !$is_bypassed && Session::getLoginUserID() === false) {
-        if (Config::getIsEnforced()) {
+    if (Session::getLoginUserID() !== false && $is_bypassed) {
+        unset($_SESSION['glpi_plugins']['samlsso']['bypass'], $_SESSION['glpi_plugins']['samlsso']['bypass_token']);
+    }
+
+    if ($is_login_post && Session::getLoginUserID() === false && Config::getIsEnforced()) {
+        $allowed = false;
+        if ($is_bypassed) {
+            $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN') ? PLUGIN_SAMLSSO_BYPASS_TOKEN : getenv('SAMLSSO_BYPASS_TOKEN');
+            if (!empty($requiredToken)) {
+                $sessionToken = $_SESSION['glpi_plugins']['samlsso']['bypass_token'] ?? '';
+                if (hash_equals((string)$requiredToken, (string)$sessionToken)) {
+                    $allowed = true;
+                }
+            } else {
+                $allowed = true;
+            }
+        }
+
+        if (!$allowed) {
             // Log the blocked login attempt to the plugin events log
             Toolbox::logInFile(
                 PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS,
-                sprintf("SSO enforcement blocked local login attempt for user: %s\n", $_POST['login_name'])
+                sprintf("SSO enforcement blocked local login attempt for user: %s\n", (string)$_POST['login_name'])
             );
             // Nullify both username and password payloads to securely prevent native login
             $_POST['login_name'] = null;
             $_POST['login_password'] = null;
+        } else {
+            Toolbox::logInFile(
+                PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS,
+                sprintf("SSO bypass authorized local login attempt for user: %s\n", (string)$_POST['login_name'])
+            );
         }
     }
 
