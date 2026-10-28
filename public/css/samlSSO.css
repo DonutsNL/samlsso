@@ -56,10 +56,22 @@
     width: 100% !important;
     max-width: none !important;
     display: flex;
+    flex-wrap: wrap !important;
     align-items: center;
     justify-content: flex-start !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
+}
+.glpisaml .samlsso-diagnostic-table-container {
+    display: block !important;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    overflow-x: auto;
+    margin-top: 0.5rem !important;
+}
+.glpisaml .samlsso-diagnostic-table-container table {
+    width: 100% !important;
+    background-color: #ffffff;
 }
 .glpisaml .form-field.row input[type="number"] {
     max-width: 120px;

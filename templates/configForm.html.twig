@@ -269,73 +269,91 @@
 
         // Delay scanning and popover manager initialization slightly to run after GLPI core has loaded
         setTimeout(function() {
+            /**
+             * Processes validation and notification helper elements underneath form fields.
+             *
+             * Converts simple single-line text messages into clean popover tooltips on the label
+             * while preserving rich diagnostic tables (such as validateProxyEnvironment and
+             * validateTimezoneEnvironment) fully visible inline in the form.
+             *
+             * @param {jQuery} $textEl Form text helper element
+             * @param {string} type 'error' | 'warning' | 'info'
+             */
+            function processNotificationHelper($textEl, type) {
+                var $row = $textEl.closest('.form-field.row');
+                if (!$row.length) return;
+
+                var isTable = $textEl.find('table').length > 0;
+                var rowClass = 'form-field-' + (type === 'info' ? 'info' : (type === 'warning' ? 'warning' : 'error')) + '-row';
+                $row.addClass(rowClass);
+
+                var iconClass, popoverType, defaultTitle, iconColorClass;
+                if (type === 'error') {
+                    iconClass = 'fas fa-exclamation-triangle';
+                    iconColorClass = 'text-danger';
+                    popoverType = 'error';
+                    defaultTitle = 'Error';
+                } else if (type === 'warning') {
+                    iconClass = 'fas fa-exclamation-triangle';
+                    iconColorClass = 'text-warning';
+                    popoverType = 'warning';
+                    defaultTitle = 'Warning';
+                } else {
+                    iconClass = 'fas fa-info-circle';
+                    iconColorClass = 'text-info';
+                    popoverType = 'success';
+                    defaultTitle = 'Info';
+                }
+
+                var $iconsSpan = alignLabelIcons($row);
+                if ($iconsSpan && !$iconsSpan.find('.' + iconClass.split(' ').join('.') + '.' + iconColorClass).length) {
+                    var popoverContent = '';
+                    if (isTable) {
+                        var $summaryEl = $textEl.find('.text-danger, .text-warning, .text-success').first();
+                        if ($summaryEl.length) {
+                            popoverContent = $summaryEl.text().replace('⚠️', '').replace('✅', '').replace('⭕', '').trim();
+                        } else {
+                            var $muted = $textEl.find('.text-muted').first();
+                            popoverContent = $muted.length ? $muted.text().trim() : (type === 'warning' ? 'Environment diagnostics require attention (see table below).' : 'Environment diagnostics aligned.');
+                        }
+                    } else {
+                        popoverContent = $textEl.text().trim();
+                    }
+
+                    if (popoverContent) {
+                        var $iconSpan = $('<span class="' + iconColorClass + ' ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="false" data-samlsso-type="' + popoverType + '"><i class="' + iconClass + '"></i></span>');
+                        $iconSpan.attr('data-bs-content', popoverContent);
+                        $iconSpan.attr('title', defaultTitle);
+                        $iconsSpan.prepend($iconSpan);
+                        SamlSsoPopoverManager.init($iconSpan[0]);
+                    }
+                }
+
+                if (isTable) {
+                    // Diagnostic tables must never be hidden; display full width cleanly underneath row inputs
+                    $textEl.addClass('samlsso-diagnostic-table-container mt-2').css({
+                        'display': 'block',
+                        'width': '100%',
+                        'flex': '1 1 100%'
+                    });
+                } else {
+                    $textEl.hide();
+                }
+            }
+
             // Scan and highlight all fields containing errors across all tabs (only matching true red errors)
             $('.form-text[style*="color:red"], .form-text[style*="color: red"]').each(function() {
-                var $errorText = $(this);
-                var $row = $errorText.closest('.form-field.row');
-                if ($row.length) {
-                    // Apply red background styling class
-                    $row.addClass('form-field-error-row');
-                    
-                    // Add error icon next to the label if it's not already there
-                    var $iconsSpan = alignLabelIcons($row);
-                    if ($iconsSpan && !$iconsSpan.find('.fa-exclamation-triangle.text-danger').length) {
-                        var $warnSpan = $('<span class="text-danger ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="false" data-samlsso-type="error"><i class="fas fa-exclamation-triangle"></i></span>');
-                        $warnSpan.attr('data-bs-content', $errorText.text().trim());
-                        $warnSpan.attr('title', 'Error');
-                        $iconsSpan.prepend($warnSpan);
-                        SamlSsoPopoverManager.init($warnSpan[0]);
-                    }
-                    
-                    // Hide the raw error text
-                    $errorText.hide();
-                }
+                processNotificationHelper($(this), 'error');
             });
 
-            // Process warning helper texts (orange/yellow) and convert them to tooltips + warning row background
+            // Process warning helper texts (orange/yellow)
             $('.form-text[style*="color:rgb(180, 120, 8)"], .form-text[style*="color: rgb(180, 120, 8)"], .form-text[style*="color:rgb(180, 140, 8)"], .form-text[style*="color: rgb(180, 140, 8)"]').each(function() {
-                var $warnText = $(this);
-                var $row = $warnText.closest('.form-field.row');
-                if ($row.length) {
-                    // Apply warning row class
-                    $row.addClass('form-field-warning-row');
-                    
-                    // Add warning icon next to the label
-                    var $iconsSpan = alignLabelIcons($row);
-                    if ($iconsSpan && !$iconsSpan.find('.fa-exclamation-triangle.text-warning').length) {
-                        var $warnSpan = $('<span class="text-warning ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="false" data-samlsso-type="warning"><i class="fas fa-exclamation-triangle"></i></span>');
-                        $warnSpan.attr('data-bs-content', $warnText.text().trim());
-                        $warnSpan.attr('title', 'Warning');
-                        $iconsSpan.prepend($warnSpan);
-                        SamlSsoPopoverManager.init($warnSpan[0]);
-                    }
-                    
-                    // Hide the raw warning text
-                    $warnText.hide();
-                }
+                processNotificationHelper($(this), 'warning');
             });
 
             // Clean up and style green informational success text elements
             $('.form-text[style*="color:rgb(3, 126, 26)"], .form-text[style*="color:rgb(71, 180, 8)"]').each(function() {
-                var $infoText = $(this);
-                var $row = $infoText.closest('.form-field.row');
-                if ($row.length) {
-                    // Apply info background class
-                    $row.addClass('form-field-info-row');
-                    
-                    // Add info icon next to the label
-                    var $iconsSpan = alignLabelIcons($row);
-                    if ($iconsSpan && !$iconsSpan.find('.fa-info-circle.text-info').length) {
-                        var $infoSpan = $('<span class="text-info ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="false" data-samlsso-type="success"><i class="fas fa-info-circle"></i></span>');
-                        $infoSpan.attr('data-bs-content', $infoText.text().trim());
-                        $infoSpan.attr('title', 'Info');
-                        $iconsSpan.prepend($infoSpan);
-                        SamlSsoPopoverManager.init($infoSpan[0]);
-                    }
-                    
-                    // Hide the raw info text
-                    $infoText.hide();
-                }
+                processNotificationHelper($(this), 'info');
             });
 
             // Convert Security tab warning icons/tooltips to match General tab warning styles
