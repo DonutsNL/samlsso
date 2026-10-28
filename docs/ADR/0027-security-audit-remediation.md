@@ -1,10 +1,12 @@
 # ADR 0027: Security Audit Remediation and Hardening for samlSSO 1.3.2
 
+Fix for issue: https://github.com/DonutsNL/samlsso/issues/180
+
 ## Status
 Accepted
 
 ## Context
-A security review of samlSSO version 1.3.1 identified vulnerabilities across access control, SAML assertion processing, stored XSS in administrative logs, account takeover protections, secret management, error logging dumps, and request lifecycle management.
+A security review of samlSSO version 1.3.1 identified vulnerabilities across access control, SAML assertion processing, stored XSS in administrative logs, account takeover protections, secret management, error logging dumps, and request lifecycle management (tracked in issue https://github.com/DonutsNL/samlsso/issues/180).
 
 ## Decisions
 

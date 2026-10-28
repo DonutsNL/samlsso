@@ -1,19 +1,19 @@
 
 **V1.3.2**
-- Security: Enforced administrative rights check (`Session::checkRight('config', UPDATE)`) and full ConfigEntity validation on backup and restore endpoints in ConfigForm.
-- Security: Enforced strict SAML assertion validation in Acs, requiring wantAssertionsSigned or wantMessagesSigned, validating IdP configuration status, and rejecting cross-IdP assertion substitution.
-- Security: Sanitized login flow trace logs and proxy headers with htmlspecialchars to prevent stored XSS in administrative session logs.
-- Security: Protected local GLPI accounts (authtype DB_GLPI and default 'glpi' super-admin) against SAML JIT account takeover or linking, and stripped protected fields from synchronization updates.
-- Security: Realigned SAML JIT rule authorization right from rule_import to rule_ldap.
-- Security: Encrypted SP private keys using GLPIKey before database storage, masked private keys in UI, excluded keys from search options, and stripped keys from backup/export JSON payloads.
-- Security: Removed raw OneLogin Response and $_SERVER dumps from logs to prevent secret and session token leakage.
-- Security: Hardened SSO bypass with optional secret token validation and audit logging.
-- Security: Enforced POST method and CSRF protection on forcelogoff, and enforced HTTP-POST binding on the ACS endpoint.
-- Security: Evaluated forced logoff and inactivity timeouts before AJAX and exclusion checks (terminating AJAX with HTTP 401), and converted stale session cleanups to batch SQL queries.
-- Security: Purged SAML JIT rules from glpi_rules, glpi_rulecriterias, and glpi_ruleactions upon plugin uninstallation.
-- Security: Hardened code against XXE by removing LIBXML_NOENT and DTD loading flags from XML anonymization, and prevented PHP object injection by adding allowed_classes => false to unserialize calls.
-- Security: Replaced external third-party flagcdn.com image requests with offline Unicode flag emoji in session logging.
-- Added ADR 0027 documenting the comprehensive security audit remediation.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Enforced administrative rights check (`Session::checkRight('config', UPDATE)`) and full ConfigEntity validation on backup and restore endpoints in ConfigForm.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Enforced strict SAML assertion validation in Acs, requiring wantAssertionsSigned or wantMessagesSigned, validating IdP configuration status, and rejecting cross-IdP assertion substitution.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Sanitized login flow trace logs and proxy headers with htmlspecialchars to prevent stored XSS in administrative session logs.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Protected local GLPI accounts (authtype DB_GLPI and default 'glpi' super-admin) against SAML JIT account takeover or linking, and stripped protected fields from synchronization updates.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Realigned SAML JIT rule authorization right from rule_import to rule_ldap.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Encrypted SP private keys using GLPIKey before database storage, masked private keys in UI, excluded keys from search options, and stripped keys from backup/export JSON payloads.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Removed raw OneLogin Response and $_SERVER dumps from logs to prevent secret and session token leakage.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Hardened SSO bypass with optional secret token validation and audit logging.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Enforced POST method and CSRF protection on forcelogoff, and enforced HTTP-POST binding on the ACS endpoint.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Evaluated forced logoff and inactivity timeouts before AJAX and exclusion checks (terminating AJAX with HTTP 401), and converted stale session cleanups to batch SQL queries.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Purged SAML JIT rules from glpi_rules, glpi_rulecriterias, and glpi_ruleactions upon plugin uninstallation.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Hardened code against XXE by removing LIBXML_NOENT and DTD loading flags from XML anonymization, and prevented PHP object injection by adding allowed_classes => false to unserialize calls.
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Replaced external third-party flagcdn.com image requests with offline Unicode flag emoji in session logging.
+- Added ADR 0027 documenting the comprehensive security audit remediation for issue https://github.com/DonutsNL/samlsso/issues/180.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/173 and https://github.com/DonutsNL/samlsso/issues/171: Resolved SQL syntax error 1064 during table upgrade and plugin activation by converting column definitions in `Migration::addField()` from unsupported 'varchar' to 'string', removing conflicting 'update' => true on boolean/string fields to prevent accidental activation of 'force_authn', and normalizing any null values.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/171: Resolved false-positive schema validation failure and deactivation in SanityChecker on fresh installation by aligning column names with class constants (`ObservedClaim::SAML_CLAIM` and `Exclude::EXCLUDEPATH`) and making plugin path detection dynamic.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/159: Added configurable login screen header text (`login_header_text`) and custom button icon image URL (`conf_icon_url`) to IdP configuration, allowing administrators to customize the login screen header and display custom image/logo icons on login buttons without CSS overrides.
