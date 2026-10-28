@@ -748,7 +748,7 @@ msgstr ""
 
 #: src/Config/ConfigItem.php:927
 msgid "INACTIVITY TIMEOUT (MINUTES)"
-msgstr "अनुरोध का समय समाप्त (मिनट)"
+msgstr "निष्क्रियता टाइमआउट (मिनट)"
 
 #: src/Config/ConfigItem.php:974 src/Config/ConfigItem.php:989
 msgid "Active (Secure)"

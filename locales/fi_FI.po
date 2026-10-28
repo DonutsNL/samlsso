@@ -641,7 +641,7 @@ msgstr "Käyttämättömyyden kesto minuutteina ennen kuin istunto kirjataan ulo
 
 #: src/Config/ConfigItem.php:927
 msgid "INACTIVITY TIMEOUT (MINUTES)"
-msgstr "KÄYTTÖÖNOTTOAIKA (MINUUTTIA)"
+msgstr "TOIMETTOMUUDEN AIKAKATKAISU (MINUUTTIA)"
 
 #: src/Config/ConfigItem.php:974 src/Config/ConfigItem.php:989
 msgid "Active (Secure)"

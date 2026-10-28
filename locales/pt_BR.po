@@ -769,7 +769,7 @@ msgstr ""
 
 #: src/Config/ConfigItem.php:927
 msgid "INACTIVITY TIMEOUT (MINUTES)"
-msgstr "TEMPO LIMITE DE SOLICITAÇÃO (MINUTOS)"
+msgstr "TEMPO LIMITE DE INATIVIDADE (MINUTOS)"
 
 #: src/Config/ConfigItem.php:974 src/Config/ConfigItem.php:989
 msgid "Active (Secure)"
