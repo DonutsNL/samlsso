@@ -1,5 +1,7 @@
 
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/177: Redirects to static assets (js, css, images, fonts) are no longer stored or used as post login target, preventing unauthenticated asset requests from overwriting deep links or sending users to raw assets after SSO login.
+- Added ADR 0028 documenting the static asset redirect handling for issue https://github.com/DonutsNL/samlsso/issues/177.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Enforced administrative rights check (`Session::checkRight('config', UPDATE)`) and full ConfigEntity validation on backup and restore endpoints in ConfigForm.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Enforced strict SAML assertion validation in Acs, requiring wantAssertionsSigned or wantMessagesSigned, validating IdP configuration status, and rejecting cross-IdP assertion substitution.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/180: Sanitized login flow trace logs and proxy headers with htmlspecialchars to prevent stored XSS in administrative session logs.
