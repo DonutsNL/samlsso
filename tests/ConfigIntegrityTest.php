@@ -822,6 +822,124 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Config: dynamic configurable SP certificate generation modal, parameters, and security bounds verified (Issues #183, #184)\n";
         }
+
+        /**
+         * Verifies configuration form tab warning allocations and evaluation accuracy (Issue #185).
+         *
+         * Ensures timeout fields (request_timeout, inactivity_timeout) are mapped to the
+         * Security tab rather than the General tab, ensures all fields in tab templates
+         * are accounted for, verifies Transit tab navigation anchor uses #transit-tab, and
+         * validates that green timezone alignment success notices do not trigger false warnings.
+         *
+         * @throws \Exception If tab mappings or warning evaluations are misaligned.
+         */
+        public function testTabWarningsFieldAlignment(): void {
+            $configForm = new \GlpiPlugin\Samlsso\Config\ConfigForm();
+
+            $baseFields = [
+                ConfigEntity::NAME => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::CONF_DOMAIN => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::CONF_ICON => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::CONF_ICON_URL => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::LOGIN_HEADER_TEXT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::COMMENT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IS_ACTIVE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::DEBUG => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::COMPRESS_REQ => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::COMPRESS_RES => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::PROXIED => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::XML_VALIDATION => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::DEST_VALIDATION => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::LOWERCASE_URL => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SP_CERTIFICATE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SP_KEY_SOURCE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SP_KEY => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SP_NAME_FORMAT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IDP_ENTITY_ID => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IDP_SSO_URL => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IDP_SLO_URL => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IDP_CERTIFICATE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::AUTHN_CONTEXT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::AUTHN_COMPARE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::ENFORCE_SSO => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::REQUEST_TIMEOUT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::INACTIVITY_TIMEOUT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::STRICT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::USER_JIT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SYNC_ON_LOGIN => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::ENCRYPT_NAMEID => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SIGN_AUTHN => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::FORCE_AUTHN => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SIGN_SLO_REQ => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SIGN_SLO_RES => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_WANTMESSAGESSIGNED => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_WANTASSERTIONSSIGNED => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_SIGNMETADATA => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_WANTNAMEID => ['eval' => ConfigItem::VALID, 'errors' => ''],
+            ];
+
+            $warnings = $configForm->getTabWarnings($baseFields);
+            if ($warnings['general_warning'] !== '' || $warnings['security_warning'] !== '' ||
+                $warnings['transit_warning'] !== '' || $warnings['provider_warning'] !== '' ||
+                $warnings['idp_warning'] !== '') {
+                throw new \Exception("Expected no warnings when all fields are valid, got: " . json_encode($warnings));
+            }
+
+            $fieldsWithTzMismatch = $baseFields;
+            $fieldsWithTzMismatch[ConfigEntity::REQUEST_TIMEOUT]['errors'] = '⚠️ Timezone Mismatch: PHP and Database connection clocks differ by 1 hours (3600 seconds).';
+            $warningsTz = $configForm->getTabWarnings($fieldsWithTzMismatch);
+            if ($warningsTz['general_warning'] !== '') {
+                throw new \Exception("General tab should NOT display warning indicator when request_timeout has timezone mismatch (Issue #185)");
+            }
+            if ($warningsTz['security_warning'] !== '⚠️') {
+                throw new \Exception("Security tab MUST display warning indicator when request_timeout has timezone mismatch (Issue #185)");
+            }
+
+            $fieldsWithInactivityWarn = $baseFields;
+            $fieldsWithInactivityWarn[ConfigEntity::INACTIVITY_TIMEOUT]['errors'] = '⚠️ Inactivity timeout (120 min) exceeds GLPI session lifetime (24 min).';
+            $warningsInact = $configForm->getTabWarnings($fieldsWithInactivityWarn);
+            if ($warningsInact['general_warning'] !== '') {
+                throw new \Exception("General tab should NOT display warning indicator when inactivity_timeout has warning (Issue #185)");
+            }
+            if ($warningsInact['security_warning'] !== '⚠️') {
+                throw new \Exception("Security tab MUST display warning indicator when inactivity_timeout has warning (Issue #185)");
+            }
+
+            $fieldsWithAlignedNotice = $baseFields;
+            $fieldsWithAlignedNotice[ConfigEntity::REQUEST_TIMEOUT]['errors'] = '<table class="table"><tr><td>✅</td></tr></table><div class="mt-2 text-success">✅ Timezone Alignment: PHP and Database connection clocks are synchronized. (Shown because Debug mode is enabled)</div>';
+            $fieldsWithAlignedNotice[ConfigEntity::REQUEST_TIMEOUT]['eval'] = ConfigItem::VALID;
+            $warningsAligned = $configForm->getTabWarnings($fieldsWithAlignedNotice);
+            if ($warningsAligned['general_warning'] !== '' || $warningsAligned['security_warning'] !== '') {
+                throw new \Exception("Synchronized timezone alignment notice should NOT trigger warning badge on General or Security tabs (Issue #185)");
+            }
+
+            $fieldsWithGeneralError = $baseFields;
+            $fieldsWithGeneralError[ConfigEntity::CONF_ICON_URL]['errors'] = 'Invalid URL format';
+            $fieldsWithGeneralError[ConfigEntity::CONF_ICON_URL]['eval'] = ConfigItem::INVALID;
+            $warningsGeneral = $configForm->getTabWarnings($fieldsWithGeneralError);
+            if ($warningsGeneral['general_warning'] !== '⚠️') {
+                throw new \Exception("General tab MUST display warning indicator when conf_icon_url is invalid (Issue #185)");
+            }
+
+            $fieldsWithForceAuthnError = $baseFields;
+            $fieldsWithForceAuthnError[ConfigEntity::FORCE_AUTHN]['errors'] = 'Invalid value';
+            $fieldsWithForceAuthnError[ConfigEntity::FORCE_AUTHN]['eval'] = ConfigItem::INVALID;
+            $warningsForceAuthn = $configForm->getTabWarnings($fieldsWithForceAuthnError);
+            if ($warningsForceAuthn['security_warning'] !== '⚠️') {
+                throw new \Exception("Security tab MUST display warning indicator when force_authn is invalid (Issue #185)");
+            }
+
+            $cfgFormTpl = file_get_contents(__DIR__ . '/../templates/configForm.html.twig');
+            if (str_contains($cfgFormTpl, 'id="general-tab"') && substr_count($cfgFormTpl, 'id="general-tab"') > 1) {
+                throw new \Exception("Duplicate id=\"general-tab\" found in configForm.html.twig; transit tab should use id=\"transit-tab\"");
+            }
+            if (!str_contains($cfgFormTpl, 'id="transit-tab"')) {
+                throw new \Exception("Missing id=\"transit-tab\" in configForm.html.twig");
+            }
+
+            echo "✅ ConfigForm: tab warning field allocations and timezone evaluation verified (Issue #185)\n";
+        }
     }
 }
 
@@ -844,6 +962,7 @@ namespace {
         $test->testInactivityTimeoutSessionCeilingValidation();
         $test->testSpPrivateKeyTemplateInputs();
         $test->testGenerateCertMethodAndEndpoint();
+        $test->testTabWarningsFieldAlignment();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

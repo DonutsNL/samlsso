@@ -731,70 +731,98 @@ HTML;
         }
     }
 
-     /**
-     * Figure out if there are errors in one of the tabs and displays a
-     * warning sign if an error is found
+    /**
+     * Determines whether validation errors or advisory warnings exist in each tab
+     * and maps warning indicators to the respective configuration tab headers.
      *
-     * @param array $fields     from ConfigEntity->getFields()
+     * @param  array<string, mixed> $fields Configuration fields from ConfigEntity::getFields().
+     * @return array<string, string> Associative array of tab warning symbols (e.g. '⚠️' or '').
+     * @see https://github.com/DonutsNL/samlsso/issues/185
+     * @since 1.0.0
      */
-    private function getTabWarnings(array $fields): array
+    public function getTabWarnings(array $fields): array
     {
-        // What fields are in what tab
-        $tabFields = ['general_warning'     => [configEntity::NAME,
-                                                configEntity::CONF_DOMAIN,
-                                                configEntity::CONF_ICON,
-                                                configEntity::COMMENT,
-                                                configEntity::IS_ACTIVE,
-                                                configEntity::DEBUG,
-                                                configEntity::REQUEST_TIMEOUT,
-                                                configEntity::INACTIVITY_TIMEOUT],
-                      'transit_warning'     => [configEntity::COMPRESS_REQ,
-                                                configEntity::COMPRESS_RES,
-                                                configEntity::PROXIED,
-                                                configEntity::XML_VALIDATION,
-                                                configEntity::DEST_VALIDATION,
-                                                configEntity::LOWERCASE_URL],
-                      'provider_warning'    => [configEntity::SP_CERTIFICATE,
-                                                configEntity::SP_KEY_SOURCE,
-                                                configEntity::SP_KEY,
-                                                configEntity::SP_NAME_FORMAT],
-                      'idp_warning'         => [configEntity::IDP_ENTITY_ID,
-                                                configEntity::IDP_SSO_URL,
-                                                configEntity::IDP_SLO_URL,
-                                                configEntity::IDP_CERTIFICATE,
-                                                configEntity::AUTHN_CONTEXT,
-                                                configEntity::AUTHN_COMPARE],
-                      'security_warning'    => [configEntity::ENFORCE_SSO,
-                                                configEntity::STRICT,
-                                                configEntity::USER_JIT,
-                                                configEntity::SYNC_ON_LOGIN,
-                                                configEntity::ENCRYPT_NAMEID,
-                                                configEntity::SIGN_AUTHN,
-                                                configEntity::SIGN_SLO_REQ,
-                                                configEntity::SIGN_SLO_RES,
-                                                configEntity::SECURITY_WANTMESSAGESSIGNED,
-                                                configEntity::SECURITY_WANTASSERTIONSSIGNED,
-                                                configEntity::SECURITY_WANTASSERTIONSENCRYPTED,
-                                                configEntity::SECURITY_SIGNMETADATA,
-                                                configEntity::SECURITY_WANTNAMEID]];
-        // Parse config fields
-        // https://github.com/DonutsNL/samlsso/issues/27
-        // Make sure all tabs are present for twig.
+        $tabFields = [
+            'general_warning'  => [
+                ConfigEntity::NAME,
+                ConfigEntity::CONF_DOMAIN,
+                ConfigEntity::CONF_ICON,
+                ConfigEntity::CONF_ICON_URL,
+                ConfigEntity::LOGIN_HEADER_TEXT,
+                ConfigEntity::COMMENT,
+                ConfigEntity::IS_ACTIVE,
+                ConfigEntity::DEBUG,
+            ],
+            'transit_warning'  => [
+                ConfigEntity::COMPRESS_REQ,
+                ConfigEntity::COMPRESS_RES,
+                ConfigEntity::PROXIED,
+                ConfigEntity::XML_VALIDATION,
+                ConfigEntity::DEST_VALIDATION,
+                ConfigEntity::LOWERCASE_URL,
+            ],
+            'provider_warning' => [
+                ConfigEntity::SP_CERTIFICATE,
+                ConfigEntity::SP_KEY_SOURCE,
+                ConfigEntity::SP_KEY,
+                ConfigEntity::SP_NAME_FORMAT,
+            ],
+            'idp_warning'      => [
+                ConfigEntity::IDP_ENTITY_ID,
+                ConfigEntity::IDP_SSO_URL,
+                ConfigEntity::IDP_SLO_URL,
+                ConfigEntity::IDP_CERTIFICATE,
+                ConfigEntity::AUTHN_CONTEXT,
+                ConfigEntity::AUTHN_COMPARE,
+            ],
+            'security_warning' => [
+                ConfigEntity::ENFORCE_SSO,
+                ConfigEntity::REQUEST_TIMEOUT,
+                ConfigEntity::INACTIVITY_TIMEOUT,
+                ConfigEntity::STRICT,
+                ConfigEntity::USER_JIT,
+                ConfigEntity::SYNC_ON_LOGIN,
+                ConfigEntity::ENCRYPT_NAMEID,
+                ConfigEntity::SIGN_AUTHN,
+                ConfigEntity::FORCE_AUTHN,
+                ConfigEntity::SIGN_SLO_REQ,
+                ConfigEntity::SIGN_SLO_RES,
+                ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
+                ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
+                ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
+                ConfigEntity::SECURITY_SIGNMETADATA,
+                ConfigEntity::SECURITY_WANTNAMEID,
+            ],
+        ];
+
         $warnings = [];
-        foreach($tabFields as $tab => $entityFields){
+        foreach ($tabFields as $tab => $entityFields) {
             $warnings[$tab] = '';
-            foreach($entityFields as $field) {
-                if(!empty($fields[$field]['errors'])){
-                    $warnings[$tab] = '⚠️';
+            foreach ($entityFields as $field) {
+                if (!isset($fields[$field]) || !is_array($fields[$field])) {
+                    continue;
                 }
-                // Add cert validation warnings
-                if(!empty($fields[$field]['validate']['validations']['validTo'])   ||
-                   !empty($fields[$field]['validate']['validations']['validFrom']) ){
+
+                $err = (string)($fields[$field]['errors'] ?? '');
+                $eval = (string)($fields[$field]['eval'] ?? '');
+
+                if ($eval === ConfigItem::INVALID) {
+                    $warnings[$tab] = '⚠️';
+                } elseif (!empty($err)) {
+                    if (str_contains($err, '⚠️') || str_contains($err, '⭕') || str_contains($err, '❌')) {
+                        $warnings[$tab] = '⚠️';
+                    } elseif (!str_contains($err, '✅')) {
+                        $warnings[$tab] = '⚠️';
+                    }
+                }
+
+                if (!empty($fields[$field]['validate']['validations']['validTo']) ||
+                    !empty($fields[$field]['validate']['validations']['validFrom'])) {
                     $warnings[$tab] = '⚠️';
                 }
             }
         }
-        // Return warnings if any.
+
         return $warnings;
     }
 
