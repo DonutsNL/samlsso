@@ -992,6 +992,16 @@ class ConfigItem    //NOSONAR
         return $result;
     }
 
+    /**
+     * Validates and evaluates the inactivity timeout configuration field.
+     *
+     * Inspects PHP session lifetime (session.gc_maxlifetime) to dynamically expose the
+     * active server ceiling in field help text and surface an advisory warning if the
+     * configured timeout exceeds server session persistence.
+     *
+     * @param  mixed $var Inactivity timeout value in minutes.
+     * @return array Evaluated configuration item attributes.
+     */
     protected function inactivity_timeout(mixed $var): array
     {
         $error = false;
@@ -999,20 +1009,42 @@ class ConfigItem    //NOSONAR
             $error = __('⭕ Inactivity timeout must be a non-negative integer (minutes)', PLUGIN_NAME);
         }
 
+        $coreLifetimeSec = 0;
+        try {
+            $coreLifetimeSec = (int)ini_get('session.gc_maxlifetime');
+        } catch (\Throwable) {
+            $coreLifetimeSec = 0;
+        }
+        $coreLifetimeMin = ($coreLifetimeSec > 0) ? intdiv($coreLifetimeSec, 60) : 0;
+
+        $formExplain = ($coreLifetimeMin > 0)
+            ? sprintf(__('The duration in minutes of inactivity before a session is forcefully logged out (0 to disable). GLPI session lifetime is currently %d minutes (session.gc_maxlifetime).', PLUGIN_NAME), $coreLifetimeMin)
+            : __('The duration in minutes of inactivity before a session is forcefully logged out (0 to disable).', PLUGIN_NAME);
+
+        $warning = false;
+        if (!$error && (int)$var > 0 && $coreLifetimeMin > 0 && (int)$var > $coreLifetimeMin) {
+            $warning = sprintf(
+                __('⚠️ Inactivity timeout (%d min) exceeds GLPI session lifetime (%d min). Sessions will be terminated by the server after %d minutes before this timeout is reached.', PLUGIN_NAME),
+                (int)$var,
+                $coreLifetimeMin,
+                $coreLifetimeMin
+            );
+        }
+
         $result = [
-            ConfigItem::FORMEXPLAIN => __('The duration in minutes of inactivity before a session is forcefully logged out (0 to disable).', PLUGIN_NAME),
-            ConfigItem::FORMTITLE => __('INACTIVITY TIMEOUT (MINUTES)', PLUGIN_NAME),
-            ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-            ConfigItem::VALUE     => ($error) ? '0' : (string)(int)$var,
-            ConfigItem::FIELD     => __function__,
-            ConfigItem::VALIDATOR => __method__,
-            ConfigItem::ERRORS    => ($error) ? $error : false,
+            ConfigItem::FORMEXPLAIN => $formExplain,
+            ConfigItem::FORMTITLE   => __('INACTIVITY TIMEOUT (MINUTES)', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => ($error) ? '0' : (string)(int)$var,
+            ConfigItem::FIELD       => __function__,
+            ConfigItem::VALIDATOR   => __method__,
+            ConfigItem::ERRORS      => ($error) ? $error : (($warning !== false) ? $warning : false),
         ];
 
         if (!$error) {
             $tzValidation = $this->validateTimezoneEnvironment();
             if (!empty($tzValidation['htmlTable'])) {
-                $result[ConfigItem::ERRORS] = $tzValidation['htmlTable'];
+                $result[ConfigItem::ERRORS] = ($warning !== false ? $warning . '<br>' : '') . $tzValidation['htmlTable'];
                 if (!$tzValidation['isValid']) {
                     $result[ConfigItem::EVAL] = ConfigItem::INVALID;
                 }

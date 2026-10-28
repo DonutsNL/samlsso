@@ -621,6 +621,69 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ ConfigForm: forcelogoff GET request rejected (CSRF protection)\n";
         }
+
+        /**
+         * Test that inactivity timeout validation checks against GLPI core session lifetime
+         * (session.gc_maxlifetime), provides advisory warnings when SAML timeout exceeds GLPI session,
+         * and includes the active ceiling in the field explanation.
+         *
+         * @return void
+         * @throws \Exception If validation or advisory warnings behave unexpectedly.
+         */
+        public function testInactivityTimeoutSessionCeilingValidation(): void {
+            $configEntity = new \GlpiPlugin\Samlsso\Config\ConfigEntity();
+            $method = new \ReflectionMethod($configEntity, 'inactivity_timeout');
+            $method->setAccessible(true);
+
+            $originalLifetime = ini_get('session.gc_maxlifetime');
+            try {
+                // Set core session lifetime to 3600 seconds (60 minutes)
+                ini_set('session.gc_maxlifetime', '3600');
+
+                // Case 1: Timeout <= core session lifetime (45 min <= 60 min)
+                $resValid = $method->invoke($configEntity, 45);
+                if ($resValid[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::VALID) {
+                    throw new \Exception("Expected timeout <= core session lifetime to be valid");
+                }
+                if ($resValid[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS] !== false && str_contains((string)$resValid[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS], '⚠️ Inactivity timeout')) {
+                    throw new \Exception("Unexpected advisory warning when timeout <= core session lifetime");
+                }
+                if (!str_contains((string)$resValid[\GlpiPlugin\Samlsso\Config\ConfigItem::FORMEXPLAIN], '60 minutes')) {
+                    throw new \Exception("Expected formexplain to include active GLPI core session lifetime (60 minutes)");
+                }
+
+                // Case 2: Disabled timeout (0 min)
+                $resZero = $method->invoke($configEntity, 0);
+                if ($resZero[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::VALID) {
+                    throw new \Exception("Expected disabled timeout (0) to be valid");
+                }
+                if ($resZero[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS] !== false && str_contains((string)$resZero[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS], '⚠️ Inactivity timeout')) {
+                    throw new \Exception("Disabled timeout (0) must not produce an advisory warning");
+                }
+
+                // Case 3: Timeout > core session lifetime (120 min > 60 min)
+                $resExceed = $method->invoke($configEntity, 120);
+                if ($resExceed[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::VALID) {
+                    throw new \Exception("Expected timeout exceeding session lifetime to remain valid with advisory warning");
+                }
+                if (empty($resExceed[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS]) || !str_contains((string)$resExceed[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS], '⚠️ Inactivity timeout (120 min) exceeds GLPI session lifetime (60 min)')) {
+                    throw new \Exception("Expected advisory warning when inactivity timeout exceeds core session lifetime, got: " . json_encode($resExceed[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS]));
+                }
+
+                // Case 4: Invalid negative timeout
+                $resNeg = $method->invoke($configEntity, -5);
+                if ($resNeg[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::INVALID) {
+                    throw new \Exception("Expected negative timeout to be invalid");
+                }
+
+            } finally {
+                if ($originalLifetime !== false) {
+                    ini_set('session.gc_maxlifetime', (string)$originalLifetime);
+                }
+            }
+
+            echo "✅ Config: inactivity timeout session ceiling validation and advisory warning verified (Issue #181)\n";
+        }
     }
 }
 
@@ -640,6 +703,7 @@ namespace {
         $test->testCustomLoginScreenHeaderAndButtonIcon();
         $test->testSpPrivateKeySecurity();
         $test->testForceLogoffCsrfProtection();
+        $test->testInactivityTimeoutSessionCeilingValidation();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

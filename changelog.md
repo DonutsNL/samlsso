@@ -1,4 +1,6 @@
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/181: Aligned inactivity timeout validation with GLPI core session lifetime (`session.gc_maxlifetime`), dynamically displaying the server session ceiling in field help text and providing advisory warnings when the configured timeout exceeds server session persistence.
+- Added ADR 0029 documenting the inactivity timeout alignment with GLPI core session lifetime for issue https://github.com/DonutsNL/samlsso/issues/181.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/178: Corrected the "INACTIVITY TIMEOUT (MINUTES)" translation in de_DE, el_GR, es_AR, es_ES, fi_FI, fr_FR, hi_IN, it_IT, nl_NL, pt_BR and sv_SE to resolve duplicate timeout label display, and recompiled the affected .mo files.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/177: Redirects to static assets (js, css, images, fonts) are no longer stored or used as post login target, preventing unauthenticated asset requests from overwriting deep links or sending users to raw assets after SSO login.
 - Added ADR 0028 documenting the static asset redirect handling for issue https://github.com/DonutsNL/samlsso/issues/177.
