@@ -53,7 +53,7 @@
 
             // Initialize Bootstrap Popover
             const popoverInstance = new bootstrap.Popover(el, {
-                sanitize: true,
+                sanitize: false,
                 trigger: 'manual',
                 customClass: customClass,
                 html: html,
@@ -307,21 +307,14 @@
 
                 var $iconsSpan = alignLabelIcons($row);
                 if ($iconsSpan && !$iconsSpan.find('.' + iconClass.split(' ').join('.') + '.' + iconColorClass).length) {
-                    var popoverContent = '';
-                    if (isTable) {
-                        var $summaryEl = $textEl.find('.text-danger, .text-warning, .text-success').first();
-                        if ($summaryEl.length) {
-                            popoverContent = $summaryEl.text().replace('⚠️', '').replace('✅', '').replace('⭕', '').trim();
-                        } else {
-                            var $muted = $textEl.find('.text-muted').first();
-                            popoverContent = $muted.length ? $muted.text().trim() : (type === 'warning' ? 'Environment diagnostics require attention (see table below).' : 'Environment diagnostics aligned.');
-                        }
-                    } else {
-                        popoverContent = $textEl.text().trim();
-                    }
+                    var popoverContent = isTable ? $textEl.html().trim() : $textEl.text().trim();
 
                     if (popoverContent) {
-                        var $iconSpan = $('<span class="' + iconColorClass + ' ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="false" data-samlsso-type="' + popoverType + '"><i class="' + iconClass + '"></i></span>');
+                        var customClass = 'samlsso-popover-' + popoverType;
+                        if (isTable) {
+                            customClass += ' samlsso-popover-table';
+                        }
+                        var $iconSpan = $('<span class="' + iconColorClass + ' ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-bs-custom-class="' + customClass + '" data-samlsso-type="' + popoverType + '"><i class="' + iconClass + '"></i></span>');
                         $iconSpan.attr('data-bs-content', popoverContent);
                         $iconSpan.attr('title', defaultTitle);
                         $iconsSpan.prepend($iconSpan);
@@ -329,16 +322,7 @@
                     }
                 }
 
-                if (isTable) {
-                    // Diagnostic tables must never be hidden; display full width cleanly underneath row inputs
-                    $textEl.addClass('samlsso-diagnostic-table-container mt-2').css({
-                        'display': 'block',
-                        'width': '100%',
-                        'flex': '1 1 100%'
-                    });
-                } else {
-                    $textEl.hide();
-                }
+                $textEl.addClass('samlsso-diagnostic-table-container').hide();
             }
 
             // Scan and highlight all fields containing errors across all tabs (only matching true red errors)
@@ -366,7 +350,7 @@
                 if (!tooltipText && iconId) {
                     var $contentDiv = $('#content' + iconId);
                     if ($contentDiv.length) {
-                        tooltipText = $contentDiv.text() || $contentDiv.html();
+                        tooltipText = ($contentDiv.find('table').length > 0 || $contentDiv.is('table')) ? $contentDiv.html() : ($contentDiv.text() || $contentDiv.html());
                         $contentDiv.remove(); // Remove stray tooltip content div
                     }
                 }
@@ -381,7 +365,9 @@
                     // Add warning yellow triangle indicator to the label
                     var $iconsSpan = alignLabelIcons($row);
                     if ($iconsSpan && !$iconsSpan.find('.fa-exclamation-triangle.text-warning').length) {
-                        var $tipSpan = $('<span class="text-warning ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-samlsso-type="warning"><i class="fas fa-exclamation-triangle"></i></span>');
+                        var hasTable = tooltipText.indexOf('<table') !== -1;
+                        var customClass = 'samlsso-popover-warning' + (hasTable ? ' samlsso-popover-table' : '');
+                        var $tipSpan = $('<span class="text-warning ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-bs-custom-class="' + customClass + '" data-samlsso-type="warning"><i class="fas fa-exclamation-triangle"></i></span>');
                         $tipSpan.attr('data-bs-content', tooltipText.replace('⚠️', '').trim());
                         $tipSpan.attr('title', 'Warning');
                         $iconsSpan.prepend($tipSpan);

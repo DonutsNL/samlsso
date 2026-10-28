@@ -63,15 +63,7 @@
     padding-right: 0 !important;
 }
 .glpisaml .samlsso-diagnostic-table-container {
-    display: block !important;
-    width: 100% !important;
-    flex: 1 1 100% !important;
-    overflow-x: auto;
-    margin-top: 0.5rem !important;
-}
-.glpisaml .samlsso-diagnostic-table-container table {
-    width: 100% !important;
-    background-color: #ffffff;
+    display: none !important;
 }
 .glpisaml .form-field.row input[type="number"] {
     max-width: 120px;
@@ -407,6 +399,33 @@
 .popover.samlsso-popover-trace .popover-body {
     font-family: var(--tb-font-monospace, monospace);
     font-size: 0.8rem;
+}
+
+/* Diagnostic and structured table popovers */
+.popover.samlsso-popover-table,
+.popover:has(table) {
+    max-width: 560px !important;
+}
+.popover.samlsso-popover-table .popover-body,
+.popover:has(table) .popover-body {
+    max-height: 480px;
+    overflow-y: auto;
+    padding: 0.75rem !important;
+}
+.popover.samlsso-popover-table table,
+.popover:has(table) table {
+    width: 100% !important;
+    margin-bottom: 0.5rem !important;
+    font-size: 0.8rem !important;
+    background-color: var(--tb-card-bg, #ffffff) !important;
+    border-collapse: collapse !important;
+}
+.popover.samlsso-popover-table table th,
+.popover.samlsso-popover-table table td,
+.popover:has(table) table th,
+.popover:has(table) table td {
+    padding: 0.35rem 0.5rem !important;
+    vertical-align: middle !important;
 }
 
 /* Simplified forms: Categories without cards/boxes */
