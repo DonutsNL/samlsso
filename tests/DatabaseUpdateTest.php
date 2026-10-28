@@ -353,6 +353,29 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Database Migrations: Verified phase is tinyint with index (#160) and redirect is TEXT (#165)\n";
         }
+
+        /**
+         * Verifies that Config::install() invokes migrationOneTable on the configs table
+         * so all queued addField migrations are executed during upgrade (Issue #182).
+         *
+         * @return void
+         * @throws \Exception if migrationOneTable was not invoked for glpi_plugin_samlsso_configs.
+         */
+        public function testConfigTableMigrationExecution(): void {
+            global $DB;
+            $DB = new SimpleMockDB();
+            $table = Config::getTable();
+            $DB->existingTables = [$table];
+
+            $migration = new InterceptingMigration('1.3.2');
+            Config::install($migration);
+
+            if (!in_array($table, $migration->migrationOneTableCalls, true)) {
+                throw new \Exception("Expected migrationOneTable to be called for $table in Config::install() (Issue #182).");
+            }
+
+            echo "✅ Database Migrations: Verified migrationOneTable is called for $table in Config::install() (Issue #182)\n";
+        }
     }
 }
 
@@ -364,6 +387,7 @@ namespace {
     try {
         $test->testUpdateProcedureNoAfterBefore();
         $test->testLoginStatePhaseAndRedirectMigration();
+        $test->testConfigTableMigrationExecution();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

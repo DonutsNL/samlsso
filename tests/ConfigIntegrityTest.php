@@ -684,6 +684,44 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Config: inactivity timeout session ceiling validation and advisory warning verified (Issue #181)\n";
         }
+
+        /**
+         * Test that provider.html.twig template defines dynamic input fields for alternative
+         * private key sources (file, env, define) and disables raw PEM textarea (Issue #182).
+         *
+         * @return void
+         * @throws \Exception If template elements or switching logic are missing.
+         */
+        public function testSpPrivateKeyTemplateInputs(): void {
+            $templatePath = __DIR__ . '/../templates/configForm/provider.html.twig';
+            if (!file_exists($templatePath)) {
+                throw new \Exception("provider.html.twig template not found at $templatePath");
+            }
+            $content = file_get_contents($templatePath);
+
+            // Verify reference container and text field
+            if (!str_contains($content, 'id="sp_private_key_ref_container"')) {
+                throw new \Exception("Missing #sp_private_key_ref_container in provider.html.twig (Issue #182)");
+            }
+            if (!str_contains($content, "'id': 'sp_private_key_ref'")) {
+                throw new \Exception("Missing sp_private_key_ref text input in provider.html.twig (Issue #182)");
+            }
+
+            // Verify raw PEM textarea container
+            if (!str_contains($content, 'id="sp_private_key_raw_container"')) {
+                throw new \Exception("Missing #sp_private_key_raw_container in provider.html.twig (Issue #182)");
+            }
+            if (!str_contains($content, "'id': 'sp_private_key_raw'")) {
+                throw new \Exception("Missing sp_private_key_raw textarea input in provider.html.twig (Issue #182)");
+            }
+
+            // Verify client-side dynamic switching logic
+            if (!str_contains($content, "updateKeySourceUI") || !str_contains($content, "select[name=\"sp_private_key_source\"]")) {
+                throw new \Exception("Missing updateKeySourceUI change listener in provider.html.twig (Issue #182)");
+            }
+
+            echo "✅ Config: dynamic SP private key source input switching in provider.html.twig verified (Issue #182)\n";
+        }
     }
 }
 
@@ -704,6 +742,7 @@ namespace {
         $test->testSpPrivateKeySecurity();
         $test->testForceLogoffCsrfProtection();
         $test->testInactivityTimeoutSessionCeilingValidation();
+        $test->testSpPrivateKeyTemplateInputs();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

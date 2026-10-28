@@ -610,6 +610,8 @@ class Config extends ConfigCompat
                 $migration->addField($table, ConfigEntity::LOGIN_HEADER_TEXT, 'string', ['null' => true]);
             }
 
+            $migration->migrationOneTable($table);
+
             if ($DB->fieldExists($table, ConfigEntity::FORCE_AUTHN, false)) {
                 $DB->doQuery("UPDATE `$table` SET `" . ConfigEntity::FORCE_AUTHN . "` = 0 WHERE `" . ConfigEntity::FORCE_AUTHN . "` IS NULL");
             }

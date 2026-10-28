@@ -165,17 +165,129 @@
                         }}
                     </div>
 
-                    <!-- sp_private_key -->
-                    <div class="mb-3">
+                    {% set current_key_source = inputfields.sp_private_key_source.value|default('db') %}
+                    {% set is_alt_source = current_key_source in ['file', 'env', 'define'] %}
+
+                    {% set ref_label = __('SP Private Key File Path', plugin) %}
+                    {% set ref_placeholder = '/etc/glpi/saml.key' %}
+                    {% set ref_helper = __('Absolute path to the private key on the server filesystem. Must be outside the GLPI docroot and readable by the web server.', plugin) %}
+
+                    {% if current_key_source == 'env' %}
+                        {% set ref_label = __('Environment Variable Name', plugin) %}
+                        {% set ref_placeholder = 'SAML_SP_PRIVATE_KEY' %}
+                        {% set ref_helper = __('Name of the server environment variable containing the private key.', plugin) %}
+                    {% elseif current_key_source == 'define' %}
+                        {% set ref_label = __('PHP Constant Name', plugin) %}
+                        {% set ref_placeholder = 'SAML_SP_KEY_CONSTANT' %}
+                        {% set ref_helper = __('Name of the defined PHP constant containing the private key.', plugin) %}
+                    {% endif %}
+
+                    {% if inputfields.sp_private_key.errors is defined and inputfields.sp_private_key.errors %}
+                        <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+                            <i class="ti ti-alert-triangle me-2"></i>
+                            <div>{{ inputfields.sp_private_key.errors }}</div>
+                        </div>
+                    {% endif %}
+
+                    <!-- sp_private_key alternative reference (file, env, define) -->
+                    <div id="sp_private_key_ref_container" class="mb-3 {% if not is_alt_source %}d-none{% endif %}">
+                        {{ fields.textField(
+                            'sp_private_key',
+                            is_alt_source ? inputfields.sp_private_key.value : '',
+                            ref_label,
+                            {
+                                'id': 'sp_private_key_ref',
+                                'disabled': not is_alt_source,
+                                'placeholder': ref_placeholder,
+                                helper: ref_helper,
+                            }
+                        ) }}
+                        <div class="form-text text-muted mt-1">
+                            <i class="ti ti-lock me-1"></i>{{ __('Database private key storage is disabled. The private key will be resolved dynamically at runtime.', plugin) }}
+                        </div>
+                    </div>
+
+                    <!-- sp_private_key raw PEM textarea (db) -->
+                    <div id="sp_private_key_raw_container" class="mb-3 {% if is_alt_source %}d-none{% endif %}">
                         {{ fields.textareaField( 
-                            inputfields.sp_private_key.field,
-                            inputfields.sp_private_key.value,
+                            'sp_private_key',
+                            is_alt_source ? '' : inputfields.sp_private_key.value,
                             inputfields.sp_private_key.formtitle,
                             {
+                                'id': 'sp_private_key_raw',
+                                'disabled': is_alt_source,
                                 helper: inputfields.sp_private_key.formexplain,
                             }) 
                         }}
                     </div>
+
+                    <script>
+                    $(function() {
+                        const keySourceMeta = {
+                            file: {
+                                label: '{{ __("SP Private Key File Path", plugin)|escape("js") }}',
+                                placeholder: '/etc/glpi/saml.key',
+                                helper: '{{ __("Absolute path to the private key on the server filesystem. Must be outside the GLPI docroot and readable by the web server.", plugin)|escape("js") }}'
+                            },
+                            env: {
+                                label: '{{ __("Environment Variable Name", plugin)|escape("js") }}',
+                                placeholder: 'SAML_SP_PRIVATE_KEY',
+                                helper: '{{ __("Name of the server environment variable containing the private key.", plugin)|escape("js") }}'
+                            },
+                            define: {
+                                label: '{{ __("PHP Constant Name", plugin)|escape("js") }}',
+                                placeholder: 'SAML_SP_KEY_CONSTANT',
+                                helper: '{{ __("Name of the defined PHP constant containing the private key.", plugin)|escape("js") }}'
+                            }
+                        };
+
+                        function updateKeySourceUI(source) {
+                            const $refContainer = $('#sp_private_key_ref_container');
+                            const $rawContainer = $('#sp_private_key_raw_container');
+                            const $refInput = $('#sp_private_key_ref');
+                            const $rawTextarea = $('#sp_private_key_raw');
+
+                            if (source === 'db') {
+                                $refContainer.addClass('d-none');
+                                $refInput.prop('disabled', true);
+                                $rawContainer.removeClass('d-none');
+                                $rawTextarea.prop('disabled', false);
+                            } else if (keySourceMeta[source]) {
+                                $rawContainer.addClass('d-none');
+                                $rawTextarea.prop('disabled', true);
+                                $refContainer.removeClass('d-none');
+                                $refInput.prop('disabled', false);
+
+                                const meta = keySourceMeta[source];
+                                $refInput.attr('placeholder', meta.placeholder);
+
+                                const $label = $refContainer.find('label.col-form-label');
+                                if ($label.length) {
+                                    const $help = $label.find('.form-help');
+                                    if ($help.length) {
+                                        $label.contents().filter(function() {
+                                            return this.nodeType === 3;
+                                        }).first().replaceWith(meta.label + ' ');
+                                        $help.attr('data-bs-title', meta.helper);
+                                        $help.attr('aria-label', meta.helper);
+                                        if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                                            const inst = bootstrap.Tooltip.getInstance($help[0]);
+                                            if (inst && typeof inst.setContent === 'function') {
+                                                inst.setContent({ '.tooltip-inner': meta.helper });
+                                            }
+                                        }
+                                    } else {
+                                        $label.text(meta.label);
+                                    }
+                                }
+                            }
+                        }
+
+                        $(document).on('change', 'select[name="sp_private_key_source"]', function() {
+                            updateKeySourceUI($(this).val());
+                        });
+                    });
+                    </script>
                 </div>
             </div>
         </div>
