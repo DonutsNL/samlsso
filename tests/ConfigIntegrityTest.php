@@ -722,6 +722,75 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Config: dynamic SP private key source input switching in provider.html.twig verified (Issue #182)\n";
         }
+
+        /**
+         * Test dynamic self-signed SP certificate generation method and endpoint guards (Issue #183).
+         *
+         * @return void
+         * @throws \Exception If certificate generation, modulus validation, or endpoint security checks fail.
+         */
+        public function testGenerateCertMethodAndEndpoint(): void {
+            if (!extension_loaded('openssl') || !function_exists('openssl_pkey_new')) {
+                echo "⚠️ Skipping testGenerateCertMethodAndEndpoint: OpenSSL not available\n";
+                return;
+            }
+
+            // 1. Test ConfigEntity::generateSelfSignedCertificate()
+            $pair = ConfigEntity::generateSelfSignedCertificate('saml-test.example.com', 365, 2048);
+            if ($pair === false || !is_array($pair)) {
+                throw new \Exception("ConfigEntity::generateSelfSignedCertificate returned false or non-array");
+            }
+            if (empty($pair['certificate']) || !str_contains($pair['certificate'], '-----BEGIN CERTIFICATE-----')) {
+                throw new \Exception("Generated certificate is missing or invalid PEM structure");
+            }
+            if (empty($pair['private_key']) || !str_contains($pair['private_key'], '-----BEGIN PRIVATE KEY-----')) {
+                throw new \Exception("Generated private key is missing or invalid PEM structure");
+            }
+
+            // Parse generated certificate
+            $parsedCert = openssl_x509_parse($pair['certificate']);
+            if (!$parsedCert || empty($parsedCert['subject']['CN'])) {
+                throw new \Exception("Failed to parse generated X.509 certificate");
+            }
+            if ($parsedCert['subject']['CN'] !== 'saml-test.example.com') {
+                throw new \Exception("Expected CN 'saml-test.example.com', got '{$parsedCert['subject']['CN']}'");
+            }
+
+            // Validate key pair modulus match via ConfigEntity reflection
+            $configEntity = new ConfigEntity();
+            $method = new \ReflectionMethod($configEntity, 'validateCertKeyPairModulus');
+            $method->setAccessible(true);
+            $modulusMatches = $method->invoke($configEntity, $pair['certificate'], $pair['private_key']);
+            if (!$modulusMatches) {
+                throw new \Exception("Generated certificate and private key modulus do not match");
+            }
+
+            // 2. Test template UI elements in provider.html.twig
+            $templatePath = __DIR__ . '/../templates/configForm/provider.html.twig';
+            $tplContent = file_get_contents($templatePath);
+            if (!str_contains($tplContent, 'id="samlsso-cert-generator-banner"')) {
+                throw new \Exception("Missing #samlsso-cert-generator-banner in provider.html.twig");
+            }
+            if (!str_contains($tplContent, 'id="btn-generate-sp-cert"')) {
+                throw new \Exception("Missing #btn-generate-sp-cert button in provider.html.twig");
+            }
+            if (!str_contains($tplContent, "action: 'generate_cert'")) {
+                throw new \Exception("Missing AJAX generate_cert action trigger in provider.html.twig");
+            }
+
+            // 3. Test ConfigForm endpoint guards: GET request must be rejected with 405 Method Not Allowed
+            $configForm = new \GlpiPlugin\Samlsso\Config\ConfigForm();
+            $requestGet = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php?action=generate_cert',
+                'GET'
+            );
+            $response = $configForm->invokeForm($requestGet);
+            if ($response->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_METHOD_NOT_ALLOWED) {
+                throw new \Exception("Expected HTTP 405 Method Not Allowed for GET generate_cert request, got " . $response->getStatusCode());
+            }
+
+            echo "✅ Config: dynamic self-signed SP certificate generation method and endpoint verified (Issue #183)\n";
+        }
     }
 }
 
@@ -743,6 +812,7 @@ namespace {
         $test->testForceLogoffCsrfProtection();
         $test->testInactivityTimeoutSessionCeilingValidation();
         $test->testSpPrivateKeyTemplateInputs();
+        $test->testGenerateCertMethodAndEndpoint();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

@@ -487,6 +487,43 @@ HTML;
             return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $idpId . '#logging');
         }
 
+        if ($request->get('action') === 'generate_cert') {
+            if (!$request->isMethod('POST')) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('Invalid request method for certificate generation.', PLUGIN_NAME),
+                ]), Response::HTTP_METHOD_NOT_ALLOWED, ['Content-Type' => 'application/json']);
+            }
+            if (method_exists(\Session::class, 'validateCSRF') && !\Session::validateCSRF($request->request->all(), true)) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('Security token expired or invalid.', PLUGIN_NAME),
+                ]), Response::HTTP_FORBIDDEN, ['Content-Type' => 'application/json']);
+            }
+            $config = new Config();
+            if (!$config->canUpdate()) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('You do not have permission to perform this action.', PLUGIN_NAME),
+                ]), Response::HTTP_FORBIDDEN, ['Content-Type' => 'application/json']);
+            }
+
+            $pair = ConfigEntity::generateSelfSignedCertificate();
+            if ($pair === false) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('OpenSSL certificate generation failed or OpenSSL is not available.', PLUGIN_NAME),
+                ]), Response::HTTP_INTERNAL_SERVER_ERROR, ['Content-Type' => 'application/json']);
+            }
+
+            return new Response((string)json_encode([
+                'success'     => true,
+                'certificate' => $pair['certificate'],
+                'private_key' => $pair['private_key'],
+                'message'     => __('New self-signed certificate and private key generated successfully.', PLUGIN_NAME),
+            ]), Response::HTTP_OK, ['Content-Type' => 'application/json']);
+        }
+
         $inputBag = $request->getPayload();                                     // Assign the inputBag
         $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;     // Assign the ID if any
         $options['template'] = ( $request->get('template') &&                   // iF set URI?template={template}
@@ -835,8 +872,16 @@ HTML;
             }
         }
 
+        // Detect default test certificate and OpenSSL availability
+        $spCertVal = (string)($fields[ConfigEntity::SP_CERTIFICATE][ConfigItem::VALUE] ?? '');
+        $isTestCert = str_contains($spCertVal, 'withlove.from.donuts.nl') ||
+            (($fields[ConfigEntity::SP_CERTIFICATE]['validate']['subject']['CN'] ?? '') === 'withlove.from.donuts.nl');
+        $opensslAvailable = extension_loaded('openssl') && function_exists('openssl_pkey_new');
+
         // Define static field translations
         $tplVars = array_merge($tplVars, [
+            'is_test_certificate'       =>  $isTestCert,
+            'openssl_available'         =>  $opensslAvailable,
             'claim_mappings'            =>  $claimMappings,
             'claim_errors'              =>  $claimErrors,
             'observed_claims'           =>  $observedClaims,

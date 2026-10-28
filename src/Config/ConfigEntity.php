@@ -720,6 +720,66 @@ class ConfigEntity extends ConfigItem
     }
 
     /**
+     * Generates a self-signed X.509 certificate and RSA private key pair using OpenSSL.
+     *
+     * @param string|null $commonName Common Name for the certificate subject, defaults to GLPI host
+     * @param int $daysValid Validity period in days (defaults to 1095 = 3 years)
+     * @param int $keyBits RSA key bit length (defaults to 2048)
+     * @return array|false Returns associative array with 'certificate' and 'private_key' strings, or false on failure
+     */
+    public static function generateSelfSignedCertificate(?string $commonName = null, int $daysValid = 1095, int $keyBits = 2048): array|false
+    {
+        if (!extension_loaded('openssl') || !function_exists('openssl_pkey_new')) {
+            return false;
+        }
+
+        global $CFG_GLPI;
+
+        if (empty($commonName)) {
+            $urlBase = (string)($CFG_GLPI['url_base'] ?? '');
+            $host = !empty($urlBase) ? parse_url($urlBase, PHP_URL_HOST) : null;
+            $commonName = !empty($host) ? (string)$host : 'glpi-saml-sp';
+        }
+
+        $dn = [
+            'commonName'             => $commonName,
+            'organizationName'       => 'GLPI SAML Service Provider',
+            'organizationalUnitName' => 'IT Department',
+        ];
+
+        $privKeyConfig = [
+            'private_key_bits' => $keyBits,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ];
+
+        $privKeyRes = openssl_pkey_new($privKeyConfig);
+        if ($privKeyRes === false) {
+            return false;
+        }
+
+        $csr = openssl_csr_new($dn, $privKeyRes, ['digest_alg' => 'sha256']);
+        if ($csr === false) {
+            return false;
+        }
+
+        $certRes = openssl_csr_sign($csr, null, $privKeyRes, $daysValid, ['digest_alg' => 'sha256']);
+        if ($certRes === false) {
+            return false;
+        }
+
+        $certOut = '';
+        $privKeyOut = '';
+        if (!openssl_x509_export($certRes, $certOut) || !openssl_pkey_export($privKeyRes, $privKeyOut)) {
+            return false;
+        }
+
+        return [
+            'certificate' => trim($certOut),
+            'private_key' => trim($privKeyOut),
+        ];
+    }
+
+    /**
      * Populates and returns the configuration array for the PHP-saml library.
      *
      * @return          array   $config

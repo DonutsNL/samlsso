@@ -116,6 +116,23 @@
                     <i class="fas fa-key me-2 text-primary"></i>{{ __('Certificates & Keys', plugin) }}
                 </div>
                 <div class="samlsso-category-body">
+                    {% if is_test_certificate and openssl_available %}
+                        <div id="samlsso-cert-generator-banner" class="alert alert-warning d-flex align-items-center justify-content-between p-3 mb-3">
+                            <div class="d-flex align-items-center">
+                                <i class="ti ti-shield-alert text-warning fs-2 me-3"></i>
+                                <div>
+                                    <div class="fw-bold">{{ __('Default example certificate active', plugin) }}</div>
+                                    <div class="text-muted small">
+                                        {{ __('The example certificate (withlove.from.donuts.nl) offers no protection. Generate a new secure self-signed certificate and private key directly.', plugin) }}
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" id="btn-generate-sp-cert" class="btn btn-warning btn-sm ms-3 text-nowrap">
+                                <i class="ti ti-key me-1"></i>{{ __('Generate Certificate & Key', plugin) }}
+                            </button>
+                        </div>
+                    {% endif %}
+
                     <!-- sp_certificate -->
                     <div class="mb-3">
                         {% set error_helper %}
@@ -285,6 +302,60 @@
 
                         $(document).on('change', 'select[name="sp_private_key_source"]', function() {
                             updateKeySourceUI($(this).val());
+                        });
+
+                        $(document).on('click', '#btn-generate-sp-cert', function(e) {
+                            e.preventDefault();
+                            if (!confirm('{{ __("Generate a new self-signed certificate and private key? This will replace the values currently shown in the form fields.", plugin)|escape("js") }}')) {
+                                return;
+                            }
+                            const $btn = $(this);
+                            const origHtml = $btn.html();
+                            $btn.prop('disabled', true).html('<i class="ti ti-loader animate-spin me-1"></i>{{ __("Generating...", plugin)|escape("js") }}');
+
+                            $.ajax({
+                                url: '{{ glpi_rootdoc }}',
+                                type: 'POST',
+                                dataType: 'json',
+                                data: {
+                                    action: 'generate_cert',
+                                    _glpi_csrf_token: '{{ csrf_token }}',
+                                    id: '{{ inputfields.id.value|default(-1) }}'
+                                },
+                                success: function(response) {
+                                    if (response && response.success) {
+                                        $('textarea[name="sp_certificate"]').val(response.certificate);
+                                        const $keySourceSelect = $('select[name="sp_private_key_source"]');
+                                        if ($keySourceSelect.length) {
+                                            $keySourceSelect.val('db').trigger('change');
+                                        }
+                                        $('#sp_private_key_raw').val(response.private_key);
+
+                                        $('#samlsso-cert-generator-banner').removeClass('alert-warning').addClass('alert-success').html(
+                                            '<div class="d-flex align-items-center">' +
+                                                '<i class="ti ti-check text-success fs-2 me-3"></i>' +
+                                                '<div>' +
+                                                    '<div class="fw-bold">{{ __("New certificate and private key generated", plugin)|escape("js") }}</div>' +
+                                                    '<div class="text-muted small">' +
+                                                        '{{ __("Review the generated certificate and private key below, then click Save to apply changes.", plugin)|escape("js") }}' +
+                                                    '</div>' +
+                                                '</div>' +
+                                            '</div>'
+                                        );
+                                    } else {
+                                        alert(response && response.error ? response.error : '{{ __("Failed to generate certificate.", plugin)|escape("js") }}');
+                                        $btn.prop('disabled', false).html(origHtml);
+                                    }
+                                },
+                                error: function(xhr) {
+                                    let err = '{{ __("Failed to generate certificate.", plugin)|escape("js") }}';
+                                    if (xhr.responseJSON && xhr.responseJSON.error) {
+                                        err = xhr.responseJSON.error;
+                                    }
+                                    alert(err);
+                                    $btn.prop('disabled', false).html(origHtml);
+                                }
+                            });
                         });
                     });
                     </script>

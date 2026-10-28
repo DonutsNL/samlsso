@@ -1,4 +1,6 @@
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/183: Added dynamic self-signed SP certificate and private key generation directly within the configuration UI when the default demo certificate (`withlove.from.donuts.nl`) is detected and OpenSSL is available.
+- Added ADR 0031 documenting dynamic in-place SP certificate and private key generation for issue https://github.com/DonutsNL/samlsso/issues/183.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/182: Added dynamic input switching for alternative SP private key sources (file, env, define) with dedicated single-line text inputs and automatic raw PEM textarea disabling, and ensured pending table migrations execute on existing database upgrades via Config::install().
 - Added ADR 0030 documenting dynamic SP private key source input switching and table migration execution for issue https://github.com/DonutsNL/samlsso/issues/182.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/181: Aligned inactivity timeout validation with GLPI core session lifetime (`session.gc_maxlifetime`), dynamically displaying the server session ceiling in field help text and providing advisory warnings when the configured timeout exceeds server session persistence.
