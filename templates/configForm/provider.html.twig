@@ -112,8 +112,15 @@
 
             <div class="col-12 col-lg-6 mb-4">
                 <!-- Group 3: Certificates & Keys -->
-                <div class="samlsso-category-header">
-                    <i class="fas fa-key me-2 text-primary"></i>{{ __('Certificates & Keys', plugin) }}
+                <div class="samlsso-category-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-key me-2 text-primary"></i>{{ __('Certificates & Keys', plugin) }}
+                    </div>
+                    {% if openssl_available %}
+                        <button type="button" class="btn btn-sm btn-ghost-secondary" data-bs-toggle="modal" data-bs-target="#samlsso-cert-generator-modal" title="{{ __('Generate a new self-signed certificate and private key', plugin) }}">
+                            <i class="ti ti-refresh me-1"></i>{{ __('Generate Keypair', plugin) }}
+                        </button>
+                    {% endif %}
                 </div>
                 <div class="samlsso-category-body">
                     {% if is_test_certificate and openssl_available %}
@@ -127,7 +134,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <button type="button" id="btn-generate-sp-cert" class="btn btn-warning btn-sm ms-3 text-nowrap">
+                            <button type="button" id="btn-generate-sp-cert" class="btn btn-warning btn-sm ms-3 text-nowrap" data-bs-toggle="modal" data-bs-target="#samlsso-cert-generator-modal">
                                 <i class="ti ti-key me-1"></i>{{ __('Generate Certificate & Key', plugin) }}
                             </button>
                         </div>
@@ -238,6 +245,90 @@
                         }}
                     </div>
 
+                    <!-- Modal: SP Certificate Generation -->
+                    {% if openssl_available %}
+                    <div class="modal fade" id="samlsso-cert-generator-modal" tabindex="-1" role="dialog" aria-labelledby="samlsso-cert-generator-modal-title" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="samlsso-cert-generator-modal-title">
+                                        <i class="ti ti-certificate me-2 text-primary"></i>{{ __('Generate Service Provider Certificate', plugin) }}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label class="form-label required" for="cert_gen_cn">{{ __('Common Name (CN)', plugin) }}</label>
+                                        <input type="text" class="form-control" id="cert_gen_cn" value="{{ default_cert_cn }}" maxlength="64" required>
+                                        <div class="form-text text-muted">{{ __('Subject Common Name for the certificate (e.g. your GLPI domain name).', plugin) }}</div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-12 col-md-6 mb-3">
+                                            <label class="form-label required" for="cert_gen_type">{{ __('Cryptotype', plugin) }}</label>
+                                            <select class="form-select" id="cert_gen_type">
+                                                <option value="RSA" selected>RSA (SAML 2.0 Standard)</option>
+                                                <option value="EC">ECDSA (Elliptic Curve)</option>
+                                            </select>
+                                            <div class="form-text text-muted">{{ __('SAML 2.0 IdPs primarily require RSA.', plugin) }}</div>
+                                        </div>
+                                        <div class="col-12 col-md-6 mb-3">
+                                            <div id="cert_gen_rsa_container">
+                                                <label class="form-label required" for="cert_gen_key_bits">{{ __('Key Length', plugin) }}</label>
+                                                <select class="form-select" id="cert_gen_key_bits">
+                                                    <option value="2048" selected>2048 bits (Standard)</option>
+                                                    <option value="3072">3072 bits (High Security)</option>
+                                                    <option value="4096">4096 bits (Maximum)</option>
+                                                </select>
+                                                <div class="form-text text-muted">{{ __('Key lengths below 2048 bits are disallowed.', plugin) }}</div>
+                                            </div>
+                                            <div id="cert_gen_ec_container" class="d-none">
+                                                <label class="form-label required" for="cert_gen_curve">{{ __('Elliptic Curve', plugin) }}</label>
+                                                <select class="form-select" id="cert_gen_curve">
+                                                    <option value="prime256v1" selected>NIST P-256 (prime256v1)</option>
+                                                    <option value="secp384r1">NIST P-384 (secp384r1)</option>
+                                                    <option value="secp521r1">NIST P-521 (secp521r1)</option>
+                                                </select>
+                                                <div class="form-text text-muted">{{ __('NIST curves (minimum 256 bits).', plugin) }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-12 col-md-6 mb-3">
+                                            <label class="form-label required" for="cert_gen_valid_years">{{ __('Validity Period', plugin) }}</label>
+                                            <select class="form-select" id="cert_gen_valid_years">
+                                                <option value="1">1 {{ __('Year', plugin) }} (365 {{ __('Days', plugin) }})</option>
+                                                <option value="2">2 {{ __('Years', plugin) }} (730 {{ __('Days', plugin) }})</option>
+                                                <option value="3" selected>3 {{ __('Years', plugin) }} (1095 {{ __('Days', plugin) }})</option>
+                                                <option value="5">5 {{ __('Years', plugin) }} (1825 {{ __('Days', plugin) }})</option>
+                                                <option value="10">10 {{ __('Years', plugin) }} (3650 {{ __('Days', plugin) }})</option>
+                                            </select>
+                                            <div class="form-text text-muted">{{ __('Recommended validity is 3 years.', plugin) }}</div>
+                                        </div>
+                                        <div class="col-12 col-md-6 mb-3">
+                                            <label class="form-label required" for="cert_gen_digest">{{ __('Signature Digest', plugin) }}</label>
+                                            <select class="form-select" id="cert_gen_digest">
+                                                <option value="sha256" selected>SHA-256 (Standard)</option>
+                                                <option value="sha384">SHA-384</option>
+                                                <option value="sha512">SHA-512</option>
+                                            </select>
+                                            <div class="form-text text-muted">{{ __('Cryptographic signature hash algorithm.', plugin) }}</div>
+                                        </div>
+                                    </div>
+                                    <div id="cert_gen_error_box" class="alert alert-danger d-none py-2 px-3 mb-0"></div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                        {{ __('Cancel') }}
+                                    </button>
+                                    <button type="button" id="btn-confirm-generate-cert" class="btn btn-primary">
+                                        <i class="ti ti-key me-1"></i>{{ __('Generate Certificate & Key', plugin) }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <script>
                     $(function() {
                         const keySourceMeta = {
@@ -304,13 +395,25 @@
                             updateKeySourceUI($(this).val());
                         });
 
-                        $(document).on('click', '#btn-generate-sp-cert', function(e) {
+                        $(document).on('change', '#cert_gen_type', function() {
+                            const isEc = $(this).val() === 'EC';
+                            $('#cert_gen_rsa_container').toggleClass('d-none', isEc);
+                            $('#cert_gen_ec_container').toggleClass('d-none', !isEc);
+                        });
+
+                        $(document).on('click', '#btn-confirm-generate-cert', function(e) {
                             e.preventDefault();
-                            if (!confirm('{{ __("Generate a new self-signed certificate and private key? This will replace the values currently shown in the form fields.", plugin)|escape("js") }}')) {
-                                return;
-                            }
                             const $btn = $(this);
                             const origHtml = $btn.html();
+                            const $errorBox = $('#cert_gen_error_box');
+                            $errorBox.addClass('d-none').text('');
+
+                            const cnVal = ($('#cert_gen_cn').val() || '').trim();
+                            if (!cnVal) {
+                                $errorBox.removeClass('d-none').text('{{ __("Common Name (CN) is required.", plugin)|escape("js") }}');
+                                return;
+                            }
+
                             $btn.prop('disabled', true).html('<i class="ti ti-loader animate-spin me-1"></i>{{ __("Generating...", plugin)|escape("js") }}');
 
                             $.ajax({
@@ -320,7 +423,13 @@
                                 data: {
                                     action: 'generate_cert',
                                     _glpi_csrf_token: '{{ csrf_token }}',
-                                    id: '{{ inputfields.id.value|default(-1) }}'
+                                    id: '{{ inputfields.id.value|default(-1) }}',
+                                    common_name: cnVal,
+                                    key_type: $('#cert_gen_type').val(),
+                                    key_bits: $('#cert_gen_key_bits').val(),
+                                    curve_name: $('#cert_gen_curve').val(),
+                                    valid_years: $('#cert_gen_valid_years').val(),
+                                    digest_alg: $('#cert_gen_digest').val()
                                 },
                                 success: function(response) {
                                     if (response && response.success) {
@@ -330,6 +439,12 @@
                                             $keySourceSelect.val('db').trigger('change');
                                         }
                                         $('#sp_private_key_raw').val(response.private_key);
+
+                                        const modalEl = document.getElementById('samlsso-cert-generator-modal');
+                                        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                                            const modalInst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                                            modalInst.hide();
+                                        }
 
                                         $('#samlsso-cert-generator-banner').removeClass('alert-warning').addClass('alert-success').html(
                                             '<div class="d-flex align-items-center">' +
@@ -343,16 +458,16 @@
                                             '</div>'
                                         );
                                     } else {
-                                        alert(response && response.error ? response.error : '{{ __("Failed to generate certificate.", plugin)|escape("js") }}');
-                                        $btn.prop('disabled', false).html(origHtml);
+                                        $errorBox.removeClass('d-none').text(response && response.error ? response.error : '{{ __("Failed to generate certificate.", plugin)|escape("js") }}');
                                     }
+                                    $btn.prop('disabled', false).html(origHtml);
                                 },
                                 error: function(xhr) {
                                     let err = '{{ __("Failed to generate certificate.", plugin)|escape("js") }}';
                                     if (xhr.responseJSON && xhr.responseJSON.error) {
                                         err = xhr.responseJSON.error;
                                     }
-                                    alert(err);
+                                    $errorBox.removeClass('d-none').text(err);
                                     $btn.prop('disabled', false).html(origHtml);
                                 }
                             });

@@ -720,15 +720,24 @@ class ConfigEntity extends ConfigItem
     }
 
     /**
-     * Generates a self-signed X.509 certificate and RSA private key pair using OpenSSL.
+     * Generates a self-signed X.509 certificate and private key pair using OpenSSL with configurable parameters.
      *
      * @param string|null $commonName Common Name for the certificate subject, defaults to GLPI host
-     * @param int $daysValid Validity period in days (defaults to 1095 = 3 years)
-     * @param int $keyBits RSA key bit length (defaults to 2048)
+     * @param int $daysValid Validity period in days (defaults to 1095 = 3 years, bounded between 30 and 3650)
+     * @param string $keyType Cryptographic key type ('RSA' or 'EC', defaults to 'RSA')
+     * @param int $keyBits RSA key bit length (2048, 3072, 4096 - minimum 2048)
+     * @param string $curveName EC curve name ('prime256v1', 'secp384r1', 'secp521r1' - minimum 256 bits)
+     * @param string $digestAlg Message digest algorithm ('sha256', 'sha384', 'sha512' - defaults to 'sha256')
      * @return array|false Returns associative array with 'certificate' and 'private_key' strings, or false on failure
      */
-    public static function generateSelfSignedCertificate(?string $commonName = null, int $daysValid = 1095, int $keyBits = 2048): array|false
-    {
+    public static function generateSelfSignedCertificate(
+        ?string $commonName = null,
+        int $daysValid = 1095,
+        string $keyType = 'RSA',
+        int $keyBits = 2048,
+        string $curveName = 'prime256v1',
+        string $digestAlg = 'sha256'
+    ): array|false {
         if (!extension_loaded('openssl') || !function_exists('openssl_pkey_new')) {
             return false;
         }
@@ -739,6 +748,47 @@ class ConfigEntity extends ConfigItem
             $urlBase = (string)($CFG_GLPI['url_base'] ?? '');
             $host = !empty($urlBase) ? parse_url($urlBase, PHP_URL_HOST) : null;
             $commonName = !empty($host) ? (string)$host : 'glpi-saml-sp';
+        } else {
+            $commonName = substr(trim((string)preg_replace('/[^\w.\-]/', '', $commonName)), 0, 64);
+            if (empty($commonName)) {
+                $commonName = 'glpi-saml-sp';
+            }
+        }
+
+        // Clamp validity period to between 30 days and 3650 days (10 years)
+        $daysValid = max(30, min(3650, $daysValid));
+
+        // Enforce community-accepted digest algorithms
+        $digestAlg = strtolower(trim($digestAlg));
+        if (!in_array($digestAlg, ['sha256', 'sha384', 'sha512'], true)) {
+            $digestAlg = 'sha256';
+        }
+
+        $keyType = strtoupper(trim($keyType));
+        if ($keyType === 'EC') {
+            // Enforce community-accepted elliptic curves (minimum 256 bits)
+            $allowedCurves = ['prime256v1', 'secp384r1', 'secp521r1'];
+            if (!in_array($curveName, $allowedCurves, true)) {
+                $curveName = 'prime256v1';
+            }
+            $privKeyConfig = [
+                'curve_name'       => $curveName,
+                'private_key_type' => OPENSSL_KEYTYPE_EC,
+            ];
+        } else {
+            // Default to RSA. Enforce community-accepted minimum key length (NIST/BSI standard: >= 2048 bits)
+            $keyType = 'RSA';
+            $allowedBits = [2048, 3072, 4096];
+            if (!in_array($keyBits, $allowedBits, true)) {
+                if ($keyBits < 2048) {
+                    return false; // Strictly disallow sub-standard/weak keys
+                }
+                $keyBits = 2048;
+            }
+            $privKeyConfig = [
+                'private_key_bits' => $keyBits,
+                'private_key_type' => OPENSSL_KEYTYPE_RSA,
+            ];
         }
 
         $dn = [
@@ -747,22 +797,17 @@ class ConfigEntity extends ConfigItem
             'organizationalUnitName' => 'IT Department',
         ];
 
-        $privKeyConfig = [
-            'private_key_bits' => $keyBits,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ];
-
         $privKeyRes = openssl_pkey_new($privKeyConfig);
         if ($privKeyRes === false) {
             return false;
         }
 
-        $csr = openssl_csr_new($dn, $privKeyRes, ['digest_alg' => 'sha256']);
+        $csr = openssl_csr_new($dn, $privKeyRes, ['digest_alg' => $digestAlg]);
         if ($csr === false) {
             return false;
         }
 
-        $certRes = openssl_csr_sign($csr, null, $privKeyRes, $daysValid, ['digest_alg' => 'sha256']);
+        $certRes = openssl_csr_sign($csr, null, $privKeyRes, $daysValid, ['digest_alg' => $digestAlg]);
         if ($certRes === false) {
             return false;
         }

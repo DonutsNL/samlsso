@@ -724,7 +724,7 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test dynamic self-signed SP certificate generation method and endpoint guards (Issue #183).
+         * Test dynamic self-signed SP certificate generation method and endpoint guards (Issue #183, #184).
          *
          * @return void
          * @throws \Exception If certificate generation, modulus validation, or endpoint security checks fail.
@@ -735,20 +735,20 @@ namespace GlpiPlugin\Samlsso\Tests {
                 return;
             }
 
-            // 1. Test ConfigEntity::generateSelfSignedCertificate()
-            $pair = ConfigEntity::generateSelfSignedCertificate('saml-test.example.com', 365, 2048);
-            if ($pair === false || !is_array($pair)) {
-                throw new \Exception("ConfigEntity::generateSelfSignedCertificate returned false or non-array");
+            // 1. Test ConfigEntity::generateSelfSignedCertificate() with RSA (2048 and 3072 bits)
+            $pairRsa = ConfigEntity::generateSelfSignedCertificate('saml-test.example.com', 365, 'RSA', 2048, 'prime256v1', 'sha256');
+            if ($pairRsa === false || !is_array($pairRsa)) {
+                throw new \Exception("ConfigEntity::generateSelfSignedCertificate returned false for RSA 2048");
             }
-            if (empty($pair['certificate']) || !str_contains($pair['certificate'], '-----BEGIN CERTIFICATE-----')) {
-                throw new \Exception("Generated certificate is missing or invalid PEM structure");
+            if (empty($pairRsa['certificate']) || !str_contains($pairRsa['certificate'], '-----BEGIN CERTIFICATE-----')) {
+                throw new \Exception("Generated RSA certificate is missing or invalid PEM structure");
             }
-            if (empty($pair['private_key']) || !str_contains($pair['private_key'], '-----BEGIN PRIVATE KEY-----')) {
-                throw new \Exception("Generated private key is missing or invalid PEM structure");
+            if (empty($pairRsa['private_key']) || !str_contains($pairRsa['private_key'], '-----BEGIN PRIVATE KEY-----')) {
+                throw new \Exception("Generated RSA private key is missing or invalid PEM structure");
             }
 
             // Parse generated certificate
-            $parsedCert = openssl_x509_parse($pair['certificate']);
+            $parsedCert = openssl_x509_parse($pairRsa['certificate']);
             if (!$parsedCert || empty($parsedCert['subject']['CN'])) {
                 throw new \Exception("Failed to parse generated X.509 certificate");
             }
@@ -760,22 +760,53 @@ namespace GlpiPlugin\Samlsso\Tests {
             $configEntity = new ConfigEntity();
             $method = new \ReflectionMethod($configEntity, 'validateCertKeyPairModulus');
             $method->setAccessible(true);
-            $modulusMatches = $method->invoke($configEntity, $pair['certificate'], $pair['private_key']);
+            $modulusMatches = $method->invoke($configEntity, $pairRsa['certificate'], $pairRsa['private_key']);
             if (!$modulusMatches) {
-                throw new \Exception("Generated certificate and private key modulus do not match");
+                throw new \Exception("Generated RSA certificate and private key modulus do not match");
             }
 
-            // 2. Test template UI elements in provider.html.twig
+            // Test EC generation (prime256v1)
+            $pairEc = ConfigEntity::generateSelfSignedCertificate('saml-ec.example.com', 730, 'EC', 2048, 'prime256v1', 'sha384');
+            if ($pairEc === false || !is_array($pairEc)) {
+                throw new \Exception("ConfigEntity::generateSelfSignedCertificate returned false for EC prime256v1");
+            }
+            $modulusMatchesEc = $method->invoke($configEntity, $pairEc['certificate'], $pairEc['private_key']);
+            if (!$modulusMatchesEc) {
+                throw new \Exception("Generated EC certificate and private key do not match");
+            }
+
+            // Test strict security rejection of weak key lengths (< 2048 bits for RSA)
+            $pairWeak = ConfigEntity::generateSelfSignedCertificate('weak-key.example.com', 365, 'RSA', 1024);
+            if ($pairWeak !== false) {
+                throw new \Exception("ConfigEntity::generateSelfSignedCertificate must strictly reject RSA key lengths < 2048 bits");
+            }
+
+            // 2. Test template UI modal elements in provider.html.twig
             $templatePath = __DIR__ . '/../templates/configForm/provider.html.twig';
             $tplContent = file_get_contents($templatePath);
-            if (!str_contains($tplContent, 'id="samlsso-cert-generator-banner"')) {
-                throw new \Exception("Missing #samlsso-cert-generator-banner in provider.html.twig");
+            if (!str_contains($tplContent, 'id="samlsso-cert-generator-modal"')) {
+                throw new \Exception("Missing #samlsso-cert-generator-modal in provider.html.twig (Issue #184)");
             }
-            if (!str_contains($tplContent, 'id="btn-generate-sp-cert"')) {
-                throw new \Exception("Missing #btn-generate-sp-cert button in provider.html.twig");
+            if (!str_contains($tplContent, 'id="cert_gen_cn"')) {
+                throw new \Exception("Missing #cert_gen_cn in provider.html.twig (Issue #184)");
             }
-            if (!str_contains($tplContent, "action: 'generate_cert'")) {
-                throw new \Exception("Missing AJAX generate_cert action trigger in provider.html.twig");
+            if (!str_contains($tplContent, 'id="cert_gen_type"')) {
+                throw new \Exception("Missing #cert_gen_type in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_key_bits"')) {
+                throw new \Exception("Missing #cert_gen_key_bits in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_curve"')) {
+                throw new \Exception("Missing #cert_gen_curve in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_valid_years"')) {
+                throw new \Exception("Missing #cert_gen_valid_years in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_digest"')) {
+                throw new \Exception("Missing #cert_gen_digest in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="btn-confirm-generate-cert"')) {
+                throw new \Exception("Missing #btn-confirm-generate-cert button in provider.html.twig (Issue #184)");
             }
 
             // 3. Test ConfigForm endpoint guards: GET request must be rejected with 405 Method Not Allowed
@@ -789,7 +820,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Expected HTTP 405 Method Not Allowed for GET generate_cert request, got " . $response->getStatusCode());
             }
 
-            echo "✅ Config: dynamic self-signed SP certificate generation method and endpoint verified (Issue #183)\n";
+            echo "✅ Config: dynamic configurable SP certificate generation modal, parameters, and security bounds verified (Issues #183, #184)\n";
         }
     }
 }

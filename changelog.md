@@ -1,4 +1,6 @@
 **V1.3.2**
+- Fixed issue https://github.com/DonutsNL/samlsso/issues/184: Added interactive modal dialog for SP certificate and key generation allowing administrators to configure Common Name (CN), validity period, cryptotype (RSA / ECDSA), key lengths/curves, and signature digests, while strictly enforcing community security floors (minimum 2048 bits for RSA).
+- Added ADR 0032 documenting the configurable modal dialog for SP certificate and key generation for issue https://github.com/DonutsNL/samlsso/issues/184.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/183: Added dynamic self-signed SP certificate and private key generation directly within the configuration UI when the default demo certificate (`withlove.from.donuts.nl`) is detected and OpenSSL is available.
 - Added ADR 0031 documenting dynamic in-place SP certificate and private key generation for issue https://github.com/DonutsNL/samlsso/issues/183.
 - Fixed issue https://github.com/DonutsNL/samlsso/issues/182: Added dynamic input switching for alternative SP private key sources (file, env, define) with dedicated single-line text inputs and automatic raw PEM textarea disabling, and ensured pending table migrations execute on existing database upgrades via Config::install().

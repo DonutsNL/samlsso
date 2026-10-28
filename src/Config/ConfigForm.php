@@ -508,7 +508,26 @@ HTML;
                 ]), Response::HTTP_FORBIDDEN, ['Content-Type' => 'application/json']);
             }
 
-            $pair = ConfigEntity::generateSelfSignedCertificate();
+            $commonName = trim((string)$request->request->get('common_name', ''));
+            $validYears = (int)$request->request->get('valid_years', 3);
+            $validDays  = $validYears > 0 ? ($validYears * 365) : 1095;
+            if ($request->request->has('valid_days') && (int)$request->request->get('valid_days') > 0) {
+                $validDays = (int)$request->request->get('valid_days');
+            }
+            $keyType   = strtoupper(trim((string)$request->request->get('key_type', 'RSA')));
+            $keyBits   = (int)$request->request->get('key_bits', 2048);
+            $curveName = trim((string)$request->request->get('curve_name', 'prime256v1'));
+            $digestAlg = strtolower(trim((string)$request->request->get('digest_alg', 'sha256')));
+
+            // Server-side strict community standards security checks
+            if ($keyType === 'RSA' && $keyBits < 2048) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('RSA key length must be at least 2048 bits to comply with security standards.', PLUGIN_NAME),
+                ]), Response::HTTP_BAD_REQUEST, ['Content-Type' => 'application/json']);
+            }
+
+            $pair = ConfigEntity::generateSelfSignedCertificate($commonName, $validDays, $keyType, $keyBits, $curveName, $digestAlg);
             if ($pair === false) {
                 return new Response((string)json_encode([
                     'success' => false,
@@ -877,11 +896,14 @@ HTML;
         $isTestCert = str_contains($spCertVal, 'withlove.from.donuts.nl') ||
             (($fields[ConfigEntity::SP_CERTIFICATE]['validate']['subject']['CN'] ?? '') === 'withlove.from.donuts.nl');
         $opensslAvailable = extension_loaded('openssl') && function_exists('openssl_pkey_new');
+        $urlBase = (string)($CFG_GLPI['url_base'] ?? '');
+        $defaultCertCn = !empty($urlBase) ? ((string)parse_url($urlBase, PHP_URL_HOST) ?: 'glpi-saml-sp') : 'glpi-saml-sp';
 
         // Define static field translations
         $tplVars = array_merge($tplVars, [
             'is_test_certificate'       =>  $isTestCert,
             'openssl_available'         =>  $opensslAvailable,
+            'default_cert_cn'           =>  $defaultCertCn,
             'claim_mappings'            =>  $claimMappings,
             'claim_errors'              =>  $claimErrors,
             'observed_claims'           =>  $observedClaims,
