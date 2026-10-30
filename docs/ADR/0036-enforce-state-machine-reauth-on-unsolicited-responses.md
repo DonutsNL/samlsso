@@ -28,10 +28,24 @@ Accepted (Amends ADR 0017 & ADR 0027)
 3. **Strict Root-Element Check for `LogoutResponse` on ACS (`src/LoginFlow/Acs.php`)**:
    - Match `/^\s*<(?:[a-zA-Z0-9_-]+:)?LogoutResponse\b/` on the decoded XML payload so only genuine root `LogoutResponse` documents redirect to the SLO route.
 
+## Verifiable Invariants & Test Mapping
+
+To ensure future iterations cannot regress these state-machine rules, the following invariants are enforced and verified by the automated test suite:
+
+| Invariant | Code Location | Automated Test Verification |
+| :--- | :--- | :--- |
+| `LoginState` with unknown or empty `InResponseTo` initializes in `PHASE_INITIAL (1)` with `SAML_REQUEST_ID = null` (never promoted directly to `PHASE_SAML_ACS (2)` by `LoginState::getState()`). | `src/LoginState.php:310-323` | `AcsTest::testIdpInitiatedUnsolicitedLogin()` |
+| `Acs::fetchRequestState()` intercepts any state with empty `InResponseTo` or empty `getSamlRequestId()`, persists the initial state (`writeState()`), marks `setUnsolicited(true)`, and redirects to the IdP via `performSamlIdpRequest()`. | `src/LoginFlow/Acs.php:303-319` | `AcsTest::testIdpInitiatedUnsolicitedLogin()` |
+| `Acs::assertSaml()` never passes `null` to `$this->samlResponse->isValid()`; an empty `getSamlRequestId()` or non-`PHASE_SAML_ACS (2)` state is rejected and transitions to `PHASE_ERROR (9)`. | `src/LoginFlow/Acs.php:336-395` | `AcsTest::testInvalidPhaseValidation()`, `AcsTest::testPhaseErrorTransitionOnFailure()` |
+| Once a valid and expected `SAMLResponse` is evaluated at ACS, `SAML_RESPONSE_ID` is recorded and the phase transitions to `PHASE_SAML_AUTH (3)`, blocking any replay or re-evaluation. | `src/LoginFlow/Acs.php:390-475` | `AcsTest::testReplayProtection()`, `AcsTest::testSuccessfulAcsLogin()` |
+| `RelayState` carries the per-flow CSRF token (`$flowToken`) validated in `Acs::init()`, while post-login redirects use only the server-side `LoginState` redirect captured in Phase 1. | `src/LoginFlow.php:513-530`, `src/LoginFlow/Acs.php:199-209` | `AcsTest::testLoginCsrfFlowTokenValidation()`, `LoginStateTest::testRedirectDeepLinkingAndValidation()` |
+
 ## Consequences
 - **Positive**:
   - Restores full compliance with [ADR 0017](0017-security-by-design-architecture.md), [ADR 0016](0016-reverse-proxy-https-context-and-cookie-security.md), and [ADR 0002](0002-loginstate-hardening.md).
   - Unsolicited assertions are never accepted directly; users arriving from an IdP portal are seamlessly redirected back through a state-machine-tracked SP-initiated `AuthnRequest` cycle.
   - Eliminates cookie dependencies on the stateless ACS endpoint while maintaining per-flow CSRF protection via `RelayState` and `InResponseTo`.
+  - Provides explicit, testable state-transition invariants for future iterations.
 - **Negative**:
   - IdP-initiated logins perform one additional browser redirect round-trip to the IdP to establish a valid state-machine `AuthnRequest`.
+
