@@ -160,9 +160,9 @@ function samlsso_webdir(): string
  */
 function plugin_samlsso_boot(): void
 {
-    SessionManager::RegisterPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#');             // Register the assertion Service as stateless (prevent csrf checking)
-    SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/front/logout#');           // Register the logout service as stateless (prevent csrf checking on LogoutResponse)
-    SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/front/slo/#');             // Legacy alias for SLO stateless path
+    SessionManager::RegisterPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::ACS_ROUTE . '/#');
+    SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::SLO_ROUTE . '#');
+    SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/front/slo/#');
 }
 
 /**

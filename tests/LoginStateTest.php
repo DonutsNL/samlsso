@@ -703,6 +703,59 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ LoginState: static asset redirects are ignored as post login target\n";
         }
+
+        /**
+         * Test that a stateless ACS lookup by InResponseTo on an already-authenticated
+         * session (PHASE_GLPI_AUTH or responseId already recorded) does not downgrade
+         * the active session to PHASE_INITIAL or overwrite the user's username.
+         */
+        public function testStatelessReplayDoesNotMutateAuthenticatedSession(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+            $now = gmdate('Y-m-d H:i:s');
+            $db->setResponse($table, [
+                [
+                    LoginState::STATE_ID => 42,
+                    LoginState::USER_ID => 7,
+                    LoginState::IDP_ID => 1,
+                    LoginState::USER_NAME => 'legit_user',
+                    LoginState::SESSION_ID => 'legit_session_id',
+                    LoginState::SESSION_NAME => 'glpi_sid',
+                    LoginState::GLPI_AUTHED => 1,
+                    LoginState::SAML_AUTHED => 1,
+                    LoginState::LOGIN_DATETIME => $now,
+                    LoginState::LAST_ACTIVITY => $now,
+                    LoginState::LOCATION => 'https://glpi.local/front/central.php',
+                    LoginState::ENFORCE_LOGOFF => 0,
+                    LoginState::SAML_REQUEST_ID => 'ONELOGIN_processed_req',
+                    LoginState::SAML_RESPONSE_ID => 'RESP_processed_1',
+                    LoginState::SAML_UNSOLICITED => 0,
+                    LoginState::LOGIN_FLOW_TRACE => serialize([]),
+                    LoginState::PHASE => LoginState::PHASE_GLPI_AUTH,
+                    LoginState::REDIRECT => '',
+                    LoginState::CLIENT_IP => '10.0.0.5',
+                    LoginState::CLIENT_COUNTRY => 'NL',
+                ]
+            ]);
+
+            unset($_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR]);
+            unset($_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR]);
+            $_SERVER['REMOTE_ADDR'] = '198.51.100.99';
+
+            $replayedState = new LoginState('ONELOGIN_processed_req');
+
+            if ($replayedState->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
+                throw new \Exception("Stateless replay lookup downgraded PHASE_GLPI_AUTH session to phase: " . $replayedState->getPhase());
+            }
+            if (!empty($db->updatedRows)) {
+                throw new \Exception("Stateless replay lookup should not update already-authenticated DB row.");
+            }
+
+            echo "✅ LoginState: stateless replay lookup does not mutate active authenticated session\n";
+        }
     }
 }
 
@@ -721,6 +774,7 @@ namespace {
         $test->testExpireStaleCleanupsThrottling();
         $test->testRedirectDeepLinkingAndValidation();
         $test->testStaticAssetRedirectDetection();
+        $test->testStatelessReplayDoesNotMutateAuthenticatedSession();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

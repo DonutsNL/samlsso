@@ -225,6 +225,23 @@ class LoginState extends CommonDBTM
                     LoginState::DATABASE          => true,
                 ]);
             }
+
+            /**
+             * If this state was looked up via SAML InResponseTo on the stateless ACS endpoint
+             * and has already been processed (PHASE_SAML_AUTH / PHASE_GLPI_AUTH or responseId set),
+             * return without mutating the database so a replayed SAMLResponse cannot downgrade
+             * or overwrite an active user's authenticated session.
+             */
+            if (
+                $samlInResponseTo !== '' &&
+                (
+                    in_array((int)$this->state[LoginState::PHASE], [LoginState::PHASE_SAML_AUTH, LoginState::PHASE_GLPI_AUTH], true) ||
+                    !empty($this->state[LoginState::SAML_RESPONSE_ID])
+                )
+            ) {
+                return;
+            }
+
             $this->setClientIpAndCountry();
 
             // Enforce a server-side timeout fallback for SAML requests awaiting response
@@ -244,8 +261,13 @@ class LoginState extends CommonDBTM
                         // Keep default fallback
                     }
                 }
-                $loginTime = strtotime($this->state[LoginState::LOGIN_DATETIME]);
-                if (time() - $loginTime > ($timeoutMinutes * 60)) {
+                if ($timeoutMinutes <= 0) {
+                    $timeoutMinutes = 15;
+                }
+                $loginTime = !empty($this->state[LoginState::LOGIN_DATETIME])
+                    ? strtotime((string)$this->state[LoginState::LOGIN_DATETIME])
+                    : false;
+                if ($loginTime === false || (time() - $loginTime > ($timeoutMinutes * 60))) {
                     $this->state[LoginState::PHASE] = LoginState::PHASE_TIMED_OUT;
                 }
             }
@@ -668,7 +690,7 @@ class LoginState extends CommonDBTM
              * Only preserve deep links; exclude entry points, login/logout screens, and plugin assets.
              */
             $isExcludedPath = in_array($relativePath, ['', '/', '/index.php', '/front/login.php'], true)
-                || str_contains($relativePath, 'front/logout')
+                || str_contains($relativePath, \GlpiPlugin\Samlsso\Controller\SamlSsoController::SLO_ROUTE)
                 || str_starts_with($relativePath, '/plugins/samlsso');
 
             if (!$isExcludedPath) {
@@ -841,6 +863,23 @@ class LoginState extends CommonDBTM
     {
         if (isset($this->state[LoginState::STATE_ID])) {
             if (!empty($samlResponseId)) {
+                global $DB;
+                if (isset($DB) && method_exists($DB, 'request') && (int)$this->state[LoginState::STATE_ID] > 0) {
+                    $liveIter = $DB->request([
+                        'FROM'  => LoginState::getTable(),
+                        'WHERE' => [LoginState::STATE_ID => (int)$this->state[LoginState::STATE_ID]],
+                    ]);
+                    if ($liveIter && $liveIter->numrows() === 1) {
+                        foreach ($liveIter as $liveRow) {
+                            if (
+                                (int)($liveRow[LoginState::PHASE] ?? 0) !== LoginState::PHASE_SAML_ACS ||
+                                !empty($liveRow[LoginState::SAML_RESPONSE_ID])
+                            ) {
+                                return false;
+                            }
+                        }
+                    }
+                }
                 $this->state[LoginState::SAML_RESPONSE_ID] = $samlResponseId;
                 return ($this->update($this->state)) ? true : false;
             } else {

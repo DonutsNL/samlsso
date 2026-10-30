@@ -63,6 +63,7 @@ use Glpi\Application\View\TemplateRenderer;
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\LoginState;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\Controller\SamlSsoController;
 use GlpiPlugin\Samlsso\LoginFlow\User;
 use GlpiPlugin\Samlsso\LoginFlow\Auth as GlpiAuth;
 
@@ -196,21 +197,26 @@ class LoginFlow extends LoginFlowCompat
     {
 
 
-        // Do not process login flow if the user is already logged in, unless they are logging out
+        /**
+         * Do not process login flow if the user is already logged in, unless they are logging out.
+         */
         $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
         if (!is_string($requestPath)) {
             $requestPath = '';
         }
-        $isLogout = (strpos($requestPath, 'front/logout') !== false) ||
+        $isLogout = str_contains($requestPath, SamlSsoController::SLO_ROUTE) ||
                     isset($_GET[self::SLOLOGOUT]) ||
                     isset($_GET[self::LOCALLOGOUT]);
 
-        // Dont process anything if we are handling an ACS call.
-        // Generating a state in this phase will taint it because we
-        // have a new sessionId that wont align with existing entries
-        // and need to use the samlRequestId to populate the stateobj.
-        // https://github.com/DonutsNL/samlsso/issues/29
-        if (strpos($requestPath, 'front/acs') !== false) {
+        /**
+         * Do not process anything if we are handling an ACS call.
+         * Generating a state in this phase will taint it because we
+         * have a new sessionId that will not align with existing entries
+         * and need to use the samlRequestId to populate the state object.
+         *
+         * @see https://github.com/DonutsNL/samlsso/issues/29
+         */
+        if (str_contains($requestPath, SamlSsoController::ACS_ROUTE)) {
             return;
         }
 
@@ -327,7 +333,7 @@ class LoginFlow extends LoginFlowCompat
             $requestPath = '';
         }
 
-        if (strpos($requestPath, 'front/logout') !== false && !isset($_GET[self::LOCALLOGOUT])) {
+        if (str_contains($requestPath, SamlSsoController::SLO_ROUTE) && !isset($_GET[self::LOCALLOGOUT])) {
 
             $this->performLogOff();
             // If we reach this then GLPI should handle the logoff not us.
@@ -769,8 +775,10 @@ class LoginFlow extends LoginFlowCompat
                 $state = new Loginstate();
             }
             if ($state->getStateId() > 0) {
-                $state->addLoginFlowTrace(['Fatal Error' => (string)$errorMsg]);
-                $state->setPhase(LoginState::PHASE_ERROR);
+                if ($state->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
+                    $state->addLoginFlowTrace(['Fatal Error' => (string)$errorMsg]);
+                    $state->setPhase(LoginState::PHASE_ERROR);
+                }
                 if ($state->getIdpId() > 0) {
                     $configEntity = new ConfigEntity($state->getIdpId());
                     $debug = (bool)$configEntity->getField(ConfigEntity::DEBUG);
@@ -836,8 +844,10 @@ class LoginFlow extends LoginFlowCompat
                 $state = new Loginstate();
             }
             if ($state->getStateId() > 0) {
-                $state->addLoginFlowTrace(['Error' => $errorMsg . ($extended ? ": " . $extended : "")]);
-                $state->setPhase(LoginState::PHASE_ERROR);
+                if ($state->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
+                    $state->addLoginFlowTrace(['Error' => $errorMsg . ($extended ? ": " . $extended : "")]);
+                    $state->setPhase(LoginState::PHASE_ERROR);
+                }
                 if ($state->getIdpId() > 0) {
                     $configEntity = new ConfigEntity($state->getIdpId());
                     $debug = (bool)$configEntity->getField(ConfigEntity::DEBUG);

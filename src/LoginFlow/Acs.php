@@ -290,6 +290,9 @@ class Acs extends LoginFlow
         $inResponseTo = '';
         try {
             $inResponseTo = $this->samlResponse->getXMLDocument()->documentElement->getAttribute('InResponseTo');
+            if (empty($inResponseTo) && session_id() === '' && !headers_sent()) {
+                session_id(bin2hex(random_bytes(16)));
+            }
             $this->state = new LoginState($inResponseTo);
             LoginFlow::$activeState = $this->state;
         } catch (Throwable $e) {
@@ -301,6 +304,9 @@ class Acs extends LoginFlow
 
         if (empty($inResponseTo) || empty($this->state->getSamlRequestId())) {
             try {
+                if (session_id() === '' && !headers_sent()) {
+                    session_id(bin2hex(random_bytes(16)));
+                }
                 if ($this->state->getStateId() <= 0) {
                     $this->state->writeState();
                 }
@@ -358,6 +364,32 @@ class Acs extends LoginFlow
                     $errorStr . $suggestion
                 );
             }
+
+            /**
+             * Enforce that any SubjectConfirmationData element inside the assertion explicitly
+             * binds InResponseTo to the expected state-machine RequestID, preventing an attacker
+             * from wrapping an unsolicited signed Assertion inside an unsigned Response.
+             */
+            $xmlDoc = $this->samlResponse->getXMLDocument();
+            if ($xmlDoc instanceof \DOMDocument) {
+                $xpath = new \DOMXPath($xmlDoc);
+                $xpath->registerNamespace('saml', 'urn:oasis:names:tc:SAML:2.0:assertion');
+                $scdNodes = $xpath->query('//saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData');
+                if ($scdNodes !== false && $scdNodes->length > 0) {
+                    foreach ($scdNodes as $scdNode) {
+                        if ($scdNode instanceof \DOMElement) {
+                            $scdInResponseTo = (string)$scdNode->getAttribute('InResponseTo');
+                            if ($scdInResponseTo === '' || !hash_equals($expectedRequestId, $scdInResponseTo)) {
+                                $this->printError(
+                                    __("Validation of the samlResponse document failed", PLUGIN_NAME),
+                                    __('Samlsso->acs->assertSaml->SubjectConfirmationData::InResponseTo', PLUGIN_NAME),
+                                    'The SubjectConfirmationData InResponseTo attribute is missing or does not match the expected RequestID.'
+                                );
+                            }
+                        }
+                    }
+                }
+            }
         } catch (Throwable $e) {
             $errorMsg = $e->getMessage() ?: '';
             $suggestion = '';
@@ -388,11 +420,15 @@ class Acs extends LoginFlow
         // the samlResponse has already been processed and we are facing a replay attack.
         // We also check if the state is in the correct phase and that the response_id is not empty.
         $currentResponseId = $this->samlResponse->getId();
+        $currentAssertionId = method_exists($this->samlResponse, 'getAssertionId')
+            ? (string)$this->samlResponse->getAssertionId()
+            : '';
         if (
             empty($currentResponseId) ||
             $this->state->getPhase() != LoginState::PHASE_SAML_ACS ||
             !empty($this->state->getSamlResponseId()) ||
-            !$this->state->checkResponseIdUnique($currentResponseId)
+            !$this->state->checkResponseIdUnique($currentResponseId) ||
+            ($currentAssertionId !== '' && !$this->state->checkResponseIdUnique($currentAssertionId))
         ) {
             $this->printError(
                 sprintf(__("It looks like this samlResponse has already been used to authenticate a different user.
@@ -414,7 +450,9 @@ class Acs extends LoginFlow
             // The response is unique, register it in the database
             // to prevent future replays of this document.
             try {
-                $this->state->setSamlResponseId($currentResponseId);
+                if (!$this->state->setSamlResponseId($currentResponseId)) {
+                    throw new \RuntimeException('Failed to claim SAML response ID for current login state.');
+                }
 
                 // Capture raw SAML response XML, anonymize it, and save its structure
                 $xml = $this->samlResponse->getXMLDocument()->saveXML();

@@ -27,6 +27,11 @@ Accepted (Amends ADR 0017 & ADR 0027)
    - Remove `$_POST['RelayState']` from `LoginState::setRedirect()` and `LoginFlow::performBrowserRedirect()` so post-login redirects rely exclusively on the server-side `LoginState` redirect captured in Phase 1.
 3. **Strict Root-Element Check for `LogoutResponse` on ACS (`src/LoginFlow/Acs.php`)**:
    - Match `/^\s*<(?:[a-zA-Z0-9_-]+:)?LogoutResponse\b/` on the decoded XML payload so only genuine root `LogoutResponse` documents redirect to the SLO route.
+4. **Stateless Replay Isolation, SubjectConfirmationData Binding & Canonical Route Constants (`src/LoginState.php`, `src/LoginFlow/Acs.php`, `src/LoginFlow.php`, `src/Exclude.php`, `setup.php`)**:
+   - Prevent stateless ACS lookups by `InResponseTo` (`LoginState::getState()`) or error handlers (`LoginFlow::printError()`, `LoginFlow::PrintFatalLoginError()`) from mutating or downgrading sessions that are already in `PHASE_SAML_AUTH (3)` or `PHASE_GLPI_AUTH (4)` or already carry a recorded `SAML_RESPONSE_ID`.
+   - Generate a unique session identifier in `Acs::fetchRequestState()` when `session_id()` is empty on unsolicited stateless requests so database records never collide on `sessionId = ''`.
+   - Enforce explicit `SubjectConfirmationData/@InResponseTo` matching against `$expectedRequestId`, assertion ID uniqueness, and live `PHASE_SAML_ACS` verification in `LoginState::setSamlResponseId()`.
+   - Reference `SamlSsoController::ACS_ROUTE` and `SamlSsoController::SLO_ROUTE` consistently across `setup.php`, `LoginFlow.php`, `Exclude.php`, and `LoginState.php`.
 
 ## Verifiable Invariants & Test Mapping
 
@@ -34,10 +39,10 @@ To ensure future iterations cannot regress these state-machine rules, the follow
 
 | Invariant | Code Location | Automated Test Verification |
 | :--- | :--- | :--- |
-| `LoginState` with unknown or empty `InResponseTo` initializes in `PHASE_INITIAL (1)` with `SAML_REQUEST_ID = null` (never promoted directly to `PHASE_SAML_ACS (2)` by `LoginState::getState()`). | `src/LoginState.php:310-323` | `AcsTest::testIdpInitiatedUnsolicitedLogin()` |
-| `Acs::fetchRequestState()` intercepts any state with empty `InResponseTo` or empty `getSamlRequestId()`, persists the initial state (`writeState()`), marks `setUnsolicited(true)`, and redirects to the IdP via `performSamlIdpRequest()`. | `src/LoginFlow/Acs.php:303-319` | `AcsTest::testIdpInitiatedUnsolicitedLogin()` |
-| `Acs::assertSaml()` never passes `null` to `$this->samlResponse->isValid()`; an empty `getSamlRequestId()` or non-`PHASE_SAML_ACS (2)` state is rejected and transitions to `PHASE_ERROR (9)`. | `src/LoginFlow/Acs.php:336-395` | `AcsTest::testInvalidPhaseValidation()`, `AcsTest::testPhaseErrorTransitionOnFailure()` |
-| Once a valid and expected `SAMLResponse` is evaluated at ACS, `SAML_RESPONSE_ID` is recorded and the phase transitions to `PHASE_SAML_AUTH (3)`, blocking any replay or re-evaluation. | `src/LoginFlow/Acs.php:390-475` | `AcsTest::testReplayProtection()`, `AcsTest::testSuccessfulAcsLogin()` |
+| `LoginState` with unknown or empty `InResponseTo` initializes in `PHASE_INITIAL (1)` with `SAML_REQUEST_ID = null` (never promoted directly to `PHASE_SAML_ACS (2)` by `LoginState::getState()`). | `src/LoginState.php:325-345` | `AcsTest::testIdpInitiatedUnsolicitedLogin()` |
+| `Acs::fetchRequestState()` intercepts any state with empty `InResponseTo` or empty `getSamlRequestId()`, persists the initial state (`writeState()`), marks `setUnsolicited(true)`, and redirects to the IdP via `performSamlIdpRequest()`. | `src/LoginFlow/Acs.php:303-325` | `AcsTest::testIdpInitiatedUnsolicitedLogin()` |
+| `Acs::assertSaml()` never passes `null` to `$this->samlResponse->isValid()`; an empty `getSamlRequestId()`, missing `SubjectConfirmationData/@InResponseTo`, or non-`PHASE_SAML_ACS (2)` state is rejected and transitions to `PHASE_ERROR (9)`. | `src/LoginFlow/Acs.php:340-430` | `AcsTest::testInvalidPhaseValidation()`, `AcsTest::testPhaseErrorTransitionOnFailure()` |
+| Once a valid and expected `SAMLResponse` is evaluated at ACS, `SAML_RESPONSE_ID` is recorded and the phase transitions to `PHASE_SAML_AUTH (3)`, blocking any replay or re-evaluation without mutating already-authenticated `PHASE_GLPI_AUTH (4)` sessions. | `src/LoginFlow/Acs.php:415-505`, `src/LoginState.php:230-245` | `AcsTest::testReplayProtection()`, `LoginStateTest::testStatelessReplayDoesNotMutateAuthenticatedSession()` |
 | `RelayState` carries the per-flow CSRF token (`$flowToken`) validated in `Acs::init()`, while post-login redirects use only the server-side `LoginState` redirect captured in Phase 1. | `src/LoginFlow.php:513-530`, `src/LoginFlow/Acs.php:199-209` | `AcsTest::testLoginCsrfFlowTokenValidation()`, `LoginStateTest::testRedirectDeepLinkingAndValidation()` |
 
 ## Consequences

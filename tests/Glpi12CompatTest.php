@@ -234,12 +234,19 @@ namespace GlpiPlugin\Samlsso\Tests {
             $setup = $this->readPluginFile('setup.php');
             $errors = [];
 
-            if (!str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/front/logout#')")) {
-                $errors[] = "setup.php does not register '#^/front/logout#' as a stateless path.";
+            if (
+                !str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/front/logout#')") &&
+                !str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::SLO_ROUTE . '#')")
+            ) {
+                $errors[] = "setup.php does not register SLO_ROUTE ('#^/front/logout#') as a stateless path.";
             }
-            if (!str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#')") &&
-                !str_contains($setup, "RegisterPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#')")) {
-                $errors[] = "setup.php does not register '#^/front/acs/#' as a stateless path.";
+            if (
+                !str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#')") &&
+                !str_contains($setup, "RegisterPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#')") &&
+                !str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::ACS_ROUTE . '/#')") &&
+                !str_contains($setup, "RegisterPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::ACS_ROUTE . '/#')")
+            ) {
+                $errors[] = "setup.php does not register ACS_ROUTE ('#^/front/acs/#') as a stateless path.";
             }
 
             if (!empty($errors)) {

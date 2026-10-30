@@ -320,9 +320,10 @@ class Exclude extends ExcludeCompat
                     $requestPath = '';
                 }
                 if (
-                    strpos($requestPath, 'acs.php') !== false         ||         // do not process acs
-                    strpos($requestPath, 'common.tabs.php') !== false ||         // do not process common.tabs
-                    strpos($requestPath, 'dashboard.php') !== false   ||         // do not process dashboard
+                    str_contains($requestPath, SamlSsoController::ACS_ROUTE) ||
+                    strpos($requestPath, 'acs.php') !== false                ||
+                    strpos($requestPath, 'common.tabs.php') !== false        ||
+                    strpos($requestPath, 'dashboard.php') !== false          ||
                     Exclude::ProcessExcludes()
                 ) {
                     return $_SERVER['REQUEST_URI'];
