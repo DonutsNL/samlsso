@@ -7,7 +7,10 @@ This repository is maintained with an "AI-First" mindset. Whether you are a huma
 - To maintain the high quality and "Security-by-Design" nature of this plugin, all agentic activities must adhere to the following workflow:
 - Use the IDE functions where possible and try to prevent the usage of CLI commands for code analysis and fixes. Only use CLI when needed.
 
-### 1. Prerequisite Knowledge
+### 1. Prerequisite Knowledge & Security-by-Design
+- **Security-by-Design First (Non-Negotiable)**: We strictly follow a Security-by-Design principle ([ADR 0017](ADR/0017-security-by-design-architecture.md)) that may **never** be omitted, weakened, or bypassed. All authentication must be evaluated against the state machine (`LoginState`). Unsolicited authentication is never permitted; an empty or unregistered `InResponseTo` must always create a state for the new session and redirect the browser back to the IdP to re-authenticate through the state-machine cycle.
+- **Mandatory ADR Validation**: Every feature request, bug report, or proposed change **MUST** be validated against existing ADRs in `docs/ADR/` before any implementation begins.
+- **Deny and Discuss Conflicting Issues First**: Any issue or feature request that conflicts with an existing ADR or with Security-by-Design principles **must be denied first** and discussed with the maintainer before adoption is considered. If a change is adopted after discussion, it **must always** result in a new ADR in `docs/ADR/` describing the change and its security rationale.
 - **Read the Wiki**: Before performing any functional changes, you **MUST** read the [Project Wiki](https://github.com/DonutsNL/samlsso/wiki) to understand the state-machine logic, the assertion lifecycle, and the architectural design patterns.
 - **Understand Security**: You **MUST** read and follow the instructions in [SECURITY.md](SECURITY.md). Never propose changes that bypass the state-machine or weaken the replay protection.
 

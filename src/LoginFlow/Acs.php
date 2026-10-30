@@ -178,7 +178,7 @@ class Acs extends LoginFlow
              * @see https://github.com/DonutsNL/samlsso/issues/138
              */
             $decoded = base64_decode($samlResponse);
-            if (strpos($decoded, 'LogoutResponse') !== false) {
+            if (is_string($decoded) && preg_match('/^\s*<(?:[a-zA-Z0-9_-]+:)?LogoutResponse\b/', $decoded) === 1) {
                 \Html::redirect(samlsso_webdir() . \GlpiPlugin\Samlsso\Controller\SamlSsoController::SLO_ROUTE);
             }
             
@@ -199,7 +199,6 @@ class Acs extends LoginFlow
             $expectedFlowToken = method_exists($this->state, 'getFlowToken') ? $this->state->getFlowToken() : '';
             $requestFlowToken = (string)(
                 $request->request->get('RelayState')
-                ?? $_COOKIE['samlsso_flow_token']
                 ?? ($_SESSION['glpi_plugins']['samlsso']['flow_token'] ?? '')
             );
             if ($expectedFlowToken !== '' && !hash_equals($expectedFlowToken, $requestFlowToken)) {
@@ -280,33 +279,42 @@ class Acs extends LoginFlow
 
     /**
      * Fetch the login request state from the database.
+     * If the response is unsolicited or lacks a state-machine-registered request ID,
+     * persist the new session state and redirect the browser back to the IdP to
+     * re-authenticate through the state machine.
      *
      * @return void
      */
     private function fetchRequestState(): void
     {
+        $inResponseTo = '';
         try {
             $inResponseTo = $this->samlResponse->getXMLDocument()->documentElement->getAttribute('InResponseTo');
             $this->state = new LoginState($inResponseTo);
             LoginFlow::$activeState = $this->state;
-
-            /**
-             * When the SAML response is unsolicited (IdP-initiated, no InResponseTo),
-             * initialize the state to PHASE_SAML_ACS and record the IdP ID and unsolicited flag.
-             */
-            if (empty($inResponseTo)) {
-                if (!$this->state->getStateId()) {
-                    $this->state->writeState();
-                }
-                $this->state->setIdpId($this->idpId);
-                $this->state->setPhase(LoginState::PHASE_SAML_ACS);
-                $this->state->setUnsolicited(true);
-            }
         } catch (Throwable $e) {
             $this->printError(
                 sprintf(__("Could not fetch loginState from database with error: <br><br>%s<br><br>See: %s for more information.", PLUGIN_NAME), $e, 'https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php'),
                 __('Samlsso->acs->init->LoginState::construct', PLUGIN_NAME)
             );
+        }
+
+        if (empty($inResponseTo) || empty($this->state->getSamlRequestId())) {
+            try {
+                if ($this->state->getStateId() <= 0) {
+                    $this->state->writeState();
+                }
+                $this->state->setIdpId((int)$this->idpId);
+                $this->state->setUnsolicited(true);
+                $this->state->addLoginFlowTrace(['unsolicitedReauthRedirect' => 'idpId:' . (int)$this->idpId]);
+            } catch (Throwable $e) {
+                $this->printError(
+                    sprintf(__("Could not fetch loginState from database with error: <br><br>%s<br><br>See: %s for more information.", PLUGIN_NAME), $e, 'https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php'),
+                    __('Samlsso->acs->init->LoginState::construct', PLUGIN_NAME)
+                );
+            }
+            $this->performSamlIdpRequest();
+            return;
         }
     }
 
@@ -321,15 +329,12 @@ class Acs extends LoginFlow
     public function assertSaml(): void
     {
         /**
-         * Perform validation by phpSaml library.
-         * For SP-initiated requests, validate that InResponseTo matches the expected RequestID.
-         * For IdP-initiated / unsolicited responses (empty InResponseTo), pass null so that
-         * phpSaml does not reject the response due to a missing InResponseTo attribute.
+         * Perform validation by phpSaml library against the registered state-machine RequestID.
+         * Unsolicited responses without a registered RequestID are never accepted directly.
          */
         try {
-            $inResponseTo = $this->samlResponse->getXMLDocument()->documentElement->getAttribute('InResponseTo');
-            $expectedRequestId = !empty($inResponseTo) ? $this->state->getSamlRequestId() : null;
-            if (!$this->samlResponse->isValid($expectedRequestId)) {
+            $expectedRequestId = $this->state->getSamlRequestId();
+            if ($expectedRequestId === '' || !$this->samlResponse->isValid($expectedRequestId)) {
                 $errorStr = $this->samlResponse->getError(false) ?: '';
                 $suggestion = '';
                 if ($errorStr !== '') {

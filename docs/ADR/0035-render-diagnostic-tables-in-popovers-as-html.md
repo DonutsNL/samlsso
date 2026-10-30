@@ -15,8 +15,8 @@ Accepted
    - Popover content was populated using jQuery `.text()`, stripping HTML markup before Bootstrap even processed it.
 
 ## Decisions
-1. **HTML Popover Preservation (`SamlSsoPopoverManager.init`)**:
-   - Configured `sanitize: false` in `SamlSsoPopoverManager.init` to ensure Bootstrap does not strip table tags or formatting when rendering plugin-generated diagnostic markup.
+1. **HTML Popover Preservation with Sanitizer Allowlist (`SamlSsoPopoverManager.init`)**:
+   - Configured `sanitize: true` in `SamlSsoPopoverManager.init` with an extended Bootstrap `allowList` that explicitly permits `table`, `thead`, `tbody`, `tr`, `th`, and `td` (with `class`, `style`, `scope`, `colspan`, `rowspan` attributes) so Bootstrap preserves plugin-generated diagnostic tables while continuing to strip any untrusted script/XSS vectors (see [ADR 0027](0027-security-audit-remediation.md)).
 2. **Full HTML Table Transmission (`processNotificationHelper`)**:
    - For table elements (`isTable`), extract `$textEl.html().trim()` as popover content.
    - Configure trigger element with `data-bs-html="true"` and class `samlsso-popover-table`.
@@ -27,7 +27,7 @@ Accepted
 4. **Responsive Table Popover Styling (`public/css/samlSSO.css`)**:
    - Configured `.popover.samlsso-popover-table` and `.popover:has(table)` with `max-width: 560px !important`, scrollable bodies, and clear borders.
 5. **Automated Verification (`tests/ConfigIntegrityTest.php`)**:
-   - Extended `testDiagnosticTableIntegrityAndPopoverPreservation` to verify `sanitize: false`, HTML table passing, popover table CSS styling, and hidden inline containers.
+   - Extended `testDiagnosticTableIntegrityAndPopoverPreservation` to verify `sanitize: true` with the table `allowList`, HTML table passing, popover table CSS styling, and hidden inline containers.
 
 ## Consequences
 - **Positive**:

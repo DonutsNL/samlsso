@@ -571,8 +571,9 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that IdP-initiated (unsolicited) SAML response without InResponseTo attribute
-         * is accepted, validated without expecting a request ID, and completes authentication.
+         * Test that IdP-initiated (unsolicited) SAML responses without an InResponseTo
+         * attribute or without a registered state-machine RequestID create a state for
+         * the session and redirect the browser back to the IdP to re-authenticate.
          */
         public function testIdpInitiatedUnsolicitedLogin(): void {
             $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
@@ -584,20 +585,31 @@ namespace GlpiPlugin\Samlsso\Tests {
             \OneLogin\Saml2\Response::$mockValid = true;
 
             $state = new Loginstate();
-            $state->setIdpId(5);
             \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
 
             $acs = new TestableAcs();
             TestableAcs::$lastError = [];
             try {
                 $acs->init($request);
-                throw new \Exception("Acs should have completed login and initiated redirect for unsolicited assertion.");
+                throw new \Exception("Acs should have redirected unsolicited assertion back to IdP for state-machine re-authentication.");
             } catch (\Exception $e) {
-                if (!str_contains($e->getMessage(), 'Redirect to:')) {
-                    throw new \Exception("Unsolicited login failed with: " . $e->getMessage());
+                if (!str_contains($e->getMessage(), 'Redirect to: /plugins/samlsso/front/sso.php?idp=5')) {
+                    throw new \Exception("Unsolicited re-auth redirect failed with: " . $e->getMessage());
                 }
             }
-            echo "✅ ACS: IdP-initiated / unsolicited login flow verified (Issue #147)\n";
+
+            $activeState = \GlpiPlugin\Samlsso\LoginFlow::$activeState;
+            if ($activeState === null || !$activeState->isUnsolicited()) {
+                throw new \Exception("Unsolicited response did not flag LoginState as unsolicited.");
+            }
+            if ($activeState->getPhase() !== Loginstate::PHASE_SAML_ACS) {
+                throw new \Exception("Unsolicited re-auth redirect did not transition state to PHASE_SAML_ACS (2).");
+            }
+            if ($activeState->getSamlRequestId() !== 'ONELOGIN_12345') {
+                throw new \Exception("Unsolicited re-auth redirect did not register a new SAML RequestID.");
+            }
+
+            echo "✅ ACS: unsolicited response redirected to IdP for state-machine re-authentication\n";
         }
 
         /**
@@ -871,8 +883,8 @@ namespace {
         $runTest('testAcsRejectsGetRequest');
         $runTest('testLoginCsrfFlowTokenValidation');
         $runTest('testPhaseErrorTransitionOnFailure');
-        $runTest('testSuccessfulAcsLogin');
         $runTest('testIdpInitiatedUnsolicitedLogin');
+        $runTest('testSuccessfulAcsLogin');
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

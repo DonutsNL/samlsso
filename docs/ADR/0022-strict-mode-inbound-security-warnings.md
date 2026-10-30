@@ -1,7 +1,7 @@
 # ADR 0022: Auto-Disable Inbound Security when Strict Mode is Disabled
 
 ## Status
-Accepted
+Accepted (Amended by [ADR 0027](0027-security-audit-remediation.md) — runtime ACS evaluation in `Acs::setupSamlResponse()` always enforces `strict => true` and requires signed assertions or messages regardless of stored database flags)
 
 ## Context
 When SAML strict mode is disabled, the underlying php-saml toolkit does not validate or enforce cryptography assertions or signatures on inbound SAML responses, even if settings such as "Require Signed Messages" are toggled to true in the UI. Under this scenario, users can get a false sense of security thinking these policies are being enforced.

@@ -307,15 +307,17 @@ class LoginState extends CommonDBTM
                 throw new LoginStateException('Tried to update non-existing state with session:' . session_id());
             }
         } else {
-            // No previous state found in DB, create initial one.
+            /**
+             * No previous state found in DB; create initial state in PHASE_INITIAL.
+             * If a samlInResponseTo was supplied without a matching state, flag as unsolicited
+             * while keeping PHASE_INITIAL so ACS forces re-authentication through the state machine.
+             */
             $this->createInitialState();
 
-            // We dont have a registered session, but we have a samlResponse?
-            // This means we are dealing with an unsolicited (unsupported) auth so lets at least register that fact.
             if (!empty($samlInResponseTo)) {
                 $this->state = array_merge($this->state, [
-                    LoginState::SAML_UNSOLICITED  => true,
-                    LoginState::PHASE  => LoginState::PHASE_SAML_ACS
+                    LoginState::SAML_UNSOLICITED => '1',
+                    LoginState::PHASE            => LoginState::PHASE_INITIAL,
                 ]);
             }
         }
@@ -652,10 +654,6 @@ class LoginState extends CommonDBTM
             if (empty($target) && isset($_GET[LoginState::REDIRECT]) && is_string($_GET[LoginState::REDIRECT])) {
                 $target = $_GET[LoginState::REDIRECT];
             }
-        }
-
-        if (empty($target) && isset($_POST['RelayState']) && is_string($_POST['RelayState'])) {
-            $target = $_POST['RelayState'];
         }
 
         if (empty($target) && isset($_SERVER['REQUEST_URI']) && is_string($_SERVER['REQUEST_URI'])) {

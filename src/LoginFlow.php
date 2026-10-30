@@ -505,19 +505,6 @@ class LoginFlow extends LoginFlowCompat
             // Added version 1.2.0
             // Capture and register requestId in database
             // before performing the redirect so we don't need Cookies
-            /**
-             * Resolve return target URL for RelayState (Issue #158).
-             */
-            $returnTo = $CFG_GLPI['url_base'];
-            $safeRedirect = $this->state->getSafeRedirect();
-            if (!empty($safeRedirect)) {
-                if (str_starts_with($safeRedirect, '/')) {
-                    $returnTo = rtrim($CFG_GLPI['url_base'], '/') . $safeRedirect;
-                } else {
-                    $returnTo = rtrim($CFG_GLPI['url_base'], '/') . '/?redirect=' . rawurlencode($safeRedirect);
-                }
-            }
-
             $forceAuthn = false;
             if ($configEntity !== null) {
                 $forceAuthn = (bool) $configEntity->getField(ConfigEntity::FORCE_AUTHN);
@@ -528,23 +515,10 @@ class LoginFlow extends LoginFlowCompat
                 $this->state->setFlowToken($flowToken);
             }
             $_SESSION['glpi_plugins']['samlsso']['flow_token'] = $flowToken;
-            if (!headers_sent()) {
-                setcookie(
-                    'samlsso_flow_token',
-                    $flowToken,
-                    [
-                        'expires'  => time() + 900,
-                        'path'     => '/',
-                        'secure'   => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-                        'httponly' => true,
-                        'samesite' => 'None',
-                    ]
-                );
-            }
 
             try {
                 $ssoBuiltUrl = $auth->login(
-                    $returnTo,
+                    $flowToken,
                     array(),
                     $forceAuthn,
                     false,
@@ -557,17 +531,12 @@ class LoginFlow extends LoginFlowCompat
             }
 
             if ($auth !== null) {
-                // Register the requestId in the database and $_SESSION var;
                 $this->state->setRequestId($auth->getLastRequestID());
             }
 
-            // Update the current phase in database. The state is verified by the Acs
-            // while handling the received SamlResponse. Any other state will force Acs
-            // into an error state. This is to prevent unexpected (possibly replayed)
-            // samlResponses from being processed. to prevent playback attacks.
             $this->state->refreshLoginDateTime();
             if (!$this->state->setPhase(LoginState::PHASE_SAML_ACS)) {
-                $this->printError(sprintf(__('Could not update the loginState and therefor stopped the loginFlow for: %s', PLUGIN_NAME), $_POST[LoginFlow::POSTFIELD]));
+                $this->printError(sprintf(__('Could not update the loginState and therefor stopped the loginFlow for: %s', PLUGIN_NAME), (string)($_POST[LoginFlow::POSTFIELD] ?? $this->state->getIdpId())));
             }
 
             // Perform redirect to Idp using HTTP-GET
@@ -916,19 +885,6 @@ class LoginFlow extends LoginFlowCompat
             $state = new Loginstate();
         } catch (Throwable $e) {
             LoginFlow::printError(sprintf(__("Loading login state failed with: %s", PLUGIN_NAME), (string)$e));
-        }
-
-        /**
-         * Restore stored redirect requests or RelayState returned by the IdP (Issues #2, #158).
-         */
-        if (
-            $state !== null &&
-            empty($state->getRedirect()) &&
-            isset($_POST['RelayState']) &&
-            is_string($_POST['RelayState']) &&
-            preg_match('/^[a-f0-9]{32}$/', $_POST['RelayState']) !== 1
-        ) {
-            $state->setRedirect($_POST['RelayState']);
         }
 
         $safeRedirect = $state !== null ? $state->getSafeRedirect() : '';

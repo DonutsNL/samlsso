@@ -13,6 +13,12 @@ You MUST follow these rules when performing any changes in this repository.
 - **Security & Safe Coding Audits**: Always review implementations for strict compliance with safe coding standards to ensure that no logic or security bypass loops are created.
 
 ## 🤖 Workflow & Preparation
+- **Security-by-Design First (Non-Negotiable)**: The Security-by-Design principle (`docs/ADR/0017-security-by-design-architecture.md`) always comes first and may **never** be omitted, weakened, or bypassed. All authentication must be evaluated strictly against the database-backed state machine (`LoginState`). Unsolicited SAML responses or responses with unregistered `InResponseTo` IDs must never authenticate directly; they must create a new initial state for the session and redirect the browser back to the IdP (`performSamlIdpRequest()`) to re-authenticate through the full state-machine lifecycle.
+- **Validate Every Request Against Existing ADRs**: Before implementing any feature request, issue, or bug fix, you **MUST** read and validate the request against all existing ADRs in `docs/ADR/`.
+- **Deny & Discuss Conflicting Issues First**: If a feature request or issue conflicts with any existing ADR or with Security-by-Design principles:
+  1. **Deny / refuse direct implementation immediately** — never implement a workaround that bypasses the state machine, weakens validation, or contradicts an ADR.
+  2. **Flag and discuss the conflict with the developer first**, citing the exact ADR(s) and security impact.
+  3. **Mandatory ADR on Adoption**: Any approved change that modifies architecture or amends an existing decision **MUST** result in a new ADR in `docs/ADR/` documenting the decision, security analysis, and superseded/amended ADRs.
 - **Read the Wiki**: Before performing any functional changes, read the Project Wiki (https://github.com/DonutsNL/samlsso/wiki) to understand state-machine logic, the assertion lifecycle, and architectural design patterns.
 - **Understand Security**: Never propose changes that bypass the state-machine or weaken replay protection.
 - **Issue-First**: A formal GitHub Issue must exist before any code changes are allowed. If none exists, create a new issue on GitHub describing the intended change and reasoning, and reference it in the changelog and ADRs.

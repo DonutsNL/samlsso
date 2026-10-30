@@ -48,9 +48,10 @@ A security review of samlSSO version 1.3.1 identified vulnerabilities across acc
    - Harden `?bypass=1` in `src/LoginFlow.php`, `setup.php`, and `src/Config.php` to fail closed unless `PLUGIN_SAMLSSO_BYPASS_TOKEN` or `SAMLSSO_BYPASS_TOKEN` is configured and matched via constant-time `hash_equals()`.
    - Audit-log authorized and unauthorized local login attempts, and clear bypass flags from the session namespace upon successful authentication.
 
-9. **CSRF and Binding Protection**:
+9. **CSRF, Binding Protection, and State-Machine Re-Authentication**:
    - Enforce HTTP POST method and CSRF token validation on `forcelogoff` in `src/Config/ConfigForm.php`.
-   - Enforce HTTP-POST binding on `src/LoginFlow/Acs.php` by rejecting GET requests and query-parameter responses, and validate a per-flow anti-CSRF token stored on the `LoginState` record via `hash_equals()` in `Acs::init()`.
+   - Enforce HTTP-POST binding on `src/LoginFlow/Acs.php` by rejecting GET requests and query-parameter responses, pass a per-flow anti-CSRF token as `RelayState` in `LoginFlow::performSamlIdpRequest()`, and validate it against the `LoginState` record via `hash_equals()` in `Acs::init()`.
+   - Reject direct unsolicited authentication in `Acs::fetchRequestState()` and `Acs::assertSaml()`: when `InResponseTo` is empty or unregistered in `LoginState`, persist a new initial state and redirect the browser back to the IdP via `performSamlIdpRequest()` to re-authenticate through the state machine (see [ADR 0036](0036-enforce-state-machine-reauth-on-unsolicited-responses.md)).
 
 10. **Session Lifecycle & Stale Cleanup Scalability**:
     - Reorder `LoginFlow::doAuth()` to run `LoginState::expireStaleGlpiSessions()` and evaluate `PHASE_FORCE_LOG` and `PHASE_TIMED_OUT` before AJAX and exclusion early returns, terminating AJAX requests with HTTP 401.
