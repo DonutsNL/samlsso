@@ -452,19 +452,28 @@ class Config extends ConfigCompat
         ]);
 
         if ($req->numrows() > 0) {
-            // Dont hide if we are trying to bypass
             if (
-                isset($_GET[LoginFlow::SAMLBYPASS])  &&  // Is ?bypass=1 set in our uri
+                isset($_GET[LoginFlow::SAMLBYPASS]) &&
                 $_GET[LoginFlow::SAMLBYPASS] == 1
             ) {
-                self::$hideLoginFieldsCache = 0;
-                return 0;
+                $bypassActive = !empty($_SESSION['glpi_plugins']['samlsso']['bypass']);
+                if (!$bypassActive) {
+                    $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN')
+                        ? (string)PLUGIN_SAMLSSO_BYPASS_TOKEN
+                        : (string)getenv('SAMLSSO_BYPASS_TOKEN');
+                    $providedToken = $_GET['token'] ?? $_GET['bypass_token'] ?? null;
+                    if ($requiredToken !== '' && $providedToken !== null && hash_equals($requiredToken, (string)$providedToken)) {
+                        $bypassActive = true;
+                    }
+                }
+                if ($bypassActive) {
+                    self::$hideLoginFieldsCache = 0;
+                    return 0;
+                }
             }
-            // More then one result, hide the password fields.
             self::$hideLoginFieldsCache = 1;
             return 1;
         } else {
-            // Dont hide.
             self::$hideLoginFieldsCache = 0;
             return 0;
         }
@@ -545,18 +554,17 @@ class Config extends ConfigCompat
             PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            $DB->doQuery($query);
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
         }
 
-        // Alter column width for conf_domain
         if ($DB->tableExists($table)) {
             $migration->displayMessage("Updating table layout for $table");
             $query = <<<SQL
                 ALTER TABLE $table
                 MODIFY COLUMN `conf_domain` varchar(255) null;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            $DB->doQuery($query);
 
             if (!$DB->fieldExists($table, 'saml_xml_structure', false)) {
                 $migration->addField($table, 'saml_xml_structure', 'text', ['null' => true, 'update' => true]);
@@ -614,6 +622,28 @@ class Config extends ConfigCompat
 
             if ($DB->fieldExists($table, ConfigEntity::FORCE_AUTHN, false)) {
                 $DB->doQuery("UPDATE `$table` SET `" . ConfigEntity::FORCE_AUTHN . "` = 0 WHERE `" . ConfigEntity::FORCE_AUTHN . "` IS NULL");
+            }
+
+            /**
+             * Migrate existing plaintext SP private keys stored in the database to GLPIKey encryption.
+             */
+            $existingRows = $DB->request([
+                'SELECT' => [ConfigEntity::ID, ConfigEntity::SP_KEY, ConfigEntity::SP_KEY_SOURCE],
+                'FROM'   => $table,
+            ]);
+            foreach ($existingRows as $row) {
+                $keySource = (string)($row[ConfigEntity::SP_KEY_SOURCE] ?? 'db');
+                $rawKey    = (string)($row[ConfigEntity::SP_KEY] ?? '');
+                if ($keySource === 'db' && $rawKey !== '' && str_starts_with(trim($rawKey), '-----BEGIN')) {
+                    $encryptedKey = ConfigEntity::encryptPrivateKey($rawKey);
+                    if ($encryptedKey !== $rawKey && method_exists($DB, 'update')) {
+                        $DB->update(
+                            $table,
+                            [ConfigEntity::SP_KEY => $encryptedKey],
+                            [ConfigEntity::ID => (int)$row[ConfigEntity::ID]]
+                        );
+                    }
+                }
             }
 
             Session::addMessageAfterRedirect("🆗 Updated: $table layout.");

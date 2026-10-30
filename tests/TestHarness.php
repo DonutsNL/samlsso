@@ -914,6 +914,8 @@ namespace GlpiPlugin\Samlsso {
             public $samlAuthed = false;
             /** @var string Active SAML Response identifier. */
             public $samlResponseId = '';
+            /** @var string Per-flow anti-CSRF token. */
+            public string $flowToken = '';
             /** @var ?\Throwable Static throwable mock trigger. */
             public static ?\Throwable $mockConstructorThrow = null;
             /** @var ?\Throwable Static throwable mock trigger. */
@@ -941,6 +943,7 @@ namespace GlpiPlugin\Samlsso {
                     $this->requestId = self::$lastInstance->requestId;
                     $this->samlResponseId = self::$lastInstance->samlResponseId;
                     $this->samlAuthed = self::$lastInstance->samlAuthed;
+                    $this->flowToken = self::$lastInstance->flowToken;
                 }
                 self::$lastInstance = $this;
             }
@@ -1154,6 +1157,28 @@ namespace GlpiPlugin\Samlsso {
             public function getSamlRequestId(): string
             {
                 return $this->requestId;
+            }
+
+            /**
+             * Sets the per-flow anti-CSRF token.
+             *
+             * @param string $token Token value.
+             * @return bool True.
+             */
+            public function setFlowToken(string $token): bool
+            {
+                $this->flowToken = $token;
+                return true;
+            }
+
+            /**
+             * Gets the per-flow anti-CSRF token.
+             *
+             * @return string Token value.
+             */
+            public function getFlowToken(): string
+            {
+                return $this->flowToken;
             }
 
             /**

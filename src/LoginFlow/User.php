@@ -148,24 +148,22 @@ class User
      */
     public function getOrCreateUser(array $userFields, ConfigEntity $configEntity, ?LoginState $state = null): glpiUser
     {
-        /* At this point the userFields should be present and validated (textually) by loginFlow. */
-        /* https://codeberg.org/QuinQuies/glpisaml/issues/71 */
-        $name  = (array_key_exists(User::NAME, $userFields) && isset($userFields[User::NAME])) ? $userFields[User::NAME] : '';
-        $email = (array_key_exists(User::EMAIL, $userFields) && isset($userFields[User::EMAIL][0])) ? $userFields[User::EMAIL][0] : '';
+        $name  = (array_key_exists(User::NAME, $userFields) && isset($userFields[User::NAME])) ? (string)$userFields[User::NAME] : '';
+        $email = (array_key_exists(User::EMAIL, $userFields) && isset($userFields[User::EMAIL][0])) ? (string)$userFields[User::EMAIL][0] : '';
+
+        $idpId = (int)$configEntity->getField(ConfigEntity::ID);
+        $allowEmailLinking = (bool)$configEntity->getField(ConfigEntity::SYNC_ON_LOGIN);
 
         $user = new glpiUser();
-        if (
-            !$user->getFromDBbyName($name)       &&
-            !$user->getFromDBbyEmail($email)     &&
-            !$user->getFromDBbyEmail($name)
-        ) {
-            /* User IS NOT found. */
-            /* Try to perform Just In Time (JIT) user creation; */
-            return $this->performJIT($userFields, $configEntity);
-        } else {
-            /* User is found, check if we are allowed to use it. */
+        $found = !empty($name) && $user->getFromDBbyName($name);
+        if (!$found && $allowEmailLinking) {
+            $found = (!empty($email) && $user->getFromDBbyEmail($email))
+                || (!empty($name) && $user->getFromDBbyEmail($name));
+        }
 
-            /* Verify the found user does not use local GLPI database authentication */
+        if (!$found) {
+            return $this->performJIT($userFields, $configEntity, $state);
+        } else {
             $authtype = (int)($user->fields[User::AUTHTYPE] ?? 0);
             $localAuthType = class_exists('\Auth') && defined('\Auth::DB_GLPI') ? \Auth::DB_GLPI : self::AUTHTYPE_LOCAL;
             if ($authtype === $localAuthType || strtolower($user->fields[User::NAME] ?? '') === 'glpi') {
@@ -177,7 +175,17 @@ class User
                 );
             }
 
-            /* Verify the found user is not deleted (in trashcan) */
+            $externalAuthType = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? \Auth::EXTERNAL : 4;
+            $userAuthsId = (int)($user->fields['auths_id'] ?? 0);
+            if (($authtype !== 0 && $authtype !== $externalAuthType) || ($userAuthsId > 0 && $idpId > 0 && $userAuthsId !== $idpId)) {
+                LoginFlow::PrintFatalLoginError(
+                    sprintf(
+                        __("User account '%s' is bound to a different authentication source and cannot be accessed via this SAML Identity Provider.", PLUGIN_NAME),
+                        $user->fields[User::NAME] ?? $name
+                    )
+                );
+            }
+
             if ($user->fields[User::DELETED] == 1) {
                 LoginFlow::PrintFatalLoginError(sprintf(__("User with GlpiUserid: %s is marked deleted but still exists in the GLPI database. Because of this we cannot log you in as this would violate GLPI its security policies. Please contact the GLPI administrator to restore the user with provided ID or purge the user to allow the Just in Time (JIT) user creation to create a new user with the idp provided claims.", PLUGIN_NAME), $user->fields[User::USERID]));
             }
@@ -244,11 +252,9 @@ class User
             LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but the identity provider configuration is invalid or disabled.", PLUGIN_NAME));
         }
 
-        // Are we allowed to perform JIT user creation?
         if ($configEntity->getField(ConfigEntity::USER_JIT)) {
-            // Build the input array using the provided attributes (claims)
-            // from the samlResponse. maybe use this method in the future
-            // to also validate provided claims in one go.
+            $userFields[User::AUTHTYPE] = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? \Auth::EXTERNAL : 4;
+            $userFields['auths_id'] = (int)$dbId;
             $id = $user->add(self::sanitizeInput($userFields));
             if (!$id) {
                 LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but there is no matching GLPI user account and
@@ -259,28 +265,34 @@ class User
                 $this->runRulesEngine((int)$id, $userFields, $state);
             }
 
-            // Return the freshly created user!
             $user = new glpiUser();
             if ($user->getFromDB($id)) {
-                // Check if the user has any profiles assigned
                 if (count(Profile_User::getForUser($id)) === 0) {
                     LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but no GLPI profile was assigned to your account and
                                                     we failed to assign one dynamically using Just In Time user creation. Please
                                                     request a GLPI administrator to review the logs and correct the problem or
                                                     request the administrator to assign a GLPI profile manually.", PLUGIN_NAME));
                 }
-                Session::addMessageAfterRedirect('Dynamically created GLPI user for:' . $userFields[User::EMAIL]['0']);
+                Session::addMessageAfterRedirect(
+                    sprintf(
+                        __('Dynamically created GLPI user for: %s', PLUGIN_NAME),
+                        htmlspecialchars((string)($userFields[User::EMAIL][0] ?? ''), ENT_QUOTES, 'UTF-8')
+                    )
+                );
                 return $user;
             } else {
                 LoginFlow::PrintFatalLoginError(__("Critical error: samlSSO was unable to fetch newly created user from the database!", PLUGIN_NAME));
             }
         } else {
-            // Show a nice login Error
-            $idpName = $configEntity->getField(ConfigEntity::NAME);
-            $email   = $userFields[User::EMAIL]['0'];
-            LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but there is no matching GLPI user account. In addition the Just-in-time user creation
-                                          is disabled for: $idpName. Please contact your GLPI administrator and request an account to be created matching the
-                                          provided email claim: $email or login using a local user account.", PLUGIN_NAME));
+            $idpName = (string)$configEntity->getField(ConfigEntity::NAME);
+            $email   = (string)($userFields[User::EMAIL][0] ?? '');
+            LoginFlow::PrintFatalLoginError(
+                sprintf(
+                    __("Your SSO login was successful but there is no matching GLPI user account. In addition the Just-in-time user creation is disabled for: %1\$s. Please contact your GLPI administrator and request an account to be created matching the provided email claim: %2\$s or login using a local user account.", PLUGIN_NAME),
+                    $idpName,
+                    $email
+                )
+            );
         }
     }
 

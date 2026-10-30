@@ -105,27 +105,36 @@ class ConfigForm    //NOSONAR complexity by design.
         if (!Session::haveRight('config', UPDATE)) {
             return;
         }
-        $exportUrl   = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=backup_all';
-        $restoreUrl  = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=restore_all';
-        $csrfToken   = method_exists(\Session::class, 'getNewCSRFToken') ? \Session::getNewCSRFToken() : '';
-        $csrfField   = $csrfToken !== '' ? "<input type=\"hidden\" name=\"_glpi_csrf_token\" value=\"{$csrfToken}\">" : '';
+        $exportUrl    = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=backup_all';
+        $restoreUrl   = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=restore_all';
+        $csrfToken    = method_exists(\Session::class, 'getNewCSRFToken') ? \Session::getNewCSRFToken() : '';
+        $csrfField    = $csrfToken !== '' ? "<input type=\"hidden\" name=\"_glpi_csrf_token\" value=\"{$csrfToken}\">" : '';
+        $toggleLabel  = htmlspecialchars(__('Backup / Restore', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
+        $cardTitle    = htmlspecialchars(__('Configuration Backup & Restore', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
+        $cardDesc     = htmlspecialchars(__('Export all IDP configurations to a JSON backup file, or restore from a previously exported backup.', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
+        $downloadText = htmlspecialchars(__('Download Backup', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
+        $restoreText  = htmlspecialchars(__('Restore', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
+        $confirmMsg   = json_encode(
+            __("WARNING: This will permanently DELETE all current IDP configurations and restore from the backup file.\n\nThis action cannot be undone. Make sure you have a recent backup before proceeding.\n\nContinue with restore?", PLUGIN_NAME),
+            JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+        );
 
         echo <<<HTML
 <div class="container-fluid mb-2 d-flex justify-content-end" id="samlsso-backup-toggle-container">
   <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#samlsso-backup-collapse" aria-expanded="false" aria-controls="samlsso-backup-collapse">
-    <i class="fas fa-database me-2"></i>Backup / Restore
+    <i class="fas fa-database me-2"></i>{$toggleLabel}
   </button>
 </div>
 <div class="collapse container-fluid mb-3" id="samlsso-backup-collapse">
   <div class="card card-body bg-light border-0 shadow-sm py-3">
     <div class="row align-items-center g-3">
       <div class="col">
-        <h6 class="mb-1 fw-bold text-dark">Configuration Backup &amp; Restore</h6>
-        <p class="text-muted mb-0" style="font-size: 0.85rem;">Export all IDP configurations to a JSON backup file, or restore from a previously exported backup.</p>
+        <h6 class="mb-1 fw-bold text-dark">{$cardTitle}</h6>
+        <p class="text-muted mb-0" style="font-size: 0.85rem;">{$cardDesc}</p>
       </div>
       <div class="col-auto">
         <a href="{$exportUrl}" id="samlsso-export-btn" class="btn btn-sm btn-outline-primary">
-          <i class="fas fa-download me-2"></i>Download Backup
+          <i class="fas fa-download me-2"></i>{$downloadText}
         </a>
       </div>
       <div class="col-auto">
@@ -134,7 +143,7 @@ class ConfigForm    //NOSONAR complexity by design.
           <div class="input-group input-group-sm">
             <input type="file" name="restore_file" id="samlsso-restore-file" accept=".json,application/json" class="form-control form-control-sm" required onchange="document.getElementById('samlsso-restore-btn').disabled = false;">
             <button class="btn btn-danger" type="submit" id="samlsso-restore-btn" disabled>
-              <i class="fas fa-upload me-2"></i>Restore
+              <i class="fas fa-upload me-2"></i>{$restoreText}
             </button>
           </div>
         </form>
@@ -145,11 +154,7 @@ class ConfigForm    //NOSONAR complexity by design.
 
 <script>
 function samlssoConfirmRestore() {
-    return confirm(
-        '⚠️  WARNING: This will permanently DELETE all current IDP configurations and restore from the backup file.\\n\\n' +
-        'This action cannot be undone. Make sure you have a recent backup before proceeding.\\n\\n' +
-        'Continue with restore?'
-    );
+    return confirm({$confirmMsg});
 }
 </script>
 HTML;
@@ -416,7 +421,6 @@ HTML;
             }
         }
 
-        // Validate restored configuration row through ConfigEntity before insertion
         $validationEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => $insertRow]);
         if (!$validationEntity->isValid()) {
             $errList = implode('; ', array_values($validationEntity->getInvalidMessages()));
@@ -424,7 +428,10 @@ HTML;
             return false;
         }
 
-        // Direct DB insert to preserve original ID
+        if (!empty($insertRow[ConfigEntity::SP_KEY]) && ($insertRow[ConfigEntity::SP_KEY_SOURCE] ?? 'db') === 'db') {
+            $insertRow[ConfigEntity::SP_KEY] = ConfigEntity::encryptPrivateKey((string)$insertRow[ConfigEntity::SP_KEY]);
+        }
+
         if (!$DB->insert($configsTable, $insertRow)) {
             $errors[] = sprintf(__('Entry %d (%s) could not be inserted into database.', PLUGIN_NAME), $index, $cfgData[ConfigEntity::NAME] ?? '?');
             return false;
@@ -919,17 +926,23 @@ HTML;
             }
         }
 
-        // Detect default test certificate and OpenSSL availability
         $spCertVal = (string)($fields[ConfigEntity::SP_CERTIFICATE][ConfigItem::VALUE] ?? '');
-        $isTestCert = str_contains($spCertVal, 'withlove.from.donuts.nl') ||
+        $isTestCert = empty(trim($spCertVal)) ||
+            str_contains($spCertVal, 'withlove.from.donuts.nl') ||
             (($fields[ConfigEntity::SP_CERTIFICATE]['validate']['subject']['CN'] ?? '') === 'withlove.from.donuts.nl');
         $opensslAvailable = extension_loaded('openssl') && function_exists('openssl_pkey_new');
         $urlBase = (string)($CFG_GLPI['url_base'] ?? '');
         $defaultCertCn = !empty($urlBase) ? ((string)parse_url($urlBase, PHP_URL_HOST) ?: 'glpi-saml-sp') : 'glpi-saml-sp';
 
-        // Define static field translations
+        $spKeySource = (string)($fields[ConfigEntity::SP_KEY_SOURCE][ConfigItem::VALUE] ?? 'db');
+        $hasStoredSpKey = ($spKeySource === 'db' && !empty($fields[ConfigEntity::SP_KEY][ConfigItem::VALUE]));
+        if ($spKeySource === 'db' || !Session::haveRight('config', UPDATE)) {
+            $fields[ConfigEntity::SP_KEY][ConfigItem::VALUE] = '';
+        }
+
         $tplVars = array_merge($tplVars, [
             'is_test_certificate'       =>  $isTestCert,
+            'has_stored_sp_key'         =>  $hasStoredSpKey,
             'openssl_available'         =>  $opensslAvailable,
             'default_cert_cn'           =>  $defaultCertCn,
             'claim_mappings'            =>  $claimMappings,

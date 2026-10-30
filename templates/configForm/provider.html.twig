@@ -235,11 +235,12 @@
                     <div id="sp_private_key_raw_container" class="mb-3 {% if is_alt_source %}d-none{% endif %}">
                         {{ fields.textareaField( 
                             'sp_private_key',
-                            is_alt_source ? '' : inputfields.sp_private_key.value,
+                            '',
                             inputfields.sp_private_key.formtitle,
                             {
                                 'id': 'sp_private_key_raw',
                                 'disabled': is_alt_source,
+                                'placeholder': has_stored_sp_key|default(false) ? __('Private key is stored encrypted in the database. Leave blank to keep the existing key, or paste a new PEM key to replace it.', plugin) : '',
                                 helper: inputfields.sp_private_key.formexplain,
                             }) 
                         }}

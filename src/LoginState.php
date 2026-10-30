@@ -215,6 +215,7 @@ class LoginState extends CommonDBTM
                     LoginState::IDP_ID            => $sessionState[LoginState::IDP_ID],
                     LoginState::SAML_RESPONSE_ID  => $sessionState[LoginState::SAML_RESPONSE_ID],
                     LoginState::SAML_REQUEST_ID   => $sessionState[LoginState::SAML_REQUEST_ID],
+                    LoginState::SAML_REQUEST      => $sessionState[LoginState::SAML_REQUEST] ?? null,
                     LoginState::SAML_UNSOLICITED  => $sessionState[LoginState::SAML_UNSOLICITED],
                     LoginState::LOGIN_FLOW_TRACE  => $sessionState[LoginState::LOGIN_FLOW_TRACE],
                     LoginState::PHASE             => $sessionState[LoginState::PHASE],
@@ -341,6 +342,7 @@ class LoginState extends CommonDBTM
             LoginState::ENFORCE_LOGOFF    => 0,
             LoginState::IDP_ID            => 0,
             LoginState::SAML_REQUEST_ID   => null,
+            LoginState::SAML_REQUEST      => null,
             LoginState::SAML_UNSOLICITED  => null,
             LoginState::DATABASE          => false,
             LoginState::PHASE             => LoginState::PHASE_INITIAL,
@@ -455,6 +457,7 @@ class LoginState extends CommonDBTM
                     LoginState::IDP_ID            => $sessionState[LoginState::IDP_ID],
                     LoginState::SAML_RESPONSE_ID  => $sessionState[LoginState::SAML_RESPONSE_ID],
                     LoginState::SAML_REQUEST_ID   => $sessionState[LoginState::SAML_REQUEST_ID],
+                    LoginState::SAML_REQUEST      => $sessionState[LoginState::SAML_REQUEST] ?? null,
                     LoginState::SAML_UNSOLICITED  => $sessionState[LoginState::SAML_UNSOLICITED],
                     LoginState::LOGIN_FLOW_TRACE  => $sessionState[LoginState::LOGIN_FLOW_TRACE],
                     LoginState::PHASE             => $sessionState[LoginState::PHASE],
@@ -807,6 +810,31 @@ class LoginState extends CommonDBTM
     }
 
     /**
+     * Stores a per-flow anti-CSRF token in the login state.
+     *
+     * @param string $token Cryptographically random per-flow token
+     * @return bool True on success
+     */
+    public function setFlowToken(string $token): bool
+    {
+        $this->state[LoginState::SAML_REQUEST] = $token;
+        if (isset($this->state[LoginState::STATE_ID])) {
+            return (bool)$this->update($this->state);
+        }
+        return true;
+    }
+
+    /**
+     * Retrieves the per-flow anti-CSRF token stored for this login state.
+     *
+     * @return string
+     */
+    public function getFlowToken(): string
+    {
+        return (!empty($this->state[LoginState::SAML_REQUEST])) ? (string)$this->state[LoginState::SAML_REQUEST] : '';
+    }
+
+    /**
      * Registeres the samlResponseId in the state database
      * @return bool
      * @since       1.2.0
@@ -988,11 +1016,12 @@ class LoginState extends CommonDBTM
                             ];
                             $displayKey = $mainKeyTranslations[$key] ?? $key;
 
-                            // Decode and format JSON values nicely
+                            $formattedParts = [];
+                            $isFormattedJson = false;
                             if (is_string($value) && (str_starts_with($value, '{') || str_starts_with($value, '['))) {
                                 $decodedJson = json_decode($value, true);
                                 if (json_last_error() === JSON_ERROR_NONE && is_array($decodedJson)) {
-                                    $formattedParts = [];
+                                    $isFormattedJson = true;
                                     $keyTranslations = [
                                         'name'                 => 'user_field: username',
                                         '_useremails'          => 'user_field: email',
@@ -1036,20 +1065,12 @@ class LoginState extends CommonDBTM
                                         } else {
                                             $valStr = (string)$jsonVal;
                                         }
-                                        $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
-                                        $safeValStr = htmlspecialchars($valStr, ENT_QUOTES, 'UTF-8');
-                                        $formattedParts[] = "<strong>$safeLabel:</strong> $safeValStr";
+                                        $formattedParts[] = '<strong>' . htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8') . ':</strong> ' . htmlspecialchars((string)$valStr, ENT_QUOTES, 'UTF-8');
                                     }
-                                    $value = implode("<br/>&nbsp;&nbsp;↳ ", $formattedParts);
-                                } else {
-                                    $value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
                                 }
-                            } else {
-                                $value = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
                             }
 
-                            $safeDisplayKey = htmlspecialchars($displayKey, ENT_QUOTES, 'UTF-8');
-                            $trace .= "<strong>$i. $safeDisplayKey</strong><br/>&nbsp;&nbsp;↳ $value<br/>";
+                            $trace .= '<strong>' . (int)$i . '. ' . htmlspecialchars((string)$displayKey, ENT_QUOTES, 'UTF-8') . '</strong><br/>&nbsp;&nbsp;↳ ' . ($isFormattedJson ? implode('<br/>&nbsp;&nbsp;↳ ', $formattedParts) : htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8')) . '<br/>';
                             $i++;
                         }
                     }
@@ -1282,7 +1303,7 @@ class LoginState extends CommonDBTM
                 KEY `phase` (`phase`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            $DB->doQuery($query);
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
         } else {
             /**
@@ -1450,14 +1471,13 @@ class LoginState extends CommonDBTM
             );
         }
 
-        // Clean table
         if ($DB->tableExists($table)) {
             $query = <<<SQL
                     UPDATE $table SET location = '' where id > 0;
                 SQL;
-            $DB->doQuery($query) or die($DB->error());
+            $DB->doQuery($query);
             Session::addMessageAfterRedirect("🆗 Cleaned: $table.");
-        } // We silently ignore errors. Most common cause for an error is if the field already exists.
+        }
     }
 
     /**

@@ -226,7 +226,8 @@ class LoginFlow extends LoginFlowCompat
             $this->printError(sprintf(__("Loading login state failed with: %s", PLUGIN_NAME), (string)$e));
         }
 
-        // Evaluate forced logoff and inactivity timeout BEFORE Ajax and Exclude early returns (Finding 13)
+        LoginState::expireStaleGlpiSessions();
+
         if ($this->state->getPhase() === LoginState::PHASE_FORCE_LOG) {
             $this->state->setPhase(LoginState::PHASE_LOGOFF);
             Session::cleanOnLogout();
@@ -418,27 +419,25 @@ class LoginFlow extends LoginFlowCompat
         $noAutoUpperSet = isset($_GET['noAUTO']);
 
         if ($bypassRequested || $noAutoRequested) {
-            $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN') ? PLUGIN_SAMLSSO_BYPASS_TOKEN : getenv('SAMLSSO_BYPASS_TOKEN');
+            $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN')
+                ? (string)PLUGIN_SAMLSSO_BYPASS_TOKEN
+                : (string)getenv('SAMLSSO_BYPASS_TOKEN');
             $providedToken = $_GET['token'] ?? $_GET['bypass_token'] ?? null;
 
-            if (!empty($requiredToken)) {
-                if ($providedToken === null || !hash_equals((string)$requiredToken, (string)$providedToken)) {
-                    return false;
-                }
-                $_SESSION['glpi_plugins']['samlsso']['bypass_token'] = $providedToken;
+            if ($requiredToken === '' || $providedToken === null || !hash_equals($requiredToken, (string)$providedToken)) {
+                return false;
             }
 
+            $_SESSION['glpi_plugins']['samlsso']['bypass_token'] = (string)$providedToken;
             $_SESSION['glpi_plugins']['samlsso']['bypass'] = true;
 
             if (!$bypassRequested || !$noAutoUpperSet) {
                 $this->state->addLoginFlowTrace(['bypassUsed' => true]);
-                $url = $CFG_GLPI['url_base'] . '/?' . LoginFlow::SAMLBYPASS . '=1&noAUTO=1';
-                if (!empty($providedToken)) {
-                    $url .= '&token=' . urlencode((string)$providedToken);
-                }
+                $url = $CFG_GLPI['url_base'] . '/?' . LoginFlow::SAMLBYPASS . '=1&noAUTO=1&token=' . urlencode((string)$providedToken);
                 header('Location:' . $url);
                 exit();
             }
+            return true;
         }
         return false;
     }
@@ -522,6 +521,25 @@ class LoginFlow extends LoginFlowCompat
             $forceAuthn = false;
             if ($configEntity !== null) {
                 $forceAuthn = (bool) $configEntity->getField(ConfigEntity::FORCE_AUTHN);
+            }
+
+            $flowToken = bin2hex(random_bytes(16));
+            if (method_exists($this->state, 'setFlowToken')) {
+                $this->state->setFlowToken($flowToken);
+            }
+            $_SESSION['glpi_plugins']['samlsso']['flow_token'] = $flowToken;
+            if (!headers_sent()) {
+                setcookie(
+                    'samlsso_flow_token',
+                    $flowToken,
+                    [
+                        'expires'  => time() + 900,
+                        'path'     => '/',
+                        'secure'   => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+                        'httponly' => true,
+                        'samesite' => 'None',
+                    ]
+                );
             }
 
             try {
@@ -903,7 +921,13 @@ class LoginFlow extends LoginFlowCompat
         /**
          * Restore stored redirect requests or RelayState returned by the IdP (Issues #2, #158).
          */
-        if ($state !== null && empty($state->getRedirect()) && isset($_POST['RelayState']) && is_string($_POST['RelayState'])) {
+        if (
+            $state !== null &&
+            empty($state->getRedirect()) &&
+            isset($_POST['RelayState']) &&
+            is_string($_POST['RelayState']) &&
+            preg_match('/^[a-f0-9]{32}$/', $_POST['RelayState']) !== 1
+        ) {
             $state->setRedirect($_POST['RelayState']);
         }
 

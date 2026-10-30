@@ -154,7 +154,12 @@ class Acs extends LoginFlow
             }
 
             $entityId = $this->configEntity->getField(ConfigEntity::ID);
-            if (!$this->configEntity->isValid() || !$this->configEntity->isActive() || $this->configEntity->isDeleted() || ((int)$entityId !== $this->idpId && $entityId !== null)) {
+            if (
+                !$this->configEntity->isValid() ||
+                !$this->configEntity->isActive() ||
+                $this->configEntity->isDeleted() ||
+                (int)$entityId !== (int)$this->idpId
+            ) {
                 $this->printError(
                     sprintf(__('The requested IdP configuration with id %s is inactive, deleted, or invalid.', PLUGIN_NAME), (string)$this->idpId),
                     __('Samlsso->acs->init->InactiveOrDeletedIdp', PLUGIN_NAME)
@@ -180,8 +185,30 @@ class Acs extends LoginFlow
             $this->setupSamlResponse($samlResponse);
             $this->fetchRequestState();
 
-            // Everything is prepared for assertion!
-            // Perform assertion on the samlResponse
+            if ((int)$this->state->getIdpId() !== (int)$this->idpId) {
+                $this->printError(
+                    sprintf(
+                        __('The IdP ID in the session state (%d) does not match the ACS route IdP ID (%d).', PLUGIN_NAME),
+                        (int)$this->state->getIdpId(),
+                        (int)$this->idpId
+                    ),
+                    __('Samlsso->acs->init->IdpMismatch', PLUGIN_NAME)
+                );
+            }
+
+            $expectedFlowToken = method_exists($this->state, 'getFlowToken') ? $this->state->getFlowToken() : '';
+            $requestFlowToken = (string)(
+                $request->request->get('RelayState')
+                ?? $_COOKIE['samlsso_flow_token']
+                ?? ($_SESSION['glpi_plugins']['samlsso']['flow_token'] ?? '')
+            );
+            if ($expectedFlowToken !== '' && !hash_equals($expectedFlowToken, $requestFlowToken)) {
+                $this->printError(
+                    __('Invalid or missing SAML login flow token (CSRF protection). Please initiate login from GLPI.', PLUGIN_NAME),
+                    __('Samlsso->acs->init->FlowTokenMismatch', PLUGIN_NAME)
+                );
+            }
+
             $this->assertSaml();
         } else {
             $this->printError(
@@ -397,13 +424,15 @@ class Acs extends LoginFlow
             }
         }
 
-        /**
-         * Verify that the IdP on the ACS route matches the IdP that initiated the session.
-         * For unsolicited flows, state IdP was initialized to the route IdP in fetchRequestState().
-         * For SP-initiated flows, this prevents cross-IdP assertion substitution attacks.
-         */
+        if (!$this->configEntity->isActive() || $this->configEntity->isDeleted()) {
+            $this->printError(
+                sprintf(__('The requested IdP configuration with id %s is inactive, deleted, or invalid.', PLUGIN_NAME), (string)$this->idpId),
+                __('Samlsso->acs->assertSaml->InactiveOrDeletedIdp', PLUGIN_NAME)
+            );
+        }
+
         $stateIdpId = (int) $this->state->getIdpId();
-        if ($stateIdpId > 0 && $stateIdpId !== (int) $this->idpId) {
+        if ($stateIdpId !== (int) $this->idpId) {
             $this->printError(
                 sprintf(
                     __("The IdP ID in the session state (%d) does not match the ACS route IdP ID (%d).", PLUGIN_NAME),
@@ -418,12 +447,7 @@ class Acs extends LoginFlow
             );
         }
 
-        // Only if the registered session is in phase PHASE_SAML_ACS (2) do we allow further
-        // processing. This check is to prevent parallel requests or intentionally created
-        // race-conditions forcing the plugin into an inconsistant state possibly allowing
-        // a session to forcefully being logged in.
         if ($this->state->getPhase() != LoginState::PHASE_SAML_ACS) {
-            // Generate error and log state and response into the errorlog.
             $this->printError(
                 sprintf(__("GLPI did not expect an assertion from this Idp. The most likely reason is a race condition
                     causing an inconsistant loginState in the database or software bug. Please login again via the
@@ -431,8 +455,10 @@ class Acs extends LoginFlow
                     for more information", PLUGIN_NAME), 'https://github.com/DonutsNL/samlsso/wiki/Unsollicited-%E2%80%90-IdP-initiated-login-flows'),
                 __('Samlsso->acs->assertSaml->PhaseMismatched', PLUGIN_NAME),
                 Acs::EXTENDED_HEADER .
-                    __("Unexpected assertion triggered while session was in a different phase then expected (2). This error was triggered by external source
-                        with address:{$_SERVER['REMOTE_ADDR']}. Possible causes include race-conditions or parallel calls using the same samlResponse.\n", PLUGIN_NAME) .
+                    sprintf(
+                        __("Unexpected assertion triggered while session was in a different phase then expected (2). This error was triggered by external source with address:%s. Possible causes include race-conditions or parallel calls using the same samlResponse.\n", PLUGIN_NAME),
+                        (string)($_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN')
+                    ) .
                     Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
                     Acs::EXTENDED_FOOTER . "\n"
             );

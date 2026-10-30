@@ -630,7 +630,28 @@ namespace GlpiPlugin\Samlsso\Tests {
                     }
                 }
 
-                echo "✅ Local GLPI account linking blocked\n";
+                // Also test cross-IdP account binding rejection (auths_id mismatch)
+                $otherIdpData = $this->getFullUserData('idp2_user', 'idp2_user@example.com');
+                \User::$mockObject->mockUserData = [
+                    'id'        => 505,
+                    'name'      => 'idp2_user',
+                    'email'     => 'idp2_user@example.com',
+                    'authtype'  => 4,
+                    'auths_id'  => 9,
+                    'is_deleted' => 0,
+                    'is_active' => 1
+                ];
+                MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+                try {
+                    $samlUser->getOrCreateUser($otherIdpData, $configEntity);
+                    throw new \Exception("Expected fatal login error when account is bound to another IdP (auths_id=9 vs idpId=5).");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'bound to a different authentication source')) {
+                        throw $e;
+                    }
+                }
+
+                echo "✅ Local GLPI and cross-IdP account linking blocked\n";
             } finally {
                 \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = false;
             }

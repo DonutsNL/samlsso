@@ -109,20 +109,26 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that providing the bypass query parameter successfully triggers SSO bypass.
+         * Test that providing the bypass query parameter with a valid secret token triggers SSO bypass.
          *
          * @throws \Exception if bypass redirection or trace logging assertions fail.
          */
         public function testBypassParameter(): void {
+            putenv('SAMLSSO_BYPASS_TOKEN=TestBypassSecret');
             $_GET[LoginFlow::SAMLBYPASS] = 1;
+            $_GET['token'] = 'TestBypassSecret';
             $flow = new LoginFlow();
             try {
                 $flow->doAuth();
                 throw new \Exception("Flow should have redirected for bypass.");
             } catch (\Exception $e) {
-                if (!str_contains($e->getMessage(), 'Redirect to: http://glpi.local/?bypass=1&noAUTO=1')) {
+                if (!str_contains($e->getMessage(), 'Redirect to: http://glpi.local/?bypass=1&noAUTO=1&token=TestBypassSecret')) {
                     throw new \Exception("Bypass redirect failed.\nResult: " . $e->getMessage());
                 }
+            } finally {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                unset($_GET['token'], $_GET[LoginFlow::SAMLBYPASS]);
+                unset($_SESSION['glpi_plugins']['samlsso']);
             }
             $state = Loginstate::$lastInstance;
             $this->assertTraceContains($state, 'bypassUsed', '1');
@@ -130,11 +136,29 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that bypass parameter requires configured secret token when SAMLSSO_BYPASS_TOKEN is set.
+         * Test that bypass parameter fails closed when SAMLSSO_BYPASS_TOKEN is unset, missing, or mismatched.
          *
          * @throws \Exception if bypass hardening verification fails.
          */
         public function testBypassTokenHardening(): void {
+            putenv('SAMLSSO_BYPASS_TOKEN');
+            $_SESSION['glpi_plugins']['samlsso'] = [];
+            $_POST = [];
+            $_GET = [LoginFlow::SAMLBYPASS => 1];
+            $flow = new LoginFlow();
+            try {
+                ob_start();
+                $flow->doAuth();
+                ob_end_clean();
+            } catch (\Exception $e) {
+                if (str_contains($e->getMessage(), 'Redirect to:')) {
+                    throw new \Exception("Bypass must fail closed and NOT redirect when SAMLSSO_BYPASS_TOKEN is unset!");
+                }
+            }
+            if (!empty($_SESSION['glpi_plugins']['samlsso']['bypass'])) {
+                throw new \Exception("Bypass session flag was set when SAMLSSO_BYPASS_TOKEN is unset!");
+            }
+
             putenv('SAMLSSO_BYPASS_TOKEN=SecretToken12345');
             $_SESSION['glpi_plugins']['samlsso'] = [];
             $_POST = [];

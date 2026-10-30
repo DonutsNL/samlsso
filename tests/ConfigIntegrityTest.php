@@ -959,8 +959,8 @@ namespace GlpiPlugin\Samlsso\Tests {
             if (!str_contains($cfgTpl, "find('table').length > 0")) {
                 throw new \Exception("Missing table guard in notification helper processing in configForm.html.twig (Issue #186)");
             }
-            if (!str_contains($cfgTpl, 'sanitize: false')) {
-                throw new \Exception("SamlSsoPopoverManager must configure sanitize: false to prevent stripping table tags (Issue #187)");
+            if (!str_contains($cfgTpl, 'sanitize: true') || !str_contains($cfgTpl, 'allowList: popoverAllowList') || str_contains($cfgTpl, 'sanitize: false')) {
+                throw new \Exception("SamlSsoPopoverManager must configure sanitize: true with popoverAllowList and never use sanitize: false (Issues #180, #187)");
             }
             if (!str_contains($cfgTpl, "isTable ? \$textEl.html().trim() : \$textEl.text().trim()")) {
                 throw new \Exception("Notification helper must pass HTML content to popover for tables (Issue #187)");

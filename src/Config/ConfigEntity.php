@@ -132,12 +132,19 @@ class ConfigEntity extends ConfigItem
     private static array $dbRowCache = [];
 
     /**
+     * Cache for table column metadata keyed by database instance ID.
+     * @var array<int, array<int, array<string, mixed>>>
+     */
+    private static array $tableColumnsCache = [];
+
+    /**
      * Clear the static database configuration cache (mainly for testing purposes).
      * @return void
      */
     public static function clearCache(): void
     {
         self::$dbRowCache = [];
+        self::$tableColumnsCache = [];
     }
 
     /**
@@ -195,11 +202,19 @@ class ConfigEntity extends ConfigItem
             array_key_exists('postData', $options)
         ) {
             $this->populationSource = 'post';
-            // Only evaluate valid Config Items;
             $configItems = $this->getConstants();
             foreach ($options['postData'] as $field => $value) {
                 if (array_search($field, $configItems)) {
                     $this->evaluateItem($field, $value);
+                }
+            }
+            $postedId = isset($options['postData'][self::ID]) ? (int)$options['postData'][self::ID] : -1;
+            $postedKeySource = (string)($options['postData'][self::SP_KEY_SOURCE] ?? 'db');
+            $postedKeyVal = trim((string)($options['postData'][self::SP_KEY] ?? ''));
+            if ($postedId > 0 && $postedKeySource === 'db' && $postedKeyVal === '') {
+                $existingConfig = new SamlConfig();
+                if ($existingConfig->getFromDB($postedId) && !empty($existingConfig->fields[self::SP_KEY])) {
+                    $this->evaluateItem(self::SP_KEY, $existingConfig->fields[self::SP_KEY]);
                 }
             }
         } else {
@@ -253,9 +268,9 @@ class ConfigEntity extends ConfigItem
                 $this->evaluateItem((string) $field, $value);
             }
         } else {
-            // Return the default configuration, this exception can be verified
-            // by checking the absence of the 'id' field in the returned ConfigEntity.
             $this->validateAndPopulateTemplateEntity(['template' => 'default']);
+            $this->isValid = false;
+            $this->invalidMessages[self::ID] = __('Configuration ID not found in database.', PLUGIN_NAME);
         }
         // Do some final consistency check here.
     }
@@ -325,25 +340,30 @@ class ConfigEntity extends ConfigItem
     {
         global $DB;
         $fields = [];
-        // Fetch config item constants;
         $classConstants = ConfigEntity::getConstants();
-        $sql = 'SHOW COLUMNS FROM ' . SamlConfig::getTable();
-        $result = $DB->doQuery($sql);
-        if ($result) {
-            while ($data = $result->fetch_assoc()) {
-                $key = array_search($data['Field'], $classConstants);
-                $fields[$data['Field']] = [
-                    ConfigItem::FIELD       => $data['Field'],
-                    ConfigItem::TYPE        => $data['Type'],
-                    ConfigItem::NULL        => $data['Null'],
-                    ConfigItem::CONSTANT    => $key ? "ConfigEntity::$key" : 'UNDEFINED',
-                    ConfigItem::VALUE       => (isset($this->fields[$data['Field']])) ? $this->fields[$data['Field']] : null,
-                ];
-                // Evaluate and merge results.
-                $fields[$data['Field']] = array_merge($fields[$data['Field']], $this->evaluateItem($data['Field'], (isset($this->fields[$data['Field']])) ? $this->fields[$data['Field']] : ''));
+        $dbInstanceId = is_object($DB) ? spl_object_id($DB) : 0;
+        if (!array_key_exists($dbInstanceId, self::$tableColumnsCache)) {
+            $columns = [];
+            $sql = 'SHOW COLUMNS FROM ' . SamlConfig::getTable();
+            $result = $DB->doQuery($sql);
+            if ($result) {
+                while ($data = $result->fetch_assoc()) {
+                    $columns[] = $data;
+                }
             }
+            self::$tableColumnsCache[$dbInstanceId] = $columns;
         }
-        // Validate spcert and key if provided
+        foreach (self::$tableColumnsCache[$dbInstanceId] as $data) {
+            $key = array_search($data['Field'], $classConstants);
+            $fields[$data['Field']] = [
+                ConfigItem::FIELD       => $data['Field'],
+                ConfigItem::TYPE        => $data['Type'],
+                ConfigItem::NULL        => $data['Null'],
+                ConfigItem::CONSTANT    => $key ? "ConfigEntity::$key" : 'UNDEFINED',
+                ConfigItem::VALUE       => (isset($this->fields[$data['Field']])) ? $this->fields[$data['Field']] : null,
+            ];
+            $fields[$data['Field']] = array_merge($fields[$data['Field']], $this->evaluateItem($data['Field'], (isset($this->fields[$data['Field']])) ? $this->fields[$data['Field']] : ''));
+        }
         $fields = $this->validateAdvancedConfig($fields);
         return $fields;
     }
@@ -564,7 +584,7 @@ class ConfigEntity extends ConfigItem
         if (
             key_exists($fieldName, $this->fields) &&
             is_numeric($this->fields[$fieldName]) &&
-            !in_array($fieldName, [self::REQUEST_TIMEOUT, self::INACTIVITY_TIMEOUT], true)
+            !in_array($fieldName, [self::ID, self::REQUEST_TIMEOUT, self::INACTIVITY_TIMEOUT], true)
         ) {
             return (bool) $this->fields[$fieldName];
         } elseif (key_exists($fieldName, $this->fields)) {
@@ -849,10 +869,10 @@ class ConfigEntity extends ConfigItem
                         'url'                           => samlsso_webdir() . SamlSsoController::SLO_ROUTE,
                     ],
                     'x509cert'                          => $this->fields[ConfigEntity::SP_CERTIFICATE],
-                    'privateKey'                        => $this->resolvePrivateKey(
+                    'privateKey'                        => self::decryptPrivateKey($this->resolvePrivateKey(
                         $this->fields[self::SP_KEY_SOURCE] ?? 'db',
                         $this->fields[self::SP_KEY] ?? ''
-                    ),
+                    )),
                     'NameIDFormat'                      => (isset($this->fields[ConfigEntity::SP_NAME_FORMAT]) ? $this->fields[ConfigEntity::SP_NAME_FORMAT]
                         : 'unspecified'),
                 ],

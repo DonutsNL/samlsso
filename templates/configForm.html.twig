@@ -51,9 +51,21 @@
             // Clear original title attributes to prevent duplicate native rendering
             $el.removeAttr('title').removeAttr('data-bs-original-title');
 
-            // Initialize Bootstrap Popover
+            // Initialize Bootstrap Popover with sanitizer enabled and table tags allowed for diagnostics
+            const defaultAllowList = (bootstrap.Tooltip && bootstrap.Tooltip.Default && bootstrap.Tooltip.Default.allowList)
+                ? bootstrap.Tooltip.Default.allowList
+                : {};
+            const popoverAllowList = Object.assign({}, defaultAllowList, {
+                table: ['class', 'style'],
+                thead: ['class', 'style'],
+                tbody: ['class', 'style'],
+                tr: ['class', 'style'],
+                th: ['class', 'style', 'scope', 'colspan', 'rowspan'],
+                td: ['class', 'style', 'colspan', 'rowspan']
+            });
             const popoverInstance = new bootstrap.Popover(el, {
-                sanitize: false,
+                sanitize: true,
+                allowList: popoverAllowList,
                 trigger: 'manual',
                 customClass: customClass,
                 html: html,
@@ -522,6 +534,15 @@
 
     let rowCounter = 0;
 
+    function escapeAttr(val) {
+        return String(val ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
     function addRow(targetType = '', glpiField = '', samlClaim = '', defaultValue = '', isRequired = 0) {
         const tbody = document.getElementById('claim_mapping_tbody');
         const index = rowCounter++;
@@ -535,7 +556,9 @@
         if (targetType) {
             fields.forEach(field => {
                 const selected = field === glpiField ? 'selected' : '';
-                glpiOptions += `<option value="${field}" ${selected}>${field.charAt(0).toUpperCase() + field.slice(1)}</option>`;
+                const safeField = escapeAttr(field);
+                const safeLabel = escapeAttr(field.charAt(0).toUpperCase() + field.slice(1));
+                glpiOptions += `<option value="${safeField}" ${selected}>${safeLabel}</option>`;
             });
         }
 
@@ -544,11 +567,15 @@
         const isSystemRequired = targetType === 'user_field' && (glpiField === 'username' || glpiField === 'email');
         const disabledAttr = isSystemRequired ? 'disabled' : '';
         const checkedAttr = (isSystemRequired || isRequired) ? 'checked' : '';
+        const safeTargetType = escapeAttr(targetType);
+        const safeGlpiField = escapeAttr(glpiField);
+        const safeSamlClaim = escapeAttr(isUsernameLocked ? 'NameId' : samlClaim);
+        const safeDefaultValue = escapeAttr(defaultValue);
         
         const hiddenInputs = `
             ${isSystemRequired ? `
-                <input type="hidden" name="claim_map[${index}][target_type]" value="${targetType}">
-                <input type="hidden" name="claim_map[${index}][glpi_field]" value="${glpiField}">
+                <input type="hidden" name="claim_map[${index}][target_type]" value="${safeTargetType}">
+                <input type="hidden" name="claim_map[${index}][glpi_field]" value="${safeGlpiField}">
                 <input type="hidden" name="claim_map[${index}][is_required]" value="1">
             ` : ''}
             ${isUsernameLocked ? `
@@ -592,12 +619,12 @@
             </td>
             <td>
                 <div class="input-group">
-                    <input type="text" name="claim_map[${index}][saml_claim]" value="${isUsernameLocked ? 'NameId' : samlClaim}" class="form-control saml-claim-input" oninput="checkObserved(this)" ${isUsernameLocked ? 'disabled' : 'list="observed_claims_list"'}>
+                    <input type="text" name="claim_map[${index}][saml_claim]" value="${safeSamlClaim}" class="form-control saml-claim-input" oninput="checkObserved(this)" ${isUsernameLocked ? 'disabled' : 'list="observed_claims_list"'}>
                     ${dropdownHtml}
                 </div>
             </td>
             <td>
-                <input type="text" name="claim_map[${index}][default_value]" value="${defaultValue}" class="form-control">
+                <input type="text" name="claim_map[${index}][default_value]" value="${safeDefaultValue}" class="form-control">
             </td>
             <td class="text-center">
                 <input type="checkbox" name="claim_map[${index}][is_required]" value="1" class="form-check-input" ${checkedAttr} ${disabledAttr}>

@@ -763,6 +763,65 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ ACS: GET requests and query-parameter responses rejected\n";
         }
+
+        /**
+         * Test per-flow anti-CSRF token validation in Acs::init().
+         */
+        public function testLoginCsrfFlowTokenValidation(): void {
+            Response::$mockId = 'UNIQUE_RESPONSE_ID_CSRF_1';
+            Response::$mockInResponseTo = 'REQ_ID_CSRF_1';
+
+            $state = new \GlpiPlugin\Samlsso\Loginstate('REQ_ID_CSRF_1');
+            $state->setIdpId(5);
+            $state->setPhase(Loginstate::PHASE_SAML_ACS);
+            $state->setRequestId('REQ_ID_CSRF_1');
+            $state->setFlowToken('expected_csrf_flow_token_12345678');
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
+
+            $badRequest = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'RelayState'   => 'wrong_csrf_flow_token',
+                'idpId'        => 5
+            ]);
+
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($badRequest);
+                throw new \Exception("Acs should have rejected mismatched flow token.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'CSRF protection')) {
+                    throw new \Exception("Unexpected failure message on flow token mismatch: " . $e->getMessage());
+                }
+            }
+
+            $goodState = new \GlpiPlugin\Samlsso\Loginstate('REQ_ID_CSRF_2');
+            $goodState->setIdpId(5);
+            $goodState->setPhase(Loginstate::PHASE_INITIAL);
+            $goodState->setRequestId('REQ_ID_CSRF_2');
+            $goodState->setFlowToken('expected_csrf_flow_token_12345678');
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $goodState;
+            Response::$mockId = 'UNIQUE_RESPONSE_ID_CSRF_2';
+            Response::$mockInResponseTo = 'REQ_ID_CSRF_2';
+
+            $goodRequest = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'RelayState'   => 'expected_csrf_flow_token_12345678',
+                'idpId'        => 5
+            ]);
+
+            $acsGood = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acsGood->init($goodRequest);
+            } catch (\Exception $e) {
+                if (str_contains($e->getMessage(), 'CSRF protection')) {
+                    throw new \Exception("Valid flow token was rejected by CSRF protection check.");
+                }
+            }
+
+            echo "✅ ACS: per-flow anti-CSRF token validation verified (Issue #180)\n";
+        }
     }
 }
 
@@ -810,6 +869,7 @@ namespace {
         $runTest('testSetPhaseThrows');
         $runTest('testStateIdpMismatchRejected');
         $runTest('testAcsRejectsGetRequest');
+        $runTest('testLoginCsrfFlowTokenValidation');
         $runTest('testPhaseErrorTransitionOnFailure');
         $runTest('testSuccessfulAcsLogin');
         $runTest('testIdpInitiatedUnsolicitedLogin');

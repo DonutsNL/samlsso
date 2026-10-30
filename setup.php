@@ -192,13 +192,11 @@ function plugin_init_samlsso(): void                                            
     if ($is_login_post && Session::getLoginUserID() === false && Config::getIsEnforced()) {
         $allowed = false;
         if ($is_bypassed) {
-            $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN') ? PLUGIN_SAMLSSO_BYPASS_TOKEN : getenv('SAMLSSO_BYPASS_TOKEN');
-            if (!empty($requiredToken)) {
-                $sessionToken = $_SESSION['glpi_plugins']['samlsso']['bypass_token'] ?? '';
-                if (hash_equals((string)$requiredToken, (string)$sessionToken)) {
-                    $allowed = true;
-                }
-            } else {
+            $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN')
+                ? (string)PLUGIN_SAMLSSO_BYPASS_TOKEN
+                : (string)getenv('SAMLSSO_BYPASS_TOKEN');
+            $sessionToken = (string)($_SESSION['glpi_plugins']['samlsso']['bypass_token'] ?? '');
+            if ($requiredToken !== '' && $sessionToken !== '' && hash_equals($requiredToken, $sessionToken)) {
                 $allowed = true;
             }
         }
