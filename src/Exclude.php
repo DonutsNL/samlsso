@@ -233,71 +233,55 @@ class Exclude extends ExcludeCompat
      *
      * @return bool     On success
      * @since           1.1.0
-     *
      */
-    public static function ProcessExcludes(): bool                                                         //NOSONAR - Maybe fix complexity in future.
+    public static function ProcessExcludes(): bool
     {
-        // Glpi-Agents now post to the root url https://my-server/
-        // So if we see the inventory's UserAgent then we need to exclude it, always.
-        // @see  https://github.com/glpi-project/glpi-agent/blob/77f7cdda24aa6d14ba8800f6bb71a18b98f4526d/lib/GLPI/Agent.pm#L28
-        // @see  https://github.com/glpi-project/glpi/blob/26997c8dbff582c63d407f5599ad2dd69c50f847/index.php#L91
-        // @see  https://codeberg.org/QuinQuies/glpisaml/issues/92
+        /**
+         * Glpi-Agents post inventory payloads to the root URL.
+         * Always exclude POST requests carrying the GLPI-Agent User-Agent substring.
+         *
+         * @see https://github.com/glpi-project/glpi-agent/blob/77f7cdda24aa6d14ba8800f6bb71a18b98f4526d/lib/GLPI/Agent.pm#L28
+         * @see https://github.com/glpi-project/glpi/blob/26997c8dbff582c63d407f5599ad2dd69c50f847/index.php#L91
+         * @see https://codeberg.org/QuinQuies/glpisaml/issues/92
+         */
         if (
-            $_SERVER['REQUEST_METHOD'] == 'POST'                       &&     // The glpi agent uses POST method to send data to the server
-            !empty($_SERVER['HTTP_USER_AGENT'])                        &&     // The user-agent field must not be empty
-            (strpos($_SERVER['HTTP_USER_AGENT'], 'Agent_v') !== false)
-        ) {     // The user-agent field must contain the 'Agent-v' substring
-            // Dont log, dont register, these may include thousands of calls per period and
-            // will be logged by apache's access logging.
+            ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' &&
+            !empty($_SERVER['HTTP_USER_AGENT']) &&
+            str_contains((string)$_SERVER['HTTP_USER_AGENT'], 'Agent_v')
+        ) {
             return true;
-        } // else continue processing
+        }
 
-        // Get the excludes from the database.
-        $excludes = Exclude::getExcludes();
-        // Process configured excluded URIs and agents.
         $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
         if (!is_string($requestPath)) {
             $requestPath = '';
         }
-        foreach ($excludes as $exclude) {
-            if (strpos($requestPath, $exclude[Exclude::EXCLUDEPATH]) !== false) {
-                // Do we need to validate client agent?
-                if (
-                    !empty($exclude[Exclude::CLIENTAGENT])                                        &&         //NOSONAR - Maybe fix verbosity in future.
-                    strpos($_SERVER['HTTP_USER_AGENT'] ?? '', $exclude[Exclude::CLIENTAGENT]) !== false
-                ) {
-                    return ($exclude[Exclude::ACTION]) ? true : false;
-                } else {
-                    // return configured action true for bypass, false for auth.
-                    return ($exclude[Exclude::ACTION]) ? true : false;
-                }
-            } // Else Continue
-        }
-        return false;
+
+        return self::GetExcludeAction($requestPath, $_SERVER['HTTP_USER_AGENT'] ?? false);
     }
 
     /**
-     * Validate object $excluded is excluded and get the configured action
-     * @param string $excluded String describing the object to be validated
-     * @param string $agent    Optional, the userAgent to be validated
-     * @return bool  Configured action, or false
-     * @since        1.1.4
+     * Validate object $excluded is excluded and get the configured action.
+     *
+     * @param string      $excluded String describing the URI path to be validated
+     * @param string|bool $agent    Optional User-Agent string to be validated
+     * @return bool                 Configured action (true to bypass SAML auth, false to enforce)
+     * @since                       1.1.4
      */
-    public static function GetExcludeAction(string $excluded, $agent = false): bool    //NOSONAR - complexity by design
+    public static function GetExcludeAction(string $excluded, $agent = false): bool
     {
-        // Get all the excluded objects from the database
         $excludes = Exclude::getExcludes();
-        // Process configured excluded URIs and agents.
         foreach ($excludes as $exclude) {
-            if (strpos($excluded, $exclude[Exclude::EXCLUDEPATH]) !== false) {
-                // Do we need to validate client agent?
-                if ($agent  && strpos($agent, $exclude[Exclude::CLIENTAGENT]) !== false) { //NOSONAR - additional 'if branch' by design
-                    return ($exclude[Exclude::ACTION]) ? true : false;
-                } else {
-                    // return configured action true for bypass, false for auth.
-                    return ($exclude[Exclude::ACTION]) ? true : false;
+            $excludePath = (string)($exclude[Exclude::EXCLUDEPATH] ?? '');
+            if ($excludePath !== '' && str_contains($excluded, $excludePath)) {
+                if (!empty($exclude[Exclude::CLIENTAGENT])) {
+                    if (is_string($agent) && $agent !== '' && str_contains($agent, (string)$exclude[Exclude::CLIENTAGENT])) {
+                        return (bool)$exclude[Exclude::ACTION];
+                    }
+                    continue;
                 }
-            } // Else Continue
+                return (bool)$exclude[Exclude::ACTION];
+            }
         }
         return false;
     }

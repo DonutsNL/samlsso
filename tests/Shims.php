@@ -143,29 +143,25 @@ namespace {
     }
 
     /**
-     * Shim for the plugin web-directory helper declared in setup.php.
+     * Shim for samlsso_webdir function to supply absolute or relative web base URL in tests.
      *
-     * setup.php is not loaded by the unit tests, but production code
-     * (LoginFlow) calls samlsso_plugin_web_dir(). Provide the same contract
-     * here: the web path of the plugin WITHOUT a trailing slash, consistent
-     * with the PLUGIN_SAMLSSO_WEBDIR constant shimmed above.
+     * @param bool $relative Whether to return relative web path.
+     * @return string Base URL of the plugin, with a trailing slash.
+     */
+    if (!function_exists('samlsso_webdir')) {
+        function samlsso_webdir(bool $relative = false): string {
+            return PLUGIN_SAMLSSO_WEBDIR;
+        }
+    }
+
+    /**
+     * Shim for the relative plugin web-directory helper declared in setup.php.
      *
      * @return string Web path without trailing slash, e.g. "/plugins/samlsso".
      */
     if (!function_exists('samlsso_plugin_web_dir')) {
         function samlsso_plugin_web_dir(): string {
-            return rtrim(PLUGIN_SAMLSSO_WEBDIR, '/');
-        }
-    }
-
-    /**
-     * Shim for samlsso_webdir function to supply absolute web base URL in tests.
-     *
-     * @return string Absolute base URL of the plugin, with a trailing slash.
-     */
-    if (!function_exists('samlsso_webdir')) {
-        function samlsso_webdir(): string {
-            return PLUGIN_SAMLSSO_WEBDIR;
+            return rtrim(samlsso_webdir(true), '/');
         }
     }
 

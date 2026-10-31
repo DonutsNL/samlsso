@@ -89,19 +89,6 @@ function plugin_samlsso_updateUser(array $params): void
     }
 }
 
-if (!function_exists('updateUser')) {
-    /**
-     * Backward-compatible alias for plugin_samlsso_updateUser.
-     *
-     * @param array $params
-     * @return void
-     */
-    function updateUser(array $params): void
-    {
-        plugin_samlsso_updateUser($params);
-    }
-}
-
 
 /**
  * Add Excludes to setup dropdown menu.

@@ -729,7 +729,7 @@ class LoginFlow extends LoginFlowCompat
         $tplVars = Config::getLoginButtons(12);         // Fetch the global DB object;
         if (!empty($tplVars)) {                           // Only show the interface if we have buttons to show.
             // Define static translatable elements
-            $tplVars['action']     = samlsso_plugin_web_dir();
+            $tplVars['action']     = rtrim(samlsso_webdir(true), '/');
             $tplVars['header']     = !empty($tplVars['header']) ? $tplVars['header'] : __('Login with external provider', PLUGIN_NAME);
             $tplVars['showbuttons']    = true;
             $tplVars['postfield']  = LoginFlow::POSTFIELD;
@@ -747,6 +747,39 @@ class LoginFlow extends LoginFlowCompat
 
     // ERROR HANDLING
     /**
+     * Records an authentication error in the active LoginState (if not already
+     * authenticated in GLPI) and resolves whether debug output is enabled for the IdP.
+     *
+     * @param string $traceKey     Trace key label ('Fatal Error' or 'Error').
+     * @param string $traceMessage Detailed message to append to the login flow trace.
+     * @return bool                True when debug mode is enabled on the active IdP.
+     */
+    private static function recordErrorInState(string $traceKey, string $traceMessage): bool
+    {
+        $debug = false;
+        try {
+            $state = self::$activeState;
+            if ($state === null || $state->getStateId() <= 0) {
+                $state = new Loginstate();
+            }
+            if ($state->getStateId() > 0) {
+                if ($state->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
+                    $state->addLoginFlowTrace([$traceKey => $traceMessage]);
+                    $state->setPhase(LoginState::PHASE_ERROR);
+                }
+                if ($state->getIdpId() > 0) {
+                    $configEntity = new ConfigEntity($state->getIdpId());
+                    $debug = (bool)$configEntity->getField(ConfigEntity::DEBUG);
+                }
+            }
+        } catch (\Throwable $t) {
+            // Ignore state persistence failures during error rendering
+        }
+
+        return $debug;
+    }
+
+    /**
      * Prints and logs a Fatal login error with human readable message and doesnt offer
      * any 'back' options. used mainly in the ACS flow where the only option is
      * to correct configuration issues.
@@ -759,8 +792,6 @@ class LoginFlow extends LoginFlowCompat
     {
         global $CFG_GLPI;
 
-        $ip = getenv("HTTP_X_FORWARDED_FOR") ?: getenv("REMOTE_ADDR");
-
         /* Log in file */
         Toolbox::logInFile(PLUGIN_NAME . "-errors", 'FATAL SAML LOGIN ERROR:' . $errorMsg . "\n", true);
 
@@ -768,25 +799,7 @@ class LoginFlow extends LoginFlowCompat
             throw new \Exception((string)$errorMsg);
         }
 
-        $debug = false;
-        try {
-            $state = self::$activeState;
-            if ($state === null || $state->getStateId() <= 0) {
-                $state = new Loginstate();
-            }
-            if ($state->getStateId() > 0) {
-                if ($state->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
-                    $state->addLoginFlowTrace(['Fatal Error' => (string)$errorMsg]);
-                    $state->setPhase(LoginState::PHASE_ERROR);
-                }
-                if ($state->getIdpId() > 0) {
-                    $configEntity = new ConfigEntity($state->getIdpId());
-                    $debug = (bool)$configEntity->getField(ConfigEntity::DEBUG);
-                }
-            }
-        } catch (\Throwable $t) {
-            /* ignore */
-        }
+        $debug = self::recordErrorInState('Fatal Error', (string)$errorMsg);
 
         $displayMsg = $debug ? (string)$errorMsg : __('Something went wrong during authentication assertion and prevents you from logging in. Please contact your GLPI administrator for more information and support.', PLUGIN_NAME);
 
@@ -837,25 +850,7 @@ class LoginFlow extends LoginFlowCompat
             throw new \Exception($errorMsg);
         }
 
-        $debug = false;
-        try {
-            $state = self::$activeState;
-            if ($state === null || $state->getStateId() <= 0) {
-                $state = new Loginstate();
-            }
-            if ($state->getStateId() > 0) {
-                if ($state->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
-                    $state->addLoginFlowTrace(['Error' => $errorMsg . ($extended ? ": " . $extended : "")]);
-                    $state->setPhase(LoginState::PHASE_ERROR);
-                }
-                if ($state->getIdpId() > 0) {
-                    $configEntity = new ConfigEntity($state->getIdpId());
-                    $debug = (bool)$configEntity->getField(ConfigEntity::DEBUG);
-                }
-            }
-        } catch (\Throwable $t) {
-            /* ignore */
-        }
+        $debug = self::recordErrorInState('Error', $errorMsg . ($extended ? ": " . $extended : ""));
 
         $displayMsg = $debug ? $errorMsg : __('Something went wrong during authentication assertion and prevents you from logging in. Please contact your GLPI administrator for more information and support.', PLUGIN_NAME);
 

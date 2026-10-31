@@ -1178,19 +1178,16 @@ class LoginState extends CommonDBTM
 
 
     /**
-     * Returns the stored redirect location if any.
+     * Returns the stored and validated redirect location if any.
+     * Delegates to getSafeRedirect() so callers cannot bypass open-redirect or static-asset validation.
      * https://github.com/DonutsNL/glpisaml/issues/22
      *
-     * @return  string (empty if none)
+     * @return  string (empty if none or unsafe)
      * @since   1.2.0
      */
     public function getRedirect(): string
     {
-        if (isset($this->state[LoginState::REDIRECT])) {
-            return $this->state[LoginState::REDIRECT];
-        } else {
-            return '';
-        }
+        return $this->getSafeRedirect();
     }
 
     /**
@@ -1212,7 +1209,7 @@ class LoginState extends CommonDBTM
     {
         global $CFG_GLPI;
 
-        $redirect = $this->getRedirect();
+        $redirect = isset($this->state[LoginState::REDIRECT]) ? (string)$this->state[LoginState::REDIRECT] : '';
         if (empty($redirect)) {
             return '';
         }
