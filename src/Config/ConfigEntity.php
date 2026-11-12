@@ -497,24 +497,24 @@ class ConfigEntity extends ConfigItem
         if ($disable) {
             $errormsg = __('⚠️ Will be defaulted to "No" because the provided SP certificate does not look valid!', PLUGIN_NAME);
             // Strict cannot be enabled without valid certificate!
-            if (isset($fields[configEntity::ENCRYPT_NAMEID]) && $fields[configEntity::ENCRYPT_NAMEID][configItem::VALUE]) {
-                $fields[configEntity::ENCRYPT_NAMEID][configItem::VALUE] = false;
-                $fields[configEntity::ENCRYPT_NAMEID][configItem::ERRORS] = $errormsg;
+            if (isset($fields[ConfigEntity::ENCRYPT_NAMEID]) && $fields[ConfigEntity::ENCRYPT_NAMEID][ConfigItem::VALUE]) {
+                $fields[ConfigEntity::ENCRYPT_NAMEID][ConfigItem::VALUE] = false;
+                $fields[ConfigEntity::ENCRYPT_NAMEID][ConfigItem::ERRORS] = $errormsg;
             }
             // Strict cannot be enabled without valid certificate!
-            if (isset($fields[configEntity::SIGN_AUTHN]) && $fields[configEntity::SIGN_AUTHN][configItem::VALUE]) {
-                $fields[configEntity::SIGN_AUTHN][configItem::VALUE] = false;
-                $fields[configEntity::SIGN_AUTHN][configItem::ERRORS] = $errormsg;
+            if (isset($fields[ConfigEntity::SIGN_AUTHN]) && $fields[ConfigEntity::SIGN_AUTHN][ConfigItem::VALUE]) {
+                $fields[ConfigEntity::SIGN_AUTHN][ConfigItem::VALUE] = false;
+                $fields[ConfigEntity::SIGN_AUTHN][ConfigItem::ERRORS] = $errormsg;
             }
             // Strict cannot be enabled without valid certificate!
-            if (isset($fields[configEntity::SIGN_SLO_REQ]) && $fields[configEntity::SIGN_SLO_REQ][configItem::VALUE]) {
-                $fields[configEntity::SIGN_SLO_REQ][configItem::VALUE] = false;
-                $fields[configEntity::SIGN_SLO_REQ][configItem::ERRORS] = $errormsg;
+            if (isset($fields[ConfigEntity::SIGN_SLO_REQ]) && $fields[ConfigEntity::SIGN_SLO_REQ][ConfigItem::VALUE]) {
+                $fields[ConfigEntity::SIGN_SLO_REQ][ConfigItem::VALUE] = false;
+                $fields[ConfigEntity::SIGN_SLO_REQ][ConfigItem::ERRORS] = $errormsg;
             }
             // Strict cannot be enabled without valid certificate!
-            if (isset($fields[configEntity::SIGN_SLO_RES]) && $fields[configEntity::SIGN_SLO_RES][configItem::VALUE]) {
-                $fields[configEntity::SIGN_SLO_RES][configItem::VALUE] = false;
-                $fields[configEntity::SIGN_SLO_RES][configItem::ERRORS] = $errormsg;
+            if (isset($fields[ConfigEntity::SIGN_SLO_RES]) && $fields[ConfigEntity::SIGN_SLO_RES][ConfigItem::VALUE]) {
+                $fields[ConfigEntity::SIGN_SLO_RES][ConfigItem::VALUE] = false;
+                $fields[ConfigEntity::SIGN_SLO_RES][ConfigItem::ERRORS] = $errormsg;
             }
         }
 
@@ -522,20 +522,20 @@ class ConfigEntity extends ConfigItem
          * Disable inbound security options if strict mode is disabled
          * and attach a warning message explaining they are not enforced.
          */
-        if (isset($fields[configEntity::STRICT])) {
-            $strict = (bool)($fields[configEntity::STRICT][configItem::VALUE] ?? false);
+        if (isset($fields[ConfigEntity::STRICT])) {
+            $strict = (bool)($fields[ConfigEntity::STRICT][ConfigItem::VALUE] ?? false);
             if (!$strict) {
                 $strictWarning = __('⚠️ These fields are only enforced when strict mode is enabled. Your environment is at risk without strict mode.', PLUGIN_NAME);
                 $inboundFields = [
-                    configEntity::SECURITY_WANTMESSAGESSIGNED,
-                    configEntity::SECURITY_WANTASSERTIONSSIGNED,
-                    configEntity::SECURITY_WANTASSERTIONSENCRYPTED,
-                    configEntity::SECURITY_WANTNAMEID
+                    ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
+                    ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
+                    ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
+                    ConfigEntity::SECURITY_WANTNAMEID
                 ];
                 foreach ($inboundFields as $secField) {
                     if (isset($fields[$secField])) {
-                        $fields[$secField][configItem::VALUE] = false;
-                        $fields[$secField][configItem::ERRORS] = $strictWarning;
+                        $fields[$secField][ConfigItem::VALUE] = false;
+                        $fields[$secField][ConfigItem::ERRORS] = $strictWarning;
                     }
                 }
             }
@@ -545,17 +545,17 @@ class ConfigEntity extends ConfigItem
         // If there are more than one active and configured IDPs, we automatically disable the enforce option
         // and display a warning inline in the form.
         global $DB;
-        $isActive = (int)($fields[configEntity::IS_ACTIVE][configItem::VALUE] ?? 0);
-        $isDeleted = (int)($fields[configEntity::IS_DELETED][configItem::VALUE] ?? 0);
+        $isActive = (int)($fields[ConfigEntity::IS_ACTIVE][ConfigItem::VALUE] ?? 0);
+        $isDeleted = (int)($fields[ConfigEntity::IS_DELETED][ConfigItem::VALUE] ?? 0);
 
         if ($isActive === 1 && $isDeleted === 0) {
-            $id = $fields[configEntity::ID][configItem::VALUE] ?? null;
+            $id = $fields[ConfigEntity::ID][ConfigItem::VALUE] ?? null;
             $where = [
-                configEntity::IS_ACTIVE  => 1,
-                configEntity::IS_DELETED => 0
+                ConfigEntity::IS_ACTIVE  => 1,
+                ConfigEntity::IS_DELETED => 0
             ];
             if ($id !== null && is_numeric($id) && $id > 0) {
-                $where['NOT'] = [configEntity::ID => (int)$id];
+                $where['NOT'] = [ConfigEntity::ID => (int)$id];
             }
 
             $otherActiveCount = count(iterator_to_array($DB->request([
@@ -564,8 +564,8 @@ class ConfigEntity extends ConfigItem
             ])));
 
             if ($otherActiveCount > 0) {
-                $fields[configEntity::ENFORCE_SSO][configItem::VALUE] = 0;
-                $fields[configEntity::ENFORCE_SSO][configItem::ERRORS] = __('⚠️ IDPs cannot be enforced if more than one is present in the IDP list.', PLUGIN_NAME);
+                $fields[ConfigEntity::ENFORCE_SSO][ConfigItem::VALUE] = 0;
+                $fields[ConfigEntity::ENFORCE_SSO][ConfigItem::ERRORS] = __('⚠️ IDPs cannot be enforced if more than one is present in the IDP list.', PLUGIN_NAME);
             }
         }
 
@@ -941,31 +941,41 @@ class ConfigEntity extends ConfigItem
      * @since           1.0.0
      * @example         https://github.com/SAML-Toolkits/php-saml/blob/master/settings_example.php
      */
-    private static function getAuthn($value): array|bool
+    private static function getAuthn(mixed $value): array|bool
     {
-        if (preg_match('/^none,.+/i', $value)) {
-            $array  = explode(':', $value);
-            $output = array();
-            foreach ($array as $item) {
-                switch ($item) {
-                    case 'PasswordProtectedTransport':
-                        $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport';
-                        break;
-                    case 'Password':
-                        $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:Password';
-                        break;
-                    case 'X509':
-                        $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:X509';
-                        break;
-                    default:
-                        $output[] = '';
-                        break;
-                }
-            }
-            return $output;
+        if (is_array($value)) {
+            $items = $value;
+        } elseif (is_string($value) && $value !== '') {
+            $items = preg_split('/[:,\s]+/', trim($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         } else {
             return false;
         }
+
+        $output = [];
+        foreach ($items as $item) {
+            $item = trim((string) $item);
+            if ($item === '' || strcasecmp($item, 'none') === 0) {
+                return false;
+            }
+            switch ($item) {
+                case 'PasswordProtectedTransport':
+                    $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport';
+                    break;
+                case 'Password':
+                    $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:Password';
+                    break;
+                case 'X509':
+                    $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:X509';
+                    break;
+                default:
+                    if (str_starts_with($item, 'urn:oasis:names:tc:SAML:2.0:ac:classes:')) {
+                        $output[] = $item;
+                    }
+                    break;
+            }
+        }
+
+        return !empty($output) ? array_values(array_unique($output)) : false;
     }
 
     /**

@@ -141,9 +141,10 @@ class Acs extends LoginFlow
         }
 
         $samlResponse = $request->request->get('SAMLResponse');         // Get post fields only
-        $this->idpId = !empty($request->get(LoginState::IDP_ID)) ? (int) $request->get(LoginState::IDP_ID) : -1;
+        $rawIdpId = $request->get(LoginState::IDP_ID);
+        $this->idpId = ($rawIdpId !== null && $rawIdpId !== '' && is_numeric($rawIdpId)) ? (int) $rawIdpId : -1;
 
-        if (!empty($samlResponse) && is_numeric($this->idpId)) {
+        if (!empty($samlResponse) && $this->idpId > 0) {
             try {
                 $this->configEntity = new ConfigEntity($this->idpId);
             } catch (Throwable $e) {
@@ -432,7 +433,9 @@ class Acs extends LoginFlow
                     a different error or the response was send successively to the acs\n\n" .
                     Acs::SERVER_OBJ . $this->getSafeServerContext() . "\n\n" .
                     Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
-                    Acs::STATE_OBJ . var_export($this->samlResponse->getXMLDocument(), true) . "\n\n" .
+                    Acs::RESPONSE_OBJ . ($this->debug
+                        ? (string) $this->samlResponse->getXMLDocument()->saveXML()
+                        : ConfigEntity::anonymizeXml((string) $this->samlResponse->getXMLDocument()->saveXML())) . "\n\n" .
                     Acs::EXTENDED_FOOTER . "\n"
             );
         } else {

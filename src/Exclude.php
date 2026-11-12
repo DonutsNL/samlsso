@@ -407,7 +407,7 @@ class Exclude extends ExcludeCompat
         // Version 1.2.3 add exclude for GLPI11
         // https://github.com/DonutsNL/samlsso/issues/32
         $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/ajax/webhook.php']]) or die($DB->error());
-        if (!$result->numrows() > 0) {
+        if ($result->numrows() === 0) {
             $query = <<<SQL
                 INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
                 VALUES('Bypass webhook.php', '', '1', '', '/ajax/webhook.php');
@@ -417,7 +417,7 @@ class Exclude extends ExcludeCompat
 
         // https://github.com/DonutsNL/samlsso/issues/36
         $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/api.php']]) or die($DB->error());
-        if (!$result->numrows() > 0) {
+        if ($result->numrows() === 0) {
             $query = <<<SQL
                 INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
                 VALUES('Bypass api.php', '', '1', '', '/api.php');

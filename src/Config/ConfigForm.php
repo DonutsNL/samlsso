@@ -177,7 +177,7 @@ HTML;
             ConfigEntity::ID, ConfigEntity::NAME, ConfigEntity::CONF_DOMAIN,
             ConfigEntity::CONF_ICON, ConfigEntity::CONF_ICON_URL, ConfigEntity::LOGIN_HEADER_TEXT,
             ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
-            ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT,
+            ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT, ConfigEntity::FORCE_AUTHN,
             ConfigEntity::SYNC_ON_LOGIN, ConfigEntity::REQUEST_TIMEOUT, ConfigEntity::INACTIVITY_TIMEOUT,
             ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
             ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
@@ -289,18 +289,15 @@ HTML;
             return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
         }
 
-        // --- 2. Purge existing data (clean restore) ---
+        // --- 2. Pre-validate all configuration entries before modifying database ---
         $configsTable  = Config::getTable();
         $claimMapTable = ClaimMap::getTable();
 
-        $DB->delete($claimMapTable, ['id' => ['>', 0]]);
-        $DB->delete($configsTable,  ['id' => ['>', 0]]);
-
-        // --- 3. Restore each configuration with original IDs ---
         $exportFields = [
             ConfigEntity::ID, ConfigEntity::NAME, ConfigEntity::CONF_DOMAIN,
-            ConfigEntity::CONF_ICON, ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
-            ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT,
+            ConfigEntity::CONF_ICON, ConfigEntity::CONF_ICON_URL, ConfigEntity::LOGIN_HEADER_TEXT,
+            ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
+            ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT, ConfigEntity::FORCE_AUTHN,
             ConfigEntity::SYNC_ON_LOGIN, ConfigEntity::REQUEST_TIMEOUT, ConfigEntity::INACTIVITY_TIMEOUT,
             ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
             ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
@@ -316,15 +313,41 @@ HTML;
             ConfigEntity::COMMENT, ConfigEntity::IS_ACTIVE,
         ];
 
-        $restoredCount  = 0;
-        $errors         = [];
-        $now            = date('Y-m-d H:i:s');
+        $preparedEntries = [];
+        $errors          = [];
+        $now             = date('Y-m-d H:i:s');
 
         foreach ($data['configurations'] as $index => $entry) {
-            if ($this->restoreConfigEntry($index, $entry, $now, $exportFields, $configsTable, $errors)) {
+            $prepared = $this->prepareRestoreConfigEntry((int)$index, is_array($entry) ? $entry : [], $now, $exportFields, $errors);
+            if ($prepared !== null) {
+                $preparedEntries[] = $prepared;
+            }
+        }
+
+        if (empty($preparedEntries)) {
+            foreach ($errors as $err) {
+                Session::addMessageAfterRedirect($err, false, ERROR);
+            }
+            Session::addMessageAfterRedirect(
+                __('Restore aborted: no valid IDP configurations were found in the backup file; existing configurations were preserved.', PLUGIN_NAME),
+                false,
+                ERROR
+            );
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
+        }
+
+        // --- 3. Purge existing data and insert validated configurations ---
+        $DB->delete($claimMapTable, ['id' => ['>', 0]]);
+        $DB->delete($configsTable,  ['id' => ['>', 0]]);
+        Config::clearCache();
+
+        $restoredCount = 0;
+        foreach ($preparedEntries as $prepared) {
+            if ($this->insertPreparedRestoreEntry($prepared, $configsTable, $errors)) {
                 $restoredCount++;
             }
         }
+        Config::clearCache();
 
         // --- 5. Report results ---
         if ($restoredCount > 0) {
@@ -379,23 +402,20 @@ HTML;
     }
 
     /**
-     * Restores a single IDP configuration entry and its claim mappings.
+     * Validates and prepares a single IDP configuration entry prior to destructive DB restore.
      *
      * @param int    $index        Entry index
      * @param array  $entry        Entry data
      * @param string $now          Current datetime string
      * @param array  $exportFields List of fields to copy
-     * @param string $configsTable Configuration DB table name
      * @param array  $errors       Reference to errors log
-     * @return bool True if successfully restored
+     * @return array|null Prepared payload or null when validation fails
      */
-    private function restoreConfigEntry(int $index, array $entry, string $now, array $exportFields, string $configsTable, array &$errors): bool
+    private function prepareRestoreConfigEntry(int $index, array $entry, string $now, array $exportFields, array &$errors): ?array
     {
-        global $DB;
-
         if (!isset($entry['config']) || !is_array($entry['config'])) {
             $errors[] = sprintf(__('Entry %d skipped: missing config block.', PLUGIN_NAME), $index);
-            return false;
+            return null;
         }
 
         $cfgData = $entry['config'];
@@ -403,7 +423,7 @@ HTML;
 
         if ($origId <= 0) {
             $errors[] = sprintf(__('Entry %d skipped: missing or invalid id.', PLUGIN_NAME), $index);
-            return false;
+            return null;
         }
 
         // Build insert row; only use known fields that are present in export
@@ -423,28 +443,48 @@ HTML;
 
         $validationEntity = new ConfigEntity(-1, ['template' => 'post', 'postData' => $insertRow]);
         if (!$validationEntity->isValid()) {
-            $errList = implode('; ', array_values($validationEntity->getInvalidMessages()));
+            $errList = implode('; ', array_values($validationEntity->getErrorMessages()));
             $errors[] = sprintf(__('Entry %d (%s) failed validation: %s', PLUGIN_NAME), $index, $cfgData[ConfigEntity::NAME] ?? '?', $errList);
-            return false;
+            return null;
         }
 
         if (!empty($insertRow[ConfigEntity::SP_KEY]) && ($insertRow[ConfigEntity::SP_KEY_SOURCE] ?? 'db') === 'db') {
             $insertRow[ConfigEntity::SP_KEY] = ConfigEntity::encryptPrivateKey((string)$insertRow[ConfigEntity::SP_KEY]);
         }
 
-        if (!$DB->insert($configsTable, $insertRow)) {
-            $errors[] = sprintf(__('Entry %d (%s) could not be inserted into database.', PLUGIN_NAME), $index, $cfgData[ConfigEntity::NAME] ?? '?');
-            return false;
-        }
-
-        // Restore claim mappings for this config
         $claimMaps = isset($entry['claim_maps']) && is_array($entry['claim_maps'])
             ? $entry['claim_maps']
             : [];
 
-        $claimMapEntity = new ClaimMapEntity($origId);
-        if (!$claimMapEntity->save($claimMaps)) {
-            $errors[] = sprintf(__('Config %s restored but claim mappings had validation errors.', PLUGIN_NAME), $cfgData[ConfigEntity::NAME] ?? (string)$origId);
+        return [
+            'index'      => $index,
+            'orig_id'    => $origId,
+            'name'       => (string)($cfgData[ConfigEntity::NAME] ?? (string)$origId),
+            'insert_row' => $insertRow,
+            'claim_maps' => $claimMaps,
+        ];
+    }
+
+    /**
+     * Inserts a pre-validated IDP configuration entry and its claim mappings.
+     *
+     * @param array  $prepared     Prepared restore payload
+     * @param string $configsTable Configuration DB table name
+     * @param array  $errors       Reference to errors log
+     * @return bool True if successfully inserted
+     */
+    private function insertPreparedRestoreEntry(array $prepared, string $configsTable, array &$errors): bool
+    {
+        global $DB;
+
+        if (!$DB->insert($configsTable, $prepared['insert_row'])) {
+            $errors[] = sprintf(__('Entry %d (%s) could not be inserted into database.', PLUGIN_NAME), $prepared['index'], $prepared['name']);
+            return false;
+        }
+
+        $claimMapEntity = new ClaimMapEntity((int)$prepared['orig_id']);
+        if (!$claimMapEntity->save($prepared['claim_maps'])) {
+            $errors[] = sprintf(__('Config %s restored but claim mappings had validation errors.', PLUGIN_NAME), $prepared['name']);
         }
 
         return true;
@@ -552,10 +592,10 @@ HTML;
 
         $inputBag = $request->getPayload();                                     // Assign the inputBag
         $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;     // Assign the ID if any
-        $options['template'] = ( $request->get('template') &&                   // iF set URI?template={template}
-                                 ctype_alpha($request->get('update')) ) ?       // iF template only contains alpha txt
-                                 $request->get('update') :                     // THEN set it to requested template
-                                 'default';                                         // Else fallback to default.
+        $requestedTpl = $request->get('template');
+        $options['template'] = (is_string($requestedTpl) && $requestedTpl !== '' && ctype_alpha($requestedTpl))
+            ? $requestedTpl
+            : 'default';
         $options['search'] = (string)$request->get('search', '');
         $options['page'] = !empty($request->get('page')) ? (int)$request->get('page') : 1;
                                  
@@ -733,8 +773,9 @@ HTML;
             // Generate form using a template
             return new Response($this->generateForm(new ConfigEntity($id, $options), $options));
         }else{
-            // Invalid id used redirect back to origin
-            return new RedirectResponse(__('Invalid request, redirecting back', PLUGIN_NAME));
+            // Invalid id used redirect back to configuration listing
+            Session::addMessageAfterRedirect(__('Invalid request, redirecting back', PLUGIN_NAME), false, ERROR);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
         }
     }
 

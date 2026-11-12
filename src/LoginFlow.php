@@ -139,7 +139,7 @@ class LoginFlow
         // Get current state this can either be an initial state (new session) or
         // an existing one. The state properties tell which one we are dealing with.
         try {
-            $this->state = new Loginstate();
+            $this->state = new LoginState();
             self::$activeState = $this->state;
         } catch (Throwable $e) {
             $this->printError(sprintf(__("Loading login state failed with: %s", PLUGIN_NAME), (string)$e));
@@ -168,7 +168,7 @@ class LoginFlow
                     exit;
                 }
                 Session::addMessageAfterRedirect(__('Your SAML authentication request timed out. Please try logging in again.', PLUGIN_NAME), false, ERROR);
-                if (!isset($_GET['noAuto'])) {
+                if (!isset($_GET['noAuto']) && !isset($_GET['noAUTO'])) {
                     header('Location: ' . $CFG_GLPI['url_base'] . '/index.php?noAuto=1');
                     exit;
                 }
@@ -219,13 +219,24 @@ class LoginFlow
                 if ($configEntity->isValid() && $configEntity->isActive()) {
                     $samlConfig = $configEntity->getPhpSamlConfig();
                     if (!empty($samlConfig)) {
+                        $nameId = !empty($_SESSION['glpiname']) ? (string)$_SESSION['glpiname'] : null;
+                        $nameIdFormat = isset($samlConfig['sp']['NameIDFormat']) && is_string($samlConfig['sp']['NameIDFormat'])
+                            ? $samlConfig['sp']['NameIDFormat']
+                            : null;
                         $this->state->setPhase(LoginState::PHASE_LOGOFF);
                         Session::cleanOnLogout();
-                        $samlAuth = new samlAuth($samlConfig);
-                        // Get the (signed) logout url.
-                        $sloUrl = $samlAuth->logout();
-                        header('location:' . $sloUrl);
-                        exit;
+                        $sloUrl = null;
+                        try {
+                            $samlAuth = new samlAuth($samlConfig);
+                            // Request the signed LogoutRequest redirect URL without exiting inside php-saml
+                            $sloUrl = $samlAuth->logout(null, [], $nameId, null, true, $nameIdFormat);
+                        } catch (Throwable $e) {
+                            Toolbox::logInFile(PLUGIN_NAME . '-errors', 'SLO logout failed: ' . $e->getMessage() . "\n", true);
+                        }
+                        if (!empty($sloUrl)) {
+                            header('Location: ' . $sloUrl);
+                            exit;
+                        }
                     }
                 }
             }
@@ -297,8 +308,9 @@ class LoginFlow
             Config::getIsOnlyOneConfig()                            &&      // Only perform this login type with only one samlConfig entry
             Config::getIsEnforced()                                 &&      // Only Enforce if we have enforced option configured.
             !isset($_GET['noAuto'])                                 &&      // Only perform this if GLPI 'noAuto' is absent.
-            !isset($_GET[LoginFlow::SAMLBYPASS])
-        ) {      // Only perform this if user is not trying to bypass samlAuth.
+            !isset($_GET['noAUTO'])                                 &&      // Also honor GLPI core uppercase 'noAUTO'.
+            !self::isSessionBypassActive()
+        ) {      // Only skip enforcement when a cryptographic bypass token was verified in session.
 
             $this->state->addLoginFlowTrace(['OnlyOneIdpEnforced' => 'idpId:' . Config::getIsOnlyOneConfig()]);
             $_POST[LoginFlow::POSTFIELD] = Config::getIsOnlyOneConfig();
@@ -307,22 +319,31 @@ class LoginFlow
         // https://github.com/DonutsNL/samlsso/issues/12 add typecast.
         // Check if a SAML button was pressed and handle the corresponding logon request!
         if (
-            isset($_POST[LoginFlow::POSTFIELD])                  &&      // Must be set
-            is_numeric($_POST[LoginFlow::POSTFIELD])             &&      // Value must be numeric
-            strlen((string) $_POST[LoginFlow::POSTFIELD]) < 3
-        ) {      // Should not exceed 999
+            isset($_POST[LoginFlow::POSTFIELD]) &&
+            is_numeric($_POST[LoginFlow::POSTFIELD])
+        ) {
+            $selectedIdpId = (int) $_POST[LoginFlow::POSTFIELD];
+            if ($selectedIdpId > 0 && $selectedIdpId <= 999) {
+                $this->state->addLoginFlowTrace(['finalIdp' => 'idpId:' . $selectedIdpId]);
+                $this->state->setIdpId($selectedIdpId);
 
-            $this->state->addLoginFlowTrace(['finalIdp' => 'idpId:' . $_POST[LoginFlow::POSTFIELD]]);
-            // If we know the idp we register it in the login State
-            // the input is validated as is_numeric. Floats will be truncated by
-            // the cast to int (int).
-            $this->state->setIdpId((int) filter_var($_POST[LoginFlow::POSTFIELD], FILTER_SANITIZE_NUMBER_INT));
-
-            // Actually perform SSO
-            $this->performSamlIdpRequest();
+                // Actually perform SSO
+                $this->performSamlIdpRequest();
+            }
         }
         // Do nothing and return nothing.
         // Returning an value like false breaks glpi in all kinds of nasty ways.
+    }
+
+    /**
+     * Checks whether an administrator emergency bypass token has been cryptographically
+     * verified and recorded in the active PHP session.
+     *
+     * @return bool
+     */
+    private static function isSessionBypassActive(): bool
+    {
+        return !empty($_SESSION['glpi_plugins']['samlsso']['bypass']);
     }
 
     /**
@@ -624,8 +645,10 @@ class LoginFlow
      */
     public function showLoginScreen(): void
     {
-        // Validate if we need to hide the login fields?
-        if (Config::getHideLoginFields()) {
+        $bypassActive = self::isSessionBypassActive();
+
+        // Hide local GLPI password/auth fields only when bypass is NOT active in session
+        if (!$bypassActive && Config::getHideLoginFields()) {
             echo '<style>
                    .card-body div.mb-4:has(#login_password) {
                         display: none;
@@ -639,22 +662,21 @@ class LoginFlow
                   </style>';
         }
 
-        $tplVars = Config::getLoginButtons(12);         // Fetch the global DB object;
-        if (!empty($tplVars)) {                           // Only show the interface if we have buttons to show.
-            // Define static translatable elements
-            $tplVars['action']     = rtrim(samlsso_webdir(true), '/');
-            $tplVars['header']     = !empty($tplVars['header']) ? $tplVars['header'] : __('Login with external provider', PLUGIN_NAME);
-            $tplVars['showbuttons']    = true;
-            $tplVars['postfield']  = LoginFlow::POSTFIELD;
-            $tplVars['enforced']   = Config::getIsEnforced();
+        $isEnforced = !$bypassActive && Config::getIsEnforced();
+        $tplVars = Config::getLoginButtons(12);
+        if (!empty($tplVars)) {
+            $tplVars['action']      = rtrim(samlsso_webdir(true), '/');
+            $tplVars['header']      = !empty($tplVars['header']) ? $tplVars['header'] : __('Login with external provider', PLUGIN_NAME);
+            $tplVars['showbuttons'] = true;
+            $tplVars['postfield']   = LoginFlow::POSTFIELD;
+            $tplVars['enforced']    = $isEnforced;
             // https://codeberg.org/QuinQuies/glpisaml/issues/12
             TemplateRenderer::getInstance()->display('@samlsso/loginScreen.html.twig',  $tplVars);
-        } else {
-            $tplVars['enforced'] = Config::getIsEnforced() && !isset($_GET['bypass']); // Validate there is 'an' enforced saml Config and we don't want to bypass
-            if ($tplVars['enforced']) { // Validate we don't want to bypass our enforcement
-                // Call the renderer to render our CSS injection.
-                TemplateRenderer::getInstance()->display('@samlsso/loginScreen.html.twig',  $tplVars);
-            }
+        } elseif ($isEnforced) {
+            TemplateRenderer::getInstance()->display('@samlsso/loginScreen.html.twig', [
+                'showbuttons' => false,
+                'enforced'    => true,
+            ]);
         }
     }
 
@@ -673,7 +695,7 @@ class LoginFlow
         try {
             $state = self::$activeState;
             if ($state === null || $state->getStateId() <= 0) {
-                $state = new Loginstate();
+                $state = new LoginState();
             }
             if ($state->getStateId() > 0) {
                 if ($state->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
@@ -719,8 +741,7 @@ class LoginFlow
         /* Define static translatable elements */
         $tplVars['header']      = __('⚠️ Sorry we are unable to log you in', PLUGIN_NAME);
         /* https://github.com/DonutsNL/samlsso/issues/21 */
-        /* Typecast might break if the passed object doesnt have a __toString() magic method. */
-        $tplVars['error']       = htmlentities($displayMsg);
+        $tplVars['error']       = (string)$displayMsg;
         $tplVars['returnPath']  = $CFG_GLPI["url_base"] . '/';
         $tplVars['returnLabel'] = __('Return to GLPI', PLUGIN_NAME);
 
@@ -800,7 +821,7 @@ class LoginFlow
         global $CFG_GLPI;
         $state = null;
         try {
-            $state = new Loginstate();
+            $state = new LoginState();
         } catch (Throwable $e) {
             LoginFlow::printError(sprintf(__("Loading login state failed with: %s", PLUGIN_NAME), (string)$e));
         }

@@ -990,6 +990,53 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Config: diagnostic table popover rendering and form cleanliness verified (Issues #186, #187)\n";
         }
+
+        /**
+         * Verifies RequestedAuthnContext builder, strict boolean regex anchoring, and nullable URL validator safety (Issue #195).
+         */
+        public function testAuthnContextBuilderAndValidatorPrecision(): void {
+            $getAuthn = new \ReflectionMethod(ConfigEntity::class, 'getAuthn');
+            $getAuthn->setAccessible(true);
+
+            if ($getAuthn->invoke(null, 'none') !== false || $getAuthn->invoke(null, '') !== false) {
+                throw new \Exception("ConfigEntity::getAuthn('none') must return false.");
+            }
+
+            $contexts = $getAuthn->invoke(null, 'PasswordProtectedTransport:X509');
+            $expected = [
+                'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport',
+                'urn:oasis:names:tc:SAML:2.0:ac:classes:X509',
+            ];
+            if ($contexts !== $expected) {
+                throw new \Exception("ConfigEntity::getAuthn('PasswordProtectedTransport:X509') returned unexpected result: " . var_export($contexts, true));
+            }
+
+            $entity = new ConfigEntity();
+            $ssoCheck = new \ReflectionMethod($entity, 'idp_single_sign_on_service');
+            $ssoCheck->setAccessible(true);
+            $ssoRes = $ssoCheck->invoke($entity, null);
+            if ($ssoRes[ConfigItem::EVAL] !== ConfigItem::INVALID) {
+                throw new \Exception("Nullable idp_single_sign_on_service(null) should return INVALID without throwing TypeError.");
+            }
+
+            $sloCheck = new \ReflectionMethod($entity, 'idp_single_logout_service');
+            $sloCheck->setAccessible(true);
+            $sloRes = $sloCheck->invoke($entity, null);
+            if ($sloRes[ConfigItem::EVAL] !== ConfigItem::VALID) {
+                throw new \Exception("Nullable idp_single_logout_service(null) should return VALID without throwing TypeError.");
+            }
+
+            $boolCheck = new \ReflectionMethod($entity, 'handleAsBool');
+            $boolCheck->setAccessible(true);
+            if ($boolCheck->invoke($entity, '10', 'test_flag')[ConfigItem::EVAL] !== ConfigItem::INVALID) {
+                throw new \Exception("handleAsBool('10') must fail validation (anchored regex ^[01]$).");
+            }
+            if ($boolCheck->invoke($entity, '1', 'test_flag')[ConfigItem::EVAL] !== ConfigItem::VALID) {
+                throw new \Exception("handleAsBool('1') must pass validation.");
+            }
+
+            echo "✅ Config: RequestedAuthnContext builder, nullable URL validators, and anchored boolean regex verified (Issue #195)\n";
+        }
     }
 }
 
@@ -1014,6 +1061,7 @@ namespace {
         $test->testGenerateCertMethodAndEndpoint();
         $test->testTabWarningsFieldAlignment();
         $test->testDiagnosticTableIntegrityAndPopoverPreservation();
+        $test->testAuthnContextBuilderAndValidatorPrecision();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

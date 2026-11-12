@@ -283,15 +283,20 @@ function plugin_samlsso_check_prerequisites(): bool                             
     // faulty in many installations resulting in Session Timeout issues
     // recognisable by the &error=3 in the redirect URL.
     // https://github.com/DonutsNL/samlsso/issues/13
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+    $cookieSecure   = (string) ini_get('session.cookie_secure');
+    $cookieHttpOnly = (string) ini_get('session.cookie_httponly');
+    $cookieSameSite = (string) ini_get('session.cookie_samesite');
     if (
-        ini_get('session.cookie_secure') == 1   ||
-        ini_get('session.cookie_httponly') != 1 ||
-        ini_get('session.cookie_samesite') == 0
+        ($isHttps && !filter_var($cookieSecure, FILTER_VALIDATE_BOOLEAN)) ||
+        !filter_var($cookieHttpOnly, FILTER_VALIDATE_BOOLEAN) ||
+        strtolower($cookieSameSite) === 'strict'
     ) {
         echo "PHP is configured with the following Cookie settings.";
-        echo "session.cookie_secure = " . ini_get('session.cookie_secure') . "<br>";
-        echo "session.cookie_httponly = " . ini_get('session.cookie_httponly') . "<br>";
-        echo "session.cookie_samesite =" . ini_get('session.cookie_samesite') . "<br>";
+        echo "session.cookie_secure = " . htmlspecialchars($cookieSecure, ENT_QUOTES, 'UTF-8') . "<br>";
+        echo "session.cookie_httponly = " . htmlspecialchars($cookieHttpOnly, ENT_QUOTES, 'UTF-8') . "<br>";
+        echo "session.cookie_samesite = " . htmlspecialchars($cookieSameSite, ENT_QUOTES, 'UTF-8') . "<br>";
         echo "These settings are <b>not aligned</b> with GLPI prerequisites. Please
               correct them as described <a href='https://glpi-install.readthedocs.io/en/latest/prerequisites.html#security-configuration-for-sessions'>
               in the GLPI Documentation</a>. SAML and GLPI redirects might not work correctly.";

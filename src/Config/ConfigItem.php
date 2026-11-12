@@ -247,8 +247,9 @@ class ConfigItem    //NOSONAR
      * @param string    Single Sign On Service URL to be validated
      * @return array    Contextual information about the parameter and validation outcomes
      */
-    protected function idp_single_sign_on_service(string $var): array //NOSONAR
+    protected function idp_single_sign_on_service(mixed $var): array //NOSONAR
     {
+        $var = (string) ($var ?? '');
         $error = '';
         // This setting is required for SAML to function
         if (empty($var)) {
@@ -268,7 +269,7 @@ class ConfigItem    //NOSONAR
             ConfigItem::FORMEXPLAIN => __('Single Sign On Service endpoint of the IdP. URL Target of the IdP where the Authentication Request Message will be sent. OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
             ConfigItem::FORMTITLE => __('SSO URL', PLUGIN_NAME),
             ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::VALUE     => $var,
             ConfigItem::FIELD     => __function__,
             ConfigItem::VALIDATOR => __method__,
             ConfigItem::ERRORS    => ($error) ? $error : false
@@ -277,11 +278,12 @@ class ConfigItem    //NOSONAR
 
     /**
      * Validates the URL the passed SAML Single Log Off Service string
-     * @param string    Single Sign On Service URL to be validated
+     * @param mixed     Single Sign On Service URL to be validated
      * @return array    Contextual information about the parameter and validation outcomes
      */
-    protected function idp_single_logout_service(string $var): array //NOSONAR
+    protected function idp_single_logout_service(mixed $var): array //NOSONAR
     {
+        $var = (string) ($var ?? '');
         $error = false;
         // This setting is not required because for example in Azure it will log the user out
         // of all online sessions not just GLPI. No url will result in SAML not performing a
@@ -296,7 +298,7 @@ class ConfigItem    //NOSONAR
             ConfigItem::FORMEXPLAIN  => __('Single Logout service endpoint of the IdP. URL Location of the IdP where SLO Request will be sent.OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
             ConfigItem::FORMTITLE => __('SLO URL', PLUGIN_NAME),
             ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::VALUE     => $var,
             ConfigItem::FIELD     => __function__,
             ConfigItem::VALIDATOR => __method__,
             ConfigItem::ERRORS    => ($error) ? $error : false
@@ -848,15 +850,18 @@ class ConfigItem    //NOSONAR
     // Make sure we always return the correct boolean datatype.
     protected function handleAsBool(mixed $var, $field = null): array
     {
-        if ($var === '' || $var === null) {
+        if ($var === '' || $var === null || $var === false) {
             $var = '0';
+        } elseif ($var === true) {
+            $var = '1';
         }
-        // Default to false if no or an impropriate value is provided.
-        $error = (!empty($var) && !preg_match('/[0-1]/', (string) $var)) ? sprintf(__("⭕ %s can only be 1 or 0", PLUGIN_NAME), $field) : false;
+        $strVar = (string) $var;
+        $isValid = preg_match('/^[01]$/', $strVar) === 1;
+        $error = !$isValid ? sprintf(__("⭕ %s can only be 1 or 0", PLUGIN_NAME), $field) : false;
 
         return [
-            ConfigItem::EVAL   => (is_numeric($var)) ? ConfigItem::VALID : ConfigItem::INVALID,
-            ConfigItem::VALUE  => (!$error) ? $var : '0',
+            ConfigItem::EVAL   => $isValid ? ConfigItem::VALID : ConfigItem::INVALID,
+            ConfigItem::VALUE  => $isValid ? $strVar : '0',
             ConfigItem::ERRORS => $error
         ];
     }

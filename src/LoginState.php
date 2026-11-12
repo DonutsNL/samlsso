@@ -731,7 +731,7 @@ class LoginState extends CommonDBTM
     public function setIdpId(int $idpId): bool
     {
         if (isset($this->state[LoginState::STATE_ID])) {
-            if ($idpId > 0 && $idpId < 999) {
+            if ($idpId > 0 && $idpId <= 999) {
                 $this->state[LoginState::IDP_ID] = $idpId;
                 return ($this->update($this->state)) ? true : false;
             } else {
