@@ -186,6 +186,14 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Request awaiting ACS that is older than the timeout limit did not transition to PHASE_TIMED_OUT. Got: " . $loginState->getPhase());
             }
 
+            $safeState = $loginState->getSafeStateForLogging(true);
+            $trace = !empty($safeState[LoginState::LOGIN_FLOW_TRACE])
+                ? unserialize((string)$safeState[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false])
+                : [];
+            if (!is_array($trace) || empty($trace['staleTimeout'])) {
+                throw new \Exception("Expected staleTimeout trace entry when request exceeds request_timeout.");
+            }
+
             echo "✅ LoginState: request timeout fallback verification\n";
         }
 
@@ -278,16 +286,25 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that inactivity timeout correctly transitions the phase to PHASE_TIMED_OUT
-         * and evalGlpiAuth does not overwrite it when the session is still active in PHP.
+         * Test that an authenticated PHASE_GLPI_AUTH session is not timed out by
+         * the plugin (session inactivity is governed natively by GLPI core), while
+         * createInitialState() initializes LOGIN_DATETIME using PHP's clock.
          */
-        public function testLoginStateInactivityTimeoutNoOverwrite(): void {
+        public function testLoginStateInactivityDelegatedToGlpiAndInitialDateTime(): void {
             global $DB;
             $db = new MockDB();
             $DB = $db;
 
+            // 1. Verify createInitialState initializes LOGIN_DATETIME immediately
+            $freshState = new LoginState();
+            $initialLoginTime = $freshState->getLoginDateTime();
+            if (empty($initialLoginTime) || abs(time() - (int)strtotime($initialLoginTime)) > 5) {
+                throw new \Exception("Expected createInitialState() to initialize LOGIN_DATETIME to current PHP time, got: " . var_export($initialLoginTime, true));
+            }
+
+            // 2. Verify PHASE_GLPI_AUTH session remains PHASE_GLPI_AUTH while PHP session is valid
             $table = LoginState::getTable();
-            $staleTime = gmdate('Y-m-d H:i:s', time() - 1200); // 20 mins ago
+            $staleTime = date('Y-m-d H:i:s', time() - 1200);
 
             $db->setResponse($table, [
                 [
@@ -313,25 +330,20 @@ namespace GlpiPlugin\Samlsso\Tests {
                 ]
             ]);
 
-            // Set up $_SESSION variables so the session appears active
             $_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR] = 'test_user';
             $_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR] = session_id();
 
-            // Mock ConfigEntity inactivity timeout response
-            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::INACTIVITY_TIMEOUT] = 15;
-
             $loginState = new LoginState();
 
-            if ($loginState->getPhase() !== LoginState::PHASE_TIMED_OUT) {
-                throw new \Exception("Inactivity timeout did not transition phase to PHASE_TIMED_OUT, or evalGlpiAuth incorrectly overwrote it. Got phase: " . $loginState->getPhase());
+            if ($loginState->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
+                throw new \Exception("Authenticated GLPI session should remain PHASE_GLPI_AUTH while PHP session is active. Got phase: " . $loginState->getPhase());
             }
 
-            // Clean up
             unset($_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR]);
             unset($_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR]);
             \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields = [];
 
-            echo "✅ LoginState: inactivity timeout transitions to TIMED_OUT and is not overwritten\n";
+            echo "✅ LoginState: initial loginTime clock and native GLPI session lifetime delegation verified\n";
         }
 
         /**
@@ -519,7 +531,7 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that expireStaleAcsRequests and expireStaleGlpiSessions throttle executions (Issues #151, #166).
+         * Test that expireStaleAcsRequests throttles executions (Issues #151, #166).
          *
          * @throws \Exception if throttling logic behaves unexpectedly.
          */
@@ -531,12 +543,9 @@ namespace GlpiPlugin\Samlsso\Tests {
             LoginState::resetCleanupThrottle();
 
             LoginState::expireStaleAcsRequests();
-            LoginState::expireStaleGlpiSessions();
-
             LoginState::expireStaleAcsRequests();
-            LoginState::expireStaleGlpiSessions();
 
-            echo "✅ LoginState: expireStaleCleanups periodic throttling verified (Issues #151, #166)\n";
+            echo "✅ LoginState: expireStaleAcsRequests periodic throttling verified (Issues #151, #166)\n";
         }
 
         /**
@@ -767,7 +776,7 @@ namespace {
         $test->testLoginStateRequestTimeout();
         $test->testLoginStateSessionExpiry();
         $test->testLoginStateLocationFallback();
-        $test->testLoginStateInactivityTimeoutNoOverwrite();
+        $test->testLoginStateInactivityDelegatedToGlpiAndInitialDateTime();
         $test->testLoginStateImpersonationNoOverwrite();
         $test->testLoginStateRefreshLoginDateTimeOnNewRequest();
         $test->testUpdateLastActivityThrottling();

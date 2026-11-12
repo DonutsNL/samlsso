@@ -20,7 +20,7 @@ We track the complete lifecycle of a session through 9 explicit database phases 
 | `PHASE_GLPI_AUTH` | `4` | GLPI Authed | Handed over to GLPI core session (`$_SESSION['glpiname']` and `$_SESSION['valid_id']` active). | `LoginState::evalGlpiAuth()` |
 | `PHASE_RESERVED` | `5` | Reserved | Reserved for future use. | N/A |
 | `PHASE_FORCE_LOG` | `6` | Forced Logoff | Administrator triggered Force Logoff & Disable User ([ADR 0013](0013-force-logoff-and-disable-user-action.md)). Next request in `LoginFlow::doAuth()` destroys session and transitions to `PHASE_LOGOFF (8)`. | `ConfigForm` (`forcelogoff` POST action) |
-| `PHASE_TIMED_OUT` | `7` | Timed Out | Pending `PHASE_SAML_ACS (2)` exceeded `request_timeout` or active `PHASE_GLPI_AUTH (4)` exceeded `inactivity_timeout`. Rejected by `Acs::assertSaml()` and terminated by `LoginFlow::doAuth()`. | `LoginState::getState()`, `LoginState::expireStaleAcsRequests()`, `LoginState::expireStaleGlpiSessions()`, `CronTask` |
+| `PHASE_TIMED_OUT` | `7` | Timed Out | Pending `PHASE_SAML_ACS (2)` exceeded `request_timeout` (elapsed time between sending `AuthnRequest` and receiving `SAMLResponse`). Rejected by `Acs::assertSaml()` with a redirect to `/index.php?noAuto=1` and cleaned up by `LoginFlow::doAuth()`. | `LoginState::getState()`, `LoginState::expireStaleAcsRequests()` |
 | `PHASE_LOGOFF` | `8` | Logged Out | Session terminated (local logout, SLO logout, or after forced/timed-out cleanup). Excluded from active state lookups. | `LoginFlow::doAuth()` |
 | `PHASE_ERROR` | `9` | Error | Assertion validation or login flow failed. Excluded from active state lookups (`NOT PHASE IN (8, 9)`), permanently locking the failed state row against reuse. | `LoginFlow::printError()` / `LoginFlow::PrintFatalLoginError()` |
 
@@ -35,10 +35,9 @@ stateDiagram-v2
     PHASE_SAML_ACS_2 --> PHASE_TIMED_OUT_7 : request_timeout exceeded
     PHASE_SAML_AUTH_3 --> PHASE_GLPI_AUTH_4 : Session::init() & redirect to GLPI
     PHASE_GLPI_AUTH_4 --> PHASE_FORCE_LOG_6 : Admin Force Logoff
-    PHASE_GLPI_AUTH_4 --> PHASE_TIMED_OUT_7 : inactivity_timeout exceeded
     PHASE_GLPI_AUTH_4 --> PHASE_LOGOFF_8 : User Logout / SLO
     PHASE_FORCE_LOG_6 --> PHASE_LOGOFF_8 : LoginFlow::doAuth() cleans session
-    PHASE_TIMED_OUT_7 --> PHASE_LOGOFF_8 : LoginFlow::doAuth() cleans session
+    PHASE_TIMED_OUT_7 --> PHASE_LOGOFF_8 : LoginFlow::doAuth() cleans session & redirects to /index.php?noAuto=1
 ```
 
 #### Non-Negotiable State-Machine Invariants (Testable & Verifiable)

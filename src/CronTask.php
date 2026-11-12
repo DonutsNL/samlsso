@@ -89,38 +89,7 @@ class CronTask extends CommonDBTM
         $cron_status = 0;
         $volume = 0;
 
-        // 1. Process inactivity timeout for active sessions
-        try {
-            $configsTable = Config::getTable();
-            $configs = $DB->request([
-                'FROM'  => $configsTable,
-                'WHERE' => [
-                    'inactivity_timeout' => ['>', 0],
-                    'is_deleted' => 0
-                ]
-            ]);
-
-            foreach ($configs as $cfg) {
-                $idpId = (int)$cfg['id'];
-                $timeoutMinutes = (int)$cfg['inactivity_timeout'];
-
-                $DB->update(
-                    LoginState::getTable(),
-                    [
-                        LoginState::PHASE => LoginState::PHASE_TIMED_OUT
-                    ],
-                    [
-                        LoginState::IDP_ID => $idpId,
-                        LoginState::PHASE  => LoginState::PHASE_GLPI_AUTH,
-                        LoginState::LAST_ACTIVITY => ['<', new QueryExpression('NOW() - INTERVAL ' . $timeoutMinutes . ' MINUTE')]
-                    ]
-                );
-            }
-        } catch (\Throwable $e) {
-            // Keep going to clean up old sessions
-        }
-
-        // 2. Cleanup sessions older than retention period (days)
+        // Cleanup sessions older than retention period (days)
         if ($days > 0) {
             $delete_where = [];
             if ($days < 1) {

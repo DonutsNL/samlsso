@@ -623,12 +623,11 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that inactivity timeout validation checks against GLPI core session lifetime
-         * (session.gc_maxlifetime), provides advisory warnings when SAML timeout exceeds GLPI session,
-         * and includes the active ceiling in the field explanation.
+         * Test that inactivity_timeout exposes GLPI core session lifetime (session.gc_maxlifetime)
+         * as a read-only informational field with explanation of its origin.
          *
          * @return void
-         * @throws \Exception If validation or advisory warnings behave unexpectedly.
+         * @throws \Exception If field value, explanation, or template readonly attributes are missing.
          */
         public function testInactivityTimeoutSessionCeilingValidation(): void {
             $configEntity = new \GlpiPlugin\Samlsso\Config\ConfigEntity();
@@ -640,49 +639,31 @@ namespace GlpiPlugin\Samlsso\Tests {
                 // Set core session lifetime to 3600 seconds (60 minutes)
                 ini_set('session.gc_maxlifetime', '3600');
 
-                // Case 1: Timeout <= core session lifetime (45 min <= 60 min)
-                $resValid = $method->invoke($configEntity, 45);
-                if ($resValid[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::VALID) {
-                    throw new \Exception("Expected timeout <= core session lifetime to be valid");
+                $res = $method->invoke($configEntity, 0);
+                if ($res[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::VALID) {
+                    throw new \Exception("Expected read-only GLPI session timeout field to be valid");
                 }
-                if ($resValid[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS] !== false && str_contains((string)$resValid[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS], '⚠️ Inactivity timeout')) {
-                    throw new \Exception("Unexpected advisory warning when timeout <= core session lifetime");
+                if ($res[\GlpiPlugin\Samlsso\Config\ConfigItem::VALUE] !== '60') {
+                    throw new \Exception("Expected VALUE to reflect active GLPI session.gc_maxlifetime (60 minutes), got: " . $res[\GlpiPlugin\Samlsso\Config\ConfigItem::VALUE]);
                 }
-                if (!str_contains((string)$resValid[\GlpiPlugin\Samlsso\Config\ConfigItem::FORMEXPLAIN], '60 minutes')) {
-                    throw new \Exception("Expected formexplain to include active GLPI core session lifetime (60 minutes)");
+                if ($res[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS] !== false) {
+                    throw new \Exception("Expected ERRORS to be false on informational GLPI session timeout field");
                 }
-
-                // Case 2: Disabled timeout (0 min)
-                $resZero = $method->invoke($configEntity, 0);
-                if ($resZero[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::VALID) {
-                    throw new \Exception("Expected disabled timeout (0) to be valid");
-                }
-                if ($resZero[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS] !== false && str_contains((string)$resZero[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS], '⚠️ Inactivity timeout')) {
-                    throw new \Exception("Disabled timeout (0) must not produce an advisory warning");
+                if (!str_contains((string)$res[\GlpiPlugin\Samlsso\Config\ConfigItem::FORMEXPLAIN], 'session.gc_maxlifetime')) {
+                    throw new \Exception("Expected formexplain to explain that the timeout originates from session.gc_maxlifetime");
                 }
 
-                // Case 3: Timeout > core session lifetime (120 min > 60 min)
-                $resExceed = $method->invoke($configEntity, 120);
-                if ($resExceed[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::VALID) {
-                    throw new \Exception("Expected timeout exceeding session lifetime to remain valid with advisory warning");
+                $securityTpl = file_get_contents(__DIR__ . '/../templates/configForm/security.html.twig');
+                if (!str_contains($securityTpl, "'readonly': true") || !str_contains($securityTpl, "'disabled': true")) {
+                    throw new \Exception("Expected inactivity_timeout field in security.html.twig to be readonly and disabled");
                 }
-                if (empty($resExceed[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS]) || !str_contains((string)$resExceed[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS], '⚠️ Inactivity timeout (120 min) exceeds GLPI session lifetime (60 min)')) {
-                    throw new \Exception("Expected advisory warning when inactivity timeout exceeds core session lifetime, got: " . json_encode($resExceed[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS]));
-                }
-
-                // Case 4: Invalid negative timeout
-                $resNeg = $method->invoke($configEntity, -5);
-                if ($resNeg[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::INVALID) {
-                    throw new \Exception("Expected negative timeout to be invalid");
-                }
-
             } finally {
                 if ($originalLifetime !== false) {
                     ini_set('session.gc_maxlifetime', (string)$originalLifetime);
                 }
             }
 
-            echo "✅ Config: inactivity timeout session ceiling validation and advisory warning verified (Issue #181)\n";
+            echo "✅ Config: read-only GLPI session timeout visibility and explanation verified\n";
         }
 
         /**

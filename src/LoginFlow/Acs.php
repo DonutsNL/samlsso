@@ -406,10 +406,7 @@ class Acs extends LoginFlow
         }
 
         if ($this->state->getPhase() == LoginState::PHASE_TIMED_OUT) {
-            $this->printError(
-                __("Your SAML authentication request timed out. Please try logging in again.", PLUGIN_NAME),
-                __('Samlsso->acs->assertSaml->Timeout', PLUGIN_NAME)
-            );
+            $this->handleRequestTimeout();
         }
 
         // Prevent replay attacks, check if response_id is already used
@@ -523,6 +520,42 @@ class Acs extends LoginFlow
         // and we cant trust the current sessionId to align because initial cookies are tainted and
         // prob not passed back to GLPI after the IDP redirect causing GLPI to reset the PHP sessionId.
         $this->performGlpiLogin($this->samlResponse, $this->state);
+    }
+
+    /**
+     * Rejects a SAML response whose request_timeout has elapsed, queues a clear
+     * error message, and redirects the user to the GLPI login page with noAuto=1.
+     *
+     * @return never
+     */
+    protected function handleRequestTimeout(): never
+    {
+        global $CFG_GLPI;
+
+        $errorMsg = __('Your SAML authentication request timed out. Please try logging in again.', PLUGIN_NAME);
+        \Toolbox::logInFile(PLUGIN_NAME . '-errors', $errorMsg . "\n", true);
+
+        try {
+            if ($this->state !== null && $this->state->getStateId() > 0) {
+                $this->state->addLoginFlowTrace(['staleTimeout' => $errorMsg]);
+                $this->state->setPhase(LoginState::PHASE_TIMED_OUT);
+            }
+        } catch (Throwable $e) {
+            // Ignore state persistence failure during timeout redirect
+        }
+
+        if (self::$throwOnError) {
+            throw new \Exception($errorMsg);
+        }
+
+        ini_set('session.use_cookies', '1');
+        if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
+            \Session::start();
+        }
+        \Session::addMessageAfterRedirect($errorMsg, false, ERROR);
+
+        $baseUrl = rtrim((string)($CFG_GLPI['url_base'] ?? ''), '/');
+        \Html::redirect($baseUrl . '/index.php?noAuto=1');
     }
 
     /**

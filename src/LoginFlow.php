@@ -205,8 +205,8 @@ class LoginFlow extends LoginFlowCompat
             $requestPath = '';
         }
         $isLogout = str_contains($requestPath, SamlSsoController::SLO_ROUTE) ||
-                    isset($_GET[self::SLOLOGOUT]) ||
-                    isset($_GET[self::LOCALLOGOUT]);
+            isset($_GET[self::SLOLOGOUT]) ||
+            isset($_GET[self::LOCALLOGOUT]);
 
         /**
          * Do not process anything if we are handling an ACS call.
@@ -232,8 +232,7 @@ class LoginFlow extends LoginFlowCompat
             $this->printError(sprintf(__("Loading login state failed with: %s", PLUGIN_NAME), (string)$e));
         }
 
-        LoginState::expireStaleGlpiSessions();
-
+        // Handle force logout requests from Admins
         if ($this->state->getPhase() === LoginState::PHASE_FORCE_LOG) {
             $this->state->setPhase(LoginState::PHASE_LOGOFF);
             Session::cleanOnLogout();
@@ -246,22 +245,25 @@ class LoginFlow extends LoginFlowCompat
             exit;
         }
 
+        // Handle expired SAML authentication requests (request_timeout)
         if ($this->state->getPhase() === LoginState::PHASE_TIMED_OUT) {
             $this->state->setPhase(LoginState::PHASE_LOGOFF);
-            Session::cleanOnLogout();
-            if (\Toolbox::isAjax()) {
-                http_response_code(401);
-                exit;
+            if (!isset($_POST[LoginFlow::POSTFIELD]) && !isset($_GET[LoginFlow::GETFIELD])) {
+                Session::cleanOnLogout();
+                if (\Toolbox::isAjax()) {
+                    http_response_code(401);
+                    exit;
+                }
+                Session::addMessageAfterRedirect(__('Your SAML authentication request timed out. Please try logging in again.', PLUGIN_NAME), false, ERROR);
+                if (!isset($_GET['noAuto'])) {
+                    header('Location: ' . $CFG_GLPI['url_base'] . '/index.php?noAuto=1');
+                    exit;
+                }
             }
-            Session::addMessageAfterRedirect(__('Your session has timed out due to inactivity.', PLUGIN_NAME), false, ERROR);
-            header('Location: ' . $CFG_GLPI['url_base'] . '/index.php?noAuto=1');
-            exit;
         }
 
-        /**
-         * Skip authentication logic for AJAX requests to avoid session state
-         * corruption during background operations.
-         */
+        // Skip authentication logic for AJAX requests to avoid session state
+        // corruption during background operations.
         if (\Toolbox::isAjax()) {
             return;
         }
@@ -283,7 +285,6 @@ class LoginFlow extends LoginFlowCompat
          */
         if ($isLogout || Session::getLoginUserID() === false) {
             LoginState::expireStaleAcsRequests();
-            LoginState::expireStaleGlpiSessions();
         }
 
         if (!$isLogout && Session::getLoginUserID() !== false) {

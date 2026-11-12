@@ -279,6 +279,9 @@ namespace {
      */
     if (!class_exists('Session', false)) {
         class Session {
+            /** @var array<int, string> Recorded messages added via addMessageAfterRedirect. */
+            public static array $messages = [];
+
             /**
              * Mocks adding a message after a redirect.
              *
@@ -288,6 +291,7 @@ namespace {
              * @return bool Always returns true.
              */
             public static function addMessageAfterRedirect(string $msg, bool $show = true, int $level = 0): bool { 
+                self::$messages[] = $msg;
                 return true; 
             }
 

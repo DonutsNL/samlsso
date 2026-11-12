@@ -993,22 +993,17 @@ class ConfigItem    //NOSONAR
     }
 
     /**
-     * Validates and evaluates the inactivity timeout configuration field.
+     * Exposes GLPI's native session inactivity timeout (session.gc_maxlifetime) as a
+     * read-only informational field in the configuration UI.
      *
-     * Inspects PHP session lifetime (session.gc_maxlifetime) to dynamically expose the
-     * active server ceiling in field help text and surface an advisory warning if the
-     * configured timeout exceeds server session persistence.
+     * Authenticated session lifetime is managed natively by GLPI core and PHP's session
+     * garbage collector rather than by the plugin.
      *
-     * @param  mixed $var Inactivity timeout value in minutes.
+     * @param  mixed $var Stored value (ignored in favor of active PHP session.gc_maxlifetime).
      * @return array Evaluated configuration item attributes.
      */
     protected function inactivity_timeout(mixed $var): array
     {
-        $error = false;
-        if (!is_numeric($var) || (int)$var < 0) {
-            $error = __('⭕ Inactivity timeout must be a non-negative integer (minutes)', PLUGIN_NAME);
-        }
-
         $coreLifetimeSec = 0;
         try {
             $coreLifetimeSec = (int)ini_get('session.gc_maxlifetime');
@@ -1018,40 +1013,21 @@ class ConfigItem    //NOSONAR
         $coreLifetimeMin = ($coreLifetimeSec > 0) ? intdiv($coreLifetimeSec, 60) : 0;
 
         $formExplain = ($coreLifetimeMin > 0)
-            ? sprintf(__('The duration in minutes of inactivity before a session is forcefully logged out (0 to disable). GLPI session lifetime is currently %d minutes (session.gc_maxlifetime).', PLUGIN_NAME), $coreLifetimeMin)
-            : __('The duration in minutes of inactivity before a session is forcefully logged out (0 to disable).', PLUGIN_NAME);
-
-        $warning = false;
-        if (!$error && (int)$var > 0 && $coreLifetimeMin > 0 && (int)$var > $coreLifetimeMin) {
-            $warning = sprintf(
-                __('⚠️ Inactivity timeout (%d min) exceeds GLPI session lifetime (%d min). Sessions will be terminated by the server after %d minutes before this timeout is reached.', PLUGIN_NAME),
-                (int)$var,
-                $coreLifetimeMin,
+            ? sprintf(
+                __('Authenticated session inactivity is managed natively by GLPI (%d minutes). This value originates from PHP\'s session.gc_maxlifetime setting in php.ini and GLPI\'s session cleanup action.', PLUGIN_NAME),
                 $coreLifetimeMin
-            );
-        }
+            )
+            : __('Authenticated session inactivity is managed natively by GLPI via PHP\'s session.gc_maxlifetime setting in php.ini and GLPI\'s session cleanup action.', PLUGIN_NAME);
 
-        $result = [
+        return [
             ConfigItem::FORMEXPLAIN => $formExplain,
-            ConfigItem::FORMTITLE   => __('INACTIVITY TIMEOUT (MINUTES)', PLUGIN_NAME),
-            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-            ConfigItem::VALUE       => ($error) ? '0' : (string)(int)$var,
+            ConfigItem::FORMTITLE   => __('GLPI SESSION TIMEOUT (MINUTES)', PLUGIN_NAME),
+            ConfigItem::EVAL        => ConfigItem::VALID,
+            ConfigItem::VALUE       => (string)$coreLifetimeMin,
             ConfigItem::FIELD       => __function__,
             ConfigItem::VALIDATOR   => __method__,
-            ConfigItem::ERRORS      => ($error) ? $error : (($warning !== false) ? $warning : false),
+            ConfigItem::ERRORS      => false,
         ];
-
-        if (!$error) {
-            $tzValidation = $this->validateTimezoneEnvironment();
-            if (!empty($tzValidation['htmlTable'])) {
-                $result[ConfigItem::ERRORS] = ($warning !== false ? $warning . '<br>' : '') . $tzValidation['htmlTable'];
-                if (!$tzValidation['isValid']) {
-                    $result[ConfigItem::EVAL] = ConfigItem::INVALID;
-                }
-            }
-        }
-
-        return $result;
     }
 
     /**

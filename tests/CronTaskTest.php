@@ -245,23 +245,15 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that cronCleanSessionSAML correctly processes inactivity timeouts
-         * using the correct LoginState constant fields.
+         * Test that cronCleanSessionSAML does not forcefully time out active GLPI
+         * sessions (delegated to GLPI core) and only purges expired retention rows.
          */
-        public function testCronCleanSessionInactivityTimeout(): void {
+        public function testCronCleanSessionDoesNotMutateActiveSessions(): void {
             $task = new \CronTask();
             $task->fields['param'] = 30;
 
             $this->db->updatedRows = [];
-
-            // Mock active identity providers in Config table response
-            $this->db->setResponse(\GlpiPlugin\Samlsso\Config::getTable(), [
-                [
-                    'id' => 2,
-                    'inactivity_timeout' => 15,
-                    'is_deleted' => 0
-                ]
-            ]);
+            $this->db->deletedRows = [];
 
             $result = CronTask::cronCleanSessionSAML($task);
 
@@ -269,37 +261,11 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("cronCleanSessionSAML returned unexpected status: " . $result);
             }
 
-            // Assert that the database update query was performed
-            if (empty($this->db->updatedRows)) {
-                throw new \Exception("Expected update operation to transition inactive sessions, but none occurred.");
+            if (!empty($this->db->updatedRows)) {
+                throw new \Exception("cronCleanSessionSAML should not mutate active session phases; session inactivity is managed natively by GLPI.");
             }
 
-            $updateCall = $this->db->updatedRows[0];
-            if ($updateCall['table'] !== Loginstate::getTable()) {
-                throw new \Exception("Unexpected updated table: " . $updateCall['table']);
-            }
-
-            // Verify that constants are used in the query rather than hardcoded wrong field names
-            $data = $updateCall['data'];
-            $where = $updateCall['where'];
-
-            if (!isset($data[Loginstate::PHASE]) || $data[Loginstate::PHASE] !== Loginstate::PHASE_TIMED_OUT) {
-                throw new \Exception("Unexpected update payload: " . var_export($data, true));
-            }
-
-            if (!isset($where[Loginstate::IDP_ID]) || $where[Loginstate::IDP_ID] !== 2) {
-                throw new \Exception("Unexpected IDP_ID in where clause: " . var_export($where, true));
-            }
-
-            if (!isset($where[Loginstate::PHASE]) || $where[Loginstate::PHASE] !== Loginstate::PHASE_GLPI_AUTH) {
-                throw new \Exception("Unexpected PHASE in where clause: " . var_export($where, true));
-            }
-
-            if (!isset($where[Loginstate::LAST_ACTIVITY])) {
-                throw new \Exception("Missing LAST_ACTIVITY in where clause: " . var_export($where, true));
-            }
-
-            echo "✅ CronTask: inactivity timeout update using LoginState constants verified\n";
+            echo "✅ CronTask: active session inactivity delegated to GLPI core verified\n";
         }
 
         /**
@@ -356,7 +322,7 @@ namespace {
         $test->testCronSessionCleanupClamping();
         $test->testCronSessionCleanupZero();
         $test->testCronInfo();
-        $test->testCronCleanSessionInactivityTimeout();
+        $test->testCronCleanSessionDoesNotMutateActiveSessions();
         $test->testCronTaskInstallationDeduplication();
         $test = null;
     } catch (\Exception $e) {

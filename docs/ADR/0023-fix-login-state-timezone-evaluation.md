@@ -10,7 +10,7 @@ However, this assumed that the database connection session timezone is always se
 
 ## Decision
 1. Remove the hardcoded `' UTC'` suffix from all `strtotime()` parsing calls on database timestamp fields in `LoginState.php`.
-2. Implement a proactive environment timezone validation helper (`validateTimezoneEnvironment()`) on `request_timeout` and `inactivity_timeout` configuration settings in `ConfigItem.php`. If a mismatch between PHP's current clock/timezone and MySQL connection current clock/timezone (drift > 15s) is detected, render a detailed warnings table inside the configuration UI displaying both current times, active timezones, and diagnostic guidance.
+2. Implement a proactive environment timezone validation helper (`validateTimezoneEnvironment()`) on the `request_timeout` configuration setting in `ConfigItem.php`. If a mismatch between PHP's current clock/timezone and MySQL connection current clock/timezone (drift > 15s) is detected, render a detailed warnings table inside the configuration UI displaying both current times, active timezones, and diagnostic guidance.
 
 GLPI ensures that both the PHP runtime timezone and the database connection timezone are synchronized (either both set to the user's localized timezone on boot when `$DB->use_timezones` is active, or both left at the default system/server configuration when inactive). By using raw `strtotime()` on the database output without forcing a UTC suffix, PHP correctly parses the timestamp string according to its current timezone, producing the correct Unix epoch value under all configurations.
 

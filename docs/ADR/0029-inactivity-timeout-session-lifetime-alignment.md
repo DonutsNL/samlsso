@@ -1,28 +1,32 @@
-# ADR 0029: Inactivity Timeout Alignment with GLPI Core Session Lifetime
-
-Fix for issue: https://github.com/DonutsNL/samlsso/issues/181
+# ADR 0029: SAML Request Timeout Enforcement and Native GLPI Session Lifetime Delegation
 
 ## Status
 Accepted
 
 ## Context
-In samlSSO, administrators can configure an `inactivity_timeout` (in minutes) to terminate sessions after a period of user inactivity. However, GLPI core manages session persistence and garbage collection via PHP's `session.gc_maxlifetime` setting and the `CronTask::cronSession()` automatic action. When an idle session exceeds `session.gc_maxlifetime`, GLPI core physically unlinks the session file in `GLPI_SESSION_DIR`.
+Two distinct timeout concepts exist during the lifecycle of a user session:
+1. **SAML Request Timeout (`request_timeout`)**: The maximum allowed duration between dispatching an `AuthnRequest` to the Identity Provider (IdP) and receiving the corresponding `SAMLResponse` at the Assertion Consumer Service (`ACS`) endpoint.
+2. **Session Inactivity Timeout**: The maximum duration an already-authenticated user can remain idle before their GLPI session expires.
 
-If an administrator configures a samlSSO inactivity timeout that exceeds the server-side GLPI session lifetime (e.g., setting 120 minutes in samlSSO while PHP defaults to 24 minutes):
-1. The user's session is purged by GLPI core after 24 minutes.
-2. The user is logged out on their next request before samlSSO's 120-minute timer is ever evaluated.
-3. This leads administrators to believe that samlSSO's inactivity timeout is malfunctioning or ignored, unaware that the underlying PHP session expired first.
+Historically, two issues arose:
+- If `loginTime` (`LoginState::LOGIN_DATETIME`) was recorded only when a visitor first opened the GLPI login page (`PHASE_INITIAL`) rather than when the `AuthnRequest` was issued (`PHASE_SAML_ACS`), users who left the login tab open before clicking SSO experienced premature `PHASE_TIMED_OUT` rejections at the ACS endpoint.
+- Maintaining a separate plugin-level `inactivity_timeout` for authenticated sessions (`PHASE_GLPI_AUTH`) conflicted with GLPI core's native session lifecycle (`session.gc_maxlifetime` and `CronTask::cronSession()`) and GLPI's periodic background AJAX requests.
 
 ## Decisions
-1. In `ConfigItem::inactivity_timeout()`, inspect PHP's active session lifetime ceiling via `(int)ini_get('session.gc_maxlifetime')` and convert to minutes.
-2. Dynamically display the active GLPI session lifetime in `ConfigItem::FORMEXPLAIN` so administrators understand the effective upper bound.
-3. When a configured inactivity timeout exceeds the server session lifetime (`inactivity_timeout > session.gc_maxlifetime`), surface an advisory warning (`⚠️ Inactivity timeout (%d min) exceeds GLPI session lifetime (%d min)...`) in `ConfigItem::ERRORS`.
-4. Keep the evaluation state as valid (`EVAL = VALID`) rather than a hard blocking error, accommodating environments utilizing custom Redis/Memcached session handlers with independent TTLs or administrators conducting phased configuration updates.
+1. **Delegate Authenticated Session Inactivity to GLPI Core**:
+   - Remove plugin-level runtime enforcement of `inactivity_timeout` from `LoginState`, `LoginFlow`, and `CronTask`. Once a user reaches `PHASE_GLPI_AUTH`, session persistence and idle expiration are governed solely by GLPI core and PHP (`session.gc_maxlifetime`).
+   - Retain the timeout field in the Security configuration tab as a read-only informational field displaying GLPI's active session timeout (`intdiv((int)ini_get('session.gc_maxlifetime'), 60)` minutes) along with a clear explanation of where the setting originates (`php.ini` / GLPI session configuration).
+2. **Measure `request_timeout` Strictly Between `AuthnRequest` Dispatch and `SAMLResponse` Receipt**:
+   - Initialize `loginTime` (`LoginState::LOGIN_DATETIME`) using PHP's clock (`date('Y-m-d H:i:s')`) upon state creation and refresh it whenever an `AuthnRequest` is dispatched (`setRequestId()`, `refreshLoginDateTime()`, and `setPhase(LoginState::PHASE_SAML_ACS)`).
+   - Evaluate `request_timeout` strictly against `PHASE_SAML_ACS` states (`time() - strtotime(loginTime) > request_timeout * 60`).
+3. **Graceful Rejection of Timed-Out SAML Responses**:
+   - When an incoming `SAMLResponse` at the ACS endpoint violates `request_timeout` (`PHASE_TIMED_OUT`), reject the assertion, record `staleTimeout` in `LOGIN_FLOW_TRACE`, queue a clear user-facing error message via `Session::addMessageAfterRedirect()`, transition the state to `PHASE_LOGOFF`, and redirect the user to the GLPI login page with `noAuto=1` (`/index.php?noAuto=1`) to prevent automatic redirection loops.
+   - If an unauthenticated user initiates a new login request (`POST` or `GET` IdP selection) after an earlier `PHASE_SAML_ACS` attempt timed out, allow the new authentication request to proceed cleanly.
 
 ## Consequences
 - **Positive**:
-  - Eliminates administrator confusion regarding discrepancies between samlSSO inactivity timeouts and GLPI core session expiration.
-  - Transparently surfaces the server's effective session ceiling directly in the configuration interface.
-  - Fully backward-compatible; does not block configuration saves for custom or external session architectures.
+  - Eliminates false-positive ACS timeouts when a user sits on the GLPI login screen before clicking SSO.
+  - Drops users who exceed `request_timeout` at the IdP cleanly onto `/index.php?noAuto=1` with a clear error message instead of a dead-end HTTP 400 error page or an infinite SSO redirect loop.
+  - Eliminates conflicts between plugin inactivity timers, GLPI background AJAX polling, and PHP's native session garbage collection while keeping the active GLPI session timeout visible to administrators.
 - **Negative**:
-  - Environments using external session stores that do not respect `session.gc_maxlifetime` will display the advisory warning based on PHP's default ini value.
+  - Per-IdP custom inactivity timeouts are no longer enforced separately from GLPI's global session lifetime.

@@ -113,13 +113,6 @@ class LoginState extends CommonDBTM
      */
     private static int $lastAcsCleanupTime = 0;
 
-    /**
-     * Timestamp of last execution of expireStaleGlpiSessions().
-     *
-     * @var int
-     */
-    private static int $lastGlpiCleanupTime = 0;
-
     private $state = [];                                        // Stores the stateValues;
 
     /**
@@ -269,10 +262,11 @@ class LoginState extends CommonDBTM
                     : false;
                 if ($loginTime === false || (time() - $loginTime > ($timeoutMinutes * 60))) {
                     $this->state[LoginState::PHASE] = LoginState::PHASE_TIMED_OUT;
+                    $this->appendTraceToState([
+                        'staleTimeout' => __('Session was forcefully timed out by ACS evaluation.', PLUGIN_NAME),
+                    ]);
                 }
             }
-
-
 
             // We have a valid session, we have a samlInresponseTo but was a
             // samlResponseId registered previously? If not the call is unsolicited.
@@ -283,31 +277,6 @@ class LoginState extends CommonDBTM
             } else {
                 // Set SAML unsolicited to 0
                 $this->state = array_merge($this->state, [LoginState::SAML_UNSOLICITED  => '0']);
-            }
-
-            // Check inactivity timeout for authenticated sessions
-            if ($this->state[LoginState::PHASE] == LoginState::PHASE_GLPI_AUTH) {
-                $idpId = $this->state[LoginState::IDP_ID];
-                $inactivityTimeout = 0; // default (disabled)
-                if ($idpId && (int)$idpId > 0) {
-                    try {
-                        $configEntity = new \GlpiPlugin\Samlsso\Config\ConfigEntity((int)$idpId);
-                        if ($configEntity->isValid()) {
-                            $configInactivity = $configEntity->getField(\GlpiPlugin\Samlsso\Config\ConfigEntity::INACTIVITY_TIMEOUT);
-                            if ($configInactivity !== false && is_numeric($configInactivity)) {
-                                $inactivityTimeout = (int)$configInactivity;
-                            }
-                        }
-                    } catch (\Throwable $e) {
-                        // Keep default fallback
-                    }
-                }
-                if ($inactivityTimeout > 0) {
-                    $lastActivityTime = strtotime($this->state[LoginState::LAST_ACTIVITY]);
-                    if (time() - $lastActivityTime > ($inactivityTimeout * 60)) {
-                        $this->state[LoginState::PHASE] = LoginState::PHASE_TIMED_OUT;
-                    }
-                }
             }
 
             // Update latest activity
@@ -357,10 +326,11 @@ class LoginState extends CommonDBTM
     private function createInitialState(): bool
     {
         // Populate session using actual
-        $this->state = $this->state = array_merge($this->state, [
+        $this->state = array_merge($this->state, [
             LoginState::USER_ID           => 0,
             LoginState::SESSION_ID        => session_id(),
             LoginState::SESSION_NAME      => session_name(),
+            LoginState::LOGIN_DATETIME    => date('Y-m-d H:i:s'),
             LoginState::LOCATION          => '',
             LoginState::SAML_AUTHED       => 0,
             LoginState::ENFORCE_LOGOFF    => 0,
@@ -715,6 +685,23 @@ class LoginState extends CommonDBTM
     }
 
     /**
+     * Appends a trace entry to the in-memory state array without persisting to the database.
+     *
+     * @param array $condition Key/value trace data to append.
+     * @return void
+     */
+    private function appendTraceToState(array $condition): void
+    {
+        if (!empty($this->state[LoginState::LOGIN_FLOW_TRACE])) {
+            $trace = unserialize((string)$this->state[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false]);
+            $trace = is_array($trace) ? array_merge($trace, $condition) : $condition;
+        } else {
+            $trace = $condition;
+        }
+        $this->state[LoginState::LOGIN_FLOW_TRACE] = serialize($trace);
+    }
+
+    /**
      * Update the loginPhase in the state database.
      * @param int   $phase ID
      * @since       1.0.0
@@ -723,20 +710,7 @@ class LoginState extends CommonDBTM
     public function addLoginFlowTrace(array $condition): bool
     {
         if ($this->state[LoginState::STATE_ID]) {
-            if (!empty($this->state[LoginState::LOGIN_FLOW_TRACE])) {
-                $trace = unserialize($this->state[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false]);
-                if (is_array($trace)) {
-                    $trace = array_merge($trace, $condition);
-                } else {
-                    // We might lose data here, but given its a trace
-                    // we dont care to much. It should never happen though!
-                    $trace = $condition;
-                }
-            } else {
-                $trace = $condition;
-            }
-            // Serialize the new array for db storage;
-            $this->state[LoginState::LOGIN_FLOW_TRACE] = serialize($trace);
+            $this->appendTraceToState($condition);
             return ($this->update($this->state)) ? true : false;
         } else {
             throw new LoginStateException('Tried to add flow trace to non existing state');
@@ -1522,7 +1496,6 @@ class LoginState extends CommonDBTM
     public static function resetCleanupThrottle(): void
     {
         self::$lastAcsCleanupTime = 0;
-        self::$lastGlpiCleanupTime = 0;
     }
 
     /**
@@ -1599,121 +1572,6 @@ class LoginState extends CommonDBTM
                 LoginState::PHASE => LoginState::PHASE_TIMED_OUT
             ],
             $whereOrphan
-        );
-    }
-
-    /**
-     * Marks an individual ACS session state record as timed out and updates its trace.
-     *
-     * @param array $sessionState Row data from database
-     * @return void
-     */
-    private static function markAcsRecordTimedOut(array $sessionState): void
-    {
-        global $DB;
-
-        $trace = [];
-        if (!empty($sessionState[LoginState::LOGIN_FLOW_TRACE])) {
-            $unserialized = unserialize($sessionState[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false]);
-            if (is_array($unserialized)) {
-                $trace = $unserialized;
-            }
-        }
-        $trace['staleTimeout'] = __('Session was forcefully timed out by ACS evaluation.', PLUGIN_NAME);
-
-        $updateData = [
-            LoginState::STATE_ID          => $sessionState[LoginState::STATE_ID],
-            LoginState::PHASE             => LoginState::PHASE_TIMED_OUT,
-            LoginState::LOGIN_FLOW_TRACE  => serialize($trace)
-        ];
-
-        $DB->update(
-            LoginState::getTable(),
-            $updateData,
-            [LoginState::STATE_ID => $sessionState[LoginState::STATE_ID]]
-        );
-    }
-
-    /**
-     * Evaluates records in PHASE_GLPI_AUTH and transitions them to PHASE_TIMED_OUT if idle beyond inactivity_timeout.
-     * Throttled to run at most once every 5 minutes unless forced (Issues #151, #166).
-     *
-     * @param bool $force Force execution ignoring throttle timer
-     * @return void
-     */
-    public static function expireStaleGlpiSessions(bool $force = false): void
-    {
-        if (!$force && (time() - self::$lastGlpiCleanupTime) < 300) {
-            return;
-        }
-        self::$lastGlpiCleanupTime = time();
-
-        global $DB;
-
-        /**
-         * Query configurations that have inactivity_timeout enabled.
-         */
-        $configsTable = Config::getTable();
-        $configs = $DB->request([
-            'FROM'  => $configsTable,
-            'WHERE' => [
-                'inactivity_timeout' => ['>', 0],
-                'is_deleted'         => 0
-            ]
-        ]);
-
-        if ($configs) {
-            foreach ($configs as $cfg) {
-                $idpId = (int)$cfg['id'];
-                $timeoutMinutes = (int)$cfg['inactivity_timeout'];
-                $cutoff = date('Y-m-d H:i:s', time() - ($timeoutMinutes * 60));
-
-                $where = [
-                    LoginState::IDP_ID        => $idpId,
-                    LoginState::PHASE         => LoginState::PHASE_GLPI_AUTH,
-                    LoginState::LAST_ACTIVITY => ['<', $cutoff]
-                ];
-
-                $DB->update(
-                    LoginState::getTable(),
-                    [
-                        LoginState::PHASE => LoginState::PHASE_TIMED_OUT
-                    ],
-                    $where
-                );
-            }
-        }
-    }
-
-    /**
-     * Marks an individual GLPI session state record as timed out due to inactivity and updates its trace.
-     *
-     * @param array $sessionState Row data from database
-     * @return void
-     */
-    private static function markSessionInactivityTimedOut(array $sessionState): void
-    {
-        global $DB;
-
-        $trace = [];
-        if (!empty($sessionState[LoginState::LOGIN_FLOW_TRACE])) {
-            $unserialized = unserialize($sessionState[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false]);
-            if (is_array($unserialized)) {
-                $trace = $unserialized;
-            }
-        }
-        $trace['inactivityTimeout'] = __('Session was timed out due to inactivity.', PLUGIN_NAME);
-
-        $updateData = [
-            LoginState::STATE_ID          => $sessionState[LoginState::STATE_ID],
-            LoginState::PHASE             => LoginState::PHASE_TIMED_OUT,
-            LoginState::LOGIN_FLOW_TRACE  => serialize($trace)
-        ];
-
-        $DB->update(
-            LoginState::getTable(),
-            $updateData,
-            [LoginState::STATE_ID => $sessionState[LoginState::STATE_ID]]
         );
     }
 

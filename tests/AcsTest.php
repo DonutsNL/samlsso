@@ -834,6 +834,48 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ ACS: per-flow anti-CSRF token validation verified (Issue #180)\n";
         }
+
+        /**
+         * Test that a SAMLResponse violating request_timeout (PHASE_TIMED_OUT) is rejected
+         * with a clear error message and redirects the user to /index.php?noAuto=1 (Issue #192).
+         */
+        public function testRequestTimeoutRedirectsToLoginWithNoAuto(): void {
+            global $CFG_GLPI;
+            $CFG_GLPI['url_base'] = 'https://glpi.local';
+            \Session::$messages = [];
+
+            Response::$mockId = 'UNIQUE_RESPONSE_ID_TIMEOUT_1';
+            Response::$mockInResponseTo = 'REQ_ID_TIMEOUT_1';
+            Response::$mockValid = true;
+
+            $state = new \GlpiPlugin\Samlsso\Loginstate('REQ_ID_TIMEOUT_1');
+            $state->setIdpId(5);
+            $state->setRequestId('REQ_ID_TIMEOUT_1');
+            $state->setPhase(Loginstate::PHASE_TIMED_OUT);
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
+
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId'        => 5
+            ]);
+
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have rejected timed-out SAML response and redirected.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'Redirect to: https://glpi.local/index.php?noAuto=1')) {
+                    throw new \Exception("Expected redirect to /index.php?noAuto=1 on request timeout, got: " . $e->getMessage());
+                }
+            }
+
+            if (empty(\Session::$messages) || !str_contains(\Session::$messages[0], 'Your SAML authentication request timed out')) {
+                throw new \Exception("Expected timeout error message in Session::\$messages, got: " . var_export(\Session::$messages, true));
+            }
+
+            echo "✅ ACS: timed-out SAMLResponse rejected with error message and redirected to /index.php?noAuto=1 (Issue #192)\n";
+        }
     }
 }
 
@@ -882,6 +924,7 @@ namespace {
         $runTest('testStateIdpMismatchRejected');
         $runTest('testAcsRejectsGetRequest');
         $runTest('testLoginCsrfFlowTokenValidation');
+        $runTest('testRequestTimeoutRedirectsToLoginWithNoAuto');
         $runTest('testPhaseErrorTransitionOnFailure');
         $runTest('testIdpInitiatedUnsolicitedLogin');
         $runTest('testSuccessfulAcsLogin');
