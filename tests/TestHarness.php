@@ -868,8 +868,6 @@ namespace GlpiPlugin\Samlsso {
             public const IDP_ID                     = 'idpId';
             public const LOGIN_DATETIME             = 'loginTime';
             public const LAST_ACTIVITY              = 'lastClickTime';
-            public const ENFORCE_LOGOFF             = 'enforceLogoff';
-            public const SAML_RESPONSE              = 'serverParams';
             public const SAML_REQUEST               = 'requestParams';
             public const SAML_REQUEST_ID            = 'requestId';
             public const SAML_UNSOLICITED           = 'requesUnsol';

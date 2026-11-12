@@ -53,3 +53,4 @@
 | `src/Utility/SanityChecker.php` | `tests/SanityCheckerTest.php` |
 | `src/compat.php`, `setup.php` | `tests/Glpi12CompatTest.php`, `tests/GlpiComplianceTest.php`, `tests/VersionAndCopyrightTest.php` |
 | `hook.php` (`install` / `uninstall` / migrations) | `tests/LifecycleIntegrityTest.php`, `tests/DatabaseUpdateTest.php` |
+

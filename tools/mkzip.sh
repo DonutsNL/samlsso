@@ -47,7 +47,7 @@ if [ -d "$GLPIPATH" ]; then
 	
 	cd $GLPIPATH;
 	if [ -d './samlsso' ]; then
-		zip -r ./samlsso/release/samlsso.zip ./samlsso -x "*/tools/*" "*/locales/*.po" "*/locales/*.pot" "*/locales/*.po~" "*/locales/*.mo~" "*/tests/*" "*/samlsso.xml" "*/.vscode/*" "*/.gitignore" "*/.github/*" "*/.git/*" "*/release/*" "*/composer.lock" "*/vendor/bin/*" "*/vendor/myclabs/*" "*/vendor/nikic/*" "*/vendor/phar-io/*" "*/vendor/phpunit/*" "*/vendor/sebastian/*" "*/vendor/theseer/*" "*superpowers*"
+		zip -r ./samlsso/release/samlsso.zip ./samlsso -x "*/tools/*" "*/docs/*" "*/templates/images/*" "*/locales/*.po" "*/locales/*.pot" "*/locales/*.po~" "*/locales/*.mo~" "*/tests/*" "*/samlsso.xml" "*/.vscode/*" "*/.gitignore" "*/.github/*" "*/.git/*" "*/release/*" "*/composer.lock" "*/vendor/bin/*" "*/vendor/myclabs/*" "*/vendor/nikic/*" "*/vendor/phar-io/*" "*/vendor/phpunit/*" "*/vendor/sebastian/*" "*/vendor/theseer/*" "*superpowers*"
 	else
 		echo "/samlsso not found at $(pwd)";
 	fi

@@ -27,3 +27,4 @@
 - **GitHub CLI (`gh`) & `git push`**: Always prefix network CLI commands with `HTTPS_PROXY= HTTP_PROXY= ALL_PROXY= https_proxy= http_proxy= all_proxy=` to bypass dead local `socks5h` proxy variables.
 - **No `sudo` & No Direct Cache Clearing**: Never run `sudo` or clear the GLPI cache directly; ask the user if cache clearing is needed.
 - **Release Branch Safety**: Work and push verified fixes on version branches (e.g. `1.3.2`). Never merge to `main` or update `samlsso.xml` on `main` until a release is officially approved.
+

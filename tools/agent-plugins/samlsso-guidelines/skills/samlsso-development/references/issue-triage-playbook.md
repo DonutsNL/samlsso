@@ -56,3 +56,4 @@ Use this playbook when analyzing reported GitHub issues or feature requests to e
 - **Architectural Rule**: SAML assertions may never automatically hijack local GLPI database accounts (`authtype = Auth::DB_GLPI`) or the `glpi` super-admin account (`ADR 0004`).
 - **How It Works & How to Respond**:
   - Explain that automatic email/username linking to local accounts is blocked to prevent Account Takeover (ATO). Existing users must either be provisioned via JIT or have their GLPI authentication source updated to External (`authtype = Auth::EXTERNAL`, `auths_id = <idpId>`) by an administrator before `sync_on_login` links them.
+

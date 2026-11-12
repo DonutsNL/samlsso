@@ -46,7 +46,6 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Samlsso\Config;
 
-use DateTime;
 use DateTimeImmutable;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
 
@@ -66,7 +65,6 @@ class ConfigItem    //NOSONAR
     public const VALUE      = 'value';                                  // Database value
     public const VALID      = 'valid';                                  // Is content valid?
     public const INVALID    = 'invalid';                                // Is content invalid?
-    public const RICHVALUE  = 'richvalue';                              // Rich values (like date object)
     public const EVAL       = 'eval';                                   // Evaluated properties
     public const ERRORS     = 'errors';                                 // Encountered problems notnull will prevent DB update/inserts
     public const VALIDATE   = 'validate';                               // Could either be string or array
@@ -473,7 +471,6 @@ class ConfigItem    //NOSONAR
             ConfigItem::VALUE     => (string) $var,
             ConfigItem::FIELD     => __function__,
             ConfigItem::VALIDATOR => __method__,
-            ConfigItem::RICHVALUE => new DateTime($var),
             ConfigItem::ERRORS    => false
         ];
     }
@@ -488,7 +485,6 @@ class ConfigItem    //NOSONAR
             ConfigItem::VALUE     => (string) $var,
             ConfigItem::FIELD     => __function__,
             ConfigItem::VALIDATOR => __method__,
-            ConfigItem::RICHVALUE => new DateTime($var),
             ConfigItem::ERRORS    => false
         ];
     }

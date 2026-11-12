@@ -133,8 +133,6 @@ function samlsso_plugin_web_dir(): string                                       
     return rtrim(samlsso_webdir(true), '/');
 }
 
-define('PLUGIN_SAMLSSO_WEBDIR', samlsso_webdir());
-
 
 // METHODS
 /**
@@ -147,7 +145,6 @@ function plugin_samlsso_boot(): void
 {
     SessionManager::RegisterPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::ACS_ROUTE . '/#');
     SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::SLO_ROUTE . '#');
-    SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/front/slo/#');
 }
 
 /**

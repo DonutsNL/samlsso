@@ -55,8 +55,6 @@ use Html;
 use Session;
 use Toolbox;
 use Throwable;
-use Migration;
-use GlpiPlugin\Samlsso\Compat\LoginFlowCompat;
 use OneLogin\Saml2\Auth as samlAuth;
 use OneLogin\Saml2\Response;
 use Glpi\Application\View\TemplateRenderer;
@@ -67,37 +65,13 @@ use GlpiPlugin\Samlsso\Controller\SamlSsoController;
 use GlpiPlugin\Samlsso\LoginFlow\User;
 use GlpiPlugin\Samlsso\LoginFlow\Auth as GlpiAuth;
 
-// Version-selected compatibility layer (GLPI 11 untyped / GLPI 12 typed core
-// properties). Must be required before the class below extends LoginFlowCompat.
-require_once __DIR__ . '/compat.php';
-
 /**
  * This object brings it all together. It is responsible to handle the
  * main logic concerned with the Saml login and logout flows.
  * it will call upon various supporting objects to perform its tasks.
- *
- * $dohistory (true) and $rightname ('config') are carried by LoginFlowCompat,
- * version-typed for GLPI 11 and GLPI 12; redeclaring them here would be a
- * fatal type-invariance error on one of the two cores.
  */
-class LoginFlow extends LoginFlowCompat
+class LoginFlow
 {
-    // Database fields
-    public const ID                 =   'id';
-    public const DEBUG              =   'debug';
-    public const ENFORCED           =   'enforced';
-    public const ENFORCED_IDP       =   'forcedIdp';
-    public const EN_GETTER_LOGIN    =   'enableGetterLogin';
-    public const EN_GLPI_LOGIN      =   'enableGlpiLogin';
-    public const EN_SAML_BUTTONS    =   'enableSamlButtons';
-    public const EN_USERNAME_LOGIN  =   'enableUsername';
-    public const CUSTOM_LOGIN_TPL   =   'useCustomLoginTemplate';
-    public const BYPASS_VAR         =   'byPassVar';
-    public const BYPASS_STR         =   'byPassString';
-    public const EN_IDP_LOGOUT      =   'enableIdpLogout';
-    public const ENF_AUTH_AFTER     =   'enforceReAuthAfterIdle';       // Time in minutes that session is allowed to idle before forcing reAuth
-    public const BLK_AFTER_LOGOUT   =   'blockAfterEnfocedLogout';      // Time to block user after he/she was forcefully logged out.
-
     // https://codeberg.org/QuinQuies/glpisaml/issues/37
     public const POSTFIELD   = 'samlIdpId';
     public const GETFIELD    = 'samlIdpId';
@@ -122,67 +96,6 @@ class LoginFlow extends LoginFlowCompat
      * @var bool
      */
     public static bool $throwOnError = false;
-
-    /**
-     * Holds the captured user piripheral name if any.
-     * @var string subject
-     */
-    protected ?string $subject;
-
-    /**
-     * Overloads missing canCreate Setup right and returns canUpdate instead
-     *
-     * @return bool     Returns true if profile assigned Setup->Setup->Update right
-     * @see             https://github.com/pluginsGLPI/example/issues/50
-     */
-    public static function canCreate(): bool
-    {
-        return (bool) static::canUpdate();
-    }
-
-    /**
-     * Overloads missing canDelete Setup right and returns canUpdate instead
-     *
-     * @return bool     Returns true if profile assigned Setup->Setup->Update right
-     * @see             https://github.com/pluginsGLPI/example/issues/50
-     */
-    public static function canDelete(): bool
-    {
-        return (bool) static::canUpdate();
-    }
-
-    /**
-     * Overloads missing canPurge Setup right and returns canUpdate instead
-     *
-     * @return bool     Returns true if profile assigned Setup->Setup->Update right
-     * @see             https://github.com/pluginsGLPI/example/issues/50
-     */
-    public static function canPurge(): bool
-    {
-        return (bool) static::canUpdate();
-    }
-
-    /**
-     * returns class friendly TypeName.
-     *
-     * @param  int      $nb return plural or singular friendly name.
-     * @return string   returns translated friendly name.
-     */
-    public static function getTypeName($nb = 0): string
-    {
-        return __('samlFlow', PLUGIN_NAME);
-    }
-
-    /**
-     * Returns class icon to use in menus and tabs
-     *
-     * @return string   returns Font Awesome icon className.
-     * @see             https://fontawesome.com/search
-     */
-    public static function getIcon(): string
-    {
-        return 'fa-fw fas fa-sign-in-alt';
-    }
 
     // LOGIN FLOW AFTER PRESSING A IDP BUTTON.
     /**
@@ -461,7 +374,6 @@ class LoginFlow extends LoginFlowCompat
                 $id = Config::getConfigIdByEmailDomain($_POST[$key]);
                 if ($id) {
                     $this->state->addLoginFlowTrace(['loginViaUserfield' => 'user:' . $_POST[$key] . ',idpId:' . $id]);
-                    $this->subject = $_POST[$key];
                     return (int)$id;
                 }
             }
@@ -920,68 +832,4 @@ class LoginFlow extends LoginFlowCompat
         );
         exit;
     }
-
-    /**
-     * Install the LoginFlow DB table
-     * @param   Migration $obj
-     * @return  void
-     * @since   1.0.0
-     */
-
-    /*  //NOSONAR - This is in preparation of version 1.2.0 but should not YET be processed by
-        //          the hook.php install
-    public static function install(Migration $migration) : void
-    {
-        global $DB;
-        $default_charset = DBConnection::getDefaultCharset();
-        $default_collation = DBConnection::getDefaultCollation();
-        $default_key_sign = DBConnection::getDefaultPrimaryKeySignOption();
-
-        $table = LoginState::getTable();
-
-        // Create the base table if it does not yet exist;
-        // Do not update this table for later versions, use the migration class;
-        if (!$DB->tableExists($table)) {
-            // Create table
-            $query = <<<SQL
-            CREATE TABLE IF NOT EXISTS `$table` (
-                `id`                        int {$default_key_sign} NOT NULL AUTO_INCREMENT,
-                `debug`                     tinyint NOT NULL DEFAULT 0,
-                `enforced`                  tinyint NOT NULL DEFAULT 0,
-                `forcedIdp`                 int DEFAULT -1,
-                `enableGetterLogin`         tinyint NOT NULL DEFAULT 0,
-                `hideGlpiLogin`             tinyint NOT NULL DEFAULT 0,
-                `hideSamlButtons`           tinyint NOT NULL DEFAULT 0,
-                `hideUsername`              tinyint NOT NULL DEFAULT 0,
-                `useCustomLoginTemplate`    varchar(255) NULL,
-                `byPassString`              varchar(255) DEFAULT '1',
-                `byPassVar`                 varchar(255) DEFAULT 'bypass',
-                `enableIdpLogout`           tinyint NOT NULL DEFAULT 0,
-                `enforceReAuthAfterIdle`    int NOT NULL DEFAULT -1,                        // Time in minutes that session is allowed to idle before forcing reAuth
-                `blockAfterEnfocedLogout`   int NOT NULL DEFAULT -1,                        // Time to block user after he/she was forcefully logged out.
-                PRIMARY KEY (`id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
-            Session::addMessageAfterRedirect("🆗 Installed: $table.");
-        }
-    }
-    */
-
-    /**
-     * Uninstall the LoginState DB table
-     * @param   Migration $obj
-     * @return  void
-     * @since   1.0.0
-     */
-
-    /*  //NOSONAR - This is in preparation of version 1.2.0 but should not YET be processed by
-        //          the hook.php install
-    public static function uninstall(Migration $migration) : void
-    {
-        $table = LoginState::getTable();
-        $migration->dropTable($table);
-        Session::addMessageAfterRedirect("🆗 Removed: $table.");
-    }
-    */
 }

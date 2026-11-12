@@ -56,7 +56,6 @@ use GlpiPlugin\Samlsso\LoginState;                                      //
 use GlpiPlugin\Samlsso\LoginFlow\Acs;                                   // Required to call the ACS object
 use GlpiPlugin\Samlsso\LoginFlow\Meta;                                  // Required to call Exclude object
 use GlpiPlugin\Samlsso\Config\ConfigForm;                               // Required to call Config object
-use GlpiPlugin\Samlsso\LoginFlow\LoginFlowForm;                         //
 use Glpi\Application\View\TemplateRenderer;
 
 
@@ -150,22 +149,6 @@ final class SamlSsoController extends AbstractController
     public function configform(Request $request): Response
     {
         return (new ConfigForm)->invokeForm($request);
-    }
-
-
-    ####################################################################
-    // LoginFlowConfig
-    public const FLOWFORM_FILE = 'front/loginflow.form.php';
-    public const FLOWFORM_ROUTE= 'front/flowconfig';                    // Route being registered by __class__
-    public const FLOWFORM_NAME = 'flowMain';                            // Route name
-    public const FLOWFORM_PNAME= 'config';                              // Parent object name
-    #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
-    #[Route(self::FLOWFORM_ROUTE, name: self::FLOWFORM_NAME)]           // Decorator to register route to controller
-    #[Route(self::FLOWFORM_FILE, name: self::FLOWFORM_NAME.'_file')]    // Decorator to register old route to handle GLPI generated menu's
-    public function loginflow(Request $request): Response               // What to do if route is invoked.
-    {
-        (new LoginFlowForm)->init();                                   // Call the ACS handler.
-        return new Response();
     }
 
 

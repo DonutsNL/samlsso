@@ -126,15 +126,6 @@ namespace GlpiPlugin\Samlsso\Compat {
         }
 
         /**
-         * LoginFlow intermediate: 'config' rights + history on, GLPI 12 typing.
-         */
-        abstract class LoginFlowCompat extends CommonDBTM
-        {
-            public bool $dohistory = true;
-            public static string $rightname = 'config';
-        }
-
-        /**
          * Exclude intermediate: dropdown item using 'config' rights, GLPI 12 typing.
          * $dohistory repeats the CommonDropdown default (same type, same value) so
          * the behaviour also holds against untyped test doubles of the parent.
@@ -187,15 +178,6 @@ namespace GlpiPlugin\Samlsso\Compat {
             public $dohistory = true;
             public static $rightname = 'config';
             public static $undisclosedFields = ['sp_private_key'];
-        }
-
-        /**
-         * LoginFlow intermediate: 'config' rights + history on, GLPI 11 shape.
-         */
-        abstract class LoginFlowCompat extends CommonDBTM
-        {
-            public $dohistory = true;
-            public static $rightname = 'config';
         }
 
         /**

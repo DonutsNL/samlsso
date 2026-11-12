@@ -50,7 +50,7 @@ if (php_sapi_name() !== 'cli' && !defined('GLPI_ROOT')) {
 }
 
 // Bootstrap Composer autoloader
-require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
+require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 use GlpiPlugin\Samlsso\Utility\GeoIPUpdater;
 

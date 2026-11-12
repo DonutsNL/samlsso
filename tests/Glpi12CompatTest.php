@@ -97,7 +97,6 @@ namespace GlpiPlugin\Samlsso\Tests {
                 'version gate helper' => 'function samlsso_glpi12(): bool',
                 'GLPI 12 major threshold' => "'12.0.0'",
                 'ConfigCompat' => 'abstract class ConfigCompat extends CommonDBTM',
-                'LoginFlowCompat' => 'abstract class LoginFlowCompat extends CommonDBTM',
                 'ExcludeCompat' => 'abstract class ExcludeCompat extends CommonDropdown',
                 'RuleSamlCompat' => 'abstract class RuleSamlCompat extends Rule',
                 'RuleSamlCollectionCompat' => 'abstract class RuleSamlCollectionCompat extends RuleCollection',
@@ -133,7 +132,6 @@ namespace GlpiPlugin\Samlsso\Tests {
             $bindings = [
                 'src/Config.php' => ['Config', 'ConfigCompat'],
                 'src/Exclude.php' => ['Exclude', 'ExcludeCompat'],
-                'src/LoginFlow.php' => ['LoginFlow', 'LoginFlowCompat'],
                 'src/RuleSaml.php' => ['RuleSaml', 'RuleSamlCompat'],
                 'src/RuleSamlCollection.php' => ['RuleSamlCollection', 'RuleSamlCollectionCompat'],
             ];
