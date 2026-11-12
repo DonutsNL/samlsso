@@ -162,7 +162,7 @@ function plugin_samlsso_install(): bool                                         
     $version   = plugin_version_samlsso();
     $migration = new Migration($version['version']);
 
-    Session::addMessageAfterRedirect(__('🆗 Installing version:' . PLUGIN_SAMLSSO_VERSION, PLUGIN_NAME));
+    Session::addMessageAfterRedirect(sprintf(__('🆗 Installing version: %s', PLUGIN_NAME), PLUGIN_SAMLSSO_VERSION));
 
     /**
      * Warn if PHP memory_limit is below 512 MB. The OneLogin SAML library
@@ -236,12 +236,8 @@ function plugin_samlsso_install(): bool                                         
          * Deactivate the plugin immediately to ensure it remains disabled.
          */
         $pluginObj = new \Plugin();
-        if (method_exists($pluginObj, 'unactivate')) {
-            if ($pluginObj->getFromDBByCrit(['directory' => 'samlsso'])) {
-                $pluginObj->unactivate((int)$pluginObj->fields['id']);
-            }
-        } elseif (method_exists($pluginObj, 'deactivate')) {
-            $pluginObj->deactivate('samlsso');
+        if (method_exists($pluginObj, 'unactivate') && $pluginObj->getFromDBByCrit(['directory' => 'samlsso'])) {
+            $pluginObj->unactivate((int)$pluginObj->fields['id']);
         }
         return false;
     }

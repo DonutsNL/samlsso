@@ -56,9 +56,11 @@ namespace GlpiPlugin\Samlsso;
 require_once __DIR__ . '/Utility/GeoIPResolver.php';
 
 use Session;
+use Throwable;
 use Migration;
 use CommonDBTM;
 use DBConnection;
+use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\Exception\LoginStateException;
 
 /*
@@ -379,6 +381,50 @@ class LoginState extends CommonDBTM
     }
 
     /**
+     * Safely resolves the client IP address, trusting HTTP_X_FORWARDED_FOR only when
+     * reverse-proxy mode is explicitly enabled on an active IdP configuration.
+     *
+     * @return string Validated IP address or 'CLI', truncated to 255 bytes.
+     */
+    private function resolveClientIp(): string
+    {
+        $remote = isset($_SERVER['REMOTE_ADDR']) && is_string($_SERVER['REMOTE_ADDR'])
+            ? trim($_SERVER['REMOTE_ADDR'])
+            : 'CLI';
+
+        $trustForwarded = false;
+        $currentIdpId = (int)($this->state[LoginState::IDP_ID] ?? 0);
+        if ($currentIdpId > 0) {
+            try {
+                $entity = new ConfigEntity($currentIdpId);
+                $trustForwarded = (bool)$entity->getField(ConfigEntity::PROXIED);
+            } catch (Throwable $e) {
+                $trustForwarded = false;
+            }
+        } elseif (method_exists(Config::class, 'isProxiedActive')) {
+            try {
+                $trustForwarded = Config::isProxiedActive();
+            } catch (Throwable $e) {
+                $trustForwarded = false;
+            }
+        }
+
+        if ($trustForwarded && !empty($_SERVER['HTTP_X_FORWARDED_FOR']) && is_string($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+            $candidate = trim($parts[0]);
+            if (filter_var($candidate, FILTER_VALIDATE_IP) !== false) {
+                $remote = $candidate;
+            }
+        }
+
+        if ($remote !== 'CLI' && filter_var($remote, FILTER_VALIDATE_IP) === false) {
+            $remote = 'CLI';
+        }
+
+        return substr($remote, 0, 255);
+    }
+
+    /**
      * Get client IP and resolve country if not already set.
      *
      * @return void
@@ -389,14 +435,7 @@ class LoginState extends CommonDBTM
             return;
         }
 
-        $altUser = (isset($_SERVER['REMOTE_ADDR'])) ? $_SERVER['REMOTE_ADDR'] : 'CLI';
-        $remote = (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : $altUser;
-
-        if (str_contains($remote, ',')) {
-            $parts = explode(',', $remote);
-            $remote = trim($parts[0]);
-        }
-
+        $remote = $this->resolveClientIp();
         $this->state[LoginState::CLIENT_IP] = $remote;
         $this->state[LoginState::CLIENT_COUNTRY] = \GlpiPlugin\Samlsso\Utility\GeoIPResolver::resolveCountry($remote);
     }
@@ -929,11 +968,12 @@ class LoginState extends CommonDBTM
             return;
         }
 
-        // Use remote ip as username if session is anonymous.
+        // Use validated client IP as username if session is anonymous.
         // https://codeberg.org/QuinQuies/glpisaml/issues/18
-        $altUser = (isset($_SERVER['REMOTE_ADDR'])) ? $_SERVER['REMOTE_ADDR'] : 'CLI';
-        $remote = (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : $altUser;
-        $this->state[LoginState::USER_NAME] = (!empty($_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR])) ? $_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR] : $remote;
+        $remote = $this->resolveClientIp();
+        $this->state[LoginState::USER_NAME] = (!empty($_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR]))
+            ? substr((string)$_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR], 0, 255)
+            : $remote;
 
         // Populate GLPI User ID once authenticated
         if (!empty($_SESSION['glpiID'])) {

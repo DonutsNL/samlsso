@@ -766,6 +766,16 @@ namespace GlpiPlugin\Samlsso {
             }
 
             /**
+             * Check if any active IdP operates behind a reverse proxy.
+             *
+             * @return bool True if proxied active.
+             */
+            public static function isProxiedActive(): bool
+            {
+                return self::$mockConfig['proxied'] ?? false;
+            }
+
+            /**
              * Check if traditional login fields should be hidden.
              *
              * @return bool True if hidden.

@@ -179,11 +179,6 @@ namespace GlpiPlugin\Samlsso\Tests {
                         continue;
                     }
 
-                    // Skip User.php since all its missing translation domains are false positives (logging and database comments)
-                    if (basename($filePath) === 'User.php') {
-                        continue;
-                    }
-
                     $content = file_get_contents($filePath);
                     if ($content === false) {
                         continue;
@@ -287,10 +282,6 @@ namespace GlpiPlugin\Samlsso\Tests {
                         if (is_array($token) && $token[0] === T_EXIT) {
                             $line = $token[2];
                             $lineContent = $lines[$line - 1] ?? '';
-                            // Allow 'or die($DB->error())' legacy patterns in migrations/setup
-                            if (str_contains($lineContent, 'or die($DB->error())') || str_contains($lineContent, 'or die ($DB->error())')) {
-                                continue;
-                            }
                             // Allow exit in LoginFlow.php as it manages the terminal redirection and error rendering endpoints
                             if (basename($filePath) === 'LoginFlow.php' && (trim($lineContent) === 'exit;' || trim($lineContent) === 'exit();')) {
                                 continue;

@@ -421,16 +421,13 @@ class Acs extends LoginFlow
             ($currentAssertionId !== '' && !$this->state->checkResponseIdUnique($currentAssertionId))
         ) {
             $this->printError(
-                sprintf(__("It looks like this samlResponse has already been used to authenticate a different user.
-                    Maybe an error occurred and you pressed F5 and accidently resend the samlResponse that is
-                    already registered as processed. For security reasons we can not allow processed samlResponses
-                    to be processed again. Please login again to generate a new samlResponse. Sorry for any inconvenience.
-                    If the problem presists, then please contact your administrator.
-                    See: %s for more information", PLUGIN_NAME), 'https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php'),
+                sprintf(
+                    __('It looks like this samlResponse has already been used to authenticate a different user. Maybe an error occurred and you pressed F5 and accidently resend the samlResponse that is already registered as processed. For security reasons we can not allow processed samlResponses to be processed again. Please login again to generate a new samlResponse. Sorry for any inconvenience. If the problem presists, then please contact your administrator. See: %s for more information', PLUGIN_NAME),
+                    'https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php'
+                ),
                 __('Samlsso->acs->assertSaml->LoginState::checkResponseIdUnique', PLUGIN_NAME),
                 Acs::EXTENDED_HEADER .
-                    "samlResponse with registered ID was replayed in acs.php. Possibly the user pressed F5 when encountering
-                    a different error or the response was send successively to the acs\n\n" .
+                    "samlResponse with registered ID was replayed in acs.php. Possibly the user pressed F5 when encountering a different error or the response was send successively to the acs\n\n" .
                     Acs::SERVER_OBJ . $this->getSafeServerContext() . "\n\n" .
                     Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
                     Acs::RESPONSE_OBJ . ($this->debug
@@ -484,10 +481,10 @@ class Acs extends LoginFlow
 
         if ($this->state->getPhase() != LoginState::PHASE_SAML_ACS) {
             $this->printError(
-                sprintf(__("GLPI did not expect an assertion from this Idp. The most likely reason is a race condition
-                    causing an inconsistant loginState in the database or software bug. Please login again via the
-                    GLPI-interface. Sorry for the inconvenience. See: %s
-                    for more information", PLUGIN_NAME), 'https://github.com/DonutsNL/samlsso/wiki/Unsollicited-%E2%80%90-IdP-initiated-login-flows'),
+                sprintf(
+                    __('GLPI did not expect an assertion from this Idp. The most likely reason is a race condition causing an inconsistant loginState in the database or software bug. Please login again via the GLPI-interface. Sorry for the inconvenience. See: %s for more information', PLUGIN_NAME),
+                    'https://github.com/DonutsNL/samlsso/wiki/Unsollicited-%E2%80%90-IdP-initiated-login-flows'
+                ),
                 __('Samlsso->acs->assertSaml->PhaseMismatched', PLUGIN_NAME),
                 Acs::EXTENDED_HEADER .
                     sprintf(
@@ -504,8 +501,7 @@ class Acs extends LoginFlow
         try {
             $this->state->setPhase(LoginState::PHASE_SAML_AUTH);
         } catch (Throwable $e) {
-            $this->printError(__("An error occured while trying to update the login phase to LoginState::PHASE_SAML_AUTH  into the LoginState database.
-                                  Review the saml log for more details", PLUGIN_NAME), __('LoginState', PLUGIN_NAME), "The following error was reported: $e");
+            $this->printError(__('An error occured while trying to update the login phase to LoginState::PHASE_SAML_AUTH into the LoginState database. Review the saml log for more details', PLUGIN_NAME), __('LoginState', PLUGIN_NAME), "The following error was reported: $e");
         }
 
         // Perform validation check moved to top of method for security.

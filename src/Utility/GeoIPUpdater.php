@@ -77,12 +77,24 @@ class GeoIPUpdater
 
         self::log("Compiling CSV data to optimized binary format...", $task);
 
-        $count = self::compileDbIpLite($task, $tempGz, $destFile);
+        $tempBin = $destFile . '.tmp.' . bin2hex(random_bytes(4));
+        $count = self::compileDbIpLite($task, $tempGz, $tempBin);
         if (file_exists($tempGz)) {
             unlink($tempGz);
         }
 
         if ($count < 0) {
+            if (file_exists($tempBin)) {
+                unlink($tempBin);
+            }
+            return false;
+        }
+
+        if ($count === 0 || !file_exists($tempBin) || filesize($tempBin) === 0 || !rename($tempBin, $destFile)) {
+            self::log("Error: compiled GeoIP database was empty or could not be atomically moved to $destFile.", $task);
+            if (file_exists($tempBin)) {
+                unlink($tempBin);
+            }
             return false;
         }
 
@@ -116,6 +128,13 @@ class GeoIPUpdater
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+            if (defined('CURLPROTO_HTTPS')) {
+                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+                curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS);
+            }
             curl_setopt($ch, CURLOPT_TIMEOUT, 60);
             $data = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);

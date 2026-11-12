@@ -126,7 +126,6 @@ final class SamlSsoController extends AbstractController
     public const CONFIG_NAME     = 'configMain';                        // Route name
     public const CONFIG_PNAME    = 'config';                            // Parent object name
 
-    //#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                  // Decorator to disable authentication check
     #[Route(self::CONFIG_ROUTE, name: self::CONFIG_NAME)]               // Decorator to register route to controller
     #[Route(self::CONFIG_FILE, name: self::CONFIG_NAME.'_file')]        // Decorator to register old route to handle GLPI generated menu's
     public function config(Request $request): Response                  // What to do if route is invoked.
@@ -143,7 +142,6 @@ final class SamlSsoController extends AbstractController
     public const CONFIGFORM_ROUTE= 'front/config/form';                 // Route being registered by __class__
     public const CONFIGFORM_NAME = 'configForm';                        // Route name
     public const CONFIGFORM_PNAME= 'config';                            // Parent object name
-    //#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                  // Decorator to disable authentication check
     #[Route(self::CONFIGFORM_ROUTE, name: self::CONFIGFORM_NAME)]       // Decorator to register route to controller
     #[Route(self::CONFIGFORM_FILE, name: self::CONFIGFORM_NAME.'_file')]// Decorator to register old route to handle GLPI generated menu's
     public function configform(Request $request): Response
@@ -157,12 +155,13 @@ final class SamlSsoController extends AbstractController
     public const EXCLUDE_ROUTE = 'front/exclude';                       // Route being registered by __class__
     public const EXCLUDE_NAME  = 'excludeMain';                         // Route name
     public const EXCLUDE_PNAME = 'config';                              // Parent object name
-    #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::EXCLUDE_ROUTE, name: self::EXCLUDE_NAME)]             // Decorator to register route to controller
     public function exclude(): Response                                 // What to do if route is invoked.
     {
-        (new Exclude)->invoke();                                       // Call the ACS handler.
-        return new Response();
+        ob_start();
+        (new Exclude)->invoke();
+        $content = ob_get_clean();
+        return new Response((string)$content);
     }
 
 
@@ -178,22 +177,24 @@ final class SamlSsoController extends AbstractController
     public const RULESFORM_PNAME= 'config';                             // Parent object name
 
 
-    #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::RULES_ROUTE, name: self::RULES_NAME)]                 // Decorator to register route to controller
     #[Route(self::RULES_FILE, name: self::RULES_NAME.'_file')]          // Decorator to register route to controller
     public function __invoke(Request $request): Response                // What to do if route is invoked.
     {
-        (new RuleSaml)->invoke();                                      // Call the ACS handler.
-        return new Response();
+        ob_start();
+        (new RuleSaml)->invoke();
+        $content = ob_get_clean();
+        return new Response((string)$content);
     }
 
-    #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::RULESFORM_ROUTE, name: self::RULESFORM_NAME)]         // Decorator to register route to controller
     #[Route(self::RULESFORM_FILE, name: self::RULESFORM_NAME.'_file')]  // Decorator to register route to controller
     public function itemform(Request $request): Response                // What to do if route is invoked.
     {
-        (new RuleSaml)->invokeForm();                                  // Call the ACS handler.
-        return new Response();
+        ob_start();
+        (new RuleSaml)->invokeForm();
+        $content = ob_get_clean();
+        return new Response((string)$content);
     }
 
 }

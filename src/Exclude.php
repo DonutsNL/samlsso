@@ -357,73 +357,71 @@ class Exclude extends ExcludeCompat
                 PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass Cron.php', 'backport configuration', '1', '', '/front/cron.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
 
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass Inventory.php', '', '1', '', 'front/inventory.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
+            $defaultExcludes = [
+                ['Bypass Cron.php', 'backport configuration', '1', '', '/front/cron.php'],
+                ['Bypass Inventory.php', '', '1', '', 'front/inventory.php'],
+                ['Bypass ldap_mass_sync.php', '', '1', '', 'ldap_mass_sync.php'],
+                ['Bypass apirest.php', '', '1', '', 'apirest.php'],
+                ['Bypass all fusioninventory files', '', '1', '', '/fusioninventory/'],
+                // https://codeberg.org/QuinQuies/glpisaml/issues/36
+                ['Bypass dashboard.php', '', '1', '', 'dashboard.php'],
+            ];
 
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass ldap_mass_sync.php', '', '1', '', 'ldap_mass_sync.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
-
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass apirest.php', '', '1', '', 'apirest.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
-
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass all fusioninventory files', '', '1', '', '/fusioninventory/');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
-
-
-            // insert default excludes;
-            // https://codeberg.org/QuinQuies/glpisaml/issues/36
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass dashboard.php', '', '1', '', 'dashboard.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
+            foreach ($defaultExcludes as [$name, $comment, $action, $agent, $path]) {
+                $insertSql = sprintf(
+                    "INSERT INTO `%s` (name, comment, action, ClientAgent, ExcludePath) VALUES ('%s', '%s', '%s', '%s', '%s');",
+                    $table,
+                    $name,
+                    $comment,
+                    $action,
+                    $agent,
+                    $path
+                );
+                if (!$DB->doQuery($insertSql)) {
+                    throw new \RuntimeException($DB->error());
+                }
+            }
+        } else {
+            $migration->migrationOneTable($table);
         }
 
         // Version 1.2.3 add exclude for GLPI11
         // https://github.com/DonutsNL/samlsso/issues/32
-        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/ajax/webhook.php']]) or die($DB->error());
+        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/ajax/webhook.php']]);
+        if (!$result) {
+            throw new \RuntimeException($DB->error());
+        }
         if ($result->numrows() === 0) {
             $query = <<<SQL
                 INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
                 VALUES('Bypass webhook.php', '', '1', '', '/ajax/webhook.php');
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
         }
 
         // https://github.com/DonutsNL/samlsso/issues/36
-        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/api.php']]) or die($DB->error());
+        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/api.php']]);
+        if (!$result) {
+            throw new \RuntimeException($DB->error());
+        }
         if ($result->numrows() === 0) {
             $query = <<<SQL
                 INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
                 VALUES('Bypass api.php', '', '1', '', '/api.php');
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
         }
+
+        $migration->migrationOneTable($table);
 
         Session::addMessageAfterRedirect("🆗 Inserted default excludes.");
     }

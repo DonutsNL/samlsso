@@ -263,6 +263,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             $cronTask = $this->readPluginFile('src/CronTask.php');
             $configItem = $this->readPluginFile('src/Config/ConfigItem.php');
             $acs = $this->readPluginFile('src/LoginFlow/Acs.php');
+            $ruleSamlCollection = $this->readPluginFile('src/RuleSamlCollection.php');
             $securityTwig = $this->readPluginFile('templates/configForm/security.html.twig');
 
             // 1. Verify no plugin-level inactivity_timeout runtime enforcement exists
@@ -286,14 +287,17 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception('ADR 0002 violation: inactivity_timeout must be a read-only informational field reflecting GLPI session.gc_maxlifetime.');
             }
 
-            // 3. Verify request_timeout enforcement and PHP clock authority
+            // 3. Verify request_timeout enforcement and PHP clock authority (including CronTask retention cutoffs)
             if (
                 !str_contains($loginState, "LoginState::LOGIN_DATETIME    => date('Y-m-d H:i:s')") ||
                 !str_contains($loginState, 'function refreshLoginDateTime') ||
                 !str_contains($acs, 'function handleRequestTimeout') ||
-                !str_contains($acs, 'index.php?noAuto=1')
+                !str_contains($acs, 'index.php?noAuto=1') ||
+                str_contains($cronTask, 'NOW()') ||
+                str_contains($cronTask, 'QueryExpression') ||
+                !str_contains($ruleSamlCollection, "root_doc")
             ) {
-                throw new \Exception('ADR 0002 violation: PHP clock initialization for LOGIN_DATETIME or handleRequestTimeout() redirect to index.php?noAuto=1 is missing.');
+                throw new \Exception('ADR 0002 violation: PHP clock authority (LoginState/CronTask), handleRequestTimeout() redirect, or root_doc prefix in RuleSamlCollection is missing.');
             }
             if (str_contains($loginState, " . ' UTC'")) {
                 throw new \Exception("ADR 0002 violation: Hardcoded ' UTC' concatenation in LoginState.php violates single PHP clock authority.");
@@ -374,7 +378,10 @@ namespace GlpiPlugin\Samlsso\Tests {
             $user = $this->readPluginFile('src/LoginFlow/User.php');
             $configEntity = $this->readPluginFile('src/Config/ConfigEntity.php');
             $configForm = $this->readPluginFile('src/Config/ConfigForm.php');
+            $config = $this->readPluginFile('src/Config.php');
             $loginFlow = $this->readPluginFile('src/LoginFlow.php');
+            $loginState = $this->readPluginFile('src/LoginState.php');
+            $controller = $this->readPluginFile('src/Controller/SamlSsoController.php');
 
             // 1. Verify User.php enforces external auth source binding and strips protected fields on sync
             if (
@@ -386,17 +393,23 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception('ADR 0004 violation: User.php is missing external auth-source verification or protected field stripping in syncUserFieldsOnLogin().');
             }
 
-            // 2. Verify multi-IdP enforce_sso auto-disable in ConfigEntity::validateAdvancedConfig()
+            // 2. Verify multi-IdP enforce_sso auto-disable in ConfigEntity::validateAdvancedConfig() and active check in Config::getIsEnforced()
             if (!str_contains($configEntity, 'function validateAdvancedConfig')) {
                 throw new \Exception('ADR 0004 violation: ConfigEntity::validateAdvancedConfig() is missing.');
             }
+            if (!preg_match('/function\s+getIsEnforced\b.*?ConfigEntity::IS_ACTIVE\s*=>\s*1/s', $config)) {
+                throw new \Exception('ADR 0004 violation: Config::getIsEnforced() must filter by ConfigEntity::IS_ACTIVE => 1.');
+            }
 
-            // 3. Verify administrative right checks in ConfigForm and bypass token hash_equals in LoginFlow
+            // 3. Verify administrative right checks in ConfigForm, bypass token hash_equals in LoginFlow, proxy IP gating in LoginState, and controller firewall enforcement
             if (
                 !str_contains($configForm, "Session::checkRight('config', UPDATE)") ||
-                !str_contains($loginFlow, 'hash_equals($requiredToken, (string)$providedToken)')
+                !str_contains($loginFlow, 'hash_equals($requiredToken, (string)$providedToken)') ||
+                !str_contains($loginState, 'function resolveClientIp') ||
+                !str_contains($loginState, 'FILTER_VALIDATE_IP') ||
+                substr_count($controller, '#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]') > 3
             ) {
-                throw new \Exception('ADR 0004 violation: Missing Session::checkRight in ConfigForm or hash_equals bypass token check in LoginFlow.');
+                throw new \Exception('ADR 0004 violation: Missing admin right check, bypass hash_equals, proxy-gated resolveClientIp(), or unexpected STRATEGY_NO_CHECK on admin controller routes.');
             }
 
             echo "✅ ADR 0004: Validated fail-closed IdP loading, JIT external-source binding, and token-guarded bypass.\n";
@@ -413,19 +426,34 @@ namespace GlpiPlugin\Samlsso\Tests {
         {
             $configEntity = $this->readPluginFile('src/Config/ConfigEntity.php');
             $config = $this->readPluginFile('src/Config.php');
+            $claimMap = $this->readPluginFile('src/ClaimMap.php');
+            $exclude = $this->readPluginFile('src/Exclude.php');
+            $geoIpUpdater = $this->readPluginFile('src/Utility/GeoIPUpdater.php');
             $configFormTwig = $this->readPluginFile('templates/configForm.html.twig');
             $css = $this->readPluginFile('public/css/samlSSO.css');
             $setup = $this->readPluginFile('setup.php');
             $hook = $this->readPluginFile('hook.php');
             $runAllTests = $this->readPluginFile('tests/RunAllTests.php');
 
-            // ADR 0005: Request-level caching
+            // ADR 0005: Request-level caching & ConfigDefaultTpl 1:1 parity
             if (
                 !str_contains($configEntity, '$dbRowCache') ||
                 !str_contains($configEntity, 'function clearCache') ||
                 !str_contains($config, 'function clearCache')
             ) {
                 throw new \Exception('ADR 0005 violation: Request-level cache ($dbRowCache / clearCache) is missing in ConfigEntity or Config.');
+            }
+            $tpl = \GlpiPlugin\Samlsso\Config\ConfigDefaultTpl::template();
+            foreach ([
+                \GlpiPlugin\Samlsso\Config\ConfigEntity::CONF_ICON_URL,
+                \GlpiPlugin\Samlsso\Config\ConfigEntity::LOGIN_HEADER_TEXT,
+                \GlpiPlugin\Samlsso\Config\ConfigEntity::FORCE_AUTHN,
+                \GlpiPlugin\Samlsso\Config\ConfigEntity::DEST_VALIDATION,
+                \GlpiPlugin\Samlsso\Config\ConfigEntity::SAML_XML_STRUCTURE,
+            ] as $requiredTplKey) {
+                if (!array_key_exists($requiredTplKey, $tpl)) {
+                    throw new \Exception("ADR 0005 violation: ConfigDefaultTpl::template() is missing key '$requiredTplKey'.");
+                }
             }
 
             // ADR 0006: On-demand HTML diagnostic popovers and inline table hiding
@@ -439,14 +467,19 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception('ADR 0006 violation: SamlSsoPopoverManager sanitizer allowList or .samlsso-diagnostic-table-container inline hiding is missing.');
             }
 
-            // ADR 0007: Deterministic lifecycle & migrationOneTable execution
+            // ADR 0007: Deterministic lifecycle, migrationOneTable execution across tables, static i18n, & hardened GeoIPUpdater
             if (
                 !str_contains($setup, 'PLUGIN_SAMLSSO_CLASSES') ||
                 str_contains($hook, 'scandir(') ||
+                str_contains($hook, '->deactivate(') ||
                 !str_contains($config, '$migration->migrationOneTable($table)') ||
-                !str_contains($hook, 'SanityChecker::check()')
+                substr_count($claimMap, '$migration->migrationOneTable($table)') < 2 ||
+                !str_contains($exclude, '$migration->migrationOneTable($table)') ||
+                !str_contains($hook, 'SanityChecker::check()') ||
+                !str_contains($geoIpUpdater, 'CURLOPT_PROTOCOLS') ||
+                !str_contains($geoIpUpdater, 'rename($tempBin, $destFile)')
             ) {
-                throw new \Exception('ADR 0007 violation: Deterministic PLUGIN_SAMLSSO_CLASSES, migrationOneTable(), or SanityChecker::check() is missing.');
+                throw new \Exception('ADR 0007 violation: Missing deterministic lifecycle, migrationOneTable() in Config/ClaimMap/Exclude, SanityChecker::check(), or GeoIPUpdater HTTPS/atomic write hardening.');
             }
 
             // ADR 0008: Process-isolated test runner

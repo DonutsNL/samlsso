@@ -49,16 +49,10 @@ use CommonDBTM;
 // https://glpi-developer-documentation.readthedocs.io/en/master/devapi/crontasks.html
 use CronTask as glpiCronTask;
 use Migration;
-use Glpi\DBAL\QueryExpression;
 use GlpiPlugin\Samlsso\LoginState;
-
-if (!class_exists('Glpi\DBAL\QueryExpression') && class_exists('QueryExpression')) {
-    class_alias('QueryExpression', 'Glpi\DBAL\QueryExpression');
-}
 
 class CronTask extends CommonDBTM
 {
-    /**
     /**
      * Give cron information
      * @param $name : automatic action's name
@@ -89,15 +83,17 @@ class CronTask extends CommonDBTM
         $cron_status = 0;
         $volume = 0;
 
-        // Cleanup sessions older than retention period (days)
+        // Cleanup sessions older than retention period (days) using PHP runtime clock authority (ADR 0002)
         if ($days > 0) {
-            $delete_where = [];
             if ($days < 1) {
                 // Silently default to 1 working day (8 hours)
-                $delete_where[LoginState::LAST_ACTIVITY] = ['<', new QueryExpression('NOW() - INTERVAL 8 HOUR')];
+                $cutoff = date('Y-m-d H:i:s', time() - (8 * 3600));
             } else {
-                $delete_where[LoginState::LAST_ACTIVITY] = ['<', new QueryExpression('NOW() - INTERVAL ' . (int)$days . ' DAY')];
+                $cutoff = date('Y-m-d H:i:s', time() - ((int)$days * 86400));
             }
+            $delete_where = [
+                LoginState::LAST_ACTIVITY => ['<', $cutoff],
+            ];
 
             // Retrieve count of rows before deletion
             try {

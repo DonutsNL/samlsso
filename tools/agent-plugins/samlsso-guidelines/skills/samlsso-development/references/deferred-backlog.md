@@ -11,20 +11,6 @@ This file serves as persistent cross-session memory for:
 
 When analyzing a reported GitHub issue, check whether it touches any of the files below and propose folding the corresponding improvement into the fix:
 
-### Item A: Controller Firewall Strategy & Output Buffering (`src/Controller/SamlSsoController.php`)
-- **Location**: `src/Controller/SamlSsoController.php:162-214`
-- **Finding**:
-  1. Administrative routes (`loginflow`, `exclude`, `__invoke`, `itemform`) currently carry `#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]` (which is only needed on the public `acs` and `metadata` endpoints), relying solely on manual `Session::checkLoginUser()` calls inside the methods.
-  2. `exclude()`, `__invoke()`, and `itemform()` echo legacy `Html::header()` / `Html::footer()` directly instead of wrapping them in `ob_start()` / `ob_get_clean()` before returning the Symfony `Response` (unlike `loginflow()` which already uses `ob_start()`).
-- **Trigger**: Fold in whenever working on an issue touching `SamlSsoController.php` or routing/rendering.
-
-### Item B: GeoIP Downloader cURL & Atomic Write Hardening (`src/Utility/GeoIPUpdater.php`)
-- **Location**: `src/Utility/GeoIPUpdater.php`
-- **Finding**:
-  1. Add explicit HTTPS-only cURL options (`CURLOPT_PROTOCOLS => CURLPROTO_HTTPS`, `CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS`, `CURLOPT_SSL_VERIFYPEER => true`, `CURLOPT_SSL_VERIFYHOST => 2`, `CURLOPT_MAXREDIRS => 3`).
-  2. Write downloaded binary data to a temporary file (`ip_to_country.bin.tmp`) and atomically `rename()` it into place after size/GZIP verification so concurrent readers in `GeoIPResolver` never read a half-written file.
-- **Trigger**: Fold in whenever working on an issue touching GeoIP, `CronTask`, or `src/Utility/`.
-
 ### Item C: Deferred `v1.4.0` SQL Column Cleanup (`src/LoginState.php`)
 - **Location**: `src/LoginState.php` (`glpi_plugin_samlsso_states`)
 - **Finding**: Dead PHP references for `serverParams`, `loggedOff`, and `enforceLogoff` were removed in `v1.3.2` (Issue #194), keeping the legacy nullable SQL columns untouched in the patch release. Drop `serverParams`, `loggedOff`, and `enforceLogoff` via `$migration->dropField()` in `v1.4.0`.
@@ -33,6 +19,8 @@ When analyzing a reported GitHub issue, check whether it touches any of the file
 ---
 
 ## 2. Completed Codebase Assessment Items
+
+- **Issue #196**: Removed `#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]` and added `ob_start()` / `ob_get_clean()` output buffering on administrative routes (`exclude()`, `__invoke()`, `itemform()`) in `src/Controller/SamlSsoController.php` (Item A), and hardened `src/Utility/GeoIPUpdater.php` with HTTPS-only cURL options (`CURLOPT_PROTOCOLS`, `CURLOPT_REDIR_PROTOCOLS`, `CURLOPT_SSL_VERIFYPEER`, `CURLOPT_SSL_VERIFYHOST`, `CURLOPT_MAXREDIRS`) plus atomic `.tmp` + `rename()` binary compilation (Item B).
 
 - **Issue #194**: Removed unfinished `LoginFlowEntity.php`, `LoginFlowForm.php`, and `LoginFlowItem.php` scaffolding, removed stale `FLOWFORM_*` and `/front/slo/` routes, decoupled `LoginFlow` from `CommonDBTM` (`LoginFlowCompat`), pruned dead PHP state/config constants (`ENFORCE_LOGOFF`, `SAML_RESPONSE`, `RICHVALUE`, `PLUGIN_SAMLSSO_WEBDIR`), relocated `update_geoip.php` to `tools/`, and excluded `docs/` + `templates/images/` from `tools/mkzip.sh` release archives.
 

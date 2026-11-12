@@ -186,7 +186,9 @@ class ClaimMap extends CommonDBTM
                 UNIQUE KEY `configs_id_target_glpi` (`configs_id`, `target_type`, `glpi_field`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
         } else {
             /**
@@ -228,6 +230,7 @@ class ClaimMap extends CommonDBTM
             if ($indexes->count() === 0) {
                 $migration->addKey($table, ['configs_id', 'target_type', 'glpi_field'], 'configs_id_target_glpi', 'UNIQUE');
             }
+            $migration->migrationOneTable($table);
         }
     }
 

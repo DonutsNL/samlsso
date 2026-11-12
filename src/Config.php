@@ -81,6 +81,7 @@ class Config extends ConfigCompat
     private static ?int $isOnlyOneConfigCache = null;
     private static array $configIdByEmailDomainCache = [];
     private static ?int $hideLoginFieldsCache = null;
+    private static ?bool $isProxiedActiveCache = null;
 
     /**
      * Clear all static request caches (mainly for testing purposes).
@@ -92,6 +93,7 @@ class Config extends ConfigCompat
         self::$isOnlyOneConfigCache = null;
         self::$configIdByEmailDomainCache = [];
         self::$hideLoginFieldsCache = null;
+        self::$isProxiedActiveCache = null;
     }
 
     /**
@@ -311,9 +313,38 @@ class Config extends ConfigCompat
         // Get global DB object to query the configTable.
         global $DB;
 
-        // Return true if we have more then one row that enforces the config
-        self::$isEnforcedCache = (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
+        // Return true only if at least one ACTIVE, non-deleted IdP configuration enforces SSO
+        self::$isEnforcedCache = (count($DB->request([
+            'FROM'  => Config::getTable(),
+            'WHERE' => [
+                ConfigEntity::ENFORCE_SSO => 1,
+                ConfigEntity::IS_ACTIVE   => 1,
+                ConfigEntity::IS_DELETED  => 0,
+            ],
+        ])) > 0);
         return self::$isEnforcedCache;
+    }
+
+    /**
+     * Returns true if at least one active, non-deleted IdP configuration operates behind a trusted reverse proxy.
+     *
+     * @return bool
+     */
+    public static function isProxiedActive(): bool
+    {
+        if (self::$isProxiedActiveCache !== null) {
+            return self::$isProxiedActiveCache;
+        }
+        global $DB;
+        self::$isProxiedActiveCache = (count($DB->request([
+            'FROM'  => Config::getTable(),
+            'WHERE' => [
+                ConfigEntity::PROXIED    => 1,
+                ConfigEntity::IS_ACTIVE  => 1,
+                ConfigEntity::IS_DELETED => 0,
+            ],
+        ])) > 0);
+        return self::$isProxiedActiveCache;
     }
 
     /**
@@ -452,24 +483,23 @@ class Config extends ConfigCompat
         ]);
 
         if ($req->numrows() > 0) {
+            $bypassActive = !empty($_SESSION['glpi_plugins']['samlsso']['bypass']);
             if (
+                !$bypassActive &&
                 isset($_GET[LoginFlow::SAMLBYPASS]) &&
                 $_GET[LoginFlow::SAMLBYPASS] == 1
             ) {
-                $bypassActive = !empty($_SESSION['glpi_plugins']['samlsso']['bypass']);
-                if (!$bypassActive) {
-                    $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN')
-                        ? (string)PLUGIN_SAMLSSO_BYPASS_TOKEN
-                        : (string)getenv('SAMLSSO_BYPASS_TOKEN');
-                    $providedToken = $_GET['token'] ?? $_GET['bypass_token'] ?? null;
-                    if ($requiredToken !== '' && $providedToken !== null && hash_equals($requiredToken, (string)$providedToken)) {
-                        $bypassActive = true;
-                    }
+                $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN')
+                    ? (string)PLUGIN_SAMLSSO_BYPASS_TOKEN
+                    : (string)getenv('SAMLSSO_BYPASS_TOKEN');
+                $providedToken = $_GET['token'] ?? $_GET['bypass_token'] ?? null;
+                if ($requiredToken !== '' && $providedToken !== null && hash_equals($requiredToken, (string)$providedToken)) {
+                    $bypassActive = true;
                 }
-                if ($bypassActive) {
-                    self::$hideLoginFieldsCache = 0;
-                    return 0;
-                }
+            }
+            if ($bypassActive) {
+                self::$hideLoginFieldsCache = 0;
+                return 0;
             }
             self::$hideLoginFieldsCache = 1;
             return 1;

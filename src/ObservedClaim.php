@@ -146,7 +146,9 @@ class ObservedClaim extends CommonDBTM
                 UNIQUE KEY `configs_id_saml_claim` (`configs_id`, `saml_claim`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
         } else {
             /**

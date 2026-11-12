@@ -149,8 +149,13 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             
             $qExpr = $expr[1];
-            if (!str_contains((string)$qExpr, 'INTERVAL 30 DAY')) {
-                throw new \Exception("Unexpected QueryExpression in delete clause: " . var_export($qExpr, true));
+            if (!is_string($qExpr) || !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $qExpr)) {
+                throw new \Exception("Expected PHP clock cutoff timestamp (Y-m-d H:i:s) in delete clause, got: " . var_export($qExpr, true));
+            }
+            $expectedCutoff = time() - (30 * 86400);
+            $actualCutoff = strtotime($qExpr);
+            if ($actualCutoff === false || abs($actualCutoff - $expectedCutoff) > 5) {
+                throw new \Exception("Expected 30-day PHP cutoff near " . date('Y-m-d H:i:s', $expectedCutoff) . ", got: $qExpr");
             }
 
             echo "✅ CronTask: session cleanup with positive retention\n";
@@ -188,9 +193,13 @@ namespace GlpiPlugin\Samlsso\Tests {
             $where = $deleted['where'];
             $expr = $where[Loginstate::LAST_ACTIVITY];
             $qExpr = $expr[1];
-
-            if (!str_contains((string)$qExpr, 'INTERVAL 8 HOUR')) {
-                throw new \Exception("Expected 8-hour interval clamping for < 1 day param. Got: " . var_export($qExpr, true));
+            if (!is_string($qExpr) || !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $qExpr)) {
+                throw new \Exception("Expected 8-hour PHP clock cutoff timestamp for < 1 day param. Got: " . var_export($qExpr, true));
+            }
+            $expectedCutoff = time() - (8 * 3600);
+            $actualCutoff = strtotime($qExpr);
+            if ($actualCutoff === false || abs($actualCutoff - $expectedCutoff) > 5) {
+                throw new \Exception("Expected 8-hour PHP cutoff near " . date('Y-m-d H:i:s', $expectedCutoff) . ", got: $qExpr");
             }
 
             echo "✅ CronTask: session cleanup clamped to 8 hours for < 1 day retention\n";

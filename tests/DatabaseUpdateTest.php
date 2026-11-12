@@ -374,7 +374,15 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Expected migrationOneTable to be called for $table in Config::install() (Issue #182).");
             }
 
-            echo "✅ Database Migrations: Verified migrationOneTable is called for $table in Config::install() (Issue #182)\n";
+            $claimTable = getTableForItemType(ClaimMap::class);
+            $migrationClaim = new InterceptingMigration('1.3.2');
+            ClaimMap::install($migrationClaim);
+            $claimFlushCount = count(array_keys($migrationClaim->migrationOneTableCalls, $claimTable, true));
+            if ($claimFlushCount < 2) {
+                throw new \Exception("Expected ClaimMap::install() upgrade branch to flush migrationOneTable after addField/addKey (Issue #196), got $claimFlushCount calls.");
+            }
+
+            echo "✅ Database Migrations: Verified migrationOneTable is called for $table in Config::install() (#182) and $claimTable in ClaimMap::install() (#196)\n";
         }
     }
 }

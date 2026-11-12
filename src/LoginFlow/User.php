@@ -257,10 +257,7 @@ class User
             $userFields['auths_id'] = (int)$dbId;
             $id = $user->add(self::sanitizeInput($userFields));
             if (!$id) {
-                LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but there is no matching GLPI user account and
-                                                we failed to create one dynamically using Just In Time user creation. Please
-                                                request a GLPI administrator to review the logs and correct the problem or
-                                                request the administrator to create a GLPI user manually.", PLUGIN_NAME));
+                LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but there is no matching GLPI user account and we failed to create one dynamically using Just In Time user creation. Please request a GLPI administrator to review the logs and correct the problem or request the administrator to create a GLPI user manually.", PLUGIN_NAME));
             } else {
                 $this->runRulesEngine((int)$id, $userFields, $state);
             }
@@ -268,10 +265,7 @@ class User
             $user = new glpiUser();
             if ($user->getFromDB($id)) {
                 if (count(Profile_User::getForUser($id)) === 0) {
-                    LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but no GLPI profile was assigned to your account and
-                                                    we failed to assign one dynamically using Just In Time user creation. Please
-                                                    request a GLPI administrator to review the logs and correct the problem or
-                                                    request the administrator to assign a GLPI profile manually.", PLUGIN_NAME));
+                    LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but no GLPI profile was assigned to your account and we failed to assign one dynamically using Just In Time user creation. Please request a GLPI administrator to review the logs and correct the problem or request the administrator to assign a GLPI profile manually.", PLUGIN_NAME));
                 }
                 Session::addMessageAfterRedirect(
                     sprintf(
@@ -375,7 +369,7 @@ class User
             $user[$key] = $val;
         }
 
-        $user[User::COMMENT]    = __('Created by phpSaml Just-In-Time user creation on:') . date('Y-m-d H:i:s');
+        $user[User::COMMENT]    = __('Created by phpSaml Just-In-Time user creation on:', PLUGIN_NAME) . ' ' . date('Y-m-d H:i:s');
         $password = bin2hex(random_bytes(20));
         $user[User::PASSWORD]   = $password;
         $user[User::PASSWORDN]  = $password;

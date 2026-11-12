@@ -82,7 +82,8 @@ class RuleSamlCollection extends RuleSamlCollectionCompat
      */
     public static function getRulesTestURL(): string
     {
-        return '/front/rulesengine.test.php';
+        global $CFG_GLPI;
+        return ($CFG_GLPI['root_doc'] ?? '') . '/front/rulesengine.test.php';
     }
 
 }
