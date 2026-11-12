@@ -78,6 +78,7 @@ class User
     public const MOBILE             = 'mobile';
     public const PHONE              = 'phone';
     public const PHONE2             = 'phone2';
+    public const REGISTRATION_NUMBER = 'registration_number';
     public const COMMENT            = 'comment';
     public const PASSWORD           = 'password';
     public const PASSWORDN          = 'password2';
@@ -255,7 +256,8 @@ class User
         if ($configEntity->getField(ConfigEntity::USER_JIT)) {
             $userFields[User::AUTHTYPE] = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? \Auth::EXTERNAL : 4;
             $userFields['auths_id'] = (int)$dbId;
-            $id = $user->add(self::sanitizeInput($userFields));
+            $addPayload = self::stripSyntheticRuleFields($userFields);
+            $id = $user->add(self::sanitizeInput($addPayload));
             if (!$id) {
                 LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but there is no matching GLPI user account and we failed to create one dynamically using Just In Time user creation. Please request a GLPI administrator to review the logs and correct the problem or request the administrator to create a GLPI user manually.", PLUGIN_NAME));
             } else {
@@ -450,11 +452,12 @@ class User
     {
         $changes = [];
         $fieldsToCompare = [
-            User::NAME       => 'username',
-            User::REALNAME   => 'realname',
-            User::FIRSTNAME  => 'firstname',
-            User::MOBILE     => 'mobile',
-            User::PHONE      => 'phone',
+            User::NAME                => 'username',
+            User::REALNAME            => 'realname',
+            User::FIRSTNAME           => 'firstname',
+            User::MOBILE              => 'mobile',
+            User::PHONE               => 'phone',
+            User::REGISTRATION_NUMBER => 'registration_number',
         ];
 
         $syncFieldsEvaluated = [];
@@ -529,10 +532,34 @@ class User
             unset($updateFields[User::EMAIL]);
         }
 
+        $updateFields = self::stripSyntheticRuleFields($updateFields);
+
         if (count($updateFields) > 1) {
             $user->update(self::sanitizeInput($updateFields));
         }
         $this->runRulesEngine((int)$user->fields[User::USERID], $userFields, $state);
+    }
+
+    /**
+     * Strips synthetic SAML claim/rule evaluation keys that do not correspond to columns on glpi_users.
+     *
+     * @param array<string, mixed> $fields
+     * @return array<string, mixed>
+     */
+    private static function stripSyntheticRuleFields(array $fields): array
+    {
+        $syntheticKeys = [
+            '_saml_rule_fields',
+            User::SAMLGROUPS,
+            User::SAMLJOBTITLE,
+            User::SAMLCOUNTRY,
+            User::SAMLCITY,
+            User::SAMLSTREET,
+        ];
+        foreach ($syntheticKeys as $syntheticKey) {
+            unset($fields[$syntheticKey]);
+        }
+        return $fields;
     }
 
     /**

@@ -190,21 +190,59 @@ class ClaimMapEntity extends ClaimMapItem
         }
 
         if (isset($DB) && method_exists($DB, 'tableExists') && $DB->tableExists('glpi_rulecriterias')) {
-            $iterator = $DB->request([
-                'SELECT'   => ['criteria'],
+            $criterionAliases = [
+                self::FIELD_GROUPS   => [\GlpiPlugin\Samlsso\LoginFlow\User::SAMLGROUPS, self::FIELD_GROUPS],
+                self::FIELD_JOBTITLE => [\GlpiPlugin\Samlsso\LoginFlow\User::SAMLJOBTITLE, self::FIELD_JOBTITLE],
+                self::FIELD_EMAIL    => [\GlpiPlugin\Samlsso\LoginFlow\User::EMAIL, self::FIELD_EMAIL],
+                self::FIELD_USERNAME => [\GlpiPlugin\Samlsso\LoginFlow\User::NAME, self::FIELD_USERNAME],
+            ];
+
+            $lookupCriteria = [];
+            foreach ($ruleFields as $field) {
+                foreach ($criterionAliases[$field] ?? [$field] as $alias) {
+                    $lookupCriteria[] = $alias;
+                }
+            }
+            $lookupCriteria = array_values(array_unique($lookupCriteria));
+
+            $queryParams = [
+                'SELECT'   => ['glpi_rulecriterias.criteria AS criteria'],
                 'DISTINCT' => true,
                 'FROM'     => 'glpi_rulecriterias',
                 'WHERE'    => [
-                    'criteria' => $ruleFields
-                ]
-            ]);
-            $usedFields = [];
+                    'glpi_rulecriterias.criteria' => $lookupCriteria,
+                ],
+            ];
+
+            if ($DB->tableExists('glpi_rules')) {
+                $queryParams['INNER JOIN'] = [
+                    'glpi_rules' => [
+                        'ON' => [
+                            'glpi_rulecriterias' => 'rules_id',
+                            'glpi_rules'         => 'id',
+                        ],
+                    ],
+                ];
+                $queryParams['WHERE']['glpi_rules.sub_type']  = \GlpiPlugin\Samlsso\RuleSaml::class;
+                $queryParams['WHERE']['glpi_rules.is_active'] = 1;
+            }
+
+            $iterator = $DB->request($queryParams);
+            $usedCriteria = [];
             foreach ($iterator as $row) {
-                $usedFields[] = (string)$row['criteria'];
+                $usedCriteria[] = (string)$row['criteria'];
             }
 
             foreach ($ruleFields as $field) {
-                if (!in_array($field, $usedFields, true)) {
+                $acceptedKeys = $criterionAliases[$field] ?? [$field];
+                $isUsed = false;
+                foreach ($acceptedKeys as $acceptedKey) {
+                    if (in_array($acceptedKey, $usedCriteria, true)) {
+                        $isUsed = true;
+                        break;
+                    }
+                }
+                if (!$isUsed) {
                     $unused[] = $field;
                 }
             }
@@ -684,7 +722,10 @@ class ClaimMapEntity extends ClaimMapItem
 
         $ruleFields = [ClaimMapItem::FIELD_JOBTITLE, ClaimMapItem::FIELD_COUNTRY, ClaimMapItem::FIELD_CITY, ClaimMapItem::FIELD_STREET];
         foreach ($this->getMappings() as $mapping) {
-            if ($mapping['target_type'] === ClaimMapItem::TARGET_TYPE_RULE_FIELD) {
+            if (
+                $mapping['target_type'] === ClaimMapItem::TARGET_TYPE_RULE_FIELD &&
+                $mapping['glpi_field'] !== ClaimMapItem::FIELD_GROUPS
+            ) {
                 $ruleFields[] = $mapping['glpi_field'];
             }
         }

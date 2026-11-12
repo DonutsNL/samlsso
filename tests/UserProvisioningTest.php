@@ -721,6 +721,87 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Protected fields stripped during syncUserFieldsOnLogin\n";
         }
+
+        /**
+         * Test Issue #197: registration_number changes are tracked and synthetic rule keys are stripped
+         * from User::update() (and do not trigger redundant DB writes when only synthetic keys exist).
+         */
+        public function testSyncUserFieldsRegistrationNumberAndSyntheticStripping(): void {
+            $samlUser = new SamlUser();
+            MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+
+            $this->db->setResponse('glpi_useremails', [
+                ['email' => 'emp@example.com']
+            ]);
+
+            $glpiUser = new \User();
+            $glpiUser->fields = [
+                'id'                  => 600,
+                'name'                => 'emp_user',
+                'registration_number' => 'EMP-001',
+                'authtype'            => 4,
+                'auths_id'            => 5,
+                'is_deleted'          => 0,
+                'is_active'           => 1,
+            ];
+
+            // 1. Only synthetic rule keys + existing email -> must NOT invoke User::update()
+            \User::$mockObject->mockUpdateCalled = false;
+            \User::$mockObject->updatedUserData = null;
+
+            $onlySyntheticClaims = [
+                SamlUser::EMAIL        => ['emp@example.com'],
+                SamlUser::SAMLGROUPS   => ['Admins', 'Users'],
+                SamlUser::SAMLJOBTITLE => 'Engineer',
+                SamlUser::SAMLCOUNTRY  => 'NL',
+                SamlUser::SAMLCITY     => 'Utrecht',
+                SamlUser::SAMLSTREET   => 'Oudegracht 10',
+                '_saml_rule_fields'    => ['department' => 'IT'],
+            ];
+
+            $method = new \ReflectionMethod(SamlUser::class, 'syncUserFieldsOnLogin');
+            $method->setAccessible(true);
+            $method->invoke($samlUser, $glpiUser, $onlySyntheticClaims, null);
+
+            if (\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("User::update() should NOT be called when only synthetic rule keys and unchanged email are present!");
+            }
+
+            // 2. registration_number changed + synthetic rule keys -> updates registration_number, strips synthetic keys, logs trace
+            $state = new class extends \GlpiPlugin\Samlsso\LoginState {
+                public array $traces = [];
+                public function __construct() {}
+                public function addLoginFlowTrace(array $condition): bool {
+                    $this->traces = array_merge($this->traces, $condition);
+                    return true;
+                }
+            };
+
+            $regUpdateClaims = array_merge($onlySyntheticClaims, [
+                SamlUser::REGISTRATION_NUMBER => 'EMP-999',
+            ]);
+
+            $method->invoke($samlUser, $glpiUser, $regUpdateClaims, $state);
+
+            if (!\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("Expected User::update() to be called when registration_number changed.");
+            }
+            $updated = \User::$mockObject->updatedUserData ?? [];
+            if (($updated[SamlUser::REGISTRATION_NUMBER] ?? '') !== 'EMP-999') {
+                throw new \Exception("Expected registration_number 'EMP-999' in update payload.");
+            }
+            foreach (['_saml_rule_fields', SamlUser::SAMLGROUPS, SamlUser::SAMLJOBTITLE, SamlUser::SAMLCOUNTRY, SamlUser::SAMLCITY, SamlUser::SAMLSTREET] as $syntheticKey) {
+                if (array_key_exists($syntheticKey, $updated)) {
+                    throw new \Exception("Synthetic rule key '$syntheticKey' leaked into User::update() payload!");
+                }
+            }
+            if (!str_contains($state->traces['syncUpdatedFields'] ?? '', "registration_number: 'EMP-001' => 'EMP-999'")) {
+                throw new \Exception("registration_number diff missing from syncUpdatedFields trace: " . ($state->traces['syncUpdatedFields'] ?? ''));
+            }
+
+            echo "✅ registration_number diff tracking and synthetic rule-key stripping verified (Issue #197)\n";
+        }
     }
 }
 
@@ -744,6 +825,7 @@ namespace {
         $test->testIdempotentUserDefaultsNoLogWarning();
         $test->testLocalAccountLinkingBlocked();
         $test->testSyncUserFieldsProtectsSensitiveFields();
+        $test->testSyncUserFieldsRegistrationNumberAndSyntheticStripping();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

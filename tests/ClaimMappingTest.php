@@ -476,19 +476,23 @@ XML;
         {
             $this->db->setResponse('glpi_plugin_samlsso_claimmaps', [
                 ['glpi_field' => ClaimMapItem::FIELD_GROUPS, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD],
-                ['glpi_field' => ClaimMapItem::FIELD_JOBTITLE, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD]
+                ['glpi_field' => ClaimMapItem::FIELD_JOBTITLE, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD],
+                ['glpi_field' => ClaimMapItem::FIELD_DEPARTMENT, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD],
             ]);
 
             $rule = new \GlpiPlugin\Samlsso\RuleSaml();
             $criterias = $rule->getCriterias();
 
-            if (!isset($criterias[ClaimMapItem::FIELD_GROUPS]) || !isset($criterias[ClaimMapItem::FIELD_JOBTITLE])) {
-                throw new \Exception("Dynamic rule_field criteria registration failed.");
+            if (!isset($criterias['samlClaimedGroups']) || !isset($criterias['samlClaimedJobTitle'])) {
+                throw new \Exception("Canonical built-in SAML Groups / Job Title criteria missing.");
             }
-            if (($criterias[ClaimMapItem::FIELD_GROUPS]['name'] ?? '') !== 'SAML Claim: Groups') {
-                throw new \Exception("Incorrect dynamic criteria name mapping.");
+            if (isset($criterias[ClaimMapItem::FIELD_GROUPS]) || isset($criterias[ClaimMapItem::FIELD_JOBTITLE])) {
+                throw new \Exception("Built-in groups/jobtitle criteria should not be duplicated as dynamic rule_field criteria (Issue #197).");
             }
-            echo "✅ Dynamic rule_field criteria registration verified\n";
+            if (!isset($criterias[ClaimMapItem::FIELD_DEPARTMENT]) || ($criterias[ClaimMapItem::FIELD_DEPARTMENT]['name'] ?? '') !== 'SAML Claim: Department') {
+                throw new \Exception("Dynamic rule_field criteria registration for department failed.");
+            }
+            echo "✅ Dynamic rule_field criteria registration and duplicate prevention verified\n";
         }
 
 
@@ -798,6 +802,66 @@ XML;
 
             echo "✅ Dynamic custom rule field mappings resolved correctly\n";
         }
+
+        /**
+         * Test Issue #197: country/city/street allowed in rule_field, multi-value groups preserved,
+         * and getUnusedRuleFields() maps criterion aliases (samlClaimedGroups / samlClaimedJobTitle).
+         */
+        public function testLocationRuleFieldsAndUnusedDetection(): void
+        {
+            $entity = new ClaimMapEntity(1);
+            $saved = $entity->save([
+                ['target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD, 'glpi_field' => ClaimMapItem::FIELD_USERNAME, 'saml_claim' => 'uid'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD, 'glpi_field' => ClaimMapItem::FIELD_EMAIL, 'saml_claim' => 'mail'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_GROUPS, 'saml_claim' => 'memberOf'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_JOBTITLE, 'saml_claim' => 'title'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_COUNTRY, 'saml_claim' => 'co'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_CITY, 'saml_claim' => 'l'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_STREET, 'saml_claim' => 'streetAddress'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_DEPARTMENT, 'saml_claim' => 'dept'],
+            ]);
+            if (!$saved || !$entity->isValid()) {
+                throw new \Exception("Expected country/city/street rule_field mappings to validate cleanly: " . json_encode($entity->getErrors()));
+            }
+
+            $response = new TestResponse();
+            $response->mockNameId = 'jane.doe';
+            $response->mockAttributes = [
+                'uid'           => ['jane.doe'],
+                'mail'          => ['jane@example.com'],
+                'memberOf'      => ['Group-A', 'Group-B'],
+                'title'         => ['Architect'],
+                'co'            => ['NL'],
+                'l'             => ['Amsterdam'],
+                'streetAddress' => ['Damrak 1'],
+                'dept'          => ['Security'],
+            ];
+
+            $userFields = SamlUser::getUserInputFieldsFromSamlClaim($response, 1);
+            if (($userFields[SamlUser::SAMLGROUPS] ?? null) !== ['Group-A', 'Group-B']) {
+                throw new \Exception("Multi-valued groups claim array was not preserved.");
+            }
+            if (isset($userFields['_saml_rule_fields'][ClaimMapItem::FIELD_GROUPS])) {
+                throw new \Exception("groups must not be duplicated into scalar _saml_rule_fields.");
+            }
+            if (($userFields['_saml_rule_fields'][ClaimMapItem::FIELD_COUNTRY] ?? '') !== 'NL') {
+                throw new \Exception("country rule_field was not resolved.");
+            }
+
+            $this->db->setResponse('glpi_rulecriterias', [
+                ['criteria' => 'samlClaimedGroups'],
+                ['criteria' => 'samlClaimedJobTitle'],
+                ['criteria' => 'country'],
+                ['criteria' => 'city'],
+                ['criteria' => 'street'],
+            ]);
+            $unused = $entity->getUnusedRuleFields();
+            if ($unused !== [ClaimMapItem::FIELD_DEPARTMENT]) {
+                throw new \Exception("Expected only 'department' to be reported unused when alias criteria exist, got: " . json_encode($unused));
+            }
+
+            echo "✅ Location rule_field validation, multi-group preservation, and alias-aware unused detection verified (Issue #197)\n";
+        }
     }
 }
 
@@ -814,6 +878,7 @@ namespace {
         $test->testDynamicCriterias();
         $test->testBulkExportImport();
         $test->testDynamicRuleFieldClaimMapping();
+        $test->testLocationRuleFieldsAndUnusedDetection();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

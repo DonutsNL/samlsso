@@ -222,8 +222,17 @@ class RuleSaml extends RuleSamlCompat
                         'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD
                     ]
                 ]);
+                $canonicalBuiltins = [
+                    ClaimMapItem::FIELD_GROUPS,
+                    ClaimMapItem::FIELD_JOBTITLE,
+                    ClaimMapItem::FIELD_USERNAME,
+                    ClaimMapItem::FIELD_EMAIL,
+                ];
                 foreach ($iterator as $row) {
                     $field = (string)$row['glpi_field'];
+                    if ($field === '' || isset($criterias[$field]) || in_array($field, $canonicalBuiltins, true)) {
+                        continue;
+                    }
                     $criterias[$field] = [
                         'table'     => '',
                         'field'     => '',
