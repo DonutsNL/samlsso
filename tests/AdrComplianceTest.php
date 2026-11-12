@@ -310,12 +310,13 @@ namespace GlpiPlugin\Samlsso\Tests {
             $config = $this->readPluginFile('src/Config.php');
             $configDefault = $this->readPluginFile('src/Config/ConfigDefaultTpl.php');
 
-            // 1. Verify runtime strict => true and signature requirement in Acs::setupSamlResponse()
+            // 1. Verify Acs::setupSamlResponse() honors ConfigEntity::getPhpSamlConfig() without hardcoding $phpSamlConfig['strict'] = true
             if (
-                !str_contains($acs, "\$phpSamlConfig['strict'] = true;") ||
-                !str_contains($acs, "\$phpSamlConfig['security']['wantAssertionsSigned'] = true;")
+                str_contains($acs, "\$phpSamlConfig['strict'] = true;") ||
+                !str_contains($acs, '$phpSamlConfig = $this->configEntity->getPhpSamlConfig();') ||
+                !str_contains($configEntity, 'These fields are only enforced when strict mode is enabled')
             ) {
-                throw new \Exception('ADR 0003 violation: Acs::setupSamlResponse() must enforce strict => true and inbound signature verification.');
+                throw new \Exception('ADR 0003 violation: Acs::setupSamlResponse() must respect ConfigEntity::getPhpSamlConfig() while ConfigEntity surfaces strict-mode warnings.');
             }
 
             // 2. Verify GLPIKey encryption and undisclosed fields for sp_private_key

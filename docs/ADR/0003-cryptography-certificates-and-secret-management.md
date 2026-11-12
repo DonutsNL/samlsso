@@ -4,16 +4,17 @@
 Accepted — Enforced Architectural Invariant
 
 ## Core Principle (Non-Negotiable)
-Cryptographic verification of inbound SAML responses (`strict => true` and cryptographic signatures on messages or assertions), industry-standard key floors (RSA >= 2048 bits, NIST P-256/P-384/P-521, SHA-256+), PEM line-ending sanitization, and secret masking/encryption (`GLPIKey`) are **enforced unconditionally on the server** and may never be bypassed via configuration toggles or UI inputs.
+The plugin honors the configuration capabilities of `onelogin/php-saml` (`strict` and `security_*` flags) as configured by the administrator via `ConfigEntity::getPhpSamlConfig()`, shipping with secure defaults (`strict => true`, `security_wantassertionssigned => true`) and surfacing clear UI risk warnings whenever `strict` mode or certificate requirements are disabled or unmet. At the same time, modern key floors for generated certificates (RSA >= 2048 bits, NIST P-256/P-384/P-521, SHA-256+), PEM line-ending sanitization, and secret masking/encryption (`GLPIKey`) are enforced on the server, and disabling `strict` in `php-saml` **never** disables the plugin's own Solicited-Only State Machine ([ADR 0001](0001-security-by-design-and-state-machine.md)).
 
 ---
 
 ## Architectural Invariants
 
-### 1. Mandatory Runtime Strict Mode & Signature Verification
-1. `Acs::setupSamlResponse()` unconditionally enforces `$phpSamlConfig['strict'] = true` at runtime during ACS evaluation.
-2. At least one inbound signature requirement (`security['wantMessagesSigned']` or `security['wantAssertionsSigned']`) must be active (`true`); if both are stored as `false` in the database, `Acs::setupSamlResponse()` forces `$phpSamlConfig['security']['wantAssertionsSigned'] = true` so unsigned assertions are never accepted.
-3. In `ConfigItem::validateInboundSecurity()`, if an administrator disables `strict` or disables both inbound signature flags in the UI, warning indicators (`⚠️`) are surfaced on `strict`, `security_want_messages_signed`, and `security_want_assertions_signed` to inform the administrator of the security requirement.
+### 1. `php-saml` Strict Mode Configuration & Risk Warnings
+1. `Acs::setupSamlResponse()` passes `$this->configEntity->getPhpSamlConfig()` directly to `OneLogin\Saml2\Settings` without silently overriding `strict` or `security_*` flags at runtime, respecting the configuration capabilities offered by `php-saml`.
+2. Because `onelogin/php-saml` only enforces inbound security flags (`security_wantmessagessigned`, `security_wantassertionssigned`, `security_wantassertionsencrypted`, `security_wantnameid`) when `strict` is enabled, `ConfigEntity::validateAdvancedConfig()` automatically toggles those four inbound fields to `false` when `strict` is disabled and attaches the warning: `⚠️ These fields are only enforced when strict mode is enabled. Your environment is at risk without strict mode.`
+3. Similarly, if the Service Provider certificate or private key is missing or invalid (`$disable = true` in `validateAdvancedConfig()`), SP-outbound signing/encryption options (`security_nameidencrypted`, `security_authnrequestssigned`, `security_logoutrequestsigned`, `security_logoutresponsesigned`) are automatically toggled to `false` with an inline warning (`⚠️ Will be defaulted to "No" because the provided SP certificate does not look valid!`).
+4. Disabling `strict` in `php-saml` only relaxes `OneLogin\Saml2\Response` strict checks; it **never** bypasses `samlsso`'s database state machine, `InResponseTo` / `SubjectConfirmationData` binding, or the Double-Pass Solicited Flow ([ADR 0001](0001-security-by-design-and-state-machine.md)).
 
 ### 2. PEM Certificate Sanitization & XML C14N Compatibility
 1. XML Canonicalization (C14N) normalizes `\r\n` to `\n` during XML Signature verification, causing signatures computed over certificates containing carriage returns (`\r`) to fail unpredictably across Identity Providers.
@@ -41,7 +42,8 @@ Cryptographic verification of inbound SAML responses (`strict => true` and crypt
 ---
 
 ## Prohibited Patterns (Do Not Circumvent)
-- **NEVER** allow `Acs::setupSamlResponse()` to evaluate a `SAMLResponse` with `strict => false` or with both `wantMessagesSigned` and `wantAssertionsSigned` set to `false`.
+- **NEVER** hardcode overrides in `Acs::setupSamlResponse()` (such as forcing `$phpSamlConfig['strict'] = true`) that silently ignore the administrator's saved `ConfigEntity::getPhpSamlConfig()` settings.
+- **NEVER** allow disabling `strict` mode to bypass the Solicited-Only State Machine or permit direct unsolicited authentication ([ADR 0001](0001-security-by-design-and-state-machine.md)).
 - **NEVER** store plaintext private keys in `glpi_plugin_samlsso_configs`, render a stored database private key into HTML, or include `sp_private_key` in backups, JSON exports, or error logs.
 - **NEVER** permit RSA keys `< 2048` bits, weak curves, or SHA-1/MD5 digests in certificate generation or defaults.
 - **NEVER** enable `LIBXML_NOENT`, `LIBXML_DTDLOAD`, or `LIBXML_DTDATTR` in any XML parsing call.
@@ -49,8 +51,8 @@ Cryptographic verification of inbound SAML responses (`strict => true` and crypt
 ---
 
 ## Issue Triage & Maintainer Directives
-- **When a user asks to disable signature validation or strict mode to work around an IdP error:**
-  - Explain that disabling signature verification or strict mode exposes GLPI to trivial XML assertion forgery and account takeover. Guide them through fixing the underlying IdP EntityID, ACS URL, or X.509 certificate formatting mismatch using the configuration form's inline validation warnings.
+- **When a user disables `strict` mode and asks why `Require Signed Assertions` or `Require Signed Messages` automatically toggles off:**
+  - Explain that in the underlying `onelogin/php-saml` library, those inbound security checks are only evaluated when `strict` mode is active. The plugin reflects this accurately in the UI and displays a warning (`⚠️`) so the administrator is never misled into thinking inbound checks are active while `strict` is off.
 
 ---
 
