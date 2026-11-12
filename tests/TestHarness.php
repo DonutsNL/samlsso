@@ -504,6 +504,7 @@ namespace GlpiPlugin\Samlsso\Config {
             public const USER_JIT        = 'user_jit';
             public const SP_CERTIFICATE  = 'sp_certificate';
             public const SP_KEY          = 'sp_private_key';
+            public const SP_KEY_SOURCE   = 'sp_private_key_source';
             public const SP_NAME_FORMAT  = 'sp_nameid_format';
             public const IDP_ENTITY_ID   = 'idp_entity_id';
             public const IDP_SSO_URL     = 'idp_single_sign_on_service';
@@ -526,6 +527,7 @@ namespace GlpiPlugin\Samlsso\Config {
             public const IS_DELETED      = 'is_deleted';
             public const CREATE_DATE     = 'date_creation';
             public const MOD_DATE        = 'date_mod';
+            public const SAML_XML_STRUCTURE = 'saml_xml_structure';
             public const SYNC_ON_LOGIN   = 'sync_on_login';
             public const REQUEST_TIMEOUT = 'request_timeout';
             public const INACTIVITY_TIMEOUT = 'inactivity_timeout';

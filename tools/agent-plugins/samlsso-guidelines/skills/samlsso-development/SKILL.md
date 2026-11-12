@@ -12,13 +12,18 @@ You MUST follow these rules when performing any changes in this repository.
 - **User-First Coding**: Always consider the end-user. Avoid technical jargon where simple language will suffice. Ensure error messages are clear, actionable, and do not expose raw technical data or stack traces.
 - **Security & Safe Coding Audits**: Always review implementations for strict compliance with safe coding standards to ensure that no logic or security bypass loops are created.
 
-## 🤖 Workflow & Preparation
-- **Security-by-Design First (Non-Negotiable)**: The Security-by-Design principle (`docs/ADR/0017-security-by-design-architecture.md`) always comes first and may **never** be omitted, weakened, or bypassed. All authentication must be evaluated strictly against the database-backed state machine (`LoginState`). Unsolicited SAML responses or responses with unregistered `InResponseTo` IDs must never authenticate directly; they must create a new initial state for the session and redirect the browser back to the IdP (`performSamlIdpRequest()`) to re-authenticate through the full state-machine lifecycle.
-- **Validate Every Request Against Existing ADRs**: Before implementing any feature request, issue, or bug fix, you **MUST** read and validate the request against all existing ADRs in `docs/ADR/`.
+## 🤖 Workflow & Two-Gate ADR Governance
+- **Security-by-Design & Core Delegation First (Non-Negotiable)**:
+  - **State-Machine & Solicited-Only Auth (`docs/ADR/0001-security-by-design-and-state-machine.md`)**: All authentication must be evaluated strictly against the database-backed state machine (`LoginState`). Direct unsolicited SAML responses or responses with unregistered `InResponseTo` IDs must never authenticate directly; they must create a new initial state for the session and redirect the browser back to the IdP (`performSamlIdpRequest()`) via the **Double-Pass Solicited Flow**.
+  - **GLPI Core Delegation (`docs/ADR/0002-glpi-core-delegation-and-boundaries.md`)**: Never duplicate or override lifecycle mechanisms already managed by GLPI Core or PHP (such as authenticated session inactivity timeouts via `session.gc_maxlifetime`, session GC, or cookie INI settings).
+- **Gate 1 — Pre-Implementation ADR Validation**: Before implementing any feature request, issue, or bug fix, you **MUST** read and validate the request against the domain ADRs in `docs/ADR/` (`0000`–`0008`), checking their **Core Principle**, **Prohibited Patterns (Do Not Circumvent)**, and **Issue Triage & Maintainer Directives**.
 - **Deny & Discuss Conflicting Issues First**: If a feature request or issue conflicts with any existing ADR or with Security-by-Design principles:
-  1. **Deny / refuse direct implementation immediately** — never implement a workaround that bypasses the state machine, weakens validation, or contradicts an ADR.
-  2. **Flag and discuss the conflict with the developer first**, citing the exact ADR(s) and security impact.
-  3. **Mandatory ADR on Adoption**: Any approved change that modifies architecture or amends an existing decision **MUST** result in a new ADR in `docs/ADR/` documenting the decision, security analysis, and superseded/amended ADRs.
+  1. **Deny / refuse direct implementation immediately** — never implement a workaround or side path that bypasses the state machine, weakens validation, or contradicts an ADR.
+  2. **Flag and discuss the conflict with the developer first**, citing the exact ADR(s), security impact, and the ADR's **Issue Triage & Maintainer Directive**.
+- **Gate 2 — Post-Implementation Outcome Validation**: After implementing any approved change, you **MUST** validate the modified code and runtime behavior against `docs/ADR/0000`–`0008` and execute `php tests/RunAllTests.php` (including `tests/AdrComplianceTest.php`).
+- **How to Write & Maintain ADRs (`docs/ADR/0000-adr-governance-and-authoring-guide.md`)**:
+  - **Never Write Narrow Single-Ticket ADRs**: Do not create a new ADR file for a single bugfix or issue. If an approved architectural change refines an existing domain (`0001`–`0008`), update that domain ADR in-place and delete any superseded rules so conflicting ADRs never coexist.
+  - Only create a new numbered ADR (`0009+`) when introducing an entirely new architectural domain, and include all 6 required sections (`Status`, `Core Principle (Non-Negotiable)`, `Architectural Invariants`, `Prohibited Patterns (Do Not Circumvent)`, `Issue Triage & Maintainer Directives`, `Codebase & Automated Test Verification`).
 - **Read the Wiki**: Before performing any functional changes, read the Project Wiki (https://github.com/DonutsNL/samlsso/wiki) to understand state-machine logic, the assertion lifecycle, and architectural design patterns.
 - **Understand Security**: Never propose changes that bypass the state-machine or weaken replay protection.
 - **Issue-First**: A formal GitHub Issue must exist before any code changes are allowed. If none exists, create a new issue on GitHub describing the intended change and reasoning, and reference it in the changelog and ADRs.
@@ -53,7 +58,7 @@ You MUST follow these rules when performing any changes in this repository.
 - **Error Handling**: Do not use `die()`. Always use `Html::displayError()` or throw a `PluginException`.
 - **Return Values**: Ensure all code paths return a value. If a code path is theoretically unreachable, return an empty string or the appropriate default value to satisfy static analysis.
 - **PluginContext**: Always use `PluginContext::get()` for global plugin configuration.
-- **ADRs**: Document the rationale, alternatives, pros, and cons of your changes in an ADR under `ADRS/`.
+- **ADRs**: Follow `docs/ADR/0000-adr-governance-and-authoring-guide.md` when updating domain ADRs under `docs/ADR/`.
 - **Never Use Sudo**: Never use `sudo` to bypass permission or security issues during development, testing, or operations (such as cache clearing). If a permission issue is encountered, ask the user/administrator to correct it instead of using elevated privileges.
 - **Never Clear Cache**: Never attempt to clear the GLPI cache yourself. If the cache needs to be cleared (e.g. after changing Twig templates or locales), ask the user to clear it.
 
