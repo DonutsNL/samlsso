@@ -163,13 +163,19 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             $contributing = $this->readPluginFile('docs/CONTRIBUTING.md');
             $skill = $this->readPluginFile('tools/agent-plugins/samlsso-guidelines/skills/samlsso-development/SKILL.md');
+            $pluginRules = $this->readPluginFile('tools/agent-plugins/samlsso-guidelines/rules/AGENTS.md');
+            $this->readPluginFile('tools/agent-plugins/samlsso-guidelines/skills/samlsso-development/references/architecture-map.md');
+            $this->readPluginFile('tools/agent-plugins/samlsso-guidelines/skills/samlsso-development/references/issue-triage-playbook.md');
+            $this->readPluginFile('tools/agent-plugins/samlsso-guidelines/skills/samlsso-development/references/deferred-backlog.md');
+
             if (
                 !str_contains($contributing, 'Gate 1 — Pre-Implementation ADR Validation') ||
                 !str_contains($contributing, 'Gate 2 — Post-Implementation Outcome Validation') ||
                 !str_contains($skill, 'Gate 1 — Pre-Implementation ADR Validation') ||
-                !str_contains($skill, 'Gate 2 — Post-Implementation Outcome Validation')
+                !str_contains($skill, 'Gate 2 — Post-Implementation Outcome Validation') ||
+                !str_contains($pluginRules, 'Autonomous Continuous Learning')
             ) {
-                throw new \Exception('CONTRIBUTING.md or SKILL.md is missing Two-Gate ADR Validation instructions.');
+                throw new \Exception('CONTRIBUTING.md, SKILL.md, or rules/AGENTS.md is missing Two-Gate ADR Validation or Autonomous Learning instructions.');
             }
 
             echo "✅ ADR 0000: Validated ADR governance structure, mandatory sections, and Two-Gate validation instructions.\n";
