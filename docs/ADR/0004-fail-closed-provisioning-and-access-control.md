@@ -16,8 +16,8 @@ Every Identity Provider lookup, Just-In-Time (JIT) user creation or synchronizat
 3. The verified `ConfigEntity` instance is passed explicitly down the call chain (`Acs::init()` -> `performGlpiLogin()` -> `loadUser()` -> `getOrCreateUser()` -> `performJIT()`). The user-provisioning layer never guesses the IdP ID or falls back to `new ConfigEntity(0)` (`ConfigDefaultTpl`).
 
 ### 2. Account Takeover Prevention in JIT & `sync_on_login`
-1. `User::getOrCreateUser()` and `User::performJIT()` bind every SAML-authenticated user to their explicit external authentication source (`authtype = \Auth::EXTERNAL` and `auths_id = $idpId`).
-2. Fallback email matching (`getFromDBbyEmail()`) is only permitted when `sync_on_login` is enabled for the IdP **and** `User::getOrCreateUser()` verifies that the matched user account is bound to that external authentication source (`\Auth::EXTERNAL` and `auths_id = $idpId`), strictly blocking SAML claims from hijacking local GLPI accounts (`authtype = \Auth::DB_GLPI`), the built-in `glpi` super-admin account, or accounts belonging to a different IdP.
+1. `User::getOrCreateUser()` and `User::performJIT()` bind every SAML-authenticated user to their explicit external authentication source (`authtype = \Auth::EXTERNAL` and `auths_id = $idpId`). Runtime binding or automatic hijacking of `Auth::LDAP` or any non-SAML authentication source is strictly prohibited; legacy LDAP-imported accounts are migrated offline via the non-destructive, reversible `tools/migrate_ldap_users.php` CLI utility (`0600` `GLPIKey` HMAC-signed user-ID register + active `glpi_authldaps` collision guard).
+2. Candidate resolution (`User::findCandidateUsers()`) queries `glpi_users` and `glpi_useremails` directly via parameterized `$DB->request()` rather than single-row `CommonDBTM::getFromDBByCrit()` / `User::getFromDBbyEmail()` helpers so duplicate `name` or `email` rows across multiple IdPs never throw `TooManyResultsException`. If **any** candidate row is a local GLPI account (`authtype = \Auth::DB_GLPI` or `name = 'glpi'`), authentication fails closed immediately; otherwise only active, non-deleted rows bound to `(\Auth::EXTERNAL, $idpId)` are eligible, and fallback email matching requires `sync_on_login = 1`.
 3. Disabled GLPI users (`is_active = 0`) are unconditionally blocked from logging in (`User::getOrCreateUser()`).
 4. When `sync_on_login` is enabled on an IdP, `User::syncUserFieldsOnLogin()` updates mapped claim attributes and re-evaluates the SAML Rules Engine (`runRulesEngine()`), while stripping protected system columns (`User::AUTHTYPE`, `User::PASSWORD`, `User::PASSWORDN`, `User::COMMENT`, `user_dn`, `auths_id`, `password_md5`, `api_token`, `personal_token`) so SAML claims cannot escalate privileges or overwrite local credentials.
 
@@ -34,7 +34,8 @@ Every Identity Provider lookup, Just-In-Time (JIT) user creation or synchronizat
 
 ## Prohibited Patterns (Do Not Circumvent)
 - **NEVER** instantiate `new ConfigEntity(0)` or rely on `ConfigDefaultTpl` defaults during an authentication or JIT provisioning flow.
-- **NEVER** link a SAML assertion by email or username to a local GLPI user (`authtype = \Auth::DB_GLPI`), the `glpi` super-admin account, or a user bound to a different `auths_id`.
+- **NEVER** link a SAML assertion by email or username to a local GLPI user (`authtype = \Auth::DB_GLPI`), the `glpi` super-admin account, an `Auth::LDAP` account at runtime, or a user bound to a different `auths_id`.
+- **NEVER** clone duplicate `glpi_users` rows when migrating LDAP users to SAML; always re-bind existing rows in-place via `tools/migrate_ldap_users.php` with a signed reversible register and deactivated colliding `glpi_authldaps` sync.
 - **NEVER** allow `syncUserFieldsOnLogin()` to modify `authtype`, `password`, `auths_id`, or `is_active`.
 - **NEVER** allow `?bypass=1` to bypass enforced SSO without a verified server-side bypass token.
 
@@ -49,5 +50,5 @@ Every Identity Provider lookup, Just-In-Time (JIT) user creation or synchronizat
 ---
 
 ## Codebase & Automated Test Verification
-- **Production Files**: `src/LoginFlow/User.php`, `src/Config/ConfigEntity.php`, `src/Config/ConfigForm.php`, `src/Config.php`, `src/LoginFlow.php`, `src/RuleSaml.php`, `src/RuleSamlCollection.php`
-- **Automated Tests**: `tests/UserJitSecurityTest.php`, `tests/ConfigIntegrityTest.php`, `tests/LoginFlowTest.php`, `tests/AdrComplianceTest.php`
+- **Production Files**: `src/LoginFlow/User.php`, `src/Config/ConfigEntity.php`, `src/Config/ConfigForm.php`, `src/Config.php`, `src/LoginFlow.php`, `src/RuleSaml.php`, `src/RuleSamlCollection.php`, `tools/migrate_ldap_users.php`
+- **Automated Tests**: `tests/UserProvisioningTest.php`, `tests/LdapMigrationToolTest.php`, `tests/ConfigIntegrityTest.php`, `tests/FlowLogicTest.php`, `tests/AdrComplianceTest.php`

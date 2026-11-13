@@ -802,6 +802,93 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ registration_number diff tracking and synthetic rule-key stripping verified (Issue #197)\n";
         }
+
+        /**
+         * Test Issue #189: scoped candidate resolution via $DB->request() resolves the exact
+         * (Auth::EXTERNAL, $idpId) user without triggering CommonDBTM::TooManyResultsException
+         * when multiple external rows share a name/email, while still failing closed on any
+         * local DB_GLPI / 'glpi' collision or foreign-only (e.g. Auth::LDAP) match.
+         */
+        public function testScopedMultiIdpCandidateResolutionAndLocalCollisionBlock(): void {
+            \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = true;
+            try {
+                $samlUser = new SamlUser();
+                MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+                MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 0;
+                $configEntity = new ConfigEntity(5);
+
+                /**
+                 * Case 1: Two SAML IdPs (auths_id=1 and auths_id=5) both have 'jdoe'.
+                 * Must resolve id=702 cleanly without calling getFromDBbyName() (which throws TooManyResultsException).
+                 */
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 701, 'name' => 'jdoe', 'authtype' => 4, 'auths_id' => 1, 'is_deleted' => 0, 'is_active' => 1],
+                    ['id' => 702, 'name' => 'jdoe', 'authtype' => 4, 'auths_id' => 5, 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                $resolved = $samlUser->getOrCreateUser($this->getFullUserData('jdoe', 'jdoe@example.com'), $configEntity);
+                if ((int)($resolved->fields['id'] ?? 0) !== 702) {
+                    throw new \Exception("Expected scoped IdP #5 user id=702, got " . ($resolved->fields['id'] ?? 'null'));
+                }
+
+                /**
+                 * Case 2: Email-based linking across duplicate emails resolves IdP #5 user id=704
+                 * when sync_on_login=1, even when glpi_useremails has > 1 row (where User::getFromDBbyEmail returns false).
+                 */
+                MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 703, 'name' => 'alice.idp1', 'authtype' => 4, 'auths_id' => 1, 'is_deleted' => 0, 'is_active' => 1],
+                    ['id' => 704, 'name' => 'alice.idp5', 'authtype' => 4, 'auths_id' => 5, 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                $this->db->setResponse('glpi_useremails', [
+                    ['users_id' => 703, 'email' => 'alice@example.com'],
+                    ['users_id' => 704, 'email' => 'alice@example.com'],
+                ]);
+                $resolvedByEmail = $samlUser->getOrCreateUser($this->getFullUserData('alice.upn@example.com', 'alice@example.com'), $configEntity);
+                if ((int)($resolvedByEmail->fields['id'] ?? 0) !== 704) {
+                    throw new \Exception("Expected scoped email-linked user id=704, got " . ($resolvedByEmail->fields['id'] ?? 'null'));
+                }
+
+                /**
+                 * Case 3: Local DB_GLPI (authtype=1) coexisting with external row MUST still fail closed immediately.
+                 */
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 705, 'name' => 'shared_admin', 'authtype' => 1, 'auths_id' => 0, 'is_deleted' => 0, 'is_active' => 1],
+                    ['id' => 706, 'name' => 'shared_admin', 'authtype' => 4, 'auths_id' => 5, 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                try {
+                    $samlUser->getOrCreateUser($this->getFullUserData('shared_admin', 'shared_admin@example.com'), $configEntity);
+                    throw new \Exception("Expected local DB_GLPI collision to fail closed, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'uses local GLPI authentication')) {
+                        throw $e;
+                    }
+                }
+
+                /**
+                 * Case 4: Foreign-only Auth::LDAP (authtype=3) account fails closed with explicit source mismatch.
+                 */
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 707, 'name' => 'ldap_only', 'authtype' => 3, 'auths_id' => 2, 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                $this->db->setResponse('glpi_useremails', [
+                    ['users_id' => 707, 'email' => 'ldap_only@example.com'],
+                ]);
+                try {
+                    $samlUser->getOrCreateUser($this->getFullUserData('ldap_only', 'ldap_only@example.com'), $configEntity);
+                    throw new \Exception("Expected foreign Auth::LDAP match to fail closed, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'bound to a different authentication source')) {
+                        throw $e;
+                    }
+                }
+
+                echo "✅ Scoped multi-IdP candidate resolution & local/LDAP fail-closed guards verified (Issue #189)\n";
+            } finally {
+                $this->db->clearResponse('glpi_users');
+                $this->db->clearResponse('glpi_useremails');
+                \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = false;
+            }
+        }
     }
 }
 
@@ -826,6 +913,7 @@ namespace {
         $test->testLocalAccountLinkingBlocked();
         $test->testSyncUserFieldsProtectsSensitiveFields();
         $test->testSyncUserFieldsRegistrationNumberAndSyntheticStripping();
+        $test->testScopedMultiIdpCandidateResolutionAndLocalCollisionBlock();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

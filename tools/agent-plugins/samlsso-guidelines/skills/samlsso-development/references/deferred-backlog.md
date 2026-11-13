@@ -16,9 +16,16 @@ When analyzing a reported GitHub issue, check whether it touches any of the file
 - **Finding**: Dead PHP references for `serverParams`, `loggedOff`, and `enforceLogoff` were removed in `v1.3.2` (Issue #194), keeping the legacy nullable SQL columns untouched in the patch release. Drop `serverParams`, `loggedOff`, and `enforceLogoff` via `$migration->dropField()` in `v1.4.0`.
 - **Trigger**: Execute when opening the `v1.4.0` minor release branch.
 
+### Item D: Per-IdP SCIM 2.0 Provisioning (`v1.4.0` Minor Feature Branch)
+- **Architectural Rule (Security-by-Design by Default — `ADR 0004`)**: Never hijack, share, or bind `Auth::LDAP` or any non-SAML `authtype` at runtime. Runtime login strictly requires `Auth::EXTERNAL (4)` + `auths_id = $idpId`. *(Note: Scoped `User::findCandidateUsers()` lookup hardening and `tools/migrate_ldap_users.php` were completed on `v1.3.2` under Issue #189).*
+- **Per-IdP SCIM 2.0 Interface (`v1.4.0` Minor Feature Branch)**: Stateless HTTPS-only RFC 7643/7644 SCIM 2.0 endpoints (`/front/scim/v2/{idpId}/...`) authenticated via per-IdP Bearer token (`SHA-256` hex digest in DB or `env`/`define` via `hash_equals()`), implemented locally via bounded whitelist `ScimFilterParser` and `ScimPatchProcessor` without external Composer SCIM packages. Keep wire extraction decoupled from SAML `ClaimMap`, while **sharing 100% of `RuleSamlCollection`** downstream for deterministic `Profile`/`Entity` authorization. Separate group lifecycle concerns via a single `scim_group_policy` setting (`create_scoped` | `link_existing` | `disabled`), surface a soft `Beta` badge in the SCIM UI tab, and trigger immediate `is_active = 0` + `cookie_token = NULL` + `PHASE_FORCE_LOG (6)` revocation upon user offboarding.
+- **Trigger**: Implement on the `v1.4.0` minor release branch.
+
 ---
 
 ## 2. Completed Codebase Assessment Items
+
+- **Issue #189 (`1.3.2` Scoped Candidate Lookup & Reversible LDAP Migration Tool)**: Replaced single-row `getFromDBByCrit()` / `getFromDBbyEmail()` calls in `User::getOrCreateUser()` with parameterized `User::findCandidateUsers()` to prevent `TooManyResultsException` while failing closed on `Auth::DB_GLPI` / `'glpi'` / foreign `authtype` matches, and shipped `tools/migrate_ldap_users.php` with `0600` `GLPIKey` HMAC-signed `migrated_user_ids` registers, `--list-registers`, `--revert`, and active `glpi_authldaps` sync deactivation guard.
 
 - **Issue #198**: Aligned `session.cookie_samesite` validation in `plugin_samlsso_check_prerequisites()` (`setup.php`) with GLPI Core's `SessionsSecurityConfiguration` (`['lax', 'strict', '']`) so `SameSite=Strict` no longer emits a false-positive warning during installation, and documented stateless ACS + `HTTP 200 OK` `<meta refresh>` `Strict` support across `references/*.md` and the GitHub Wiki.
 

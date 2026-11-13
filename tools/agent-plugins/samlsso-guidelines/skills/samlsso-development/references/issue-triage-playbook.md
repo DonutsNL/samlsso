@@ -45,9 +45,10 @@ Use this playbook when analyzing reported GitHub issues or feature requests to e
 
 ---
 
-## 5. Local Account Linking Blocked on SAML Login (`ADR 0004`)
-- **Symptom / Request**: User reports `"User account '...' uses local GLPI authentication and cannot be linked or accessed via SAML SSO"` or `"bound to a different authentication source"`.
-- **Architectural Rule**: SAML assertions may never automatically hijack local GLPI database accounts (`authtype = Auth::DB_GLPI`) or the `glpi` super-admin account (`ADR 0004`).
+## 5. Local or LDAP Account Linking Blocked on SAML Login (`ADR 0004`)
+- **Symptom / Request**: User reports `"User account '...' uses local GLPI authentication and cannot be linked or accessed via SAML SSO"` or `"bound to a different authentication source"` (including `Auth::LDAP` accounts, e.g., Issue #189).
+- **Architectural Rule**: SAML assertions may never automatically hijack local GLPI database accounts (`authtype = Auth::DB_GLPI`), the `glpi` super-admin account, or accounts belonging to other authentication authorities (`Auth::LDAP` or another IdP's `auths_id`) at runtime (`ADR 0004`). Runtime LDAP sharing/hijacking is intentionally not supported.
 - **How It Works & How to Respond**:
-  - Explain that automatic email/username linking to local accounts is blocked to prevent Account Takeover (ATO). Existing users must either be provisioned via JIT or have their GLPI authentication source updated to External (`authtype = Auth::EXTERNAL`, `auths_id = <idpId>`) by an administrator before `sync_on_login` links them.
+  - Explain that runtime linking across `DB_GLPI` or `Auth::LDAP` is blocked by design to maintain strict single-authority ownership and prevent Account Takeover (ATO), and note that GLPI Core's UI Massive Action (*Change the authentication method*) cannot target SAML IdPs because `ajax/dropdownMassiveActionAuthMethods.php` hardcodes `AuthLDAP::dropdown()`.
+  - Direct administrators retiring LDAP to the non-destructive, reversible in-place CLI migration utility (`tools/migrate_ldap_users.php` on GitHub / Wiki — which preserves `glpi_users.id` and ticket/asset relations, deactivates `glpi_authldaps` to prevent sync collisions, and writes a signed `--revert` snapshot), or to SAML JIT / per-IdP SCIM 2.0 push provisioning (`Auth::EXTERNAL`, `auths_id = <idpId>`).
 

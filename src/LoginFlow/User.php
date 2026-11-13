@@ -155,63 +155,166 @@ class User
         $idpId = (int)$configEntity->getField(ConfigEntity::ID);
         $allowEmailLinking = (bool)$configEntity->getField(ConfigEntity::SYNC_ON_LOGIN);
 
-        $user = new glpiUser();
-        $found = !empty($name) && $user->getFromDBbyName($name);
-        if (!$found && $allowEmailLinking) {
-            $found = (!empty($email) && $user->getFromDBbyEmail($email))
-                || (!empty($name) && $user->getFromDBbyEmail($name));
+        $candidates = $this->findCandidateUsers($name, $email, $allowEmailLinking);
+        if (empty($candidates)) {
+            return $this->performJIT($userFields, $configEntity, $state);
         }
 
-        if (!$found) {
-            return $this->performJIT($userFields, $configEntity, $state);
-        } else {
-            $authtype = (int)($user->fields[User::AUTHTYPE] ?? 0);
-            $localAuthType = class_exists('\Auth') && defined('\Auth::DB_GLPI') ? \Auth::DB_GLPI : self::AUTHTYPE_LOCAL;
-            if ($authtype === $localAuthType || strtolower($user->fields[User::NAME] ?? '') === 'glpi') {
+        $localAuthType = class_exists('\Auth') && defined('\Auth::DB_GLPI') ? \Auth::DB_GLPI : self::AUTHTYPE_LOCAL;
+        $externalAuthType = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? \Auth::EXTERNAL : 4;
+
+        /**
+         * First pass across all candidate rows: fail closed immediately if any matching
+         * username or email belongs to a local DB_GLPI account or the built-in 'glpi' super-admin.
+         */
+        foreach ($candidates as $candidate) {
+            $candAuthtype = (int)($candidate[User::AUTHTYPE] ?? 0);
+            $candName = (string)($candidate[User::NAME] ?? '');
+            if ($candAuthtype === $localAuthType || strtolower($candName) === 'glpi') {
                 LoginFlow::PrintFatalLoginError(
                     sprintf(
                         __("User account '%s' uses local GLPI authentication and cannot be linked or accessed via SAML SSO.", PLUGIN_NAME),
-                        $user->fields[User::NAME] ?? $name
+                        $candName !== '' ? $candName : $name
                     )
                 );
             }
-
-            $externalAuthType = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? \Auth::EXTERNAL : 4;
-            $userAuthsId = (int)($user->fields['auths_id'] ?? 0);
-            if (($authtype !== 0 && $authtype !== $externalAuthType) || ($userAuthsId > 0 && $idpId > 0 && $userAuthsId !== $idpId)) {
-                LoginFlow::PrintFatalLoginError(
-                    sprintf(
-                        __("User account '%s' is bound to a different authentication source and cannot be accessed via this SAML Identity Provider.", PLUGIN_NAME),
-                        $user->fields[User::NAME] ?? $name
-                    )
-                );
-            }
-
-            if ($user->fields[User::DELETED] == 1) {
-                LoginFlow::PrintFatalLoginError(sprintf(__("User with GlpiUserid: %s is marked deleted but still exists in the GLPI database. Because of this we cannot log you in as this would violate GLPI its security policies. Please contact the GLPI administrator to restore the user with provided ID or purge the user to allow the Just in Time (JIT) user creation to create a new user with the idp provided claims.", PLUGIN_NAME), $user->fields[User::USERID]));
-            }
-
-            /* Verify the found user is not disabled by the admin; */
-            if ($user->fields[User::ACTIVE] == 0) {
-                LoginFlow::PrintFatalLoginError(sprintf(__("User with GlpiUserid: %s is disabled. Please contact your GLPI administrator and request him to reactivate your account.", PLUGIN_NAME), $user->fields[User::USERID]));
-            }
-
-            /* If synchronization on login is active, update the user fields mapped */
-            /* from the SAML claims and rerun the rules engine to apply any updated */
-            /* group or profile assignments. */
-            if ($configEntity->getField(ConfigEntity::SYNC_ON_LOGIN)) {
-                $this->syncUserFieldsOnLogin($user, $userFields, $state);
-            }
-
-            /* Check if the user has any profiles assigned */
-            if (count(Profile_User::getForUser((int)$user->fields[User::USERID])) === 0) {
-                LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but no GLPI profile was assigned to your account. Please contact your GLPI administrator to assign a profile to your account.", PLUGIN_NAME));
-            }
-
-            /* User can be used to login, so return the user to the LoginFlow object */
-            /* for session initialization!. */
-            return $user;
         }
+
+        /**
+         * Second pass: select an exact (Auth::EXTERNAL, $idpId) match first, falling back
+         * only to legacy unbound external rows (auths_id = 0) when no exact IdP match exists.
+         */
+        $exactMatch = null;
+        $legacyUnboundMatch = null;
+        $firstForeign = null;
+
+        foreach ($candidates as $candidate) {
+            $candAuthtype = (int)($candidate[User::AUTHTYPE] ?? 0);
+            $candAuthsId = (int)($candidate['auths_id'] ?? 0);
+
+            if ($candAuthtype === $externalAuthType && $idpId > 0 && $candAuthsId === $idpId) {
+                $exactMatch = $candidate;
+                break;
+            }
+            if (($candAuthtype === $externalAuthType || $candAuthtype === 0) && ($candAuthsId === 0 || $idpId <= 0)) {
+                if ($legacyUnboundMatch === null) {
+                    $legacyUnboundMatch = $candidate;
+                }
+                continue;
+            }
+            if ($firstForeign === null) {
+                $firstForeign = $candidate;
+            }
+        }
+
+        $selectedRow = $exactMatch ?? $legacyUnboundMatch;
+        if ($selectedRow === null) {
+            $foreignName = is_array($firstForeign) && !empty($firstForeign[User::NAME])
+                ? (string)$firstForeign[User::NAME]
+                : $name;
+            LoginFlow::PrintFatalLoginError(
+                sprintf(
+                    __("User account '%s' is bound to a different authentication source and cannot be accessed via this SAML Identity Provider.", PLUGIN_NAME),
+                    $foreignName
+                )
+            );
+        }
+
+        $user = new glpiUser();
+        $matchedUserId = (int)($selectedRow[User::USERID] ?? 0);
+        if ($matchedUserId <= 0 || !$user->getFromDB($matchedUserId)) {
+            $user->fields = $selectedRow;
+        }
+
+        if ($user->fields[User::DELETED] == 1) {
+            LoginFlow::PrintFatalLoginError(sprintf(__("User with GlpiUserid: %s is marked deleted but still exists in the GLPI database. Because of this we cannot log you in as this would violate GLPI its security policies. Please contact the GLPI administrator to restore the user with provided ID or purge the user to allow the Just in Time (JIT) user creation to create a new user with the idp provided claims.", PLUGIN_NAME), $user->fields[User::USERID]));
+        }
+
+        /** Verify the found user is not disabled by the administrator. */
+        if ($user->fields[User::ACTIVE] == 0) {
+            LoginFlow::PrintFatalLoginError(sprintf(__("User with GlpiUserid: %s is disabled. Please contact your GLPI administrator and request him to reactivate your account.", PLUGIN_NAME), $user->fields[User::USERID]));
+        }
+
+        /**
+         * If synchronization on login is active, update the user fields mapped
+         * from the SAML claims and rerun the rules engine to apply updated assignments.
+         */
+        if ($configEntity->getField(ConfigEntity::SYNC_ON_LOGIN)) {
+            $this->syncUserFieldsOnLogin($user, $userFields, $state);
+        }
+
+        /** Check if the user has any profiles assigned. */
+        if (count(Profile_User::getForUser((int)$user->fields[User::USERID])) === 0) {
+            LoginFlow::PrintFatalLoginError(__("Your SSO login was successful but no GLPI profile was assigned to your account. Please contact your GLPI administrator to assign a profile to your account.", PLUGIN_NAME));
+        }
+
+        return $user;
+    }
+
+    /**
+     * Queries candidate GLPI user rows by username and (when enabled) email via
+     * parameterized $DB->request() queries so multi-source username/email collisions
+     * never trigger CommonDBTM::TooManyResultsException.
+     *
+     * @param string $name Mapped SAML username / NameID.
+     * @param string $email Mapped primary SAML email address.
+     * @param bool $allowEmailLinking Whether email-based candidate lookup is enabled.
+     * @return array<int, array<string, mixed>> Candidate user rows keyed by user ID.
+     */
+    private function findCandidateUsers(string $name, string $email, bool $allowEmailLinking): array
+    {
+        global $DB;
+
+        $candidates = [];
+        if ($DB === null || !method_exists($DB, 'request')) {
+            return $candidates;
+        }
+
+        if ($name !== '') {
+            $nameRows = $DB->request([
+                'FROM'  => 'glpi_users',
+                'WHERE' => [User::NAME => $name],
+            ]);
+            foreach ($nameRows as $row) {
+                if (is_array($row) && isset($row[User::USERID])) {
+                    $candidates[(int)$row[User::USERID]] = $row;
+                }
+            }
+        }
+
+        if ($allowEmailLinking) {
+            $lookupEmails = array_values(array_unique(array_filter(
+                [$email, $name],
+                static fn(string $val): bool => $val !== ''
+            )));
+            if (!empty($lookupEmails)) {
+                $missingUserIds = [];
+                $emailRows = $DB->request([
+                    'SELECT' => ['users_id', 'email'],
+                    'FROM'   => 'glpi_useremails',
+                    'WHERE'  => ['email' => $lookupEmails],
+                ]);
+                foreach ($emailRows as $emailRow) {
+                    $uid = (int)($emailRow['users_id'] ?? 0);
+                    if ($uid > 0 && !isset($candidates[$uid])) {
+                        $missingUserIds[] = $uid;
+                    }
+                }
+                if (!empty($missingUserIds)) {
+                    $userRows = $DB->request([
+                        'FROM'  => 'glpi_users',
+                        'WHERE' => [User::USERID => array_values(array_unique($missingUserIds))],
+                    ]);
+                    foreach ($userRows as $row) {
+                        if (is_array($row) && isset($row[User::USERID])) {
+                            $candidates[(int)$row[User::USERID]] = $row;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $candidates;
     }
 
     /**

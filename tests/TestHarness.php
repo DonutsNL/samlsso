@@ -1339,7 +1339,29 @@ namespace GlpiPlugin\Samlsso\Tests {
         public function request(array $params): object
         {
             $table = $params['FROM'] ?? '';
-            $data = $this->responses[$table] ?? [];
+            if (array_key_exists($table, $this->responses)) {
+                $data = $this->responses[$table];
+                if (isset($params['WHERE']) && is_array($params['WHERE'])) {
+                    $data = array_values(array_filter($data, function (array $row) use ($params): bool {
+                        return $this->matchesWhere($row, $params['WHERE']);
+                    }));
+                }
+            } elseif ($table === 'glpi_users' && \User::$mockObject !== null && is_array(\User::$mockObject->mockUserData)) {
+                $candidate = \User::$mockObject->mockUserData;
+                $data = (!isset($params['WHERE']) || !is_array($params['WHERE']) || $this->matchesWhere($candidate, $params['WHERE']))
+                    ? [$candidate]
+                    : [];
+            } elseif ($table === 'glpi_useremails' && \User::$mockObject !== null && is_array(\User::$mockObject->mockUserData) && !empty(\User::$mockObject->mockUserData['email'])) {
+                $emailRow = [
+                    'users_id' => (int)(\User::$mockObject->mockUserData['id'] ?? 0),
+                    'email'    => (string)\User::$mockObject->mockUserData['email'],
+                ];
+                $data = (!isset($params['WHERE']) || !is_array($params['WHERE']) || $this->matchesWhere($emailRow, $params['WHERE']))
+                    ? [$emailRow]
+                    : [];
+            } else {
+                $data = [];
+            }
             return new class($data) implements \Iterator, \Countable {
                 /** @var array Results storage. */
                 private array $data;
@@ -1414,6 +1436,99 @@ namespace GlpiPlugin\Samlsso\Tests {
                     return count($this->data);
                 }
             };
+        }
+
+        /**
+         * Checks whether a mock response table has been explicitly registered.
+         *
+         * @param string $table Table name.
+         * @return bool
+         */
+        public function hasResponse(string $table): bool
+        {
+            return array_key_exists($table, $this->responses);
+        }
+
+        /**
+         * Clears a previously registered mock response table.
+         *
+         * @param string $table Table name.
+         * @return void
+         */
+        public function clearResponse(string $table): void
+        {
+            unset($this->responses[$table]);
+        }
+
+        /**
+         * Evaluates a subset of GLPI DBmysqlIterator WHERE clauses against a mock row.
+         *
+         * @param array<string, mixed> $row
+         * @param array<int|string, mixed> $where
+         * @return bool
+         */
+        private function matchesWhere(array $row, array $where): bool
+        {
+            foreach ($where as $key => $val) {
+                if ($key === 'OR' && is_array($val)) {
+                    $any = false;
+                    foreach ($val as $orKey => $orVal) {
+                        $subWhere = is_int($orKey) && is_array($orVal) ? $orVal : [$orKey => $orVal];
+                        if ($this->matchesWhere($row, $subWhere)) {
+                            $any = true;
+                            break;
+                        }
+                    }
+                    if (!$any) {
+                        return false;
+                    }
+                    continue;
+                }
+                if (is_int($key) && is_array($val)) {
+                    if (!$this->matchesWhere($row, $val)) {
+                        return false;
+                    }
+                    continue;
+                }
+                $col = str_contains((string)$key, '.') ? substr((string)$key, strrpos((string)$key, '.') + 1) : (string)$key;
+                if (!array_key_exists($col, $row)) {
+                    continue;
+                }
+                if (is_array($val)) {
+                    if (array_key_exists('LIKE', $val)) {
+                        $pattern = '/^' . str_replace(['%', '_'], ['.*', '.'], preg_quote((string)$val['LIKE'], '/')) . '$/i';
+                        if (!preg_match($pattern, (string)$row[$col])) {
+                            return false;
+                        }
+                        continue;
+                    }
+                    if (array_key_exists('!=', $val)) {
+                        if ((string)$row[$col] === (string)$val['!=']) {
+                            return false;
+                        }
+                        continue;
+                    }
+                    $matchedIn = false;
+                    foreach ($val as $item) {
+                        if (strcasecmp((string)$row[$col], (string)$item) === 0) {
+                            $matchedIn = true;
+                            break;
+                        }
+                    }
+                    if (!$matchedIn) {
+                        return false;
+                    }
+                } elseif ($val === null) {
+                    if ($row[$col] !== null) {
+                        return false;
+                    }
+                } else {
+                    if (strcasecmp((string)$row[$col], (string)$val) !== 0) {
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
 
         /**
@@ -1589,6 +1704,18 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function getFromDBbyName(string $name, $instance): bool
         {
+            global $DB;
+            if ($DB instanceof MockDB && $DB->hasResponse('glpi_users')) {
+                $iter = $DB->request(['FROM' => 'glpi_users', 'WHERE' => ['name' => $name]]);
+                if (count($iter) > 1) {
+                    throw new \RuntimeException(sprintf('CommonDBTM::getFromDBByCrit TooManyResultsException for name=%s', $name));
+                }
+                if (count($iter) === 1) {
+                    $instance->fields = $iter->current();
+                    return true;
+                }
+                return false;
+            }
             if ($this->mockUserData && $this->mockUserData['name'] === $name) {
                 $instance->fields = $this->mockUserData;
                 return true;
@@ -1605,6 +1732,15 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function getFromDBbyEmail(string $email, $instance): bool
         {
+            global $DB;
+            if ($DB instanceof MockDB && $DB->hasResponse('glpi_useremails')) {
+                $iter = $DB->request(['FROM' => 'glpi_useremails', 'WHERE' => ['email' => $email]]);
+                if (count($iter) !== 1) {
+                    return false;
+                }
+                $emailRow = $iter->current();
+                return $this->getFromDB((int)($emailRow['users_id'] ?? 0), $instance);
+            }
             if ($this->mockUserData && $this->mockUserData['email'] === $email) {
                 $instance->fields = $this->mockUserData;
                 return true;
@@ -1621,6 +1757,14 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function getFromDB(int $id, $instance): bool
         {
+            global $DB;
+            if ($DB instanceof MockDB && $DB->hasResponse('glpi_users')) {
+                $iter = $DB->request(['FROM' => 'glpi_users', 'WHERE' => ['id' => $id]]);
+                if (count($iter) === 1) {
+                    $instance->fields = $iter->current();
+                    return true;
+                }
+            }
             if ($this->mockUserData && ($this->mockUserData['id'] ?? null) === $id) {
                 $instance->fields = $this->mockUserData;
                 return true;

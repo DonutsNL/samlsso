@@ -377,6 +377,16 @@ namespace {
     if (!class_exists('GLPIKey', false)) {
         class GLPIKey
         {
+            public static ?string $mockRawKey = null;
+
+            public function get(): ?string
+            {
+                if (self::$mockRawKey === null) {
+                    self::$mockRawKey = random_bytes(32);
+                }
+                return self::$mockRawKey;
+            }
+
             public function encrypt(string $string, ?string $key = null): string
             {
                 if (empty($string)) {
@@ -394,6 +404,31 @@ namespace {
                     return base64_decode(substr($string, 10));
                 }
                 return $string;
+            }
+        }
+    }
+
+    /**
+     * Shim for GLPI's Log history recorder.
+     */
+    if (!class_exists('Log', false)) {
+        class Log
+        {
+            public const HISTORY_LOG_SIMPLE_MESSAGE = 12;
+
+            /** @var array<int, array<string, mixed>> */
+            public static array $entries = [];
+
+            public static function history($items_id, $itemtype, $changes, $itemtype_link = '', $linked_action = 0): bool
+            {
+                self::$entries[] = [
+                    'items_id'      => (int)$items_id,
+                    'itemtype'      => (string)$itemtype,
+                    'changes'       => $changes,
+                    'itemtype_link' => $itemtype_link,
+                    'linked_action' => (int)$linked_action,
+                ];
+                return true;
             }
         }
     }
