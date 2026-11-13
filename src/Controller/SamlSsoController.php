@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -56,6 +56,7 @@ use GlpiPlugin\Samlsso\LoginState;                                      //
 use GlpiPlugin\Samlsso\LoginFlow\Acs;                                   // Required to call the ACS object
 use GlpiPlugin\Samlsso\LoginFlow\Meta;                                  // Required to call Exclude object
 use GlpiPlugin\Samlsso\Config\ConfigForm;                               // Required to call Config object
+use GlpiPlugin\Samlsso\Scim\ScimRouter;
 use Glpi\Application\View\TemplateRenderer;
 
 
@@ -66,6 +67,8 @@ final class SamlSsoController extends AbstractController
     public const ACS_ROUTE      = 'front/acs';                          // Route being registered by __class__
     public const ACS_PARAM      = '/{'.LoginState::IDP_ID.'}';
     public const ACS_NAME       = 'samlsso_ACS';                        // Route name
+    public const SCIM_ROUTE     = 'front/scim/v2';
+    public const SCIM_NAME      = 'samlsso_SCIM';
 
     #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]                    // Decorator to disable authentication check
     #[Route(self::ACS_ROUTE.self::ACS_PARAM, name: self::ACS_NAME)]     // Decorator to register route to controller
@@ -116,6 +119,18 @@ final class SamlSsoController extends AbstractController
     public function meta(Request $request): Response                    // What to do if route is invoked.
     {
         return (new Meta)->getSPMeta($request);                         // Call the SPMeta handler.
+    }
+
+    #[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]
+    #[Route(
+        self::SCIM_ROUTE . '/{idpId}{scimPath}',
+        name: self::SCIM_NAME,
+        requirements: ['idpId' => '\d+', 'scimPath' => '(/.*)?'],
+        defaults: ['scimPath' => '']
+    )]
+    public function scim(Request $request, int $idpId, string $scimPath = ''): Response
+    {
+        return (new ScimRouter())->dispatch($request, $idpId, $scimPath);
     }
 
 

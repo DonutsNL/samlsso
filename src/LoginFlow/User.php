@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -327,7 +327,7 @@ class User
      *
      * @param array $input Raw or sanitized payload, depending on core version.
      * @return array Payload shaped the way the running core expects.
-     * @since 1.3.2
+     * @since 1.4.0
      */
     private static function sanitizeInput(array $input): array
     {

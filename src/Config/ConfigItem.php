@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -1181,5 +1181,201 @@ class ConfigItem    //NOSONAR
         $table .= '<div class="mt-2 text-muted" style="font-size: 0.75rem;">' . __('Ensure GLPI\'s timezone usage configuration is enabled (under Setup > General > System), MySQL timezone tables are loaded, or PHP\'s date.timezone matches the database timezone.', PLUGIN_NAME) . '</div>';
 
         return ['isValid' => true, 'htmlTable' => $table];
+    }
+
+    /**
+     * Validates and normalizes the scim_enabled boolean configuration option.
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_enabled(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN => __('Enable stateless SCIM 2.0 (RFC 7643 / RFC 7644) user and group provisioning for this Identity Provider.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE   => __('ENABLE SCIM PROVISIONING', PLUGIN_NAME),
+                ConfigItem::FIELD       => __FUNCTION__,
+                ConfigItem::VALIDATOR   => __METHOD__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SCIM_ENABLED)
+        );
+    }
+
+    /**
+     * Validates the SCIM token SHA-256 hex digest ('db') or env/define identifier name.
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_token_hash(mixed $var): array
+    {
+        $val = trim((string)($var ?? ''));
+        $error = false;
+
+        if ($val !== '') {
+            if (preg_match('/^[a-fA-F0-9]{64}$/', $val) === 1) {
+                $val = strtolower($val);
+            } elseif (preg_match('/^[A-Za-z_][A-Za-z0-9_]{0,127}$/', $val) !== 1) {
+                $error = __('⭕ Invalid SCIM token reference or digest format.', PLUGIN_NAME);
+            }
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Stores either an irreversible SHA-256 hex digest of the generated SCIM Bearer token or the name of a server environment variable / PHP constant.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('SCIM BEARER TOKEN', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $val,
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
+    }
+
+    /**
+     * Validates the SCIM Bearer token storage source ('db', 'env', or 'define').
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_token_source(mixed $var): array
+    {
+        $val = trim((string)($var ?? 'db'));
+        if ($val === '') {
+            $val = 'db';
+        }
+        $allowed = ['db', 'env', 'define'];
+        $error = false;
+        if (!in_array($val, $allowed, true)) {
+            $error = __('⭕ Invalid SCIM token source selected.', PLUGIN_NAME);
+            $val = 'db';
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Select whether the SCIM Bearer token is verified against a SHA-256 digest in the database or resolved from an external environment variable or PHP constant (>= 32 characters).', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('SCIM TOKEN SOURCE', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $val,
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
+    }
+
+    /**
+     * Validates optional newline- or comma-separated IPv4 / IPv6 addresses and CIDR ranges.
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_allowed_ips(mixed $var): array
+    {
+        $raw = trim((string)($var ?? ''));
+        $error = false;
+        $normalized = [];
+
+        if ($raw !== '') {
+            $entries = preg_split('/[\r\n,;]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($entries as $entry) {
+                $candidate = trim($entry);
+                if ($candidate === '') {
+                    continue;
+                }
+                if (substr_count($candidate, '/') > 1) {
+                    $error = sprintf(__('⭕ Invalid IP or CIDR entry in SCIM allowlist: %s', PLUGIN_NAME), $candidate);
+                    break;
+                }
+                $ipPart = $candidate;
+                $prefixPart = null;
+                if (str_contains($candidate, '/')) {
+                    [$ipPart, $prefixPart] = explode('/', $candidate, 2);
+                }
+                $packed = @inet_pton($ipPart);
+                if ($packed === false) {
+                    $error = sprintf(__('⭕ Invalid IP or CIDR entry in SCIM allowlist: %s', PLUGIN_NAME), $candidate);
+                    break;
+                }
+                $maxBits = strlen($packed) === 4 ? 32 : 128;
+                if ($prefixPart !== null) {
+                    if (preg_match('/^\d+$/', $prefixPart) !== 1 || (int)$prefixPart < 0 || (int)$prefixPart > $maxBits) {
+                        $error = sprintf(__('⭕ Invalid CIDR prefix length in SCIM allowlist: %s', PLUGIN_NAME), $candidate);
+                        break;
+                    }
+                    $normalized[] = inet_ntop($packed) . '/' . (int)$prefixPart;
+                } else {
+                    $normalized[] = (string)inet_ntop($packed);
+                }
+            }
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Optional newline-separated IPv4 or IPv6 addresses / CIDR blocks permitted to call this IdP\'s SCIM endpoint. Leave empty to allow requests from any source IP carrying the valid Bearer token.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('ALLOWED SOURCE IPS / CIDRS', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $error ? $raw : implode("\n", array_values(array_unique($normalized))),
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
+    }
+
+    /**
+     * Validates the SCIM user deprovisioning policy ('disable' or 'trashbin').
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_deprovision(mixed $var): array
+    {
+        $val = trim((string)($var ?? 'disable'));
+        if ($val === '') {
+            $val = 'disable';
+        }
+        $allowed = ['disable', 'trashbin'];
+        $error = false;
+        if (!in_array($val, $allowed, true)) {
+            $error = __('⭕ Invalid SCIM deprovisioning action selected.', PLUGIN_NAME);
+            $val = 'disable';
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Action taken on DELETE /Users/{id}: always sets is_active = 0, clears cookie_token, and forces active SAML sessions to log off; "trashbin" additionally sets is_deleted = 1 without purging ticket history.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('DEPROVISIONING ACTION', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $val,
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
+    }
+
+    /**
+     * Validates the SCIM /Groups lifecycle policy ('create_scoped', 'link_existing', or 'disabled').
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_group_policy(mixed $var): array
+    {
+        $val = trim((string)($var ?? 'create_scoped'));
+        if ($val === '') {
+            $val = 'create_scoped';
+        }
+        $allowed = ['create_scoped', 'link_existing', 'disabled'];
+        $error = false;
+        if (!in_array($val, $allowed, true)) {
+            $error = __('⭕ Invalid SCIM group provisioning policy selected.', PLUGIN_NAME);
+            $val = 'create_scoped';
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Controls how SCIM /Groups push operations interact with GLPI groups: create missing organizational groups, link only to pre-existing GLPI groups by exact name, or disable /Groups endpoints completely.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('GROUP PROVISIONING POLICY', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $val,
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
     }
 }

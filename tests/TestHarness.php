@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -536,6 +536,12 @@ namespace GlpiPlugin\Samlsso\Config {
             public const SECURITY_WANTASSERTIONSENCRYPTED = 'security_wantassertionsencrypted';
             public const SECURITY_SIGNMETADATA = 'security_signmetadata';
             public const SECURITY_WANTNAMEID = 'security_wantnameid';
+            public const SCIM_ENABLED        = 'scim_enabled';
+            public const SCIM_TOKEN_HASH     = 'scim_token_hash';
+            public const SCIM_TOKEN_SOURCE   = 'scim_token_source';
+            public const SCIM_ALLOWED_IPS    = 'scim_allowed_ips';
+            public const SCIM_DEPROVISION    = 'scim_deprovision';
+            public const SCIM_GROUP_POLICY   = 'scim_group_policy';
 
             /** @var array Mocks configuration field storage. */
             public static array $mockFields = [];
@@ -897,6 +903,19 @@ namespace GlpiPlugin\Samlsso {
 
             public static function expireStaleAcsRequests(bool $force = false): void {}
             public static function expireStaleGlpiSessions(bool $force = false): void {}
+            public static function forceLogoffForUser(int $idpId, int $userId): int
+            {
+                global $DB;
+                if ($idpId <= 0 || $userId <= 0 || !is_object($DB) || !method_exists($DB, 'update')) {
+                    return 0;
+                }
+                $DB->update(self::getTable(), [self::PHASE => self::PHASE_FORCE_LOG], [
+                    self::IDP_ID  => $idpId,
+                    self::USER_ID => $userId,
+                    self::PHASE   => self::PHASE_GLPI_AUTH,
+                ]);
+                return 1;
+            }
             public function updateLastActivity(int $throttleSeconds = 60): void {}
 
             /**
@@ -1591,6 +1610,12 @@ namespace GlpiPlugin\Samlsso\Tests {
                         ['Field' => 'login_header_text', 'Type' => 'varchar(255)', 'Null' => 'YES'],
                         ['Field' => 'security_logoutrequestsigned', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_logoutresponsesigned', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'scim_enabled', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'scim_token_hash', 'Type' => 'varchar(128)', 'Null' => 'NO'],
+                        ['Field' => 'scim_token_source', 'Type' => 'varchar(16)', 'Null' => 'NO'],
+                        ['Field' => 'scim_allowed_ips', 'Type' => 'text', 'Null' => 'YES'],
+                        ['Field' => 'scim_deprovision', 'Type' => 'varchar(16)', 'Null' => 'NO'],
+                        ['Field' => 'scim_group_policy', 'Type' => 'varchar(24)', 'Null' => 'NO'],
                     ];
                     private int $index = 0;
                     public function fetch_assoc() {
@@ -1852,7 +1877,9 @@ namespace GlpiPlugin\Samlsso\Tests {
             $CFG_GLPI = ['url_base' => 'http://glpi.local'];
             $GLPI_IS_COMMAND_LINE = false;
 
-            Loginstate::$lastInstance = null;
+            if (property_exists(Loginstate::class, 'lastInstance')) {
+                Loginstate::$lastInstance = null;
+            }
         }
 
         /**

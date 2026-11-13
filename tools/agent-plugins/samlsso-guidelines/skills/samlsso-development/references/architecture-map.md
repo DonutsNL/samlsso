@@ -35,6 +35,14 @@
      - Binds user to `Auth::EXTERNAL` and `auths_id = $idpId`, blocks local `Auth::DB_GLPI` / `glpi` accounts, and runs JIT or `sync_on_login` (`RuleSamlCollection`).
      - Re-enables cookies (`ini_set('session.use_cookies', 1)`), destroys any transient session, mints a fresh stateful GLPI session (`Session::start()` + `Session::init($auth)` -> `PHASE_GLPI_AUTH (4)`), rebinds the `LoginState` row to the new `session_id()` (`$state->setSessionId()`), and calls `LoginFlow::performBrowserRedirect()` (`HTTP 200 OK` `<meta http-equiv="refresh">`) to reset the browser's cross-site request chain so `session.cookie_samesite = "Strict"` (and `"Lax"`) cookies work seamlessly.
 
+### C. Per-IdP SCIM 2.0 Provisioning (`/plugins/samlsso/front/scim/v2/{idpId}/{subpath}`)
+1. **`SamlSsoController::scim()` -> `ScimRouter::dispatch()` (`src/Scim/ScimRouter.php`)**:
+   - Registered as stateless via `SessionManager::registerPluginStatelessPath` (`SamlSsoController::SCIM_ROUTE`) and bypassed in `Exclude::isExcluded()` and `LoginFlow::doAuth()`.
+   - `ScimAuthenticator::authenticate()` enforces HTTPS (`$request->isSecure()`), active/valid/enabled `ConfigEntity($idpId)`, optional IPv4/IPv6 CIDR allowlist (`scim_allowed_ips` via `LoginState::resolveClientIp()`), `10/60s` failed-auth rate limiting, and constant-time `hash_equals()` Bearer verification (`db` SHA-256 digest or `env`/`define` >= 32 chars).
+   - Dispatches RFC 7643/7644 discovery (`ScimDiscoveryService`), `/Users` (`ScimUserService`), and `/Groups` (`ScimGroupService`) using bounded local `ScimFilterParser` (max 32 tokens, depth 4) and `ScimPatchProcessor` (max 1 MiB, 100 operations).
+   - `ScimAttributeMapper` translates standard SCIM Core + Enterprise 2.0 JSON independently of SAML `ClaimMap` and feeds `RuleSamlCollection` downstream (`scimDepartment`, `scimOrganization`, `scimDivision`, `scimCostCenter`, `scimEmployeeNumber`, `groups`).
+   - Enforces `(Auth::EXTERNAL, $idpId)` + `ScimLink` (`glpi_plugin_samlsso_scimlinks`) ownership, `is_dynamic = 1` group memberships under `scim_group_policy` (`create_scoped` | `link_existing` | `disabled`), and immediate offboarding (`is_active = 0`, GLPI 12 `glpi_usertokens` / GLPI 11 `cookie_token` cleanup, and `LoginState::forceLogoffForUser()` -> `PHASE_FORCE_LOG`).
+
 ---
 
 ## 2. Production Source to Automated Test Suite Matrix
@@ -46,6 +54,8 @@
 | `src/LoginState.php` | `tests/LoginStateTest.php` |
 | `src/LoginFlow.php` | `tests/FlowLogicTest.php`, `tests/RegressionTest.php` |
 | `src/LoginFlow/User.php`, `src/RuleSaml*.php` | `tests/UserProvisioningTest.php` |
+| `src/Scim/*.php`, `src/ScimLink.php` | `tests/ScimAuthTest.php`, `tests/ScimProtocolTest.php`, `tests/ScimProvisioningTest.php` |
+| `tools/migrate_ldap_users.php` | `tests/LdapMigrationToolTest.php` |
 | `src/Config.php`, `src/Config/ConfigEntity.php`, `src/Config/ConfigItem.php`, `src/Config/ConfigForm.php`, `templates/configForm*.twig` | `tests/ConfigIntegrityTest.php`, `tests/ConfigCachingTest.php`, `tests/CertValidationTest.php` |
 | `src/Config/ClaimMapEntity.php`, `src/Config/ClaimMapItem.php`, `src/ObservedClaim.php` | `tests/ClaimMappingTest.php` |
 | `src/Exclude.php` | `tests/ExcludeTest.php` |

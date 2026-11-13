@@ -779,6 +779,17 @@
             </li>
             <li class="nav-item" role="presentation">
                 <a class="nav-link"
+                   id="scim-tab"
+                   data-bs-toggle="tab"
+                   href="#scim"
+                   data-bs-target="#scim"
+                   type="button"
+                   role="tab"
+                   aria-controls="scim"
+                   aria-selected="false"><b>{{ __('SCIM', plugin) }} {{ scim_warning|default('') }}</b> <span class="badge bg-secondary-lt text-muted ms-1">{{ __('Beta', plugin) }}</span></a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link"
                    id="logging-tab" 
                    data-bs-toggle="tab" 
                    href="#logging" 
@@ -796,6 +807,7 @@
             {% include '@samlsso/configForm/idp.html.twig' %}
             {% include '@samlsso/configForm/security.html.twig' %}
             {% include '@samlsso/configForm/claim_mapping.html.twig' %}
+            {% include '@samlsso/configForm/scim.html.twig' %}
             {% include '@samlsso/configForm/logging.html.twig' %}
         </div>
     </div>

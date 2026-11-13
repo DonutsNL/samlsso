@@ -11,19 +11,13 @@ This file serves as persistent cross-session memory for:
 
 When analyzing a reported GitHub issue, check whether it touches any of the files below and propose folding the corresponding improvement into the fix:
 
-### Item C: Deferred `v1.4.0` SQL Column Cleanup (`src/LoginState.php`)
-- **Location**: `src/LoginState.php` (`glpi_plugin_samlsso_states`)
-- **Finding**: Dead PHP references for `serverParams`, `loggedOff`, and `enforceLogoff` were removed in `v1.3.2` (Issue #194), keeping the legacy nullable SQL columns untouched in the patch release. Drop `serverParams`, `loggedOff`, and `enforceLogoff` via `$migration->dropField()` in `v1.4.0`.
-- **Trigger**: Execute when opening the `v1.4.0` minor release branch.
-
-### Item D: Per-IdP SCIM 2.0 Provisioning (`v1.4.0` Minor Feature Branch)
-- **Architectural Rule (Security-by-Design by Default — `ADR 0004`)**: Never hijack, share, or bind `Auth::LDAP` or any non-SAML `authtype` at runtime. Runtime login strictly requires `Auth::EXTERNAL (4)` + `auths_id = $idpId`. *(Note: Scoped `User::findCandidateUsers()` lookup hardening and `tools/migrate_ldap_users.php` were completed on `v1.3.2` under Issue #189).*
-- **Per-IdP SCIM 2.0 Interface (`v1.4.0` Minor Feature Branch)**: Stateless HTTPS-only RFC 7643/7644 SCIM 2.0 endpoints (`/front/scim/v2/{idpId}/...`) authenticated via per-IdP Bearer token (`SHA-256` hex digest in DB or `env`/`define` via `hash_equals()`), implemented locally via bounded whitelist `ScimFilterParser` and `ScimPatchProcessor` without external Composer SCIM packages. Keep wire extraction decoupled from SAML `ClaimMap`, while **sharing 100% of `RuleSamlCollection`** downstream for deterministic `Profile`/`Entity` authorization. Separate group lifecycle concerns via a single `scim_group_policy` setting (`create_scoped` | `link_existing` | `disabled`), surface a soft `Beta` badge in the SCIM UI tab, and trigger immediate `is_active = 0` + `cookie_token = NULL` + `PHASE_FORCE_LOG (6)` revocation upon user offboarding.
-- **Trigger**: Implement on the `v1.4.0` minor release branch.
+*(No open queued codebase assessment items currently remain.)*
 
 ---
 
 ## 2. Completed Codebase Assessment Items
+
+- **Issue #199 (`1.4.0` Per-IdP SCIM 2.0 Provisioning & `LoginState` Legacy Column Cleanup — Items C & D)**: Shipped per-IdP stateless HTTPS-only SCIM 2.0 provisioning (`/front/scim/v2/{idpId}`, `ScimAuthenticator` with SHA-256 `db` / `env` / `define` `hash_equals()` Bearer tokens, CIDR allowlist, and `10/60s` rate limiting; bounded local `ScimFilterParser` and `ScimPatchProcessor` with zero external Composer dependencies; decoupled `ScimAttributeMapper` feeding `RuleSamlCollection`; `ScimUserService` & `ScimGroupService` enforcing `(Auth::EXTERNAL, $idpId)` + `ScimLink` isolation, 3-mode `scim_group_policy`, `is_dynamic = 1` group memberships, and immediate `PHASE_FORCE_LOG` + GLPI 11/12 remember-me token revocation; minimalist Tabler SCIM `Beta` tab), and dropped legacy `serverParams`, `loggedOff`, and `enforceLogoff` SQL columns in `LoginState::install()` (Item C).
 
 - **Issue #189 (`1.3.2` Scoped Candidate Lookup & Reversible LDAP Migration Tool)**: Replaced single-row `getFromDBByCrit()` / `getFromDBbyEmail()` calls in `User::getOrCreateUser()` with parameterized `User::findCandidateUsers()` to prevent `TooManyResultsException` while failing closed on `Auth::DB_GLPI` / `'glpi'` / foreign `authtype` matches, and shipped `tools/migrate_ldap_users.php` with `0600` `GLPIKey` HMAC-signed `migrated_user_ids` registers, `--list-registers`, `--revert`, and active `glpi_authldaps` sync deactivation guard.
 
@@ -47,4 +41,6 @@ When analyzing a reported GitHub issue, check whether it touches any of the file
   ```
 - **`MockConfigEntity` Parity (`tests/TestHarness.php`)**: Whenever a constant is added to `src/Config/ConfigEntity.php`, also add it to `MockConfigEntity` in `tests/TestHarness.php`.
 - **`AcsTest::testPhaseMismatchAfterRegistration()` Mock Phase Count**: `LoginState::$mockPhases` in `AcsTest` is consumed sequentially on each `$this->state->getPhase()` call inside `Acs::assertSaml()`. Avoid adding redundant `$this->state->getPhase()` calls in `Acs::assertSaml()`.
+- **GLPI 11 vs. GLPI 12 Remember-Me Token Storage (`glpi_usertokens` vs. `cookie_token`)**: GLPI 12 dropped `glpi_users.cookie_token` and moved remember-me tokens to `glpi_usertokens` (`users_id`, `type = 'rememberme'`), whereas GLPI 11.0.x stores `cookie_token` on `glpi_users`. Any offboarding / session revocation flow (`ScimUserService::revokeUserSessions()`) must check `$DB->tableExists('glpi_usertokens')` first and fall back to `$DB->fieldExists('glpi_users', 'cookie_token', false)`.
+
 

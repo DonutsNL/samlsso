@@ -32,13 +32,13 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -53,6 +53,7 @@ namespace GlpiPlugin\Samlsso\Tests {
     require_once __DIR__ . '/../src/LoginState.php';
     require_once __DIR__ . '/../src/ClaimMap.php';
     require_once __DIR__ . '/../src/ObservedClaim.php';
+    require_once __DIR__ . '/../src/ScimLink.php';
     require_once __DIR__ . '/../src/Utility/SanityChecker.php';
 
     use GlpiPlugin\Samlsso\Config;
@@ -61,6 +62,7 @@ namespace GlpiPlugin\Samlsso\Tests {
     use GlpiPlugin\Samlsso\LoginState;
     use GlpiPlugin\Samlsso\ClaimMap;
     use GlpiPlugin\Samlsso\ObservedClaim;
+    use GlpiPlugin\Samlsso\ScimLink;
     use GlpiPlugin\Samlsso\Utility\SanityChecker;
 
     /**
@@ -81,6 +83,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                     ConfigEntity::ID => true,
                     ConfigEntity::NAME => true,
                     ConfigEntity::INACTIVITY_TIMEOUT => true,
+                    ConfigEntity::SCIM_ENABLED => true,
                 ],
                 getTableForItemType(Exclude::class) => [
                     Exclude::ID => true,
@@ -100,6 +103,12 @@ namespace GlpiPlugin\Samlsso\Tests {
                     ObservedClaim::ID => true,
                     ObservedClaim::CONFIGS_ID => true,
                     ObservedClaim::SAML_CLAIM => true,
+                ],
+                getTableForItemType(ScimLink::class) => [
+                    ScimLink::ID => true,
+                    ScimLink::CONFIGS_ID => true,
+                    ScimLink::ITEM_TYPE => true,
+                    ScimLink::GLPI_ITEM_ID => true,
                 ],
             ];
         }

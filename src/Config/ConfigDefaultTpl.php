@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -100,7 +100,13 @@ class ConfigDefaultTpl {
                  ConfigEntity::SECURITY_SIGNMETADATA => false,
                  ConfigEntity::SECURITY_WANTNAMEID => true,
                  ConfigEntity::REQUEST_TIMEOUT => 15,
-                 ConfigEntity::INACTIVITY_TIMEOUT => 0
+                 ConfigEntity::INACTIVITY_TIMEOUT => 0,
+                 ConfigEntity::SCIM_ENABLED    => false,
+                 ConfigEntity::SCIM_TOKEN_HASH => '',
+                 ConfigEntity::SCIM_TOKEN_SOURCE => 'db',
+                 ConfigEntity::SCIM_ALLOWED_IPS => '',
+                 ConfigEntity::SCIM_DEPROVISION => 'disable',
+                 ConfigEntity::SCIM_GROUP_POLICY => 'create_scoped'
         ];
     }
 }

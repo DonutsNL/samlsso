@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -210,6 +210,41 @@ class RuleSaml extends RuleSamlCompat
             $criterias['street']['linkfield']       = '';
             $criterias['street']['virtual']         = true;
             $criterias['street']['id']              = 'street';
+
+            $criterias['scimDepartment']['table']        = '';
+            $criterias['scimDepartment']['field']        = '';
+            $criterias['scimDepartment']['name']         = __('SCIM Department', PLUGIN_NAME);
+            $criterias['scimDepartment']['linkfield']    = '';
+            $criterias['scimDepartment']['virtual']      = true;
+            $criterias['scimDepartment']['id']           = 'scimDepartment';
+
+            $criterias['scimOrganization']['table']      = '';
+            $criterias['scimOrganization']['field']      = '';
+            $criterias['scimOrganization']['name']       = __('SCIM Organization', PLUGIN_NAME);
+            $criterias['scimOrganization']['linkfield']  = '';
+            $criterias['scimOrganization']['virtual']    = true;
+            $criterias['scimOrganization']['id']         = 'scimOrganization';
+
+            $criterias['scimDivision']['table']          = '';
+            $criterias['scimDivision']['field']          = '';
+            $criterias['scimDivision']['name']           = __('SCIM Division', PLUGIN_NAME);
+            $criterias['scimDivision']['linkfield']      = '';
+            $criterias['scimDivision']['virtual']        = true;
+            $criterias['scimDivision']['id']             = 'scimDivision';
+
+            $criterias['scimCostCenter']['table']        = '';
+            $criterias['scimCostCenter']['field']        = '';
+            $criterias['scimCostCenter']['name']         = __('SCIM Cost Center', PLUGIN_NAME);
+            $criterias['scimCostCenter']['linkfield']    = '';
+            $criterias['scimCostCenter']['virtual']      = true;
+            $criterias['scimCostCenter']['id']           = 'scimCostCenter';
+
+            $criterias['scimEmployeeNumber']['table']    = '';
+            $criterias['scimEmployeeNumber']['field']    = '';
+            $criterias['scimEmployeeNumber']['name']     = __('SCIM Employee Number', PLUGIN_NAME);
+            $criterias['scimEmployeeNumber']['linkfield']= '';
+            $criterias['scimEmployeeNumber']['virtual']  = true;
+            $criterias['scimEmployeeNumber']['id']       = 'scimEmployeeNumber';
 
             global $DB;
             if (isset($DB) && method_exists($DB, 'tableExists') && $DB->tableExists(ClaimMap::getTable())) {

@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -112,11 +112,17 @@ namespace {
     if (!defined('GLPI_SYSTEM_CRON')) {
         define('GLPI_SYSTEM_CRON', -1);
     }
+    if (!defined('READ')) {
+        define('READ', 1);
+    }
+    if (!defined('UPDATE')) {
+        define('UPDATE', 2);
+    }
     if (!defined('PLUGIN_SAMLSSO_LOGEVENTS')) {
         define('PLUGIN_SAMLSSO_LOGEVENTS', '_events.log');
     }
     if (!defined('PLUGIN_SAMLSSO_VERSION')) {
-        define('PLUGIN_SAMLSSO_VERSION', '1.3.2');
+        define('PLUGIN_SAMLSSO_VERSION', '1.4.0');
     }
     if (!defined('PLUGIN_SAMLSSO_SRCDIR')) {
         define('PLUGIN_SAMLSSO_SRCDIR', dirname(__DIR__) . '/src');
@@ -138,6 +144,7 @@ namespace {
             'GlpiPlugin\\Samlsso\\LoginState',
             'GlpiPlugin\\Samlsso\\ClaimMap',
             'GlpiPlugin\\Samlsso\\ObservedClaim',
+            'GlpiPlugin\\Samlsso\\ScimLink',
             'GlpiPlugin\\Samlsso\\CronTask',
         ]);
     }
@@ -351,6 +358,20 @@ namespace {
              */
             public static function getLoginUserID($force_human = true) {
                 return self::$userId !== false ? self::$userId : ($_SESSION['glpiID'] ?? false);
+            }
+
+            /** @var bool Configurable permission result for haveRight() in tests. */
+            public static bool $mockHaveRight = true;
+
+            /**
+             * Mocks Session::haveRight().
+             *
+             * @param string $module Right module name.
+             * @param int    $right  Right bitmask.
+             * @return bool
+             */
+            public static function haveRight(string $module, int $right): bool {
+                return self::$mockHaveRight;
             }
         }
     }
@@ -584,6 +605,15 @@ namespace {
              */
             public static function getTypeName($nb = 0) {
                 return 'CommonDBTM';
+            }
+
+            /**
+             * Mocks CommonDBTM::canUpdate() delegating to Session::haveRight().
+             *
+             * @return bool
+             */
+            public static function canUpdate() {
+                return Session::haveRight('config', UPDATE);
             }
 
             public function getFromDBByCrit(array $crit): bool {

@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -124,6 +124,18 @@ class ConfigEntity extends ConfigItem
     public const SECURITY_WANTASSERTIONSENCRYPTED = 'security_wantassertionsencrypted';
     public const SECURITY_SIGNMETADATA = 'security_signmetadata';
     public const SECURITY_WANTNAMEID = 'security_wantnameid';
+    /** @var string Database column: enable per-IdP SCIM 2.0 provisioning endpoints. */
+    public const SCIM_ENABLED        = 'scim_enabled';
+    /** @var string Database column: SHA-256 hex digest ('db') or env/define identifier name. */
+    public const SCIM_TOKEN_HASH     = 'scim_token_hash';
+    /** @var string Database column: SCIM Bearer token source ('db', 'env', or 'define'). */
+    public const SCIM_TOKEN_SOURCE   = 'scim_token_source';
+    /** @var string Database column: newline-separated IPv4/IPv6 CIDR allowlist for SCIM requests. */
+    public const SCIM_ALLOWED_IPS    = 'scim_allowed_ips';
+    /** @var string Database column: user offboarding action on DELETE /Users ('disable' or 'trashbin'). */
+    public const SCIM_DEPROVISION    = 'scim_deprovision';
+    /** @var string Database column: SCIM /Groups lifecycle policy ('create_scoped', 'link_existing', or 'disabled'). */
+    public const SCIM_GROUP_POLICY   = 'scim_group_policy';
 
     /**
      * Cache for loaded database configurations to prevent duplicate queries within the same request.
@@ -215,6 +227,18 @@ class ConfigEntity extends ConfigItem
                 $existingConfig = new SamlConfig();
                 if ($existingConfig->getFromDB($postedId) && !empty($existingConfig->fields[self::SP_KEY])) {
                     $this->evaluateItem(self::SP_KEY, $existingConfig->fields[self::SP_KEY]);
+                }
+            }
+            $postedScimSource = (string)($options['postData'][self::SCIM_TOKEN_SOURCE] ?? 'db');
+            $postedScimVal = trim((string)($options['postData'][self::SCIM_TOKEN_HASH] ?? ''));
+            if ($postedId > 0 && $postedScimSource === 'db' && $postedScimVal === '') {
+                $existingConfig = $existingConfig ?? new SamlConfig();
+                if (
+                    (!empty($existingConfig->fields[self::ID]) || $existingConfig->getFromDB($postedId)) &&
+                    !empty($existingConfig->fields[self::SCIM_TOKEN_HASH]) &&
+                    preg_match('/^[a-fA-F0-9]{64}$/', (string)$existingConfig->fields[self::SCIM_TOKEN_HASH]) === 1
+                ) {
+                    $this->evaluateItem(self::SCIM_TOKEN_HASH, $existingConfig->fields[self::SCIM_TOKEN_HASH]);
                 }
             }
         } else {
@@ -569,6 +593,42 @@ class ConfigEntity extends ConfigItem
             }
         }
 
+        if (isset($fields[self::SCIM_ENABLED])) {
+            $scimEnabled = (bool)($fields[self::SCIM_ENABLED][ConfigItem::VALUE] ?? false);
+            $scimSource  = (string)($fields[self::SCIM_TOKEN_SOURCE][ConfigItem::VALUE] ?? 'db');
+            $scimHash    = trim((string)($fields[self::SCIM_TOKEN_HASH][ConfigItem::VALUE] ?? ''));
+
+            if ($scimSource === 'db' && $scimHash !== '' && preg_match('/^[a-fA-F0-9]{64}$/', $scimHash) !== 1) {
+                $fields[self::SCIM_TOKEN_HASH][ConfigItem::VALUE] = '';
+                $scimHash = '';
+            }
+
+            if ($scimEnabled) {
+                if ($scimSource === 'db' && $scimHash === '') {
+                    $fields[self::SCIM_ENABLED][ConfigItem::ERRORS] = __('⚠️ SCIM provisioning is enabled without a generated Bearer token. Requests will fail closed until a token is generated.', PLUGIN_NAME);
+                } elseif ($scimSource === 'env') {
+                    if ($scimHash === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]{0,127}$/', $scimHash) !== 1) {
+                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = __('⭕ Valid environment variable name is required when SCIM token source is set to Environment Variable.', PLUGIN_NAME);
+                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::EVAL] = ConfigItem::INVALID;
+                        $this->isValid = false;
+                    } else {
+                        $envToken = getenv($scimHash);
+                        if ($envToken === false || strlen((string)$envToken) < 32) {
+                            $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = __('⚠️ Configured SCIM environment variable is undefined or shorter than 32 characters.', PLUGIN_NAME);
+                        }
+                    }
+                } elseif ($scimSource === 'define') {
+                    if ($scimHash === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]{0,127}$/', $scimHash) !== 1) {
+                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = __('⭕ Valid PHP constant name is required when SCIM token source is set to PHP Constant.', PLUGIN_NAME);
+                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::EVAL] = ConfigItem::INVALID;
+                        $this->isValid = false;
+                    } elseif (!defined($scimHash) || strlen((string)constant($scimHash)) < 32) {
+                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = __('⚠️ Configured SCIM PHP constant is undefined or shorter than 32 characters.', PLUGIN_NAME);
+                    }
+                }
+            }
+        }
+
         return $fields;
     }
 
@@ -584,7 +644,7 @@ class ConfigEntity extends ConfigItem
         if (
             key_exists($fieldName, $this->fields) &&
             is_numeric($this->fields[$fieldName]) &&
-            !in_array($fieldName, [self::ID, self::REQUEST_TIMEOUT, self::INACTIVITY_TIMEOUT], true)
+            !in_array($fieldName, [self::ID, self::REQUEST_TIMEOUT, self::INACTIVITY_TIMEOUT, self::SCIM_TOKEN_HASH], true)
         ) {
             return (bool) $this->fields[$fieldName];
         } elseif (key_exists($fieldName, $this->fields)) {

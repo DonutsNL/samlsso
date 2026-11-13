@@ -32,13 +32,13 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -193,6 +193,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 'src/Config.php',
                 'src/ClaimMap.php',
                 'src/ObservedClaim.php',
+                'src/ScimLink.php',
                 'src/Exclude.php',
                 'src/LoginState.php',
             ];
@@ -233,8 +234,8 @@ namespace GlpiPlugin\Samlsso\Tests {
                                 }
                             }
 
-                            // Foreign keys (configs_id, idpId, userId)
-                            if ($fieldName === 'configs_id' || $fieldName === 'idpId' || $fieldName === 'userId') {
+                            // Foreign keys (configs_id, idpId, userId, glpi_item_id)
+                            if ($fieldName === 'configs_id' || $fieldName === 'idpId' || $fieldName === 'userId' || $fieldName === 'glpi_item_id') {
                                 if (!str_contains($fieldModifiers, '{$default_key_sign}') && !str_contains($fieldModifiers, '{$default_primary_key_sign}')) {
                                     throw new \Exception("Foreign key '$fieldName' in $relPath does not use the default_key_sign placeholder: $line");
                                 }

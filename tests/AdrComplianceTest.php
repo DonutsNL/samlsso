@@ -33,13 +33,13 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -407,12 +407,29 @@ namespace GlpiPlugin\Samlsso\Tests {
                 !str_contains($loginFlow, 'hash_equals($requiredToken, (string)$providedToken)') ||
                 !str_contains($loginState, 'function resolveClientIp') ||
                 !str_contains($loginState, 'FILTER_VALIDATE_IP') ||
-                substr_count($controller, '#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]') > 3
+                substr_count($controller, '#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]') > 4
             ) {
                 throw new \Exception('ADR 0004 violation: Missing admin right check, bypass hash_equals, proxy-gated resolveClientIp(), or unexpected STRATEGY_NO_CHECK on admin controller routes.');
             }
 
-            echo "✅ ADR 0004: Validated fail-closed IdP loading, JIT external-source binding, and token-guarded bypass.\n";
+            // 4. Verify per-IdP SCIM 2.0 fail-closed auth, parser bounds, undisclosed digest, and dual-core session revocation
+            $scimAuth = $this->readPluginFile('src/Scim/ScimAuthenticator.php');
+            $scimFilter = $this->readPluginFile('src/Scim/ScimFilterParser.php');
+            $scimPatch = $this->readPluginFile('src/Scim/ScimPatchProcessor.php');
+            $scimUser = $this->readPluginFile('src/Scim/ScimUserService.php');
+            if (
+                !str_contains($scimAuth, 'isSecure()') ||
+                !str_contains($scimAuth, 'hash_equals(') ||
+                !str_contains($scimFilter, 'MAX_TOKENS') ||
+                !str_contains($scimPatch, 'MAX_BODY_BYTES') ||
+                !str_contains($config, 'ConfigEntity::SCIM_TOKEN_HASH') ||
+                !str_contains($scimUser, 'glpi_usertokens') ||
+                !str_contains($scimUser, 'forceLogoffForUser')
+            ) {
+                throw new \Exception('ADR 0004 violation: SCIM subsystem missing HTTPS check, hash_equals(), parser bounds, undisclosed token hash, or session revocation.');
+            }
+
+            echo "✅ ADR 0004: Validated fail-closed IdP loading, JIT/SCIM external-source binding, and token-guarded bypass.\n";
         }
 
         /**

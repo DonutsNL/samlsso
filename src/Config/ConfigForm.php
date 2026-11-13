@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -49,9 +49,12 @@ namespace GlpiPlugin\Samlsso\Config;
 use Html;
 use Search;
 use Session;
+use Toolbox;
 use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\ClaimMap;
+use GlpiPlugin\Samlsso\ScimLink;
 use GlpiPlugin\Samlsso\LoginState;
+use GlpiPlugin\Samlsso\Scim\ScimAuthenticator;
 use Glpi\Application\View\TemplateRenderer;
 use OneLogin\Saml2\Constants as Saml2Const;
 use Symfony\Component\HttpFoundation\Request;
@@ -190,6 +193,8 @@ HTML;
             ConfigEntity::ENCRYPT_NAMEID, ConfigEntity::SIGN_AUTHN, ConfigEntity::SIGN_SLO_REQ,
             ConfigEntity::SIGN_SLO_RES, ConfigEntity::COMPRESS_REQ, ConfigEntity::COMPRESS_RES,
             ConfigEntity::XML_VALIDATION, ConfigEntity::DEST_VALIDATION, ConfigEntity::LOWERCASE_URL,
+            ConfigEntity::SCIM_ENABLED, ConfigEntity::SCIM_TOKEN_SOURCE, ConfigEntity::SCIM_ALLOWED_IPS,
+            ConfigEntity::SCIM_DEPROVISION, ConfigEntity::SCIM_GROUP_POLICY,
             ConfigEntity::COMMENT, ConfigEntity::IS_ACTIVE,
         ];
 
@@ -310,6 +315,8 @@ HTML;
             ConfigEntity::ENCRYPT_NAMEID, ConfigEntity::SIGN_AUTHN, ConfigEntity::SIGN_SLO_REQ,
             ConfigEntity::SIGN_SLO_RES, ConfigEntity::COMPRESS_REQ, ConfigEntity::COMPRESS_RES,
             ConfigEntity::XML_VALIDATION, ConfigEntity::DEST_VALIDATION, ConfigEntity::LOWERCASE_URL,
+            ConfigEntity::SCIM_ENABLED, ConfigEntity::SCIM_TOKEN_SOURCE, ConfigEntity::SCIM_ALLOWED_IPS,
+            ConfigEntity::SCIM_DEPROVISION, ConfigEntity::SCIM_GROUP_POLICY,
             ConfigEntity::COMMENT, ConfigEntity::IS_ACTIVE,
         ];
 
@@ -428,7 +435,7 @@ HTML;
 
         // Build insert row; only use known fields that are present in export
         $defaultTpl = ConfigDefaultTpl::template();
-        $insertRow = [ConfigEntity::IS_DELETED => 0, 'date_creation' => $now, 'date_mod' => $now];
+        $insertRow = [ConfigEntity::IS_DELETED => 0, ConfigEntity::SCIM_TOKEN_HASH => '', 'date_creation' => $now, 'date_mod' => $now];
         foreach ($exportFields as $field) {
             if ($field === ConfigEntity::ID) {
                 $insertRow['id'] = $origId;
@@ -588,6 +595,76 @@ HTML;
                 'private_key' => $pair['private_key'],
                 'message'     => __('New self-signed certificate and private key generated successfully.', PLUGIN_NAME),
             ]), Response::HTTP_OK, ['Content-Type' => 'application/json']);
+        }
+
+        if ($request->get('action') === 'generate_scim_token') {
+            $jsonHeaders = [
+                'Content-Type'  => 'application/json',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            ];
+            if (!$request->isMethod('POST')) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('Invalid request method for SCIM token generation.', PLUGIN_NAME),
+                ]), Response::HTTP_METHOD_NOT_ALLOWED, $jsonHeaders);
+            }
+            if (method_exists(\Session::class, 'validateCSRF') && !\Session::validateCSRF($request->request->all(), true)) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('Security token expired or invalid.', PLUGIN_NAME),
+                ]), Response::HTTP_FORBIDDEN, $jsonHeaders);
+            }
+            $config = new Config();
+            if (!$config->canUpdate()) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('You do not have permission to perform this action.', PLUGIN_NAME),
+                ]), Response::HTTP_FORBIDDEN, $jsonHeaders);
+            }
+
+            $targetId = (int)$request->request->get('id', -1);
+            if (
+                $targetId <= 0 ||
+                !$config->getFromDB($targetId) ||
+                (int)($config->fields[ConfigEntity::IS_DELETED] ?? 0) === 1
+            ) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('Save the Identity Provider configuration before generating a SCIM Bearer token.', PLUGIN_NAME),
+                ]), Response::HTTP_BAD_REQUEST, $jsonHeaders);
+            }
+
+            $generated = ScimAuthenticator::generateToken();
+            global $DB;
+            $updated = $DB->update(
+                Config::getTable(),
+                [
+                    ConfigEntity::SCIM_TOKEN_HASH   => $generated['hash'],
+                    ConfigEntity::SCIM_TOKEN_SOURCE => 'db',
+                ],
+                [ConfigEntity::ID => $targetId]
+            );
+            if (!$updated) {
+                return new Response((string)json_encode([
+                    'success' => false,
+                    'error'   => __('Failed to persist generated SCIM Bearer token digest.', PLUGIN_NAME),
+                ]), Response::HTTP_INTERNAL_SERVER_ERROR, $jsonHeaders);
+            }
+
+            ConfigEntity::clearCache();
+            Config::clearCache();
+
+            $actorId = (int)\Session::getLoginUserID();
+            Toolbox::logInFile(
+                PLUGIN_SAMLSSO_LOGEVENTS,
+                sprintf("SCIM Bearer token generated or rotated for IdP #%d by user #%d\n", $targetId, $actorId)
+            );
+
+            return new Response((string)json_encode([
+                'success' => true,
+                'token'   => $generated['plaintext'],
+                'message' => __('New SCIM Bearer token generated. Copy it now; it cannot be displayed again.', PLUGIN_NAME),
+            ]), Response::HTTP_OK, $jsonHeaders);
         }
 
         $inputBag = $request->getPayload();                                     // Assign the inputBag
@@ -750,6 +827,7 @@ HTML;
         // Validate user has the rights to delete then delete
         if($config->canPurge()  &&
            $config->delete((array) $postData)){
+            ScimLink::deleteAllForConfig((int) ($postData['id'] ?? 0));
             // Leave success message and redirect
             Session::addMessageAfterRedirect(__('Configuration deleted successfully', PLUGIN_NAME));
             return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIG_ROUTE);
@@ -840,6 +918,14 @@ HTML;
                 ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
                 ConfigEntity::SECURITY_SIGNMETADATA,
                 ConfigEntity::SECURITY_WANTNAMEID,
+            ],
+            'scim_warning'     => [
+                ConfigEntity::SCIM_ENABLED,
+                ConfigEntity::SCIM_TOKEN_HASH,
+                ConfigEntity::SCIM_TOKEN_SOURCE,
+                ConfigEntity::SCIM_ALLOWED_IPS,
+                ConfigEntity::SCIM_DEPROVISION,
+                ConfigEntity::SCIM_GROUP_POLICY,
             ],
         ];
 
@@ -981,9 +1067,22 @@ HTML;
             $fields[ConfigEntity::SP_KEY][ConfigItem::VALUE] = '';
         }
 
+        $idpId = (int)($fields[ConfigEntity::ID][ConfigItem::VALUE] ?? -1);
+        $scimTokenSource = (string)($fields[ConfigEntity::SCIM_TOKEN_SOURCE][ConfigItem::VALUE] ?? 'db');
+        $rawScimHash = (string)($fields[ConfigEntity::SCIM_TOKEN_HASH][ConfigItem::VALUE] ?? '');
+        $hasStoredScimToken = ($scimTokenSource === 'db' && preg_match('/^[a-fA-F0-9]{64}$/', $rawScimHash) === 1);
+        if ($scimTokenSource === 'db' || !Session::haveRight('config', UPDATE)) {
+            $fields[ConfigEntity::SCIM_TOKEN_HASH][ConfigItem::VALUE] = '';
+        }
+
         $tplVars = array_merge($tplVars, [
             'is_test_certificate'       =>  $isTestCert,
             'has_stored_sp_key'         =>  $hasStoredSpKey,
+            'has_stored_scim_token'     =>  $hasStoredScimToken,
+            'scimUrl'                   =>  $idpId > 0 ? (samlsso_webdir() . SamlSsoController::SCIM_ROUTE . '/' . $idpId) : '',
+            'scim_linked_users_count'   =>  $idpId > 0 ? ScimLink::countForConfigAndType($idpId, ScimLink::TYPE_USER) : 0,
+            'scim_linked_groups_count'  =>  $idpId > 0 ? ScimLink::countForConfigAndType($idpId, ScimLink::TYPE_GROUP) : 0,
+            'scim_last_sync'            =>  $idpId > 0 ? (ScimLink::getLastSyncForConfig($idpId) ?? '') : '',
             'openssl_available'         =>  $opensslAvailable,
             'default_cert_cn'           =>  $defaultCertCn,
             'claim_mappings'            =>  $claimMappings,
@@ -1032,6 +1131,14 @@ HTML;
                                              'minimum'                      => __('Minimum', PLUGIN_NAME),
                                              'maximum'                      => __('Maximum', PLUGIN_NAME),
                                              'better'                       => __('Better', PLUGIN_NAME)],
+            'inputOptionsScimTokenSource' => ['db'     => __('Database (SHA-256 Digest)', PLUGIN_NAME),
+                                              'env'    => __('Environment Variable', PLUGIN_NAME),
+                                              'define' => __('PHP Define / Constant', PLUGIN_NAME)],
+            'inputOptionsScimDeprovision' => ['disable'  => __('Disable User & Force Logoff', PLUGIN_NAME),
+                                              'trashbin' => __('Move to Trashbin, Disable & Force Logoff', PLUGIN_NAME)],
+            'inputOptionsScimGroupPolicy' => ['create_scoped' => __('Create & Manage Groups', PLUGIN_NAME),
+                                              'link_existing' => __('Link Existing GLPI Groups Only', PLUGIN_NAME),
+                                              'disabled'      => __('Disabled (Users Only)', PLUGIN_NAME)],
             'inputOptionsIcons'         =>  self::getAvailableIcons(),
         ]);
 

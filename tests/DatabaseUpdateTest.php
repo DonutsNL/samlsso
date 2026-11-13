@@ -32,13 +32,13 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -50,6 +50,9 @@ namespace GlpiPlugin\Samlsso\Tests {
     require_once __DIR__ . '/../src/Config.php';
     require_once __DIR__ . '/../src/ClaimMap.php';
     require_once __DIR__ . '/../src/LoginState.php';
+    if (file_exists(__DIR__ . '/../src/ScimLink.php')) {
+        require_once __DIR__ . '/../src/ScimLink.php';
+    }
 
     use GlpiPlugin\Samlsso\Config;
     use GlpiPlugin\Samlsso\ClaimMap;
@@ -78,6 +81,26 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @var array
          */
         public array $migrationOneTableCalls = [];
+
+        /**
+         * @var array
+         */
+        public array $dropFieldCalls = [];
+
+        /**
+         * Intercept call to dropField.
+         *
+         * @param string $table Table name
+         * @param string $field Field name
+         * @return bool
+         */
+        public function dropField(string $table, string $field): bool {
+            $this->dropFieldCalls[] = [
+                'table' => $table,
+                'field' => $field,
+            ];
+            return true;
+        }
 
         /**
          * Intercept call to addField.
@@ -240,7 +263,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             global $DB;
             $DB = new SimpleMockDB();
 
-            $migration = new InterceptingMigration('1.3.2');
+            $migration = new InterceptingMigration('1.4.0');
 
             // 1. Test Config update/install
             Config::install($migration);
@@ -288,7 +311,7 @@ namespace GlpiPlugin\Samlsso\Tests {
              * Case 1: Fresh upgrade where redirect does not yet exist.
              */
             $DB = new SimpleMockDB();
-            $migration = new InterceptingMigration('1.3.2');
+            $migration = new InterceptingMigration('1.4.0');
             LoginState::install($migration);
 
             $table = getTableForItemType(LoginState::class);
@@ -335,7 +358,7 @@ namespace GlpiPlugin\Samlsso\Tests {
              */
             $DB = new SimpleMockDB();
             $DB->existingFields[$table] = [LoginState::REDIRECT];
-            $migrationExisting = new InterceptingMigration('1.3.2');
+            $migrationExisting = new InterceptingMigration('1.4.0');
             LoginState::install($migrationExisting);
 
             $redirectChanged = false;
@@ -367,7 +390,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             $table = Config::getTable();
             $DB->existingTables = [$table];
 
-            $migration = new InterceptingMigration('1.3.2');
+            $migration = new InterceptingMigration('1.4.0');
             Config::install($migration);
 
             if (!in_array($table, $migration->migrationOneTableCalls, true)) {
@@ -375,7 +398,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
 
             $claimTable = getTableForItemType(ClaimMap::class);
-            $migrationClaim = new InterceptingMigration('1.3.2');
+            $migrationClaim = new InterceptingMigration('1.4.0');
             ClaimMap::install($migrationClaim);
             $claimFlushCount = count(array_keys($migrationClaim->migrationOneTableCalls, $claimTable, true));
             if ($claimFlushCount < 2) {
@@ -383,6 +406,57 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
 
             echo "✅ Database Migrations: Verified migrationOneTable is called for $table in Config::install() (#182) and $claimTable in ClaimMap::install() (#196)\n";
+        }
+
+        /**
+         * Verifies v1.4.0 schema migrations: ScimLink table lifecycle, Config SCIM columns,
+         * and LoginState legacy column cleanup (serverParams, loggedOff, enforceLogoff).
+         *
+         * @return void
+         * @throws \Exception if v1.4.0 schema migrations are missing.
+         */
+        public function testV140ScimAndLoginStateLegacyCleanup(): void {
+            global $DB;
+            if (!class_exists('GlpiPlugin\Samlsso\ScimLink')) {
+                throw new \Exception('ScimLink class does not exist yet.');
+            }
+
+            $DB = new SimpleMockDB();
+            $loginStateTable = getTableForItemType(LoginState::class);
+            $DB->existingFields[$loginStateTable] = ['serverParams', 'loggedOff', 'enforceLogoff'];
+
+            $migration = new InterceptingMigration('1.4.0');
+            Config::install($migration);
+            LoginState::install($migration);
+            \GlpiPlugin\Samlsso\ScimLink::install($migration);
+
+            $droppedFields = array_column($migration->dropFieldCalls, 'field');
+            foreach (['serverParams', 'loggedOff', 'enforceLogoff'] as $legacyCol) {
+                if (!in_array($legacyCol, $droppedFields, true)) {
+                    throw new \Exception("Expected LoginState::install() to drop legacy column '$legacyCol' in v1.4.0.");
+                }
+            }
+
+            $addedConfigFields = array_column($migration->addFieldCalls, 'field');
+            foreach ([
+                'scim_enabled',
+                'scim_token_hash',
+                'scim_token_source',
+                'scim_allowed_ips',
+                'scim_deprovision',
+                'scim_group_policy',
+            ] as $scimCol) {
+                if (!in_array($scimCol, $addedConfigFields, true)) {
+                    throw new \Exception("Expected Config::install() upgrade path to add '$scimCol'.");
+                }
+            }
+
+            $scimTable = getTableForItemType(\GlpiPlugin\Samlsso\ScimLink::class);
+            if (!in_array($scimTable, $migration->migrationOneTableCalls, true)) {
+                throw new \Exception("Expected ScimLink::install() upgrade path to flush migrationOneTable($scimTable).");
+            }
+
+            echo "✅ Database Migrations: Verified v1.4.0 ScimLink lifecycle, SCIM Config columns, and LoginState legacy column cleanup (#199)\n";
         }
     }
 }
@@ -396,6 +470,7 @@ namespace {
         $test->testUpdateProcedureNoAfterBefore();
         $test->testLoginStatePhaseAndRedirectMigration();
         $test->testConfigTableMigrationExecution();
+        $test->testV140ScimAndLoginStateLegacyCleanup();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

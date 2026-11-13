@@ -35,13 +35,13 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -65,7 +65,7 @@ use Session;
  * Each row stores a unique (configs_id, saml_claim) pair so that the same
  * claim key observed from multiple responses is recorded only once per IDP.
  *
- * @since  1.3.2
+ * @since  1.4.0
  * @see    ClaimMap   Stores the administrator-configured mappings that translate
  *                    observed claim keys to GLPI user fields.
  */

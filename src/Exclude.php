@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -304,7 +304,8 @@ class Exclude extends ExcludeCompat
                     $requestPath = '';
                 }
                 if (
-                    str_contains($requestPath, SamlSsoController::ACS_ROUTE) ||
+                    str_contains($requestPath, SamlSsoController::ACS_ROUTE)  ||
+                    str_contains($requestPath, SamlSsoController::SCIM_ROUTE) ||
                     strpos($requestPath, 'acs.php') !== false                ||
                     strpos($requestPath, 'common.tabs.php') !== false        ||
                     strpos($requestPath, 'dashboard.php') !== false          ||

@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -221,7 +221,8 @@ class Config extends ConfigCompat
                 $field[ConfigItem::FIELD] != ConfigEntity::IDP_ENTITY_ID &&
                 $field[ConfigItem::FIELD] != ConfigEntity::IS_ACTIVE     &&
                 $field[ConfigItem::FIELD] != ConfigEntity::IS_DELETED    &&
-                $field[ConfigItem::FIELD] != ConfigEntity::SP_KEY
+                $field[ConfigItem::FIELD] != ConfigEntity::SP_KEY        &&
+                $field[ConfigItem::FIELD] != ConfigEntity::SCIM_TOKEN_HASH
             ) {
                 // Remap DB fields to Search dataTypes
                 if (strstr($field[ConfigItem::TYPE], 'varchar')) {
@@ -577,6 +578,12 @@ class Config extends ConfigCompat
             `lowercase_url_encoding`        tinyint NOT NULL DEFAULT '0',
             `comment`                       text NULL,
             `saml_xml_structure`            text NULL,
+            `scim_enabled`                  tinyint NOT NULL DEFAULT '0',
+            `scim_token_hash`               VARCHAR(128) NOT NULL DEFAULT '',
+            `scim_token_source`             VARCHAR(16) NOT NULL DEFAULT 'db',
+            `scim_allowed_ips`              TEXT NULL,
+            `scim_deprovision`              VARCHAR(16) NOT NULL DEFAULT 'disable',
+            `scim_group_policy`             VARCHAR(24) NOT NULL DEFAULT 'create_scoped',
             `is_active`                     tinyint NOT NULL DEFAULT '0',
             `is_deleted`                    tinyint NOT NULL default '0',
             `date_creation`                 timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -648,6 +655,30 @@ class Config extends ConfigCompat
                 $migration->addField($table, ConfigEntity::LOGIN_HEADER_TEXT, 'string', ['null' => true]);
             }
 
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_ENABLED, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_ENABLED, 'bool', ['value' => '0', 'default' => '0', 'null' => false]);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_TOKEN_HASH, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_TOKEN_HASH, 'string', ['value' => '', 'default' => '', 'null' => false]);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_TOKEN_SOURCE, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_TOKEN_SOURCE, 'string', ['value' => 'db', 'default' => 'db', 'null' => false]);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_ALLOWED_IPS, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_ALLOWED_IPS, 'text', ['null' => true]);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_DEPROVISION, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_DEPROVISION, 'string', ['value' => 'disable', 'default' => 'disable', 'null' => false]);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_GROUP_POLICY, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_GROUP_POLICY, 'string', ['value' => 'create_scoped', 'default' => 'create_scoped', 'null' => false]);
+            }
+
             $migration->migrationOneTable($table);
 
             if ($DB->fieldExists($table, ConfigEntity::FORCE_AUTHN, false)) {
@@ -687,7 +718,7 @@ class Config extends ConfigCompat
      */
     public static function getUndisclosedFields(): array
     {
-        return [ConfigEntity::SP_KEY];
+        return [ConfigEntity::SP_KEY, ConfigEntity::SCIM_TOKEN_HASH];
     }
 
     /**
@@ -740,7 +771,11 @@ class Config extends ConfigCompat
         $table = getTableForItemType(static::class);
         // Clear sensitive private keys before backing up table on uninstall
         if ($DB->tableExists($table) && $DB->fieldExists($table, ConfigEntity::SP_KEY, false)) {
-            $DB->update($table, [ConfigEntity::SP_KEY => ''], [ConfigEntity::ID => ['>', 0]]);
+            $clearSecrets = [ConfigEntity::SP_KEY => ''];
+            if ($DB->fieldExists($table, ConfigEntity::SCIM_TOKEN_HASH, false)) {
+                $clearSecrets[ConfigEntity::SCIM_TOKEN_HASH] = '';
+            }
+            $DB->update($table, $clearSecrets, [ConfigEntity::ID => ['>', 0]]);
         }
         // Make this smarter in the future. Never create a backup
         // when the source table is empty and an existing table is

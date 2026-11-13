@@ -33,7 +33,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -56,7 +56,7 @@ global $CFG_GLPI;
 
 // PLUGIN CONSTANTS
 define('PLUGIN_NAME', 'samlsso');                                                               // Plugin name
-define('PLUGIN_SAMLSSO_VERSION', '1.3.2');                                                      // Plugin version
+define('PLUGIN_SAMLSSO_VERSION', '1.4.0');                                                      // Plugin version
 define('PLUGIN_SAMLSSO_MIN_GLPI', '11.0.0');                                                    // Min required GLPI version
 define('PLUGIN_SAMLSSO_MAX_GLPI', '12.9.99');                                                   // Max GLPI compat version
 define('PLUGIN_SAMLSSO_LOGEVENTS', 'events');                                                    // specifies log extention
@@ -81,6 +81,7 @@ define('PLUGIN_SAMLSSO_CLASSES', [
     'GlpiPlugin\\Samlsso\\LoginState',   // Session state tracking
     'GlpiPlugin\\Samlsso\\ClaimMap',     // Claim-to-field mapping rules (references Config)
     'GlpiPlugin\\Samlsso\\ObservedClaim', // Passively observed claim keys (references Config)
+    'GlpiPlugin\\Samlsso\\ScimLink',     // Per-IdP SCIM 2.0 user/group externalId & ownership links (references Config)
     'GlpiPlugin\\Samlsso\\CronTask',     // Cron task registration
 ]);
 
@@ -145,6 +146,7 @@ function plugin_samlsso_boot(): void
 {
     SessionManager::RegisterPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::ACS_ROUTE . '/#');
     SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::SLO_ROUTE . '#');
+    SessionManager::registerPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::SCIM_ROUTE . '/#');
 }
 
 /**

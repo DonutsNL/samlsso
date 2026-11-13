@@ -34,13 +34,13 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -52,6 +52,7 @@ use GlpiPlugin\Samlsso\Exclude;
 use GlpiPlugin\Samlsso\LoginState;
 use GlpiPlugin\Samlsso\ClaimMap;
 use GlpiPlugin\Samlsso\ObservedClaim;
+use GlpiPlugin\Samlsso\ScimLink;
 
 class SanityChecker
 {
@@ -119,6 +120,7 @@ class SanityChecker
                 ConfigEntity::ID,
                 ConfigEntity::NAME,
                 ConfigEntity::INACTIVITY_TIMEOUT,
+                ConfigEntity::SCIM_ENABLED,
             ],
             getTableForItemType(Exclude::class)       => [
                 defined(Exclude::class . '::ID') ? Exclude::ID : 'id',
@@ -138,6 +140,12 @@ class SanityChecker
                 ObservedClaim::ID,
                 ObservedClaim::CONFIGS_ID,
                 ObservedClaim::SAML_CLAIM,
+            ],
+            getTableForItemType(ScimLink::class)      => [
+                ScimLink::ID,
+                ScimLink::CONFIGS_ID,
+                ScimLink::ITEM_TYPE,
+                ScimLink::GLPI_ITEM_ID,
             ],
         ];
 

@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    GLPISaml
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -1212,7 +1212,7 @@ class LoginState extends CommonDBTM
      * can lead anywhere.
      * 
      * @return string
-     * @since 1.3.2
+     * @since 1.4.0
      */
     public function getSafeRedirect(): string
     {
@@ -1259,7 +1259,7 @@ class LoginState extends CommonDBTM
      *
      * @param  string $redirect Redirect value or request URI.
      * @return bool
-     * @since  1.3.2
+     * @since  1.4.0
      */
     public static function isStaticAssetRedirect(string $redirect): bool
     {
@@ -1280,7 +1280,7 @@ class LoginState extends CommonDBTM
      * 
      * @param bool $debug If true, preserves full context.
      * @return array
-     * @since 1.3.2
+     * @since 1.4.0
      */
     public function getSafeStateForLogging(bool $debug = false): array
     {
@@ -1290,7 +1290,6 @@ class LoginState extends CommonDBTM
         }
         $sensitiveFields = [
             self::SAML_REQUEST,
-            'serverParams',
             'requestParams'
         ];
         foreach ($sensitiveFields as $field) {
@@ -1332,11 +1331,8 @@ class LoginState extends CommonDBTM
                 `loginTime`                 timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 `lastClickTime`             timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 `location`                  longtext NOT NULL,
-                `enforceLogoff`             tinyint {$default_key_sign} NULL,
                 `idpId`                     int {$default_key_sign} NULL,
-                `serverParams`              text NULL,
                 `requestParams`             text NULL,
-                `loggedOff`                 tinyint {$default_key_sign} NULL,
                 `phase`                     tinyint {$default_key_sign} NOT NULL DEFAULT 1,
                 `redirect`                  text NULL,
                 `clientIp`                  varchar(45) NULL,
@@ -1432,13 +1428,13 @@ class LoginState extends CommonDBTM
             }
         }
 
-        // Drop excluded path field if still present in table.
-        if (
-            $DB->tableExists($table)                    &&   // Table should exist
-            $DB->fieldExists($table, 'excludedPath')
-        ) {   // If the excluded Path field exists (older versions) drop it. 
-            // Drop the field;
-            $migration->dropField($table, 'excludedPath');
+        // Drop excluded path and legacy v1.4.0 fields if still present in table.
+        if ($DB->tableExists($table)) {
+            foreach (['excludedPath', 'serverParams', 'loggedOff', 'enforceLogoff'] as $legacyColumn) {
+                if ($DB->fieldExists($table, $legacyColumn, false)) {
+                    $migration->dropField($table, $legacyColumn);
+                }
+            }
         }
 
         if (
@@ -1520,6 +1516,43 @@ class LoginState extends CommonDBTM
             $DB->doQuery($query);
             Session::addMessageAfterRedirect("🆗 Cleaned: $table.");
         }
+    }
+
+    /**
+     * Transition all active authenticated sessions (PHASE_GLPI_AUTH) for a given
+     * IdP and GLPI user ID to PHASE_FORCE_LOG so the user is terminated on next click.
+     *
+     * @param int $idpId  Target SAML/SCIM IdP configuration ID.
+     * @param int $userId Target GLPI user ID.
+     * @return int Number of active sessions transitioned to PHASE_FORCE_LOG.
+     * @since 1.4.0
+     */
+    public static function forceLogoffForUser(int $idpId, int $userId): int
+    {
+        global $DB;
+
+        if ($idpId <= 0 || $userId <= 0 || $DB === null || !method_exists($DB, 'request')) {
+            return 0;
+        }
+
+        $table = self::getTable();
+        $where = [
+            self::IDP_ID  => $idpId,
+            self::USER_ID => $userId,
+            self::PHASE   => self::PHASE_GLPI_AUTH,
+        ];
+
+        $activeSessions = $DB->request([
+            'SELECT' => [self::STATE_ID],
+            'FROM'   => $table,
+            'WHERE'  => $where,
+        ]);
+        $count = count($activeSessions);
+        if ($count > 0) {
+            $DB->update($table, [self::PHASE => self::PHASE_FORCE_LOG], $where);
+        }
+
+        return $count;
     }
 
     /**

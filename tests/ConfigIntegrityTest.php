@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -147,12 +147,12 @@ namespace GlpiPlugin\Samlsso\Tests {
                     if ($actualType !== 'TIMESTAMP') {
                         throw new \Exception("Field '$field' should be TIMESTAMP, found $actualType");
                     }
-                } elseif (in_array($field, ['sp_certificate', 'sp_private_key', 'idp_certificate', 'requested_authn_context', 'comment'])) {
+                } elseif (in_array($field, ['sp_certificate', 'sp_private_key', 'idp_certificate', 'requested_authn_context', 'comment', 'scim_allowed_ips'])) {
                     if ($actualType !== 'TEXT') {
                         throw new \Exception("Field '$field' should be TEXT, found $actualType");
                     }
                 } elseif (in_array($actualType, ['TINYINT', 'INT', 'VARCHAR', 'TEXT', 'TIMESTAMP'])) {
-                    $boolPrefixes = ['enforce_', 'proxied', 'strict', 'debug', 'user_jit', 'security_', 'compress_', 'validate_', 'lowercase_', 'is_', 'force_'];
+                    $boolPrefixes = ['enforce_', 'proxied', 'strict', 'debug', 'user_jit', 'security_', 'compress_', 'validate_', 'lowercase_', 'is_', 'force_', 'scim_enabled'];
                     foreach ($boolPrefixes as $prefix) {
                         if (str_starts_with($field, $prefix) && $actualType !== 'TINYINT') {
                             throw new \Exception("Flag field '$field' should be TINYINT, found $actualType");
@@ -1037,6 +1037,105 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Config: RequestedAuthnContext builder, nullable URL validators, and anchored boolean regex verified (Issue #195)\n";
         }
+
+        /**
+         * Verifies SCIM Bearer token generation endpoint guards, SHA-256 storage, and SCIM tab UI hygiene (Issue #199).
+         *
+         * @throws \Exception If SCIM token generation or template security assertions fail.
+         */
+        public function testScimTokenGenerationAndUiIntegrity(): void {
+            $configForm = new \GlpiPlugin\Samlsso\Config\ConfigForm();
+
+            /**
+             * 1. Reject GET method with 405 Method Not Allowed.
+             */
+            $reqGet = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php?action=generate_scim_token',
+                'GET'
+            );
+            $resGet = $configForm->invokeForm($reqGet);
+            if ($resGet->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_METHOD_NOT_ALLOWED) {
+                throw new \Exception('Expected HTTP 405 for GET generate_scim_token, got ' . $resGet->getStatusCode());
+            }
+
+            /**
+             * 2. Reject POST without config UPDATE permission with 403 Forbidden.
+             */
+            \Session::$mockHaveRight = false;
+            $reqNoPerm = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php',
+                'POST',
+                ['action' => 'generate_scim_token', 'id' => 7]
+            );
+            $resNoPerm = $configForm->invokeForm($reqNoPerm);
+            \Session::$mockHaveRight = true;
+            if ($resNoPerm->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_FORBIDDEN) {
+                throw new \Exception('Expected HTTP 403 when lacking UPDATE right, got ' . $resNoPerm->getStatusCode());
+            }
+
+            /**
+             * 3. Reject unsaved IdP (id = -1) with 400 Bad Request.
+             */
+            $reqUnsaved = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php',
+                'POST',
+                ['action' => 'generate_scim_token', 'id' => -1]
+            );
+            $resUnsaved = $configForm->invokeForm($reqUnsaved);
+            if ($resUnsaved->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_BAD_REQUEST) {
+                throw new \Exception('Expected HTTP 400 for unsaved IdP id=-1, got ' . $resUnsaved->getStatusCode());
+            }
+
+            /**
+             * 4. Valid saved IdP generates 256-bit token, sets no-store, and stores only SHA-256 hex digest.
+             */
+            $this->db->updatedRows = [];
+            $this->db->setResponse('glpi_plugin_samlsso_configs', [
+                ['id' => 7, 'is_deleted' => 0, 'is_active' => 1],
+            ]);
+            $reqValid = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php',
+                'POST',
+                ['action' => 'generate_scim_token', 'id' => 7]
+            );
+            $resValid = $configForm->invokeForm($reqValid);
+            if ($resValid->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_OK) {
+                throw new \Exception('Expected HTTP 200 for valid SCIM token generation, got ' . $resValid->getStatusCode());
+            }
+            if (!str_contains((string)$resValid->headers->get('Cache-Control'), 'no-store')) {
+                throw new \Exception('SCIM token generation response must set Cache-Control: no-store.');
+            }
+            $payload = json_decode((string)$resValid->getContent(), true);
+            $plainToken = (string)($payload['token'] ?? '');
+            if (!str_starts_with($plainToken, 'scim_') || strlen($plainToken) < 69) {
+                throw new \Exception('Generated SCIM plaintext token missing scim_ prefix or sufficient entropy.');
+            }
+            $expectedHash = hash('sha256', $plainToken);
+            $lastUpdate = end($this->db->updatedRows);
+            if (
+                !is_array($lastUpdate) ||
+                ($lastUpdate['data'][ConfigEntity::SCIM_TOKEN_HASH] ?? '') !== $expectedHash ||
+                ($lastUpdate['data'][ConfigEntity::SCIM_TOKEN_SOURCE] ?? '') !== 'db'
+            ) {
+                throw new \Exception('Database update did not persist exact SHA-256 digest and db source.');
+            }
+
+            /**
+             * 5. Verify SCIM tab Beta badge and scim.html.twig DOM/storage security rules.
+             */
+            $mainTpl = (string)file_get_contents(__DIR__ . '/../templates/configForm.html.twig');
+            $scimTpl = (string)file_get_contents(__DIR__ . '/../templates/configForm/scim.html.twig');
+            if (!str_contains($mainTpl, 'id="scim-tab"') || !str_contains($mainTpl, "@samlsso/configForm/scim.html.twig") || !str_contains($mainTpl, "__('Beta', plugin)")) {
+                throw new \Exception('configForm.html.twig missing #scim-tab, Beta badge, or scim.html.twig include.');
+            }
+            foreach (['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'localStorage', 'sessionStorage', 'alert(', 'confirm(', 'prompt('] as $forbiddenJs) {
+                if (str_contains($scimTpl, $forbiddenJs)) {
+                    throw new \Exception("scim.html.twig contains forbidden frontend pattern: $forbiddenJs");
+                }
+            }
+
+            echo "✅ Config: SCIM Bearer token generation endpoint, SHA-256 storage, and Beta UI tab verified (Issue #199)\n";
+        }
     }
 }
 
@@ -1062,6 +1161,7 @@ namespace {
         $test->testTabWarningsFieldAlignment();
         $test->testDiagnosticTableIntegrityAndPopoverPreservation();
         $test->testAuthnContextBuilderAndValidatorPrecision();
+        $test->testScimTokenGenerationAndUiIntegrity();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

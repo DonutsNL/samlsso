@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    Samlsso
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -129,7 +129,10 @@ class LoginFlow
          *
          * @see https://github.com/DonutsNL/samlsso/issues/29
          */
-        if (str_contains($requestPath, SamlSsoController::ACS_ROUTE)) {
+        if (
+            str_contains($requestPath, SamlSsoController::ACS_ROUTE) ||
+            str_contains($requestPath, SamlSsoController::SCIM_ROUTE)
+        ) {
             return;
         }
 
