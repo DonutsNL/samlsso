@@ -20,6 +20,8 @@ When analyzing a reported GitHub issue, check whether it touches any of the file
 
 ## 2. Completed Codebase Assessment Items
 
+- **Issue #198**: Aligned `session.cookie_samesite` validation in `plugin_samlsso_check_prerequisites()` (`setup.php`) with GLPI Core's `SessionsSecurityConfiguration` (`['lax', 'strict', '']`) so `SameSite=Strict` no longer emits a false-positive warning during installation, and documented stateless ACS + `HTTP 200 OK` `<meta refresh>` `Strict` support across `references/*.md` and the GitHub Wiki.
+
 - **Issue #196**: Removed `#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]` and added `ob_start()` / `ob_get_clean()` output buffering on administrative routes (`exclude()`, `__invoke()`, `itemform()`) in `src/Controller/SamlSsoController.php` (Item A), and hardened `src/Utility/GeoIPUpdater.php` with HTTPS-only cURL options (`CURLOPT_PROTOCOLS`, `CURLOPT_REDIR_PROTOCOLS`, `CURLOPT_SSL_VERIFYPEER`, `CURLOPT_SSL_VERIFYHOST`, `CURLOPT_MAXREDIRS`) plus atomic `.tmp` + `rename()` binary compilation (Item B).
 
 - **Issue #194**: Removed unfinished `LoginFlowEntity.php`, `LoginFlowForm.php`, and `LoginFlowItem.php` scaffolding, removed stale `FLOWFORM_*` and `/front/slo/` routes, decoupled `LoginFlow` from `CommonDBTM` (`LoginFlowCompat`), pruned dead PHP state/config constants (`ENFORCE_LOGOFF`, `SAML_RESPONSE`, `RICHVALUE`, `PLUGIN_SAMLSSO_WEBDIR`), relocated `update_geoip.php` to `tools/`, and excluded `docs/` + `templates/images/` from `tools/mkzip.sh` release archives.

@@ -18,7 +18,7 @@
 
 ### B. Assertion Consumer Service (`POST /plugins/samlsso/front/acs/{idpId}`)
 1. **`SamlSsoController::acs()` (`src/Controller/SamlSsoController.php`) -> `Acs::init()` (`src/LoginFlow/Acs.php`)**:
-   - Registered as stateless via `SessionManager::RegisterPluginStatelessPath` in `setup.php`.
+   - Registered as stateless via `SessionManager::RegisterPluginStatelessPath` in `setup.php:146-147` (alongside `SLO_ROUTE`), causing GLPI Core's `SessionStart::onPostBoot()` to skip `Session::start()` and set `ini_set('session.use_cookies', '0')` so cross-site IdP callbacks never depend on browser cookies surviving the redirect.
    - Enforces HTTP POST method and rejects query-parameter `SAMLResponse`.
    - Validates target `ConfigEntity($idpId)` (`id > 0`, `isValid()`, `isActive()`, `!isDeleted()`).
    - Initializes `OneLogin\Saml2\Response` in `Acs::setupSamlResponse()` using `$this->configEntity->getPhpSamlConfig()`.
@@ -32,7 +32,8 @@
      - Verifies `$this->samlResponse->isValid($expectedRequestId)`, `SubjectConfirmationData/@InResponseTo === $expectedRequestId`, and unique assertion/response IDs (`setSamlResponseId()`).
      - Transitions state to `PHASE_SAML_AUTH (3)`.
    - Calls `LoginFlow::performGlpiLogin()` -> `User::getOrCreateUser()`:
-     - Binds user to `Auth::EXTERNAL` and `auths_id = $idpId`, blocks local `Auth::DB_GLPI` / `glpi` accounts, runs JIT or `sync_on_login` (`RuleSamlCollection`), initializes GLPI session (`Session::init($auth)` -> `PHASE_GLPI_AUTH (4)`), and redirects to `LoginState::getSafeRedirect()` or GLPI home.
+     - Binds user to `Auth::EXTERNAL` and `auths_id = $idpId`, blocks local `Auth::DB_GLPI` / `glpi` accounts, and runs JIT or `sync_on_login` (`RuleSamlCollection`).
+     - Re-enables cookies (`ini_set('session.use_cookies', 1)`), destroys any transient session, mints a fresh stateful GLPI session (`Session::start()` + `Session::init($auth)` -> `PHASE_GLPI_AUTH (4)`), rebinds the `LoginState` row to the new `session_id()` (`$state->setSessionId()`), and calls `LoginFlow::performBrowserRedirect()` (`HTTP 200 OK` `<meta http-equiv="refresh">`) to reset the browser's cross-site request chain so `session.cookie_samesite = "Strict"` (and `"Lax"`) cookies work seamlessly.
 
 ---
 

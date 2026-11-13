@@ -279,10 +279,11 @@ function plugin_samlsso_check_prerequisites(): bool                             
         return false;
     }
 
-    // Add additional cookie validation because this is known to be
-    // faulty in many installations resulting in Session Timeout issues
-    // recognisable by the &error=3 in the redirect URL.
-    // https://github.com/DonutsNL/samlsso/issues/13
+    /**
+     * Validate session cookie directives against GLPI Core prerequisites (SessionsSecurityConfiguration).
+     * Both 'Strict' and 'Lax' (plus empty browser-default 'Lax') are supported via stateless ACS,
+     * whereas 'None' exposes cookies on cross-origin POST requests.
+     */
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || (strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
     $cookieSecure   = (string) ini_get('session.cookie_secure');
@@ -291,7 +292,7 @@ function plugin_samlsso_check_prerequisites(): bool                             
     if (
         ($isHttps && !filter_var($cookieSecure, FILTER_VALIDATE_BOOLEAN)) ||
         !filter_var($cookieHttpOnly, FILTER_VALIDATE_BOOLEAN) ||
-        strtolower($cookieSameSite) === 'strict'
+        !in_array(strtolower($cookieSameSite), ['lax', 'strict', ''], true)
     ) {
         echo "PHP is configured with the following Cookie settings.";
         echo "session.cookie_secure = " . htmlspecialchars($cookieSecure, ENT_QUOTES, 'UTF-8') . "<br>";

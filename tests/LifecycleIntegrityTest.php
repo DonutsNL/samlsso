@@ -321,6 +321,60 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Validated JIT rule cleanup on uninstall: glpi_rules, glpi_rulecriterias, glpi_ruleactions purged.\n";
         }
+
+        /**
+         * Test that plugin_samlsso_check_prerequisites() accepts 'Strict', 'Lax', and ''
+         * without warning while warning on 'None' (matching GLPI Core SessionsSecurityConfiguration).
+         *
+         * @return void
+         * @throws \Exception if SameSite prerequisite validation behaves unexpectedly.
+         */
+        public function testPrerequisiteCookieSameSiteValidation(): void {
+            $setupPath = realpath(__DIR__ . '/../setup.php');
+            $shimsPath = realpath(__DIR__ . '/Shims.php');
+            if ($setupPath === false || $shimsPath === false) {
+                throw new \Exception("Failed to resolve setup.php or Shims.php path");
+            }
+
+            $cases = [
+                'Strict' => false,
+                'Lax'    => false,
+                ''       => false,
+                'None'   => true,
+            ];
+
+            foreach ($cases as $sameSite => $expectWarning) {
+                $runnerCode = sprintf(
+                    '$_SERVER["HTTPS"] = "on"; require_once %s; require_once %s; ob_start(); $ok = plugin_samlsso_check_prerequisites(); $out = ob_get_clean(); echo json_encode(["ok" => $ok, "out" => $out]);',
+                    var_export($setupPath, true),
+                    var_export($shimsPath, true)
+                );
+                $cmd = sprintf(
+                    '%s -d session.cookie_secure=1 -d session.cookie_httponly=1 -d %s -r %s',
+                    escapeshellarg(PHP_BINARY),
+                    escapeshellarg('session.cookie_samesite="' . $sameSite . '"'),
+                    escapeshellarg($runnerCode)
+                );
+
+                $rawOutput = shell_exec($cmd);
+                $decoded = is_string($rawOutput) ? json_decode($rawOutput, true) : null;
+                if (!is_array($decoded) || ($decoded['ok'] ?? false) !== true) {
+                    throw new \Exception("Prerequisite runner failed for SameSite='$sameSite': " . (string) $rawOutput);
+                }
+
+                $hasWarning = str_contains((string) ($decoded['out'] ?? ''), 'not aligned');
+                if ($hasWarning !== $expectWarning) {
+                    throw new \Exception(sprintf(
+                        "Unexpected prerequisite warning state for session.cookie_samesite='%s': expected warning=%s, got output=%s",
+                        $sameSite,
+                        $expectWarning ? 'true' : 'false',
+                        (string) ($decoded['out'] ?? '')
+                    ));
+                }
+            }
+
+            echo "✅ Validated cookie SameSite prerequisite check: Strict and Lax accepted; None flagged.\n";
+        }
     }
 }
 
@@ -331,6 +385,7 @@ namespace {
         $test->testPrimaryKeyAndForeignKeySigning();
         $test->testInstallResetsCache();
         $test->testUninstallCleansJitRules();
+        $test->testPrerequisiteCookieSameSiteValidation();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
