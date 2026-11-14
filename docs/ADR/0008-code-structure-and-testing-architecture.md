@@ -18,7 +18,12 @@ Codebase maintainability relies on **coarse-grained, execution-ordered class lay
    - **Properties & Entry Points**: Class properties, constructor, and primary public entry points.
    - **Call-Flow Method Ordering**: Internal helper methods ordered top-to-bottom matching their runtime execution sequence and usage frequency, grouped by clear section headers (`// MARK: - Section`).
    - **Bottom of Class**: Database lifecycle methods (`install()` and `uninstall()`) always reside at the very bottom of the class.
-4. **Defensive Coding & Static Analysis Compliance**:
+4. **Constants Over Raw Property & Schema Literals**:
+   - Every database column, GLPI core user/group/profile property, SAML/SCIM rule criterion/action key, configuration key, claim-mapping discriminator, and route path referenced in code MUST be defined as an explicit `public const` on its owning domain class (`ConfigEntity::*`, `ConfigItem::*`, `ClaimMap::*`, `ClaimMapItem::*`, `ObservedClaim::*`, `LoginState::*`, `User::*`, `ScimLink::*`, `Exclude::*`, `SamlSsoController::*_ROUTE`).
+   - Do **not** scatter hardcoded string literals for entity columns or internal rule/property keys across `src/` when referencing internal GLPI or plugin data structures; keep wire-format JSON/SAML schema names (e.g., RFC 7643 SCIM JSON keys) clearly separated from internal GLPI column/property constants.
+   - Traceability & refactoring safety: constants make property provenance and cross-codebase usages immediately searchable via IDE tools and allow safe column/key renames without brittle string search-and-replace.
+   - Test mocks in `tests/TestHarness.php` (such as `MockLoginFlowUser` and `MockConfigEntity`) MUST mirror all public constants of the production classes they stub.
+5. **Defensive Coding & Static Analysis Compliance**:
    - All PHP files declare `strict_types=1` where applicable, omit closing `?>` tags, use 4-space indentation, and contain zero obfuscated payloads (`base64_decode` / `eval` / magic hashes).
    - Never use `die()` or `exit()` in testable library methods where `Html::displayError()` or `PluginException` is expected.
    - Initialize variables before `try/catch` or conditional blocks and wrap intentional conditional assignments in double parentheses (`if (($row = $iter->next()))`).
@@ -34,6 +39,7 @@ Codebase maintainability relies on **coarse-grained, execution-ordered class lay
 ## Prohibited Patterns (Do Not Circumvent)
 - **NEVER** scatter a single sequential workflow across numerous tiny service classes when private helper methods in the owning class suffice.
 - **NEVER** introduce obfuscated code, unescaped SQL string concatenation, or `die()` calls in production classes.
+- **NEVER** hardcode raw string literals for database columns, GLPI user/group/profile properties, rule criteria/action keys, or config keys that belong on a domain class constant (`ConfigEntity::*`, `User::*`, `ClaimMap::*`, `LoginState::*`, `ObservedClaim::*`, `ScimLink::*`, `SamlSsoController::*_ROUTE`).
 - **NEVER** weaken or delete a test assertion to make a failing test pass; fix the underlying code or update the test only when an approved ADR change explicitly alters the invariant.
 - **NEVER** push commits or package a release without running `php tests/RunAllTests.php` with 0 failures.
 
