@@ -116,298 +116,392 @@ namespace GlpiPlugin\Samlsso\Tests {
             $files[] = $pluginDir . '/hook.php';
 
             foreach ($files as $file) {
-                $content = file_get_contents($file);
-                $tokens = token_get_all($content);
-                $count = count($tokens);
-
-                $imports = [];
-                
-                /**
-                 * First pass: extract imports (use statements) from the file tokens.
-                 */
-                for ($i = 0; $i < $count; $i++) {
-                    if (is_array($tokens[$i]) && $tokens[$i][0] === T_USE) {
-                        $fullClass = '';
-                        $alias = '';
-                        $i++;
-                        while ($i < $count && $tokens[$i] !== ';') {
-                            $token = $tokens[$i];
-                            if (is_array($token)) {
-                                if (in_array($token[0], [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NS_SEPARATOR])) {
-                                    if ($alias !== '') {
-                                        $alias .= $token[1];
-                                    } else {
-                                        $fullClass .= $token[1];
-                                    }
-                                } elseif ($token[0] === T_AS) {
-                                    $alias = ''; 
-                                }
-                            }
-                            $i++;
-                        }
-                        $fullClass = trim($fullClass);
-                        if ($alias === '') {
-                            $parts = explode('\\', $fullClass);
-                            $alias = end($parts);
-                        } else {
-                            $alias = trim($alias);
-                        }
-                        $imports[$alias] = $fullClass;
-                    }
-                }
-
-                /**
-                 * Helper closure to resolve standard class names against imports.
-                 *
-                 * @param string $name Class name to resolve.
-                 * @return string Fully qualified resolved class name.
-                 */
-                $resolveClass = function(string $name) use ($imports): string {
-                    $name = ltrim($name, '\\');
-                    if (isset($imports[$name])) {
-                        return $imports[$name];
-                    }
-                    $parts = explode('\\', $name);
-                    $first = $parts[0];
-                    if (isset($imports[$first])) {
-                        $parts[0] = $imports[$first];
-                        return implode('\\', $parts);
-                    }
-                    return $name;
-                };
-
-                /**
-                 * Second pass: track variable types and validate member calls.
-                 */
-                $varTypes = [];
-                for ($i = 0; $i < $count; $i++) {
-                    /**
-                     * Extract function parameter types to build variable type registry.
-                     */
-                    if (is_array($tokens[$i]) && $tokens[$i][0] === T_FUNCTION) {
-                        $j = $i + 1;
-                        while ($j < $count && $tokens[$j] !== '(') {
-                            $j++;
-                        }
-                        if ($j < $count) {
-                            $j++; /** skip '(' symbol */
-                            while ($j < $count && $tokens[$j] !== ')') {
-                                $paramTokens = [];
-                                while ($j < $count && $tokens[$j] !== ',' && $tokens[$j] !== ')') {
-                                    $t = $tokens[$j];
-                                if (!(is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT]))) {
-                                    $paramTokens[] = $t;
-                                }
-                                    $j++;
-                                }
-                                $paramCount = count($paramTokens);
-                                if ($paramCount >= 2) {
-                                    $lastToken = $paramTokens[$paramCount - 1];
-                                    if (is_array($lastToken) && $lastToken[0] === T_VARIABLE) {
-                                        $varName = $lastToken[1];
-                                        $typeParts = [];
-                                        for ($p = 0; $p < $paramCount - 1; $p++) {
-                                            $pt = $paramTokens[$p];
-                                            if (is_array($pt) && in_array($pt[0], [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NS_SEPARATOR])) {
-                                                $typeParts[] = $pt[1];
-                                            }
-                                        }
-                                        if (!empty($typeParts)) {
-                                            $typeStr = implode('', $typeParts);
-                                            $varTypes[$varName] = $resolveClass($typeStr);
-                                        }
-                                    }
-                                }
-                                if ($j < $count && $tokens[$j] === ',') {
-                                    $j++; 
-                                }
-                            }
-                        }
-                    }
-
-                    /**
-                     * Detect instantiations (new ClassName) and assign types to variables.
-                     */
-                    if (is_array($tokens[$i]) && $tokens[$i][0] === T_NEW) {
-                        $classTokens = [];
-                        $j = $i + 1;
-                        while ($j < $count) {
-                            $t = $tokens[$j];
-                            if (is_array($t)) {
-                                if (in_array($t[0], [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NS_SEPARATOR])) {
-                                    $classTokens[] = $t[1];
-                                } elseif (!in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT])) {
-                                    break;
-                                }
-                            } else {
-                                break;
-                            }
-                            $j++;
-                        }
-                        if (!empty($classTokens)) {
-                            $className = implode('', $classTokens);
-                            $resolvedClass = $resolveClass($className);
-                            
-                            if (str_starts_with($resolvedClass, 'OneLogin\\Saml2\\') || str_starts_with($resolvedClass, 'RobRichards\\XMLSecLibs\\')) {
-                                if (!class_exists($resolvedClass) && !interface_exists($resolvedClass)) {
-                                    throw new \Exception("Vendor class '$resolvedClass' does not exist (instantiated in $file).");
-                                }
-                                
-                                /**
-                                 * Look behind for the assignment variable.
-                                 */
-                                $k = $i - 1;
-                                while ($k >= 0) {
-                                    $t = $tokens[$k];
-                                    if (is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT])) {
-                                        $k--;
-                                        continue;
-                                    }
-                                    if ($t === '=') {
-                                        $k--;
-                                        $assignTokens = [];
-                                        while ($k >= 0) {
-                                            $pt = $tokens[$k];
-                                            if (is_array($pt) && in_array($pt[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT])) {
-                                                $k--;
-                                                continue;
-                                            }
-                                            if (is_array($pt) && in_array($pt[0], [T_VARIABLE, T_STRING, T_OBJECT_OPERATOR])) {
-                                                $assignTokens[] = $pt;
-                                                $k--;
-                                            } else {
-                                                break;
-                                            }
-                                        }
-                                        if (!empty($assignTokens)) {
-                                            $assignTokens = array_reverse($assignTokens);
-                                            $varStr = '';
-                                            foreach ($assignTokens as $at) {
-                                                $varStr .= $at[1];
-                                            }
-                                            $varTypes[trim($varStr)] = $resolvedClass;
-                                        }
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    /**
-                     * Check static calls (ClassName::method) and class constants.
-                     */
-                    if (is_array($tokens[$i]) && in_array($tokens[$i][0], [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED])) {
-                        if ($i + 1 < $count && is_array($tokens[$i + 1]) && $tokens[$i + 1][0] === T_DOUBLE_COLON) {
-                            $className = $tokens[$i][1];
-                            $resolvedClass = $resolveClass($className);
-                            if (str_starts_with($resolvedClass, 'OneLogin\\Saml2\\') || str_starts_with($resolvedClass, 'RobRichards\\XMLSecLibs\\')) {
-                                $j = $i + 2;
-                                while ($j < $count && is_array($tokens[$j]) && in_array($tokens[$j][0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT])) {
-                                    $j++;
-                                }
-                                if ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_STRING) {
-                                    $memberName = $tokens[$j][1];
-                                    $k = $j + 1;
-                                    while ($k < $count && is_array($tokens[$k]) && in_array($tokens[$k][0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT])) {
-                                        $k++;
-                                    }
-                                    if ($k < $count && $tokens[$k] === '(') {
-                                        /**
-                                         * Static Method Call validation.
-                                         */
-                                        if (!class_exists($resolvedClass) && !interface_exists($resolvedClass)) {
-                                            throw new \Exception("Vendor class '$resolvedClass' does not exist (static call in $file).");
-                                        }
-                                        if (!method_exists($resolvedClass, $memberName)) {
-                                            throw new \Exception("Vendor static method '$resolvedClass::$memberName' does not exist (called in $file).");
-                                        }
-                                        $refMethod = new \ReflectionMethod($resolvedClass, $memberName);
-                                        if ($refMethod->isDeprecated()) {
-                                            throw new \Exception("Vendor static method '$resolvedClass::$memberName' is deprecated (called in $file).");
-                                        }
-                                    } else {
-                                        /**
-                                         * Constant Reference validation.
-                                         */
-                                        if (!class_exists($resolvedClass) && !interface_exists($resolvedClass)) {
-                                            throw new \Exception("Vendor class '$resolvedClass' does not exist (constant reference in $file).");
-                                        }
-                                        $refClass = new \ReflectionClass($resolvedClass);
-                                        if (!$refClass->hasConstant($memberName)) {
-                                            throw new \Exception("Vendor constant '$resolvedClass::$memberName' does not exist (referenced in $file).");
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    /**
-                     * Check object method calls ($object->method).
-                     */
-                    if (is_array($tokens[$i]) && $tokens[$i][0] === T_OBJECT_OPERATOR) {
-                        $k = $i - 1;
-                        $varTokens = [];
-                        while ($k >= 0) {
-                            $t = $tokens[$k];
-                            if (is_array($t)) {
-                                if (in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT])) {
-                                    $k--;
-                                    continue;
-                                }
-                                if (in_array($t[0], [T_VARIABLE, T_STRING, T_OBJECT_OPERATOR])) {
-                                    $varTokens[] = $t;
-                                    $k--;
-                                } else {
-                                    break;
-                                }
-                            } else {
-                                break;
-                            }
-                        }
-                        if (!empty($varTokens)) {
-                            $varTokens = array_reverse($varTokens);
-                            $varStr = '';
-                            foreach ($varTokens as $vt) {
-                                $varStr .= $vt[1];
-                            }
-                            $varStr = trim($varStr);
-                            if (isset($varTypes[$varStr])) {
-                                $resolvedClass = $varTypes[$varStr];
-                                if (!(str_starts_with($resolvedClass, 'OneLogin\\Saml2\\') || str_starts_with($resolvedClass, 'RobRichards\\XMLSecLibs\\'))) {
-                                    continue;
-                                }
-                                $j = $i + 1;
-                                while ($j < $count && is_array($tokens[$j]) && in_array($tokens[$j][0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT])) {
-                                    $j++;
-                                }
-                                if ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_STRING) {
-                                    $methodName = $tokens[$j][1];
-                                    $k = $j + 1;
-                                    while ($k < $count && is_array($tokens[$k]) && in_array($tokens[$k][0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT])) {
-                                        $k++;
-                                    }
-                                    if ($k < $count && $tokens[$k] === '(') {
-                                        if (!class_exists($resolvedClass) && !interface_exists($resolvedClass)) {
-                                            throw new \Exception("Vendor class '$resolvedClass' does not exist (method call in $file).");
-                                        }
-                                        if (!method_exists($resolvedClass, $methodName)) {
-                                            throw new \Exception("Vendor method '$resolvedClass::$methodName' does not exist (called in $file).");
-                                        }
-                                        $refMethod = new \ReflectionMethod($resolvedClass, $methodName);
-                                        if ($refMethod->isDeprecated()) {
-                                            throw new \Exception("Vendor method '$resolvedClass::$methodName' is deprecated (called in $file).");
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                $this->inspectPhpFileVendorUsage($file);
             }
 
             echo "✅ Vendor Libraries Compatibility: All referenced classes, methods, and constants exist and are active (not deprecated)\n";
+        }
+
+        /**
+         * Inspect a single PHP source file for vendor class, method, and constant compatibility.
+         *
+         * @param string $file Path to PHP source file.
+         * @return void
+         * @throws \Exception on missing or deprecated vendor symbols.
+         */
+        private function inspectPhpFileVendorUsage(string $file): void {
+            $content = file_get_contents($file);
+            $tokens = token_get_all($content);
+            $imports = $this->extractFileImports($tokens);
+            $this->scanTokensForVendorCompatibility($tokens, $imports, $file);
+        }
+
+        /**
+         * Extract imported class alias map from PHP use statements.
+         *
+         * @param array $tokens Token list from token_get_all().
+         * @return array Map of short alias name => FQCN.
+         */
+        private function extractFileImports(array $tokens): array {
+            $imports = [];
+            $count = count($tokens);
+            $nameTokenTypes = [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NS_SEPARATOR];
+
+            for ($i = 0; $i < $count; $i++) {
+                if (!is_array($tokens[$i]) || $tokens[$i][0] !== T_USE) {
+                    continue;
+                }
+                $fullClass = '';
+                $alias = '';
+                $i++;
+                while ($i < $count && $tokens[$i] !== ';') {
+                    $token = $tokens[$i];
+                    if (is_array($token) && in_array($token[0], $nameTokenTypes, true)) {
+                        if ($alias !== '') {
+                            $alias .= $token[1];
+                        } else {
+                            $fullClass .= $token[1];
+                        }
+                    } elseif (is_array($token) && $token[0] === T_AS) {
+                        $alias = '';
+                    }
+                    $i++;
+                }
+                $fullClass = trim($fullClass);
+                if ($alias === '') {
+                    $parts = explode('\\', $fullClass);
+                    $alias = (string) end($parts);
+                } else {
+                    $alias = trim($alias);
+                }
+                $imports[$alias] = $fullClass;
+            }
+
+            return $imports;
+        }
+
+        /**
+         * Resolve a potentially imported or qualified class name against file use-imports.
+         *
+         * @param string $name Raw class name token text.
+         * @param array $imports File use-alias map.
+         * @return string Resolved FQCN.
+         */
+        private function resolveImportedClassName(string $name, array $imports): string {
+            $name = ltrim($name, '\\');
+            if (isset($imports[$name])) {
+                return $imports[$name];
+            }
+            $parts = explode('\\', $name);
+            if (isset($imports[$parts[0]])) {
+                $parts[0] = $imports[$parts[0]];
+                return implode('\\', $parts);
+            }
+            return $name;
+        }
+
+        /**
+         * Check whether a resolved class belongs to tracked external SAML/XML security vendor namespaces.
+         *
+         * @param string $resolvedClass Resolved FQCN.
+         * @return bool
+         */
+        private function isTrackedVendorClass(string $resolvedClass): bool {
+            return str_starts_with($resolvedClass, 'OneLogin\\Saml2\\')
+                || str_starts_with($resolvedClass, 'RobRichards\\XMLSecLibs\\');
+        }
+
+        /**
+         * Advance token index past whitespace and comment trivia tokens.
+         *
+         * @param array $tokens Token stream.
+         * @param int $index Starting token index.
+         * @return int First non-trivia index or count($tokens).
+         */
+        private function skipTriviaForward(array $tokens, int $index): int {
+            $count = count($tokens);
+            $trivia = [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT];
+            while ($index < $count && is_array($tokens[$index]) && in_array($tokens[$index][0], $trivia, true)) {
+                $index++;
+            }
+            return $index;
+        }
+
+        /**
+         * Read a chain of variable/object property tokens backwards from an operator index.
+         *
+         * @param array $tokens Token stream.
+         * @param int $index Token index immediately before operator.
+         * @return array Tuple of [string $expr, int $stopIndex].
+         */
+        private function readBackwardVariableChain(array $tokens, int $index): array {
+            $trivia = [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT];
+            $chain = [T_VARIABLE, T_STRING, T_OBJECT_OPERATOR];
+            $collected = [];
+
+            while ($index >= 0) {
+                $token = $tokens[$index];
+                if (is_array($token) && in_array($token[0], $trivia, true)) {
+                    $index--;
+                    continue;
+                }
+                if (is_array($token) && in_array($token[0], $chain, true)) {
+                    $collected[] = $token[1];
+                    $index--;
+                    continue;
+                }
+                break;
+            }
+
+            return [trim(implode('', array_reverse($collected))), $index];
+        }
+
+        /**
+         * Scan tokenized PHP code to track variable types and validate vendor member accesses.
+         *
+         * @param array $tokens Token stream.
+         * @param array $imports File use-alias map.
+         * @param string $file Source path for error reporting.
+         * @return void
+         * @throws \Exception on missing or deprecated vendor symbols.
+         */
+        private function scanTokensForVendorCompatibility(array $tokens, array $imports, string $file): void {
+            $varTypes = [];
+            $count = count($tokens);
+
+            for ($i = 0; $i < $count; $i++) {
+                if (!is_array($tokens[$i])) {
+                    continue;
+                }
+                $tokenType = $tokens[$i][0];
+                if ($tokenType === T_FUNCTION) {
+                    $this->recordFunctionParamTypes($tokens, $i, $imports, $varTypes);
+                } elseif ($tokenType === T_NEW) {
+                    $this->recordNewInstantiationType($tokens, $i, $imports, $varTypes, $file);
+                } elseif (in_array($tokenType, [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED], true)) {
+                    $this->validateStaticVendorMember($tokens, $i, $imports, $file);
+                } elseif ($tokenType === T_OBJECT_OPERATOR) {
+                    $this->validateObjectVendorMethod($tokens, $i, $varTypes, $file);
+                }
+            }
+        }
+
+        /**
+         * Parse typed function parameters into $varTypes map.
+         *
+         * @param array $tokens Token stream.
+         * @param int $fnIndex T_FUNCTION token index.
+         * @param array $imports File use-alias map.
+         * @param array $varTypes Variable type registry passed by reference.
+         * @return void
+         */
+        private function recordFunctionParamTypes(array $tokens, int $fnIndex, array $imports, array &$varTypes): void {
+            $count = count($tokens);
+            $j = $fnIndex + 1;
+            while ($j < $count && $tokens[$j] !== '(') {
+                $j++;
+            }
+            if ($j >= $count) {
+                return;
+            }
+
+            $j++;
+            $trivia = [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT];
+            $nameTypes = [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NS_SEPARATOR];
+
+            while ($j < $count && $tokens[$j] !== ')') {
+                $paramTokens = [];
+                while ($j < $count && $tokens[$j] !== ',' && $tokens[$j] !== ')') {
+                    if (!(is_array($tokens[$j]) && in_array($tokens[$j][0], $trivia, true))) {
+                        $paramTokens[] = $tokens[$j];
+                    }
+                    $j++;
+                }
+                $this->extractSingleParamType($paramTokens, $nameTypes, $imports, $varTypes);
+                if ($j < $count && $tokens[$j] === ',') {
+                    $j++;
+                }
+            }
+        }
+
+        /**
+         * Record type hint for a single parsed parameter token slice.
+         *
+         * @param array $paramTokens Non-trivia tokens inside one parameter declaration.
+         * @param array $nameTypes Token types composing class names.
+         * @param array $imports File use-alias map.
+         * @param array $varTypes Variable type registry passed by reference.
+         * @return void
+         */
+        private function extractSingleParamType(array $paramTokens, array $nameTypes, array $imports, array &$varTypes): void {
+            $paramCount = count($paramTokens);
+            if ($paramCount < 2) {
+                return;
+            }
+            $lastToken = $paramTokens[$paramCount - 1];
+            if (!is_array($lastToken) || $lastToken[0] !== T_VARIABLE) {
+                return;
+            }
+
+            $typeParts = [];
+            for ($p = 0; $p < $paramCount - 1; $p++) {
+                if (is_array($paramTokens[$p]) && in_array($paramTokens[$p][0], $nameTypes, true)) {
+                    $typeParts[] = $paramTokens[$p][1];
+                }
+            }
+            if (!empty($typeParts)) {
+                $varTypes[$lastToken[1]] = $this->resolveImportedClassName(implode('', $typeParts), $imports);
+            }
+        }
+
+        /**
+         * Validate `new VendorClass()` instantiation and record the assigned variable type.
+         *
+         * @param array $tokens Token stream.
+         * @param int $newIndex T_NEW token index.
+         * @param array $imports File use-alias map.
+         * @param array $varTypes Variable type registry passed by reference.
+         * @param string $file Source path for error reporting.
+         * @return void
+         * @throws \Exception when instantiated vendor class does not exist.
+         */
+        private function recordNewInstantiationType(array $tokens, int $newIndex, array $imports, array &$varTypes, string $file): void {
+            $count = count($tokens);
+            $nameTypes = [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NS_SEPARATOR];
+            $trivia = [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT];
+            $classTokens = [];
+
+            for ($j = $newIndex + 1; $j < $count; $j++) {
+                $t = $tokens[$j];
+                if (is_array($t) && in_array($t[0], $nameTypes, true)) {
+                    $classTokens[] = $t[1];
+                } elseif (!(is_array($t) && in_array($t[0], $trivia, true))) {
+                    break;
+                }
+            }
+            if (empty($classTokens)) {
+                return;
+            }
+
+            $resolvedClass = $this->resolveImportedClassName(implode('', $classTokens), $imports);
+            if (!$this->isTrackedVendorClass($resolvedClass)) {
+                return;
+            }
+            if (!class_exists($resolvedClass) && !interface_exists($resolvedClass)) {
+                throw new \Exception("Vendor class '$resolvedClass' does not exist (instantiated in $file).");
+            }
+
+            $k = $newIndex - 1;
+            while ($k >= 0 && is_array($tokens[$k]) && in_array($tokens[$k][0], $trivia, true)) {
+                $k--;
+            }
+            if ($k >= 0 && $tokens[$k] === '=') {
+                [$varStr] = $this->readBackwardVariableChain($tokens, $k - 1);
+                if ($varStr !== '') {
+                    $varTypes[$varStr] = $resolvedClass;
+                }
+            }
+        }
+
+        /**
+         * Validate static vendor method calls and class constant references (`Class::member`).
+         *
+         * @param array $tokens Token stream.
+         * @param int $classIndex Token index of the class identifier.
+         * @param array $imports File use-alias map.
+         * @param string $file Source path for error reporting.
+         * @return void
+         * @throws \Exception when class, method, or constant is missing or deprecated.
+         */
+        private function validateStaticVendorMember(array $tokens, int $classIndex, array $imports, string $file): void {
+            $count = count($tokens);
+            if ($classIndex + 1 >= $count || !is_array($tokens[$classIndex + 1]) || $tokens[$classIndex + 1][0] !== T_DOUBLE_COLON) {
+                return;
+            }
+
+            $resolvedClass = $this->resolveImportedClassName($tokens[$classIndex][1], $imports);
+            if (!$this->isTrackedVendorClass($resolvedClass)) {
+                return;
+            }
+
+            $j = $this->skipTriviaForward($tokens, $classIndex + 2);
+            if ($j >= $count || !is_array($tokens[$j]) || $tokens[$j][0] !== T_STRING) {
+                return;
+            }
+            $memberName = $tokens[$j][1];
+            $k = $this->skipTriviaForward($tokens, $j + 1);
+            $isCall = $k < $count && $tokens[$k] === '(';
+
+            $this->assertVendorMemberExists($resolvedClass, $memberName, $isCall, $isCall ? 'static' : 'constant', $file);
+        }
+
+        /**
+         * Validate method calls on tracked vendor object variables (`$obj->method()`).
+         *
+         * @param array $tokens Token stream.
+         * @param int $opIndex T_OBJECT_OPERATOR token index.
+         * @param array $varTypes Variable type registry.
+         * @param string $file Source path for error reporting.
+         * @return void
+         * @throws \Exception when class or method is missing or deprecated.
+         */
+        private function validateObjectVendorMethod(array $tokens, int $opIndex, array $varTypes, string $file): void {
+            [$varStr] = $this->readBackwardVariableChain($tokens, $opIndex - 1);
+            if ($varStr === '' || !isset($varTypes[$varStr])) {
+                return;
+            }
+
+            $resolvedClass = $varTypes[$varStr];
+            if (!$this->isTrackedVendorClass($resolvedClass)) {
+                return;
+            }
+
+            $count = count($tokens);
+            $j = $this->skipTriviaForward($tokens, $opIndex + 1);
+            if ($j >= $count || !is_array($tokens[$j]) || $tokens[$j][0] !== T_STRING) {
+                return;
+            }
+            $methodName = $tokens[$j][1];
+            $k = $this->skipTriviaForward($tokens, $j + 1);
+            if ($k < $count && $tokens[$k] === '(') {
+                $this->assertVendorMemberExists($resolvedClass, $methodName, true, 'method', $file);
+            }
+        }
+
+        /**
+         * Assert via Reflection/class_exists that a vendor class method or constant exists and is not deprecated.
+         *
+         * @param string $resolvedClass Vendor FQCN.
+         * @param string $memberName Method or constant name.
+         * @param bool $isCall True for method call, false for class constant.
+         * @param string $kind Diagnostic label ('static', 'method', or 'constant').
+         * @param string $file Source path for error reporting.
+         * @return void
+         * @throws \Exception on missing or deprecated vendor member.
+         */
+        private function assertVendorMemberExists(string $resolvedClass, string $memberName, bool $isCall, string $kind, string $file): void {
+            $missingClassLabel = $kind === 'static' ? 'static call' : ($kind === 'constant' ? 'constant reference' : 'method call');
+            if (!class_exists($resolvedClass) && !interface_exists($resolvedClass)) {
+                throw new \Exception("Vendor class '$resolvedClass' does not exist ($missingClassLabel in $file).");
+            }
+
+            if (!$isCall) {
+                $refClass = new \ReflectionClass($resolvedClass);
+                if (!$refClass->hasConstant($memberName)) {
+                    throw new \Exception("Vendor constant '$resolvedClass::$memberName' does not exist (referenced in $file).");
+                }
+                return;
+            }
+
+            if (!method_exists($resolvedClass, $memberName)) {
+                $prefix = $kind === 'static' ? 'Vendor static method' : 'Vendor method';
+                throw new \Exception("$prefix '$resolvedClass::$memberName' does not exist (called in $file).");
+            }
+            $refMethod = new \ReflectionMethod($resolvedClass, $memberName);
+            if ($refMethod->isDeprecated()) {
+                $prefix = $kind === 'static' ? 'Vendor static method' : 'Vendor method';
+                throw new \Exception("$prefix '$resolvedClass::$memberName' is deprecated (called in $file).");
+            }
         }
     }
 }
