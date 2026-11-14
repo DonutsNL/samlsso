@@ -203,13 +203,13 @@ class ClaimMap extends CommonDBTM
             $migration->migrationOneTable($table);
 
             if (!$DB->fieldExists($table, 'target_type', false)) {
-                $migration->addField($table, 'target_type', 'VARCHAR(50)', ['value' => 'user_field', 'update' => true]);
+                $migration->addField($table, 'target_type', 'string', ['value' => 'user_field']);
             }
             if (!$DB->fieldExists($table, 'default_value', false)) {
-                $migration->addField($table, 'default_value', 'VARCHAR(255)', ['value' => '', 'update' => true]);
+                $migration->addField($table, 'default_value', 'string', ['value' => '']);
             }
             if (!$DB->fieldExists($table, 'is_required', false)) {
-                $migration->addField($table, 'is_required', 'TINYINT', ['value' => '0', 'update' => true]);
+                $migration->addField($table, 'is_required', 'bool', ['value' => '0']);
             }
 
             /**

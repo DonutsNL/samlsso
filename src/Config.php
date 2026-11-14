@@ -581,86 +581,115 @@ class Config extends ConfigCompat
             $DB->doQuery($query);
 
             if (!$DB->fieldExists($table, 'saml_xml_structure', false)) {
-                $migration->addField($table, 'saml_xml_structure', 'text', ['null' => true, 'update' => true]);
+                $migration->addField($table, 'saml_xml_structure', 'text', ['value' => null]);
             }
 
             if (!$DB->fieldExists($table, 'request_timeout', false)) {
-                $migration->addField($table, 'request_timeout', 'int', ['null' => false, 'default' => '15', 'update' => true]);
+                $migration->addField($table, 'request_timeout', 'integer', ['value' => 15]);
             }
 
             if (!$DB->fieldExists($table, 'inactivity_timeout', false)) {
-                $migration->addField($table, 'inactivity_timeout', 'int', ['null' => false, 'default' => '0', 'update' => true]);
+                $migration->addField($table, 'inactivity_timeout', 'integer', ['value' => 0]);
             }
 
             if (!$DB->fieldExists($table, 'sync_on_login', false)) {
-                $migration->addField($table, 'sync_on_login', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+                $migration->addField($table, 'sync_on_login', 'bool', ['value' => '0']);
             }
 
             if (!$DB->fieldExists($table, 'security_wantmessagessigned', false)) {
-                $migration->addField($table, 'security_wantmessagessigned', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+                $migration->addField($table, 'security_wantmessagessigned', 'bool', ['value' => '0']);
             }
 
             if (!$DB->fieldExists($table, 'security_wantassertionssigned', false)) {
-                $migration->addField($table, 'security_wantassertionssigned', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+                $migration->addField($table, 'security_wantassertionssigned', 'bool', ['value' => '0']);
             }
 
             if (!$DB->fieldExists($table, 'security_wantassertionsencrypted', false)) {
-                $migration->addField($table, 'security_wantassertionsencrypted', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+                $migration->addField($table, 'security_wantassertionsencrypted', 'bool', ['value' => '0']);
             }
 
             if (!$DB->fieldExists($table, 'security_signmetadata', false)) {
-                $migration->addField($table, 'security_signmetadata', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+                $migration->addField($table, 'security_signmetadata', 'bool', ['value' => '0']);
             }
 
             if (!$DB->fieldExists($table, 'security_wantnameid', false)) {
-                $migration->addField($table, 'security_wantnameid', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+                $migration->addField($table, 'security_wantnameid', 'bool', ['value' => '0']);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::SP_KEY_SOURCE, false)) {
-                $migration->addField($table, ConfigEntity::SP_KEY_SOURCE, 'string', ['value' => 'db', 'default' => 'db', 'null' => false]);
+                $migration->addField($table, ConfigEntity::SP_KEY_SOURCE, 'string', ['value' => 'db']);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::FORCE_AUTHN, false)) {
-                $migration->addField($table, ConfigEntity::FORCE_AUTHN, 'bool', ['value' => '0', 'default' => '0', 'null' => false]);
+                $migration->addField($table, ConfigEntity::FORCE_AUTHN, 'bool', ['value' => '0']);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::CONF_ICON_URL, false)) {
-                $migration->addField($table, ConfigEntity::CONF_ICON_URL, 'string', ['null' => true]);
+                $migration->addField($table, ConfigEntity::CONF_ICON_URL, 'string', ['value' => null]);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::LOGIN_HEADER_TEXT, false)) {
-                $migration->addField($table, ConfigEntity::LOGIN_HEADER_TEXT, 'string', ['null' => true]);
+                $migration->addField($table, ConfigEntity::LOGIN_HEADER_TEXT, 'string', ['value' => null]);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::SCIM_ENABLED, false)) {
-                $migration->addField($table, ConfigEntity::SCIM_ENABLED, 'bool', ['value' => '0', 'default' => '0', 'null' => false]);
+                $migration->addField($table, ConfigEntity::SCIM_ENABLED, 'bool', ['value' => '0']);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::SCIM_TOKEN_HASH, false)) {
-                $migration->addField($table, ConfigEntity::SCIM_TOKEN_HASH, 'string', ['value' => '', 'default' => '', 'null' => false]);
+                $migration->addField($table, ConfigEntity::SCIM_TOKEN_HASH, 'string', ['value' => '']);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::SCIM_TOKEN_SOURCE, false)) {
-                $migration->addField($table, ConfigEntity::SCIM_TOKEN_SOURCE, 'string', ['value' => 'db', 'default' => 'db', 'null' => false]);
+                $migration->addField($table, ConfigEntity::SCIM_TOKEN_SOURCE, 'string', ['value' => 'db']);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::SCIM_ALLOWED_IPS, false)) {
-                $migration->addField($table, ConfigEntity::SCIM_ALLOWED_IPS, 'text', ['null' => true]);
+                $migration->addField($table, ConfigEntity::SCIM_ALLOWED_IPS, 'text', ['value' => null]);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::SCIM_DEPROVISION, false)) {
-                $migration->addField($table, ConfigEntity::SCIM_DEPROVISION, 'string', ['value' => 'disable', 'default' => 'disable', 'null' => false]);
+                $migration->addField($table, ConfigEntity::SCIM_DEPROVISION, 'string', ['value' => 'disable']);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::SCIM_GROUP_POLICY, false)) {
-                $migration->addField($table, ConfigEntity::SCIM_GROUP_POLICY, 'string', ['value' => 'create_scoped', 'default' => 'create_scoped', 'null' => false]);
+                $migration->addField($table, ConfigEntity::SCIM_GROUP_POLICY, 'string', ['value' => 'create_scoped']);
             }
 
             $migration->migrationOneTable($table);
 
-            if ($DB->fieldExists($table, ConfigEntity::FORCE_AUTHN, false)) {
-                $DB->doQuery("UPDATE `$table` SET `" . ConfigEntity::FORCE_AUTHN . "` = 0 WHERE `" . ConfigEntity::FORCE_AUTHN . "` IS NULL");
+            /**
+             * Normalize columns previously created with bare 'tinyint' or ignored 'default' keys
+             * on <= 1.3.2-rc upgrades (#173): backfill NULL values first so MySQL strict mode accepts NOT NULL.
+             */
+            $boolColsToNormalize = [
+                'sync_on_login',
+                'security_wantmessagessigned',
+                'security_wantassertionssigned',
+                'security_wantassertionsencrypted',
+                'security_signmetadata',
+                'security_wantnameid',
+                ConfigEntity::FORCE_AUTHN,
+            ];
+            foreach ($boolColsToNormalize as $boolCol) {
+                if ($DB->fieldExists($table, $boolCol, false)) {
+                    $DB->update($table, [$boolCol => 0], [$boolCol => null]);
+                    $migration->changeField($table, $boolCol, $boolCol, 'bool', ['value' => '0']);
+                }
             }
+
+            $intColsToNormalize = [
+                'request_timeout'    => 15,
+                'inactivity_timeout' => 0,
+            ];
+            foreach ($intColsToNormalize as $intCol => $defaultVal) {
+                if ($DB->fieldExists($table, $intCol, false)) {
+                    $DB->update($table, [$intCol => $defaultVal], [$intCol => null]);
+                    $migration->changeField($table, $intCol, $intCol, 'integer', ['value' => $defaultVal]);
+                }
+            }
+
+            $migration->migrationOneTable($table);
 
             /**
              * Migrate existing plaintext SP private keys stored in the database to GLPIKey encryption,

@@ -1352,7 +1352,7 @@ class LoginState extends CommonDBTM
         if (
             $DB->tableExists($table)                                                                                                                  &&   // Table should exist
             !$DB->fieldExists($table, LoginState::SAML_REQUEST_ID, false)                                                                              &&   // Field should not exist
-            $migration->addField($table, LoginState::SAML_REQUEST_ID, 'str', ['null' => true, 'update' => true])
+            $migration->addField($table, LoginState::SAML_REQUEST_ID, 'str', ['value' => null])
         ) {   // @see Migration::fieldFormat()
             Session::addMessageAfterRedirect("🆗 Added field LoginState::SAML_REQUEST_ID for v1.2.0");
         } // We silently ignore errors. Most common cause for an error is if the field already exists.
@@ -1360,7 +1360,7 @@ class LoginState extends CommonDBTM
         if (
             $DB->tableExists($table)                                                                                                                      &&   // Table should exist
             !$DB->fieldExists($table, LoginState::SAML_UNSOLICITED, false)                                                                                 &&   // Field should not exist
-            $migration->addField($table, LoginState::SAML_UNSOLICITED, 'str', ['null' => true, 'update' => true])
+            $migration->addField($table, LoginState::SAML_UNSOLICITED, 'str', ['value' => null])
         ) {   // @see Migration::fieldFormat()
             Session::addMessageAfterRedirect("🆗 Added field LoginState::SAML_UNSOLLICITED for v1.1.2");
         } // We silently ignore errors. Most common cause for an error is if the field already exists.
@@ -1368,14 +1368,14 @@ class LoginState extends CommonDBTM
         if (
             $DB->tableExists($table)                                                                                                                       &&   // Table should exist
             !$DB->fieldExists($table, LoginState::SAML_RESPONSE_ID, false)                                                                                  &&   // Field should not exist
-            $migration->addField($table, LoginState::SAML_RESPONSE_ID, 'str', ['null' => true, 'update' => true])
+            $migration->addField($table, LoginState::SAML_RESPONSE_ID, 'str', ['value' => null])
         ) {   // @see Migration::fieldFormat()
             Session::addMessageAfterRedirect("🆗 Added field LoginState::SAML_RESPONSE_ID for v1.1.2");
         } // We silently ignore errors. Most common cause for an error is if the field already exists.
 
         if ($DB->tableExists($table)) {
             if (!$DB->fieldExists($table, LoginState::LOGIN_FLOW_TRACE, false)) {
-                $migration->addField($table, LoginState::LOGIN_FLOW_TRACE, 'text', ['null' => true, 'update' => true]);
+                $migration->addField($table, LoginState::LOGIN_FLOW_TRACE, 'text', ['value' => null]);
                 Session::addMessageAfterRedirect("🆗 Added field LoginState::LOGIN_FLOW_TRACE for v1.1.2");
             } else {
                 $migration->changeField($table, LoginState::LOGIN_FLOW_TRACE, LoginState::LOGIN_FLOW_TRACE, 'text');
@@ -1392,10 +1392,10 @@ class LoginState extends CommonDBTM
          */
         if ($DB->tableExists($table)) {
             if (!$DB->fieldExists($table, LoginState::REDIRECT, false)) {
-                $migration->addField($table, LoginState::REDIRECT, 'text', ['null' => true, 'update' => true]);
+                $migration->addField($table, LoginState::REDIRECT, 'text', ['value' => null]);
                 Session::addMessageAfterRedirect("🆗 Added field LoginState::REDIRECT");
             } else {
-                $migration->changeField($table, LoginState::REDIRECT, LoginState::REDIRECT, 'text', ['null' => true]);
+                $migration->changeField($table, LoginState::REDIRECT, LoginState::REDIRECT, 'text', ['value' => null]);
             }
         }
 
@@ -1411,7 +1411,7 @@ class LoginState extends CommonDBTM
         if (
             $DB->tableExists($table)                                                                                                                       &&
             !$DB->fieldExists($table, LoginState::CLIENT_IP, false)                                                                                        &&
-            $migration->addField($table, LoginState::CLIENT_IP, 'str', ['null' => true, 'update' => true])
+            $migration->addField($table, LoginState::CLIENT_IP, 'str', ['value' => null])
         ) {
             Session::addMessageAfterRedirect("🆗 Added field LoginState::CLIENT_IP");
         }
@@ -1419,7 +1419,7 @@ class LoginState extends CommonDBTM
         if (
             $DB->tableExists($table)                                                                                                                       &&
             !$DB->fieldExists($table, LoginState::CLIENT_COUNTRY, false)                                                                                   &&
-            $migration->addField($table, LoginState::CLIENT_COUNTRY, 'str', ['null' => true, 'update' => true])
+            $migration->addField($table, LoginState::CLIENT_COUNTRY, 'str', ['value' => null])
         ) {
             Session::addMessageAfterRedirect("🆗 Added field LoginState::CLIENT_COUNTRY");
         }

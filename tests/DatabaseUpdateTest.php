@@ -315,6 +315,12 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Expected addField calls to be intercepted, but none were captured.");
             }
 
+            $allowedFieldFormatTypes = [
+                'bool', 'boolean', 'char', 'character', 'str', 'string',
+                'int', 'integer', 'date', 'time', 'timestamp', 'datetime',
+                'text', 'mediumtext', 'longtext',
+            ];
+
             foreach ($migration->addFieldCalls as $call) {
                 $opts = $call['options'];
                 if (array_key_exists('after', $opts)) {
@@ -323,15 +329,89 @@ namespace GlpiPlugin\Samlsso\Tests {
                 if (array_key_exists('before', $opts)) {
                     throw new \Exception("Detected forbidden 'before' option in field addition: Table={$call['table']}, Field={$call['field']}, before={$opts['before']}");
                 }
-                if (strtolower($call['type']) === 'varchar') {
-                    throw new \Exception("Detected invalid bare 'varchar' type in addField (Issue #173): Table={$call['table']}, Field={$call['field']}. Use 'string' instead.");
+                if (array_key_exists('update', $opts)) {
+                    throw new \Exception("Detected forbidden 'update' option in addField (Issue #173): Table={$call['table']}, Field={$call['field']}.");
                 }
-                if ($call['field'] === 'force_authn' && !empty($opts['update']) && $opts['update'] === true) {
-                    throw new \Exception("Detected 'update' => true on force_authn in addField (Issue #173), which causes accidental activation on upgrade.");
+                if (array_key_exists('default', $opts)) {
+                    throw new \Exception("Detected ignored 'default' option in addField (Issue #173): Table={$call['table']}, Field={$call['field']}. Use 'value' instead.");
+                }
+                if (!in_array(strtolower($call['type']), $allowedFieldFormatTypes, true)) {
+                    throw new \Exception("Detected invalid Migration::fieldFormat() type '{$call['type']}' in addField (Issue #173): Table={$call['table']}, Field={$call['field']}.");
                 }
             }
 
-            echo "✅ Database Migrations: Verified all addField calls are order-independent and use valid types (no bare 'varchar' or forbidden order options found in " . count($migration->addFieldCalls) . " field updates)\n";
+            echo "✅ Database Migrations: Verified all addField calls use valid fieldFormat types and no 'update'/'default'/order options (" . count($migration->addFieldCalls) . " field updates)\n";
+        }
+
+        /**
+         * Verifies that Config::install() backfills NULL values and normalizes legacy nullable
+         * boolean and timeout columns via changeField() for MySQL strict mode (#173).
+         *
+         * @return void
+         * @throws \Exception if NULL backfills or changeField calls are missing.
+         */
+        public function testLegacyNullableColumnNormalization(): void {
+            global $DB;
+            $DB = new SimpleMockDB();
+            $table = Config::getTable();
+
+            $boolCols = [
+                'sync_on_login',
+                'security_wantmessagessigned',
+                'security_wantassertionssigned',
+                'security_wantassertionsencrypted',
+                'security_signmetadata',
+                'security_wantnameid',
+                'force_authn',
+            ];
+            $intCols = [
+                'request_timeout'    => 15,
+                'inactivity_timeout' => 0,
+            ];
+            $DB->existingFields[$table] = array_merge($boolCols, array_keys($intCols));
+
+            $migration = new InterceptingMigration('1.4.0');
+            Config::install($migration);
+
+            $updatedMap = [];
+            foreach ($DB->updatedRows as $upd) {
+                if ($upd['table'] === $table) {
+                    foreach ($upd['data'] as $col => $val) {
+                        $updatedMap[$col] = [
+                            'val'    => $val,
+                            'isNull' => array_key_exists($col, $upd['where']) && $upd['where'][$col] === null,
+                        ];
+                    }
+                }
+            }
+            $changedMap = [];
+            foreach ($migration->changeFieldCalls as $chg) {
+                if ($chg['table'] === $table) {
+                    $changedMap[$chg['field']] = $chg;
+                }
+            }
+
+            foreach ($boolCols as $col) {
+                if (!isset($updatedMap[$col]) || $updatedMap[$col]['val'] !== 0 || !$updatedMap[$col]['isNull']) {
+                    throw new \Exception("Expected NULL->0 backfill for Config::$col (#173).");
+                }
+                if (($changedMap[$col]['type'] ?? '') !== 'bool' || ($changedMap[$col]['options']['value'] ?? null) !== '0') {
+                    throw new \Exception("Expected changeField('bool', ['value' => '0']) for Config::$col (#173).");
+                }
+            }
+            foreach ($intCols as $col => $expectedDefault) {
+                if (!isset($updatedMap[$col]) || $updatedMap[$col]['val'] !== $expectedDefault || !$updatedMap[$col]['isNull']) {
+                    throw new \Exception("Expected NULL->$expectedDefault backfill for Config::$col (#173).");
+                }
+                if (($changedMap[$col]['type'] ?? '') !== 'integer' || ($changedMap[$col]['options']['value'] ?? null) !== $expectedDefault) {
+                    throw new \Exception("Expected changeField('integer', ['value' => $expectedDefault]) for Config::$col (#173).");
+                }
+            }
+            if (count(array_keys($migration->migrationOneTableCalls, $table, true)) < 2) {
+                throw new \Exception("Expected migrationOneTable($table) to run after normalizing legacy columns (#173).");
+            }
+
+            echo "✅ Database Migrations: Verified legacy nullable bool/int column backfill and normalization (#173)\n";
         }
 
         /**
@@ -549,6 +629,7 @@ namespace {
     $test = new GlpiPlugin\Samlsso\Tests\DatabaseUpdateTest();
     try {
         $test->testUpdateProcedureNoAfterBefore();
+        $test->testLegacyNullableColumnNormalization();
         $test->testLoginStatePhaseAndRedirectMigration();
         $test->testConfigTableMigrationExecution();
         $test->testV140ScimAndLoginStateLegacyCleanup();
