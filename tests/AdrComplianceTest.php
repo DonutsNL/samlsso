@@ -236,13 +236,8 @@ namespace GlpiPlugin\Samlsso\Tests {
             if (str_contains($loginState, "\$_POST['RelayState']")) {
                 throw new \Exception('ADR 0001 violation: LoginState.php must never read $_POST[\'RelayState\'] as a redirect target.');
             }
-
-            // 4. Verify RelayState carries per-flow CSRF token validated via hash_equals
-            if (
-                !str_contains($loginFlow, 'setFlowToken') ||
-                !str_contains($acs, 'hash_equals($expectedFlowToken')
-            ) {
-                throw new \Exception('ADR 0001 violation: RelayState per-flow CSRF token binding (setFlowToken / hash_equals) is missing.');
+            if (str_contains($acs, 'FlowTokenMismatch') || str_contains($loginFlow, 'setFlowToken')) {
+                throw new \Exception('ADR 0001 violation: Redundant stateless flowToken checks must not be present.');
             }
 
             echo "✅ ADR 0001: Validated 9-phase state machine, double-pass solicited flow, replay isolation, and server-side redirect authority.\n";

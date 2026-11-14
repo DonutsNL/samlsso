@@ -372,12 +372,11 @@ class LoginFlow
                 return false;
             }
 
-            $_SESSION['glpi_plugins']['samlsso']['bypass_token'] = (string)$providedToken;
             $_SESSION['glpi_plugins']['samlsso']['bypass'] = true;
 
             if (!$bypassRequested || !$noAutoUpperSet) {
                 $this->state->addLoginFlowTrace(['bypassUsed' => true]);
-                $url = $CFG_GLPI['url_base'] . '/?' . LoginFlow::SAMLBYPASS . '=1&noAUTO=1&token=' . urlencode((string)$providedToken);
+                $url = $CFG_GLPI['url_base'] . '/?' . LoginFlow::SAMLBYPASS . '=1&noAUTO=1';
                 header('Location:' . $url);
                 exit();
             }
@@ -453,15 +452,9 @@ class LoginFlow
                 $forceAuthn = (bool) $configEntity->getField(ConfigEntity::FORCE_AUTHN);
             }
 
-            $flowToken = bin2hex(random_bytes(16));
-            if (method_exists($this->state, 'setFlowToken')) {
-                $this->state->setFlowToken($flowToken);
-            }
-            $_SESSION['glpi_plugins']['samlsso']['flow_token'] = $flowToken;
-
             try {
                 $ssoBuiltUrl = $auth->login(
-                    $flowToken,
+                    $CFG_GLPI['url_base'] ?? '/',
                     array(),
                     $forceAuthn,
                     false,

@@ -483,31 +483,8 @@ class Config extends ConfigCompat
             ]
         ]);
 
-        if ($req->numrows() > 0) {
-            $bypassActive = !empty($_SESSION['glpi_plugins']['samlsso']['bypass']);
-            if (
-                !$bypassActive &&
-                isset($_GET[LoginFlow::SAMLBYPASS]) &&
-                $_GET[LoginFlow::SAMLBYPASS] == 1
-            ) {
-                $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN')
-                    ? (string)PLUGIN_SAMLSSO_BYPASS_TOKEN
-                    : (string)getenv('SAMLSSO_BYPASS_TOKEN');
-                $providedToken = $_GET['token'] ?? $_GET['bypass_token'] ?? null;
-                if ($requiredToken !== '' && $providedToken !== null && hash_equals($requiredToken, (string)$providedToken)) {
-                    $bypassActive = true;
-                }
-            }
-            if ($bypassActive) {
-                self::$hideLoginFieldsCache = 0;
-                return 0;
-            }
-            self::$hideLoginFieldsCache = 1;
-            return 1;
-        } else {
-            self::$hideLoginFieldsCache = 0;
-            return 0;
-        }
+        self::$hideLoginFieldsCache = ($req->numrows() > 0) ? 1 : 0;
+        return self::$hideLoginFieldsCache;
     }
 
 

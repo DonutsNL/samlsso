@@ -122,7 +122,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 $flow->doAuth();
                 throw new \Exception("Flow should have redirected for bypass.");
             } catch (\Exception $e) {
-                if (!str_contains($e->getMessage(), 'Redirect to: http://glpi.local/?bypass=1&noAUTO=1&token=TestBypassSecret')) {
+                if (!str_contains($e->getMessage(), 'Redirect to: http://glpi.local/?bypass=1&noAUTO=1')) {
                     throw new \Exception("Bypass redirect failed.\nResult: " . $e->getMessage());
                 }
             } finally {
@@ -225,16 +225,16 @@ namespace GlpiPlugin\Samlsso\Tests {
             try {
                 $flow->doAuth();
             } catch (\Exception $e) {
-                if (str_contains($e->getMessage(), 'Redirect to: http://glpi.local/?bypass=1&noAUTO=1&token=SecretToken12345')) {
+                if (str_contains($e->getMessage(), 'Redirect to: http://glpi.local/?bypass=1&noAUTO=1') && !str_contains($e->getMessage(), 'SecretToken12345')) {
                     $redirected = true;
                 }
             }
             putenv('SAMLSSO_BYPASS_TOKEN');
             if (!$redirected) {
-                throw new \Exception("Bypass failed to redirect with valid token!");
+                throw new \Exception("Bypass failed to redirect without leaking secret token!");
             }
-            if (empty($_SESSION['glpi_plugins']['samlsso']['bypass']) || $_SESSION['glpi_plugins']['samlsso']['bypass_token'] !== 'SecretToken12345') {
-                throw new \Exception("Bypass token was not stored in session!");
+            if (empty($_SESSION['glpi_plugins']['samlsso']['bypass']) || isset($_SESSION['glpi_plugins']['samlsso']['bypass_token'])) {
+                throw new \Exception("Bypass session state invalid or leaked plaintext bypass_token!");
             }
 
             // Case 4: once verified in session, local login fields remain visible even when hide_login_fields=true

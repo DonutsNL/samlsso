@@ -14,7 +14,7 @@
    - Throttles stale ACS cleanup (`LoginState::expireStaleAcsRequests()`) every 60 seconds.
    - Captures deep-link target URLs server-side in `LoginState::setRedirect()` (validated via `getSafeRedirect()` and `isStaticAssetRedirect()`).
    - Handles SLO logout (`/front/logout` / `SamlSsoController::SLO_ROUTE`), emergency bypass (`interceptBypass()` with `hash_equals`), IdP button clicks (`$_POST[LoginFlow::POSTFIELD]` / `$_GET[LoginFlow::GETFIELD]`), email-domain discovery (`resolveIdpFromLoginForm()`), and single-IdP `enforce_sso` auto-redirect.
-   - Dispatches SP-initiated `AuthnRequest` via `LoginFlow::performSamlIdpRequest()`, which refreshes `LOGIN_DATETIME`, generates per-flow CSRF token `$flowToken` (sent as `RelayState`), registers `SAML_REQUEST_ID`, sets `PHASE_SAML_ACS (2)`, and redirects the browser to the IdP.
+   - Dispatches SP-initiated `AuthnRequest` via `LoginFlow::performSamlIdpRequest()`, which refreshes `LOGIN_DATETIME`, registers `SAML_REQUEST_ID`, sets `PHASE_SAML_ACS (2)`, and redirects the browser to the IdP.
 
 ### B. Assertion Consumer Service (`POST /plugins/samlsso/front/acs/{idpId}`)
 1. **`SamlSsoController::acs()` (`src/Controller/SamlSsoController.php`) -> `Acs::init()` (`src/LoginFlow/Acs.php`)**:
@@ -25,7 +25,7 @@
    - Calls `Acs::fetchRequestState()`:
      - Extracts `InResponseTo` from the XML root.
      - **Double-Pass Solicited Flow (`ADR 0001`)**: If `InResponseTo` is empty or `LoginState::getSamlRequestId()` is empty (unsolicited / IdP-initiated response), persists the `PHASE_INITIAL (1)` state (`SAML_UNSOLICITED = 1`, `unsolicitedReauthRedirect` trace) and calls `performSamlIdpRequest()` to bounce the browser through a tracked solicited `AuthnRequest` cycle.
-   - Verifies state `idpId === $routeIdpId` and validates `RelayState` against `LoginState::getFlowToken()` via `hash_equals()`.
+   - Verifies state `idpId === $routeIdpId` (ignoring client `RelayState`).
    - Calls `Acs::assertSaml()`:
      - If `getPhase() === PHASE_TIMED_OUT (7)`, calls `handleRequestTimeout()` (flash error message + redirect to `/index.php?noAuto=1`).
      - Requires `getPhase() === PHASE_SAML_ACS (2)` and non-empty `$expectedRequestId`.

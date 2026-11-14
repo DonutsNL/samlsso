@@ -190,18 +190,6 @@ class Acs extends LoginFlow
                 );
             }
 
-            $expectedFlowToken = method_exists($this->state, 'getFlowToken') ? $this->state->getFlowToken() : '';
-            $requestFlowToken = (string)(
-                $request->request->get('RelayState')
-                ?? ($_SESSION['glpi_plugins']['samlsso']['flow_token'] ?? '')
-            );
-            if ($expectedFlowToken !== '' && !hash_equals($expectedFlowToken, $requestFlowToken)) {
-                $this->printError(
-                    __('Invalid or missing SAML login flow token (CSRF protection). Please initiate login from GLPI.', PLUGIN_NAME),
-                    __('Samlsso->acs->init->FlowTokenMismatch', PLUGIN_NAME)
-                );
-            }
-
             $this->assertSaml();
         } else {
             $this->printError(
@@ -447,29 +435,6 @@ class Acs extends LoginFlow
                     "The following error was reported: $e"
                 );
             }
-        }
-
-        if (!$this->configEntity->isActive() || $this->configEntity->isDeleted()) {
-            $this->printError(
-                sprintf(__('The requested IdP configuration with id %s is inactive, deleted, or invalid.', PLUGIN_NAME), (string)$this->idpId),
-                __('Samlsso->acs->assertSaml->InactiveOrDeletedIdp', PLUGIN_NAME)
-            );
-        }
-
-        $stateIdpId = (int) $this->state->getIdpId();
-        if ($stateIdpId !== (int) $this->idpId) {
-            $this->printError(
-                sprintf(
-                    __("The IdP ID in the session state (%d) does not match the ACS route IdP ID (%d).", PLUGIN_NAME),
-                    $stateIdpId,
-                    $this->idpId
-                ),
-                __('Samlsso->acs->assertSaml->IdpMismatch', PLUGIN_NAME),
-                Acs::EXTENDED_HEADER .
-                    sprintf("IdP mismatch detected: session expected IdP ID %d, but assertion was received on ACS route for IdP ID %d.\n", $stateIdpId, $this->idpId) .
-                    Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
-                    Acs::EXTENDED_FOOTER . "\n"
-            );
         }
 
         if ($this->state->getPhase() != LoginState::PHASE_SAML_ACS) {

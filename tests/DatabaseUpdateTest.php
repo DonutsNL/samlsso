@@ -459,7 +459,7 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             $DB = new SimpleMockDB();
             $loginStateTable = getTableForItemType(LoginState::class);
-            $DB->existingFields[$loginStateTable] = ['serverParams', 'loggedOff', 'enforceLogoff'];
+            $DB->existingFields[$loginStateTable] = ['serverParams', 'loggedOff', 'enforceLogoff', 'requestParams'];
 
             $migration = new InterceptingMigration('1.4.0');
             Config::install($migration);
@@ -467,7 +467,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             \GlpiPlugin\Samlsso\ScimLink::install($migration);
 
             $droppedFields = array_column($migration->dropFieldCalls, 'field');
-            foreach (['serverParams', 'loggedOff', 'enforceLogoff'] as $legacyCol) {
+            foreach (['serverParams', 'loggedOff', 'enforceLogoff', 'requestParams'] as $legacyCol) {
                 if (!in_array($legacyCol, $droppedFields, true)) {
                     throw new \Exception("Expected LoginState::install() to drop legacy column '$legacyCol' in v1.4.0.");
                 }

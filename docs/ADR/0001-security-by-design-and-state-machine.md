@@ -49,10 +49,10 @@ stateDiagram-v2
 1. Every accepted `SAMLResponse` has its unique assertion/response ID stored in `SAML_RESPONSE_ID` via `LoginState::setSamlResponseId()`, which verifies in real time that the database row is still in `PHASE_SAML_ACS (2)` with an empty `SAML_RESPONSE_ID` and that no other row in the database has ever used that `SAML_RESPONSE_ID` (`checkResponseIdUnique()`).
 2. Replayed assertions or stateless ACS lookups with unknown/already-consumed `InResponseTo` values must **never** mutate, downgrade, or overwrite an existing `PHASE_SAML_AUTH (3)` or `PHASE_GLPI_AUTH (4)` session (`LoginState::getState()` and `LoginFlow::printError()` guard active authenticated rows).
 
-### 4. Server-Side Redirect Authority & Anti-CSRF `RelayState`
+### 4. Server-Side Redirect Authority & `RelayState` Isolation
 1. Deep-link post-login redirect targets are captured exclusively on the server during `PHASE_INITIAL (1)` in `LoginState::REDIRECT` (`setRedirect()`).
 2. `LoginState::getSafeRedirect()` validates that any redirect target is a relative, internal path starting with `/` (never `//`, `\`, or external schemes) and rejects auth/login entry points and static asset URLs (`isStaticAssetRedirect()`: `.js`, `.mjs`, `.css`, `.map`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.ico`, `.webp`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.otf`).
-3. The SAML `RelayState` parameter is reserved **exclusively** for the random per-flow anti-CSRF token (`$flowToken`) generated in `LoginFlow::performSamlIdpRequest()` and verified via `hash_equals()` in `Acs::init()`. `RelayState` is never used to transport redirect URLs.
+3. Incoming `POST['RelayState']` at `/front/acs/{idpId}` is **ignored** and never required to match a synthetic flow token or treated as a redirect URL. Because ACS is stateless (`SessionManager::registerPluginStatelessPath()`), a non-cookie-bound `RelayState` token adds no security beyond `SAML_REQUEST_ID` (`InResponseTo` + `SubjectConfirmationData/@InResponseTo`), while enforcing it breaks IdPs and Entra ID configurations that omit or override `RelayState`.
 
 ### 5. Background AJAX Isolation & Force Logoff Enforcement
 1. Background AJAX sub-requests (`Toolbox::isAjax()`) must never trigger SSO redirects or advance `PHASE_INITIAL` to `PHASE_SAML_ACS`.
