@@ -550,9 +550,10 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that deep link paths are preserved when constructing the SAML IdP login request (Issue #158).
+         * Test that deep link paths are preserved server-side in LoginState::REDIRECT (Issue #158)
+         * without leaking internal paths via outbound RelayState (ADR 0001).
          *
-         * @throws \Exception if deep link is not passed to IdP or browser redirect URL is incorrect.
+         * @throws \Exception if server-side deep link preservation or outbound minimization fails.
          */
         public function testDeepLinkRelayStatePreservation(): void {
             global $CFG_GLPI;
@@ -568,12 +569,12 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Expected safe redirect '/front/ticket.form.php?id=99', got: " . $safeRedirect);
             }
 
-            $returnTo = rtrim($CFG_GLPI['url_base'], '/') . $safeRedirect;
-            if ($returnTo !== 'https://glpi.local/front/ticket.form.php?id=99') {
-                throw new \Exception("Expected RelayState returnTo 'https://glpi.local/front/ticket.form.php?id=99', got: " . $returnTo);
+            $loginFlowSrc = (string) file_get_contents(dirname(__DIR__) . '/src/LoginFlow.php');
+            if (!preg_match('/\$auth->login\(\s*\$CFG_GLPI\[\'url_base\'\]\s*\?\?\s*\'\/\',\s*(?:array\(\)|\[\]),/', $loginFlowSrc)) {
+                throw new \Exception("LoginFlow::performSamlIdpRequest must pass static url_base and empty parameters array.");
             }
 
-            echo "✅ Deep link RelayState preservation verified (Issue #158)\n";
+            echo "✅ Deep link server-side preservation and minimal outbound RelayState verified (Issues #158, #188)\n";
         }
 
         /**

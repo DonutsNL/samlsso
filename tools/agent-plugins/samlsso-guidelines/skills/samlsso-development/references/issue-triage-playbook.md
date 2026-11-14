@@ -52,3 +52,19 @@ Use this playbook when analyzing reported GitHub issues or feature requests to e
   - Explain that runtime linking across `DB_GLPI`, `Auth::LDAP`, or `Auth::NOT_YET_AUTHENTIFIED (0)` is blocked by design to maintain strict single-authority ownership and prevent Account Takeover (ATO), and note that GLPI Core's UI Massive Action (*Change the authentication method*) cannot target SAML IdPs directly because `ajax/dropdownMassiveActionAuthMethods.php` hardcodes `AuthLDAP::dropdown()`.
   - Explain that SAML JIT and SCIM 2.0 isolate `glpi_users.auths_id` in `User::AUTHS_ID_OFFSET = 1,000,000` (`auths_id = 1,000,000 + <idpId>`, keeping `glpi_plugin_samlsso_configs.id` unchanged for `/acs/{id}` URLs while preventing any overlap with active `glpi_authldaps.id` directories), and allow **one-time adoption** of unbound `(Auth::EXTERNAL, 0)` rows (immediately stamping `auths_id = 1,000,000 + <idpId>`).
   - Direct administrators retiring LDAP to the non-destructive, reversible in-place GLPI console command (`php bin/console plugins:samlsso:migrate_ldap_users` / `tools/migrate_ldap_users.php` + GitHub Wiki manual — which preserves `glpi_users.id` and ticket/asset relations, deactivates only the retired source `glpi_authldaps` directory, and writes a `0600` `GLPIKey` HMAC-signed `--revert` snapshot), or to SAML JIT / per-IdP SCIM 2.0 push provisioning (`Auth::EXTERNAL`, `auths_id = 1,000,000 + <idpId>`).
+
+---
+
+## 6. Outbound SAML Flow Minimization & `RelayState` / Flow Tokens (`ADR 0001`, `#188`)
+- **Symptom / Request**: Contributor suggests passing synthetic flow/CSRF tokens (`flow_token`, `samlsso_flow_token`) or deep-link return URLs in `RelayState` or extra `AuthnRequest`/`LogoutRequest` query parameters, or user hits `FlowTokenMismatch` on `1.3.2rc4`.
+- **Architectural Rule**: Outbound `AuthnRequest` / `LogoutRequest` flows pass only `$CFG_GLPI['url_base'] ?? '/'` and `$parameters = []`; inbound `POST['RelayState']` is always ignored on `/front/acs/{idpId}`; all redirect and security enforcement remains strictly server-side in `glpi_plugin_samlsso_loginstates` (`ADR 0001`).
+- **How It Works & How to Respond**:
+  - Reject any re-introduction of `flow_token` / `samlsso_flow_token` or custom outbound `RelayState` return targets: SAML 2.0 `RelayState` is unencrypted and frequently overridden by IdPs (e.g., Entra ID in `#188`), and synthetic tokens add no security on a cookie-stateless ACS endpoint beyond `SAML_REQUEST_ID`, `SubjectConfirmationData/@InResponseTo`, and single-use `SAML_RESPONSE_ID`. Note that `1.3.2` was skipped in favor of `1.4.0`.
+
+---
+
+## 6. Outbound SAML Flow Minimization & `RelayState` / Flow Tokens (`ADR 0001`, `#188`)
+- **Symptom / Request**: Contributor suggests passing synthetic flow/CSRF tokens (`flow_token`, `samlsso_flow_token`) or deep-link return URLs in `RelayState` or extra `AuthnRequest`/`LogoutRequest` query parameters, or user hits `FlowTokenMismatch` on `1.3.2rc4`.
+- **Architectural Rule**: Outbound `AuthnRequest` / `LogoutRequest` flows pass only `$CFG_GLPI['url_base'] ?? '/'` and `$parameters = []`; inbound `POST['RelayState']` is always ignored on `/front/acs/{idpId}`; all redirect and security enforcement remains strictly server-side in `glpi_plugin_samlsso_loginstates` (`ADR 0001`).
+- **How It Works & How to Respond**:
+  - Reject any re-introduction of `flow_token` / `samlsso_flow_token` or custom outbound `RelayState` return targets: SAML 2.0 `RelayState` is unencrypted and frequently overridden by IdPs (e.g., Entra ID in `#188`), and synthetic tokens add no security on a cookie-stateless ACS endpoint beyond `SAML_REQUEST_ID`, `SubjectConfirmationData/@InResponseTo`, and single-use `SAML_RESPONSE_ID`. Note that `1.3.2` was skipped in favor of `1.4.0`.

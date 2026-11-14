@@ -49,10 +49,11 @@ stateDiagram-v2
 1. Every accepted `SAMLResponse` has its unique assertion/response ID stored in `SAML_RESPONSE_ID` via `LoginState::setSamlResponseId()`, which verifies in real time that the database row is still in `PHASE_SAML_ACS (2)` with an empty `SAML_RESPONSE_ID` and that no other row in the database has ever used that `SAML_RESPONSE_ID` (`checkResponseIdUnique()`).
 2. Replayed assertions or stateless ACS lookups with unknown/already-consumed `InResponseTo` values must **never** mutate, downgrade, or overwrite an existing `PHASE_SAML_AUTH (3)` or `PHASE_GLPI_AUTH (4)` session (`LoginState::getState()` and `LoginFlow::printError()` guard active authenticated rows).
 
-### 4. Server-Side Redirect Authority & `RelayState` Isolation
+### 4. Server-Side Redirect Authority, Minimal Outbound SAML Parameters & `RelayState` Isolation
 1. Deep-link post-login redirect targets are captured exclusively on the server during `PHASE_INITIAL (1)` in `LoginState::REDIRECT` (`setRedirect()`).
 2. `LoginState::getSafeRedirect()` validates that any redirect target is a relative, internal path starting with `/` (never `//`, `\`, or external schemes) and rejects auth/login entry points and static asset URLs (`isStaticAssetRedirect()`: `.js`, `.mjs`, `.css`, `.map`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.ico`, `.webp`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.otf`).
-3. Incoming `POST['RelayState']` at `/front/acs/{idpId}` is **ignored** and never required to match a synthetic flow token or treated as a redirect URL. Because ACS is stateless (`SessionManager::registerPluginStatelessPath()`), a non-cookie-bound `RelayState` token adds no security beyond `SAML_REQUEST_ID` (`InResponseTo` + `SubjectConfirmationData/@InResponseTo`), while enforcing it breaks IdPs and Entra ID configurations that omit or override `RelayState`.
+3. **Minimal Outbound SAML Protocol Parameters Only**: Outbound `AuthnRequest` (`LoginFlow::performSamlIdpRequest()` -> `$auth->login()`) and `LogoutRequest` (`LoginFlow::doAuth()` -> `$samlAuth->logout()`) requests must never append synthetic flow/CSRF tokens, nonces, cookies, deep-link return URLs, or non-protocol query parameters (`$parameters = []`). Because `onelogin/php-saml` internally populates `RelayState` (`$returnTo ?: Utils::getSelfRoutedURLNoQuery()`), both calls pass only the static public `$CFG_GLPI['url_base'] ?? '/'` so internal request paths and object IDs are never disclosed to external IdPs or browser history.
+4. **Inbound `RelayState` Ignored & Server-Side Boundary**: Incoming `POST['RelayState']` at `/front/acs/{idpId}` is **ignored** and never required to match a synthetic flow token or treated as a redirect URL. Because `/front/acs/{idpId}` is stateless (`SessionManager::registerPluginStatelessPath()`, supporting `SameSite=Strict`), a non-cookie-bound `RelayState` or `samlsso_flow_token` adds zero security beyond `SAML_REQUEST_ID` (`InResponseTo` + `SubjectConfirmationData/@InResponseTo`) and unique single-use `SAML_RESPONSE_ID`, while enforcing it breaks compliant IdPs and Entra ID configurations that omit or overwrite `RelayState` (`#188`). All replay, timeout, IdP-binding, and phase-transition controls remain strictly server-side in `glpi_plugin_samlsso_loginstates`.
 
 ### 5. Background AJAX Isolation & Force Logoff Enforcement
 1. Background AJAX sub-requests (`Toolbox::isAjax()`) must never trigger SSO redirects or advance `PHASE_INITIAL` to `PHASE_SAML_ACS`.
@@ -65,7 +66,8 @@ stateDiagram-v2
 - **NEVER** pass `null` to `$this->samlResponse->isValid()` or skip `InResponseTo` / `SubjectConfirmationData/@InResponseTo` verification in `Acs.php`.
 - **NEVER** promote an unrecognized or unsolicited `SAMLResponse` directly to `PHASE_SAML_ACS (2)` in `LoginState::getState()` or `Acs::fetchRequestState()`.
 - **NEVER** add a configuration toggle to "allow unsolicited / IdP-initiated logins without re-authentication".
-- **NEVER** read post-login redirect URLs from `$_POST['RelayState']` or unvalidated client parameters on `/front/acs/{idpId}`.
+- **NEVER** append synthetic security/CSRF/flow tokens (`flow_token`, `samlsso_flow_token`), cookies, nonces, deep-link URLs, or non-protocol query parameters to outbound `AuthnRequest` / `LogoutRequest` calls (`$auth->login()`, `$samlAuth->logout()`) or `RelayState`.
+- **NEVER** read post-login redirect URLs or require synthetic tokens from `$_POST['RelayState']`, `samlsso_flow_token`, or unvalidated client parameters on `/front/acs/{idpId}`.
 - **NEVER** use raw string paths for ACS, SLO, or SCIM routes; always reference `SamlSsoController::ACS_ROUTE`, `SamlSsoController::SLO_ROUTE`, and `SamlSsoController::SCIM_ROUTE`.
 
 ---
@@ -74,6 +76,9 @@ stateDiagram-v2
 - **When a user or issue requests support for IdP-initiated / Unsolicited SAML login:**
   - **Do NOT alter `Acs.php` or `LoginState.php` to accept unsolicited assertions directly.**
   - Inform the reporter that direct unsolicited assertions are rejected by design to prevent Login CSRF and assertion injection, and explain that `samlsso` implements a **Double-Pass Solicited Flow**: when a user clicks the GLPI tile in their IdP portal (Okta, Entra ID, Google Workspace, etc.), the plugin automatically catches the unsolicited POST, initializes a tracked `LoginState`, and bounces the browser back to the IdP with a solicited `AuthnRequest`, completing the login seamlessly in a single transparent round-trip.
+- **When a contributor suggests client-side `RelayState` / query-parameter tokens (`flow_token`, `samlsso_flow_token`) or passing deep-link return URLs through `RelayState`:**
+  - **Reject the suggestion and keep all redirect and security tracking server-side in `glpi_plugin_samlsso_loginstates`.**
+  - Explain that SAML 2.0 `RelayState` is unencrypted, length-constrained on HTTP-Redirect, and legitimately overwritten by IdPs such as Microsoft Entra ID (`#188`), and that `/front/acs/{idpId}` relies on server-side `SAML_REQUEST_ID` / `SAML_RESPONSE_ID` / `PHASE_SAML_ACS` validation rather than client-carried tokens.
 
 ---
 

@@ -232,7 +232,8 @@ class LoginFlow
                         try {
                             $samlAuth = new samlAuth($samlConfig);
                             // Request the signed LogoutRequest redirect URL without exiting inside php-saml
-                            $sloUrl = $samlAuth->logout(null, [], $nameId, null, true, $nameIdFormat);
+                            $samlBaseReturnTo = $CFG_GLPI['url_base'] ?? '/';
+                            $sloUrl = $samlAuth->logout($samlBaseReturnTo, [], $nameId, null, true, $nameIdFormat);
                         } catch (Throwable $e) {
                             Toolbox::logInFile(PLUGIN_NAME . '-errors', 'SLO logout failed: ' . $e->getMessage() . "\n", true);
                         }

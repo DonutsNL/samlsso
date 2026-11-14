@@ -183,13 +183,14 @@ namespace GlpiPlugin\Samlsso\Tests {
 
         /**
          * Test ADR 0001: Verify State Machine & Solicited-Only Double-Pass Authentication,
-         * Replay Protection, Server-Side Redirect Authority, and RelayState CSRF token binding.
+         * Replay Protection, Server-Side Redirect Authority, and Minimal Outbound SAML Parameters.
          *
          * @return void
          * @throws \Exception on any ADR 0001 invariant violation.
          */
         public function testAdr0001StateMachineAndSolicitedDoublePass(): void
         {
+            $adr0001 = $this->readPluginFile('docs/ADR/0001-security-by-design-and-state-machine.md');
             $loginState = $this->readPluginFile('src/LoginState.php');
             $acs = $this->readPluginFile('src/LoginFlow/Acs.php');
             $loginFlow = $this->readPluginFile('src/LoginFlow.php');
@@ -226,7 +227,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception('ADR 0001 violation: Acs.php must validate SubjectConfirmationData/@InResponseTo.');
             }
 
-            // 3. Verify Server-Side Redirect Authority & Static Asset Filtering
+            // 3. Verify Server-Side Redirect Authority, Minimal Outbound SAML Parameters, & No Synthetic Flow Tokens
             if (
                 !str_contains($loginState, 'function isStaticAssetRedirect') ||
                 !str_contains($loginState, 'function getSafeRedirect')
@@ -236,11 +237,26 @@ namespace GlpiPlugin\Samlsso\Tests {
             if (str_contains($loginState, "\$_POST['RelayState']")) {
                 throw new \Exception('ADR 0001 violation: LoginState.php must never read $_POST[\'RelayState\'] as a redirect target.');
             }
-            if (str_contains($acs, 'FlowTokenMismatch') || str_contains($loginFlow, 'setFlowToken')) {
-                throw new \Exception('ADR 0001 violation: Redundant stateless flowToken checks must not be present.');
+            foreach (['FlowTokenMismatch', 'setFlowToken', 'getFlowToken', 'samlsso_flow_token', 'flow_token'] as $forbiddenTokenSymbol) {
+                if (
+                    str_contains($acs, $forbiddenTokenSymbol) ||
+                    str_contains($loginFlow, $forbiddenTokenSymbol) ||
+                    str_contains($loginState, $forbiddenTokenSymbol)
+                ) {
+                    throw new \Exception("ADR 0001 violation: Synthetic client flow-token symbol '$forbiddenTokenSymbol' must not be present in production code.");
+                }
+            }
+            if (
+                !preg_match('/\$auth->login\(\s*\$CFG_GLPI\[\'url_base\'\]\s*\?\?\s*\'\/\',\s*(?:array\(\)|\[\]),/', $loginFlow) ||
+                !preg_match('/\$samlAuth->logout\(\s*\$samlBaseReturnTo,\s*(?:array\(\)|\[\]),/', $loginFlow)
+            ) {
+                throw new \Exception('ADR 0001 violation: Outbound AuthnRequest/LogoutRequest calls in LoginFlow.php must pass only static base URL and empty parameter array.');
+            }
+            if (!str_contains($adr0001, 'Minimal Outbound SAML Protocol Parameters Only') || !str_contains($adr0001, 'flow_token')) {
+                throw new \Exception('ADR 0001 violation: docs/ADR/0001 must explicitly document minimal outbound SAML parameters and prohibit flow_token re-introduction.');
             }
 
-            echo "✅ ADR 0001: Validated 9-phase state machine, double-pass solicited flow, replay isolation, and server-side redirect authority.\n";
+            echo "✅ ADR 0001: Validated 9-phase state machine, double-pass solicited flow, replay isolation, minimal outbound params, and server-side redirect authority.\n";
         }
 
         /**

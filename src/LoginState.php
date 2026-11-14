@@ -656,7 +656,7 @@ class LoginState extends CommonDBTM
 
     /**
      * Update the redirect in the state database.
-     * Checks explicit parameter, GET parameter, POST RelayState, or deep link in REQUEST_URI.
+     * Checks explicit parameter, GET parameter, or deep link in REQUEST_URI.
      *
      * @param string|null $redirect Optional explicit redirect URL.
      * @return bool True if state updated.
