@@ -96,6 +96,7 @@ class User
     public const ENTITY_DEFAULT     = '_entities_id_default';
     public const AUTHTYPE           = 'authtype';
     public const AUTHTYPE_LOCAL     = 1;
+    public const AUTHS_ID_OFFSET    = 1000000;
     public const SYNCDATE           = 'date_sync';  //Y-m-d H:i:s
     public const SAMLGROUPS         = 'samlClaimedGroups';
     public const SAMLJOBTITLE       = 'samlClaimedJobTitle';
@@ -122,17 +123,23 @@ class User
     public const SCHEMA_GROUPS               = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/groups';        // Used in assignment rules - Optional
 
     /**
-     * Gets or creates (if JIT is enabled for IDP) the GLPI user.
+     * Maps a samlSSO Identity Provider configuration ID (1..999) into an isolated
+     * glpi_users.auths_id namespace (1,000,000 + $idpId) so SAML/SCIM external bindings
+     * never collide with GLPI Core's glpi_authldaps.id primary keys.
      *
-     * This method is called after succesfull login by an IDP. Beware that
-     * the return value glpiUser of this method will perform the actual login
-     * into GLPI. So make sure not to return anything from this method unless
-     * you actually intend to allow login.
-     *
-     * @param   array       $userFields Containing user attributes found in Saml claim
-     * @return  glpiUser    GlpiUser object with populated fields.
-     * @since               1.0.0
+     * @param int $idpId Active samlSSO configuration ID (> 0).
+     * @return int Namespaced glpi_users.auths_id value.
+     * @throws \InvalidArgumentException When $idpId <= 0.
+     * @since 1.4.0
      */
+    public static function toAuthsId(int $idpId): int
+    {
+        if ($idpId <= 0) {
+            throw new \InvalidArgumentException('samlSSO IdP configuration ID must be strictly positive.');
+        }
+        return self::AUTHS_ID_OFFSET + $idpId;
+    }
+
     /**
      * Gets or creates (if JIT is enabled for IDP) the GLPI user.
      *
@@ -153,6 +160,13 @@ class User
         $email = (array_key_exists(User::EMAIL, $userFields) && isset($userFields[User::EMAIL][0])) ? (string)$userFields[User::EMAIL][0] : '';
 
         $idpId = (int)$configEntity->getField(ConfigEntity::ID);
+        if ($idpId <= 0) {
+            LoginFlow::PrintFatalLoginError(
+                __('Your SSO login was successful but the identity provider configuration is invalid or disabled.', PLUGIN_NAME)
+            );
+        }
+
+        $expectedAuthsId = self::toAuthsId($idpId);
         $allowEmailLinking = (bool)$configEntity->getField(ConfigEntity::SYNC_ON_LOGIN);
 
         $candidates = $this->findCandidateUsers($name, $email, $allowEmailLinking);
@@ -181,24 +195,33 @@ class User
         }
 
         /**
-         * Second pass: select an exact (Auth::EXTERNAL, $idpId) match first, falling back
-         * only to legacy unbound external rows (auths_id = 0) when no exact IdP match exists.
+         * Second pass: select an exact (Auth::EXTERNAL, 1_000_000 + $idpId) match first,
+         * falling back to one-time adoption only for unmigrated (Auth::EXTERNAL, $idpId)
+         * or unbound (Auth::EXTERNAL, 0) rows without an LDAP user_dn.
          */
         $exactMatch = null;
-        $legacyUnboundMatch = null;
+        $legacySameIdpMatch = null;
+        $unboundExternalMatch = null;
         $firstForeign = null;
 
         foreach ($candidates as $candidate) {
             $candAuthtype = (int)($candidate[User::AUTHTYPE] ?? 0);
             $candAuthsId = (int)($candidate['auths_id'] ?? 0);
+            $candUserDn = trim((string)($candidate['user_dn'] ?? ''));
 
-            if ($candAuthtype === $externalAuthType && $idpId > 0 && $candAuthsId === $idpId) {
+            if ($candAuthtype === $externalAuthType && $candAuthsId === $expectedAuthsId) {
                 $exactMatch = $candidate;
                 break;
             }
-            if (($candAuthtype === $externalAuthType || $candAuthtype === 0) && ($candAuthsId === 0 || $idpId <= 0)) {
-                if ($legacyUnboundMatch === null) {
-                    $legacyUnboundMatch = $candidate;
+            if ($candAuthtype === $externalAuthType && $candAuthsId === $idpId && $candUserDn === '') {
+                if ($legacySameIdpMatch === null) {
+                    $legacySameIdpMatch = $candidate;
+                }
+                continue;
+            }
+            if ($candAuthtype === $externalAuthType && $candAuthsId === 0 && $candUserDn === '') {
+                if ($unboundExternalMatch === null) {
+                    $unboundExternalMatch = $candidate;
                 }
                 continue;
             }
@@ -207,7 +230,7 @@ class User
             }
         }
 
-        $selectedRow = $exactMatch ?? $legacyUnboundMatch;
+        $selectedRow = $exactMatch ?? $legacySameIdpMatch ?? $unboundExternalMatch;
         if ($selectedRow === null) {
             $foreignName = is_array($firstForeign) && !empty($firstForeign[User::NAME])
                 ? (string)$firstForeign[User::NAME]
@@ -220,11 +243,24 @@ class User
             );
         }
 
-        $user = new glpiUser();
         $matchedUserId = (int)($selectedRow[User::USERID] ?? 0);
+        if ($exactMatch === null && $matchedUserId > 0) {
+            global $DB;
+            if ($DB !== null && method_exists($DB, 'update')) {
+                $DB->update(
+                    'glpi_users',
+                    ['auths_id' => $expectedAuthsId],
+                    [User::USERID => $matchedUserId]
+                );
+            }
+            $selectedRow['auths_id'] = $expectedAuthsId;
+        }
+
+        $user = new glpiUser();
         if ($matchedUserId <= 0 || !$user->getFromDB($matchedUserId)) {
             $user->fields = $selectedRow;
         }
+        $user->fields['auths_id'] = $expectedAuthsId;
 
         if ($user->fields[User::DELETED] == 1) {
             LoginFlow::PrintFatalLoginError(sprintf(__("User with GlpiUserid: %s is marked deleted but still exists in the GLPI database. Because of this we cannot log you in as this would violate GLPI its security policies. Please contact the GLPI administrator to restore the user with provided ID or purge the user to allow the Just in Time (JIT) user creation to create a new user with the idp provided claims.", PLUGIN_NAME), $user->fields[User::USERID]));
@@ -358,7 +394,7 @@ class User
 
         if ($configEntity->getField(ConfigEntity::USER_JIT)) {
             $userFields[User::AUTHTYPE] = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? \Auth::EXTERNAL : 4;
-            $userFields['auths_id'] = (int)$dbId;
+            $userFields['auths_id'] = self::toAuthsId((int)$dbId);
             $addPayload = self::stripSyntheticRuleFields($userFields);
             $id = $user->add(self::sanitizeInput($addPayload));
             if (!$id) {

@@ -56,6 +56,7 @@ namespace GlpiPlugin\Samlsso\Tests {
     use GlpiPlugin\Samlsso\Controller\SamlSsoController;
     use GlpiPlugin\Samlsso\Exclude;
     use GlpiPlugin\Samlsso\LoginFlow;
+    use GlpiPlugin\Samlsso\LoginFlow\User as SamlUser;
     use GlpiPlugin\Samlsso\LoginState;
     use GlpiPlugin\Samlsso\RuleSaml;
     use GlpiPlugin\Samlsso\RuleSamlCollection;
@@ -414,7 +415,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                     'firstname'   => 'Foreign',
                     'realname'    => 'IdpUser',
                     'authtype'    => 4,
-                    'auths_id'    => 9,
+                    'auths_id'    => SamlUser::toAuthsId(9),
                     'is_active'   => 1,
                     'is_deleted'  => 0,
                 ],
@@ -424,7 +425,18 @@ namespace GlpiPlugin\Samlsso\Tests {
                     'firstname'   => 'Jit',
                     'realname'    => 'Existing',
                     'authtype'    => 4,
-                    'auths_id'    => 5,
+                    'auths_id'    => SamlUser::toAuthsId(5),
+                    'is_active'   => 1,
+                    'is_deleted'  => 0,
+                ],
+                [
+                    'id'          => 51,
+                    'name'        => 'unbound.ext@example.org',
+                    'firstname'   => 'Unbound',
+                    'realname'    => 'External',
+                    'authtype'    => 4,
+                    'auths_id'    => 0,
+                    'user_dn'     => '',
                     'is_active'   => 1,
                     'is_deleted'  => 0,
                 ],
@@ -435,6 +447,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 ['id' => 2, 'users_id' => 3, 'email' => 'ldap.user@example.org', 'is_default' => 1],
                 ['id' => 3, 'users_id' => 4, 'email' => 'foreign.idp@example.org', 'is_default' => 1],
                 ['id' => 4, 'users_id' => 50, 'email' => 'jit.existing@example.org', 'is_default' => 1],
+                ['id' => 5, 'users_id' => 51, 'email' => 'unbound.ext@example.org', 'is_default' => 1],
             ]);
 
             $this->stateDb->setResponse('glpi_usertitles', [
@@ -594,7 +607,7 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             $lastAdd = end($this->userAdapter->lastAddPayloads);
             $this->assertEquals(4, (int) ($lastAdd['authtype'] ?? 0), 'Provisioned user must use Auth::EXTERNAL (4).');
-            $this->assertEquals(5, (int) ($lastAdd['auths_id'] ?? 0), 'Provisioned user must bind auths_id = 5.');
+            $this->assertEquals(SamlUser::toAuthsId(5), (int) ($lastAdd['auths_id'] ?? 0), 'Provisioned user must bind auths_id = 1000005.');
             $this->assertEquals(7, (int) ($lastAdd['usertitles_id'] ?? 0), 'Existing UserTitle must be resolved.');
             $this->assertEquals(11, (int) ($lastAdd['locations_id'] ?? 0), 'Existing Location must be resolved.');
 
@@ -635,6 +648,19 @@ namespace GlpiPlugin\Samlsso\Tests {
             $adoptBody = json_decode((string) $adoptRes->getContent(), true);
             $this->assertEquals('50', $adoptBody['id'] ?? '', 'Must adopt user #50 in-place rather than duplicating.');
             $this->assertTrue(ScimLink::findByExternalId(5, ScimLink::TYPE_USER, 'adopted-oid-50') !== null, 'ScimLink created on adoption.');
+
+            /** 2b. POST /Users adopts unbound (Auth::EXTERNAL, 0) user #51 and stamps auths_id = 1000005. */
+            $adoptUnboundRes = $this->callScim('POST', '/Users', [
+                'schemas'    => [ScimDiscoveryService::SCHEMA_CORE_USER],
+                'userName'   => 'unbound.ext@example.org',
+                'externalId' => 'adopted-oid-51',
+                'name'       => ['givenName' => 'UnboundAdopted', 'familyName' => 'External'],
+            ]);
+            $this->assertEquals(201, $adoptUnboundRes->getStatusCode(), 'Adopting unbound (Auth::EXTERNAL, 0) user #51 via POST must return 201.');
+            $adoptUnboundBody = json_decode((string) $adoptUnboundRes->getContent(), true);
+            $this->assertEquals('51', $adoptUnboundBody['id'] ?? '', 'Must adopt user #51 in-place.');
+            $user51Row = $this->stateDb->request(['FROM' => 'glpi_users', 'WHERE' => ['id' => 51]])->current();
+            $this->assertEquals(SamlUser::toAuthsId(5), (int) ($user51Row['auths_id'] ?? 0), 'Adopting unbound user #51 must stamp auths_id = 1000005.');
 
             /** 3. Collisions with glpi, local DB_GLPI, LDAP, and foreign IdP #9 MUST fail closed with 409 uniqueness. */
             foreach (['glpi', 'local.admin@example.org', 'ldap.user@example.org', 'foreign.idp@example.org'] as $forbiddenName) {

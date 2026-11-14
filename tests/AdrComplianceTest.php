@@ -383,14 +383,20 @@ namespace GlpiPlugin\Samlsso\Tests {
             $loginState = $this->readPluginFile('src/LoginState.php');
             $controller = $this->readPluginFile('src/Controller/SamlSsoController.php');
 
-            // 1. Verify User.php enforces external auth source binding and strips protected fields on sync
+            // 1. Verify User.php enforces namespaced external auth source binding and strips protected fields on sync
+            $migrateCmd = $this->readPluginFile('src/Console/MigrateLdapUsersCommand.php');
+            $migrator = $this->readPluginFile('src/Utility/LdapUserMigrator.php');
             if (
                 !str_contains($user, '\Auth::DB_GLPI') ||
                 !str_contains($user, '\Auth::EXTERNAL') ||
+                !str_contains($user, 'AUTHS_ID_OFFSET    = 1000000') ||
+                !str_contains($user, 'function toAuthsId') ||
                 !str_contains($user, '$protectedFields') ||
-                !str_contains($user, "'auths_id'")
+                !str_contains($user, "'auths_id'") ||
+                !str_contains($migrateCmd, 'plugins:samlsso:migrate_ldap_users') ||
+                !str_contains($migrator, 'User::toAuthsId')
             ) {
-                throw new \Exception('ADR 0004 violation: User.php is missing external auth-source verification or protected field stripping in syncUserFieldsOnLogin().');
+                throw new \Exception('ADR 0004 violation: User.php or migration tooling is missing namespaced auths_id isolation, external auth-source verification, or protected field stripping.');
             }
 
             // 2. Verify multi-IdP enforce_sso auto-disable in ConfigEntity::validateAdvancedConfig() and active check in Config::getIsEnforced()

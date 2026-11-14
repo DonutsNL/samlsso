@@ -383,12 +383,24 @@ namespace {
         class Auth
         {
             public const NOT_YET_AUTHENTICATED = 0;
+            public const NOT_YET_AUTHENTIFIED = 0;
             public const DB_GLPI = 1;
             public const MAIL = 2;
             public const LDAP = 3;
             public const EXTERNAL = 4;
             public const CAS = 5;
             public const X509 = 6;
+
+            /**
+             * Validates login format aligned with GLPI Core Auth::isValidLogin().
+             *
+             * @param string|null $login Candidate login string.
+             * @return bool
+             */
+            public static function isValidLogin(?string $login): bool
+            {
+                return $login !== null && preg_match("/^[[:alnum:]'@.\\-_ ]+$/iu", $login) === 1;
+            }
         }
     }
 
@@ -1080,6 +1092,171 @@ namespace OneLogin\Saml2 {
             public const NAMEID_UNSPECIFIED = 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified';
             public const NAMEID_TRANSIENT = 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient';
             public const NAMEID_PERSISTENT = 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent';
+        }
+    }
+}
+
+namespace Symfony\Component\Console\Input {
+    if (!interface_exists('Symfony\Component\Console\Input\InputInterface')) {
+        interface InputInterface {
+            public function getOption(string $name): mixed;
+        }
+    }
+    if (!class_exists('Symfony\Component\Console\Input\InputOption')) {
+        class InputOption {
+            public const VALUE_NONE = 1;
+            public const VALUE_REQUIRED = 2;
+            public const VALUE_OPTIONAL = 4;
+        }
+    }
+    if (!class_exists('Symfony\Component\Console\Input\ArrayInput')) {
+        class ArrayInput implements InputInterface {
+            /** @var array<string, mixed> */
+            private array $options = [];
+
+            /**
+             * @param array<string, mixed> $parameters
+             * @param mixed $definition
+             */
+            public function __construct(array $parameters = [], mixed $definition = null) {
+                foreach ($parameters as $key => $val) {
+                    $normalized = ltrim((string)$key, '-');
+                    $this->options[$normalized] = $val;
+                }
+            }
+
+            public function getOption(string $name): mixed {
+                return $this->options[$name] ?? null;
+            }
+        }
+    }
+}
+
+namespace Symfony\Component\Console\Output {
+    if (!interface_exists('Symfony\Component\Console\Output\OutputInterface')) {
+        interface OutputInterface {
+            public function write(string|iterable $messages, bool $newline = false, int $options = 0): void;
+        }
+    }
+    if (!interface_exists('Symfony\Component\Console\Output\ConsoleOutputInterface')) {
+        interface ConsoleOutputInterface extends OutputInterface {
+            public function getErrorOutput(): OutputInterface;
+        }
+    }
+    if (!class_exists('Symfony\Component\Console\Output\BufferedOutput')) {
+        class BufferedOutput implements OutputInterface {
+            private string $buffer = '';
+
+            public function write(string|iterable $messages, bool $newline = false, int $options = 0): void {
+                if (is_iterable($messages)) {
+                    foreach ($messages as $m) {
+                        $this->buffer .= (string)$m;
+                    }
+                } else {
+                    $this->buffer .= (string)$messages;
+                }
+                if ($newline) {
+                    $this->buffer .= "\n";
+                }
+            }
+
+            public function fetch(): string {
+                $content = $this->buffer;
+                $this->buffer = '';
+                return $content;
+            }
+        }
+    }
+}
+
+namespace Symfony\Component\Console\Command {
+    if (!class_exists('Symfony\Component\Console\Command\Command')) {
+        class Command {
+            public const SUCCESS = 0;
+            public const FAILURE = 1;
+            public const INVALID = 2;
+
+            private string $commandName = '';
+            private string $description = '';
+            private string $helpText = '';
+            /** @var array<string, array<string, mixed>> */
+            private array $registeredOptions = [];
+
+            public function __construct(?string $name = null) {
+                if ($name !== null) {
+                    $this->commandName = $name;
+                }
+                $this->configure();
+            }
+
+            protected function configure() {}
+
+            public function setName(string $name): static {
+                $this->commandName = $name;
+                return $this;
+            }
+
+            public function getName(): ?string {
+                return $this->commandName;
+            }
+
+            public function setDescription(string $description): static {
+                $this->description = $description;
+                return $this;
+            }
+
+            public function getDescription(): string {
+                return $this->description;
+            }
+
+            public function setHelp(string $help): static {
+                $this->helpText = $help;
+                return $this;
+            }
+
+            public function getHelp(): string {
+                return $this->helpText;
+            }
+
+            public function addOption(
+                string $name,
+                string|array|null $shortcut = null,
+                ?int $mode = null,
+                string $description = '',
+                mixed $default = null
+            ): static {
+                $this->registeredOptions[$name] = [
+                    'shortcut'    => $shortcut,
+                    'mode'        => $mode,
+                    'description' => $description,
+                    'default'     => $default,
+                ];
+                return $this;
+            }
+
+            protected function execute(
+                \Symfony\Component\Console\Input\InputInterface $input,
+                \Symfony\Component\Console\Output\OutputInterface $output
+            ): int {
+                return self::SUCCESS;
+            }
+
+            public function run(
+                \Symfony\Component\Console\Input\InputInterface $input,
+                \Symfony\Component\Console\Output\OutputInterface $output
+            ): int {
+                return $this->execute($input, $output);
+            }
+        }
+    }
+}
+
+namespace Glpi\Console {
+    if (!class_exists('Glpi\Console\AbstractCommand')) {
+        abstract class AbstractCommand extends \Symfony\Component\Console\Command\Command {
+            protected function configure() {
+                parent::configure();
+            }
         }
     }
 }

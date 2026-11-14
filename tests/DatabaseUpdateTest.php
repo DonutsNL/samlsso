@@ -184,6 +184,20 @@ namespace GlpiPlugin\Samlsso\Tests {
         public array $existingFields = [];
 
         /**
+         * Optional mocked rows keyed by table name.
+         *
+         * @var array<string, array<int, array<string, mixed>>>
+         */
+        public array $mockResponses = [];
+
+        /**
+         * Recorded update calls.
+         *
+         * @var array<int, array<string, mixed>>
+         */
+        public array $updatedRows = [];
+
+        /**
          * Check if table exists in mock DB.
          *
          * @param string $table Table name.
@@ -222,14 +236,36 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @return object
          */
         public function request(array $params): object {
-            return new class implements \Iterator, \Countable {
-                public function count(): int { return 0; }
-                public function current(): mixed { return null; }
-                public function key(): mixed { return null; }
-                public function next(): void {}
-                public function rewind(): void {}
-                public function valid(): bool { return false; }
+            $table = (string)($params['FROM'] ?? '');
+            $rows = $this->mockResponses[$table] ?? [];
+            return new class($rows) implements \Iterator, \Countable {
+                private array $rows;
+                private int $pos = 0;
+                public function __construct(array $rows) { $this->rows = array_values($rows); }
+                public function count(): int { return count($this->rows); }
+                public function current(): mixed { return $this->rows[$this->pos]; }
+                public function key(): mixed { return $this->pos; }
+                public function next(): void { $this->pos++; }
+                public function rewind(): void { $this->pos = 0; }
+                public function valid(): bool { return isset($this->rows[$this->pos]); }
             };
+        }
+
+        /**
+         * Record mock DB update payloads.
+         *
+         * @param string $table Table name.
+         * @param array $data Columns to update.
+         * @param array $where Where condition.
+         * @return bool
+         */
+        public function update(string $table, array $data, array $where): bool {
+            $this->updatedRows[] = [
+                'table' => $table,
+                'data'  => $data,
+                'where' => $where,
+            ];
+            return true;
         }
 
         /**
@@ -458,6 +494,51 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Database Migrations: Verified v1.4.0 ScimLink lifecycle, SCIM Config columns, and LoginState legacy column cleanup (#199)\n";
         }
+
+        /**
+         * Verifies that Config::install() idempotently upgrades legacy SAML users
+         * (authtype = EXTERNAL, auths_id matching an active config ID < AUTHS_ID_OFFSET,
+         * and empty user_dn) to User::toAuthsId($oldAuthsId) (1,000,000 + $oldAuthsId)
+         * while leaving non-SAML external rows with non-empty user_dn untouched (#189).
+         *
+         * @return void
+         * @throws \Exception if legacy SAML rows are not upgraded or non-empty user_dn rows are modified.
+         */
+        public function testLegacySamlAuthsIdNamespaceUpgrade(): void {
+            global $DB;
+            $DB = new SimpleMockDB();
+            $configTable = Config::getTable();
+            $DB->mockResponses[$configTable] = [
+                ['id' => 5, 'sp_private_key' => '', 'sp_private_key_source' => 'db'],
+            ];
+            $DB->mockResponses['glpi_users'] = [
+                ['id' => 41, 'authtype' => 4, 'auths_id' => 5, 'user_dn' => ''],
+                ['id' => 42, 'authtype' => 4, 'auths_id' => 5, 'user_dn' => null],
+                ['id' => 43, 'authtype' => 4, 'auths_id' => 5, 'user_dn' => 'CN=cas,DC=local'],
+                ['id' => 44, 'authtype' => 4, 'auths_id' => 1000005, 'user_dn' => ''],
+            ];
+
+            $migration = new InterceptingMigration('1.4.0');
+            Config::install($migration);
+
+            $userUpdates = [];
+            foreach ($DB->updatedRows as $upd) {
+                if ($upd['table'] === 'glpi_users' && isset($upd['where']['id'])) {
+                    $userUpdates[(int)$upd['where']['id']] = $upd['data'];
+                }
+            }
+
+            if (
+                (int)($userUpdates[41]['auths_id'] ?? 0) !== 1000005 ||
+                (int)($userUpdates[42]['auths_id'] ?? 0) !== 1000005 ||
+                isset($userUpdates[43]) ||
+                isset($userUpdates[44])
+            ) {
+                throw new \Exception('Config::install() legacy auths_id upgrade payload unexpected: ' . json_encode($userUpdates));
+            }
+
+            echo "✅ Database Migrations: Verified legacy SAML auths_id namespace upgrade (5 -> 1000005) leaving non-empty user_dn untouched (#189)\n";
+        }
     }
 }
 
@@ -471,6 +552,7 @@ namespace {
         $test->testLoginStatePhaseAndRedirectMigration();
         $test->testConfigTableMigrationExecution();
         $test->testV140ScimAndLoginStateLegacyCleanup();
+        $test->testLegacySamlAuthsIdNamespaceUpgrade();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

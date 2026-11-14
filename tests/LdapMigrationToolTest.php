@@ -49,10 +49,15 @@ namespace GlpiPlugin\Samlsso\Tests {
     require_once __DIR__ . '/Shims.php';
     require_once __DIR__ . '/TestHarness.php';
     require_once __DIR__ . '/../tools/migrate_ldap_users.php';
+    require_once __DIR__ . '/../src/Console/MigrateLdapUsersCommand.php';
 
     use GlpiPlugin\Samlsso\Config\ConfigEntity;
     use GlpiPlugin\Samlsso\Config\MockConfigEntity;
+    use GlpiPlugin\Samlsso\Console\MigrateLdapUsersCommand;
+    use GlpiPlugin\Samlsso\LoginFlow\User as SamlUser;
     use GlpiPlugin\Samlsso\Tools\LdapUserMigrator;
+    use Symfony\Component\Console\Input\ArrayInput;
+    use Symfony\Component\Console\Output\BufferedOutput;
 
     /**
      * Automated TDD test suite for tools/migrate_ldap_users.php (Issue #189).
@@ -192,7 +197,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                     'id'              => 21,
                     'name'            => 'already_migrated',
                     'authtype'        => 4,
-                    'auths_id'        => 1,
+                    'auths_id'        => SamlUser::toAuthsId(1),
                     'user_dn'         => null,
                     'user_dn_hash'    => null,
                     'sync_field'      => null,
@@ -325,7 +330,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             if (
                 $userUpdatesById[10]['name'] !== 'jdoe@corp.example.com' ||
                 (int)$userUpdatesById[10]['authtype'] !== 4 ||
-                (int)$userUpdatesById[10]['auths_id'] !== 1 ||
+                (int)$userUpdatesById[10]['auths_id'] !== SamlUser::toAuthsId(1) ||
                 $userUpdatesById[10]['password'] !== '' ||
                 $userUpdatesById[10]['user_dn'] !== null ||
                 $userUpdatesById[10]['user_dn_hash'] !== null ||
@@ -393,6 +398,85 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ LDAP Migration CLI: 0600 HMAC register, in-place apply, --list-registers, tamper guard & --revert verified\n";
         }
+
+        /**
+         * Verifies Issue #189 hybrid coexistence and console packaging improvements:
+         * 1. An active unrelated LDAP directory (even sharing ID = 1 with saml_idp_id = 1) does NOT
+         *    block migrating source LDAP ID = 2 (when ID = 2 is inactive), proving AD + SAML coexistence.
+         * 2. Cross-source glpi_users.name collision with an existing non-migrating user (authtype = 2)
+         *    is safely skipped.
+         * 3. The native GLPI Console command MigrateLdapUsersCommand (plugins:samlsso:migrate_ldap_users)
+         *    executes dry-run cleanly.
+         */
+        public function testCoexistingUnrelatedLdapCollisionAndConsoleCommand(): void
+        {
+            $this->seedEnvironment(0);
+
+            /** Unrelated LDAP directory #1 stays active while source LDAP directory #2 is inactive. */
+            $this->db->setResponse('glpi_authldaps', [
+                ['id' => 1, 'name' => 'Coexisting External AD #1', 'is_active' => 1],
+                ['id' => 2, 'name' => 'Retired AD LDAP #2', 'is_active' => 0],
+            ]);
+
+            /** Add a Mail-authenticated account whose login collides with a rewritten email target. */
+            $this->db->setResponse('glpi_users', [
+                ['id' => 1, 'name' => 'glpi', 'authtype' => 1, 'auths_id' => 0, 'is_deleted' => 0, 'is_deleted_ldap' => 0, 'is_active' => 1],
+                ['id' => 10, 'name' => 'jdoe', 'authtype' => 3, 'auths_id' => 2, 'user_dn' => 'CN=John Doe,DC=corp,DC=local', 'user_dn_hash' => 'a', 'sync_field' => 'g10', 'is_deleted' => 0, 'is_deleted_ldap' => 0, 'is_active' => 1],
+                ['id' => 30, 'name' => 'maildup', 'authtype' => 3, 'auths_id' => 2, 'user_dn' => 'CN=Mail Dup,DC=corp,DC=local', 'user_dn_hash' => 'b', 'sync_field' => 'g30', 'is_deleted' => 0, 'is_deleted_ldap' => 0, 'is_active' => 1],
+                ['id' => 31, 'name' => 'maildup@corp.example.com', 'authtype' => 2, 'auths_id' => 0, 'is_deleted' => 0, 'is_deleted_ldap' => 0, 'is_active' => 1],
+            ]);
+            $this->db->setResponse('glpi_useremails', [
+                ['users_id' => 10, 'email' => 'jdoe@corp.example.com', 'is_default' => 1],
+                ['users_id' => 30, 'email' => 'maildup@corp.example.com', 'is_default' => 1],
+            ]);
+
+            /** 1. Apply succeeds despite active LDAP #1 (sharing numeric ID=1 with SAML IdP #1), and skips mail collision #30. */
+            $apply = $this->runTool([
+                '--apply',
+                '--ldap-id=2',
+                '--saml-idp-id=1',
+                '--login-format=email',
+            ]);
+            if ($apply['code'] !== 0) {
+                throw new \Exception('Expected apply with active unrelated LDAP #1 to succeed, got: ' . $apply['stderr']);
+            }
+            $updatedIds = [];
+            foreach ($this->db->updatedRows as $upd) {
+                if ($upd['table'] === 'glpi_users' && isset($upd['where']['id'])) {
+                    $updatedIds[(int)$upd['where']['id']] = $upd['data'];
+                }
+            }
+            if (!isset($updatedIds[10]) || (int)$updatedIds[10]['auths_id'] !== SamlUser::toAuthsId(1)) {
+                throw new \Exception('Expected user #10 to migrate to auths_id = 1000001.');
+            }
+            if (isset($updatedIds[30])) {
+                throw new \Exception('Expected user #30 to be skipped due to global glpi_users.name collision with user #31.');
+            }
+
+            /** 2. Verify native GLPI Console command registration & dry-run delegation. */
+            $cmd = new MigrateLdapUsersCommand(null, $this->tempRegisterDir);
+            if ($cmd->getName() !== 'plugins:samlsso:migrate_ldap_users') {
+                throw new \Exception('Unexpected console command name: ' . ($cmd->getName() ?? 'null'));
+            }
+            $inputParams = [
+                '--ldap-id'     => '2',
+                '--saml-idp-id' => '1',
+                '--dry-run'     => true,
+            ];
+            $consoleInput = method_exists($cmd, 'getDefinition')
+                ? new ArrayInput($inputParams, $cmd->getDefinition())
+                : new ArrayInput($inputParams);
+            $consoleOutput = new BufferedOutput();
+            $execMethod = new \ReflectionMethod($cmd, 'execute');
+            $execMethod->setAccessible(true);
+            $exitCode = $execMethod->invoke($cmd, $consoleInput, $consoleOutput);
+            $cmdOut = $consoleOutput->fetch();
+            if ($exitCode !== 0 || !str_contains($cmdOut, 'DRY-RUN') || !str_contains($cmdOut, '1000001')) {
+                throw new \Exception('MigrateLdapUsersCommand dry-run output unexpected (code ' . $exitCode . '): ' . $cmdOut);
+            }
+
+            echo "✅ LDAP Migration CLI & Console Command: hybrid LDAP coexistence, global name collision & plugins:samlsso:migrate_ldap_users verified\n";
+        }
     }
 }
 
@@ -402,6 +486,7 @@ namespace {
         $test->testHelpAndDryRunDefault();
         $test->testActiveLdapServerGuard();
         $test->testApplySignedRegisterListAndRevert();
+        $test->testCoexistingUnrelatedLdapCollisionAndConsoleCommand();
         $test = null;
     } catch (\Throwable $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

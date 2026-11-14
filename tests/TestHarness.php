@@ -408,6 +408,22 @@ namespace GlpiPlugin\Samlsso\LoginFlow {
     if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\MockLoginFlowUser', false)) {
         class MockLoginFlowUser
         {
+            public const AUTHS_ID_OFFSET = 1000000;
+
+            /**
+             * Maps an IdP ID into the isolated glpi_users.auths_id namespace (1,000,000 + $idpId).
+             *
+             * @param int $idpId Active samlSSO IdP ID (> 0).
+             * @return int Namespaced auths_id value.
+             */
+            public static function toAuthsId(int $idpId): int
+            {
+                if ($idpId <= 0) {
+                    throw new \InvalidArgumentException('samlSSO IdP configuration ID must be strictly positive.');
+                }
+                return self::AUTHS_ID_OFFSET + $idpId;
+            }
+
             /**
              * Mocks searching for a user in the database by field.
              *
@@ -1813,6 +1829,8 @@ namespace GlpiPlugin\Samlsso\Tests {
         public bool $mockUpdateCalled = false;
         /** @var array|null Captured update data. */
         public ?array $updatedUserData = null;
+        /** @var array|null Captured add data. */
+        public ?array $addedUserData = null;
 
         /**
          * Create a new user record.
@@ -1824,6 +1842,7 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function add(array $input, array $options = [], bool $history = true): int
         {
+            $this->addedUserData = $input;
             return $this->mockIdToReturn;
         }
 

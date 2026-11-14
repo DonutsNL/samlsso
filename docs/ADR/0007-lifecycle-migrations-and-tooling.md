@@ -20,6 +20,7 @@ Plugin installation, database schema migrations, upgrades, uninstallation, cache
 1. `CronTask::install()` deduplicates any legacy (`GlpiPlugin\Glpisaml\CronTask`) or duplicate (`GlpiPlugin\Samlsso\CronTask`) registrations for `cleanSessionSAML` and `updateGeoIP`, migrating the oldest record to preserve administrator schedules and purging duplicates.
 2. At the end of `plugin_samlsso_install()`, `SanityChecker::check()` verifies required source files, compiled translation `.mo` assets, database tables, and critical column definitions. If any check fails, the installer displays actionable error messages, deactivates the plugin via `$plugin->unactivate($id)`, and returns `false`.
 3. During install and update, `hook.php` proactively resets PHP OPcache (`opcache_reset()`) and clears stale compiled templates where permitted so updated code and templates take effect immediately.
+4. `Config::install()` idempotently upgrades legacy SAML `glpi_users` rows (`authtype = \Auth::EXTERNAL`, `auths_id` matching an existing `glpi_plugin_samlsso_configs.id` `< User::AUTHS_ID_OFFSET`, and empty `user_dn`) to `User::toAuthsId($oldAuthsId)` (`1,000,000 + auths_id`) so upgraded installations inherit namespace-isolated `auths_id` bindings without altering non-SAML external rows (`user_dn != ''`).
 
 ### 3. Localization Standards & Automated Translation Pipeline
 1. Every user-facing string in PHP and Twig must use GLPI's translation helper `__('Literal string', PLUGIN_NAME)` with **static literal string constants only**—never concatenating variables or `\n` sequences inside `__()`. Dynamic values must be injected via `sprintf(__('Message: %s', PLUGIN_NAME), $value)`.
@@ -42,5 +43,5 @@ Plugin installation, database schema migrations, upgrades, uninstallation, cache
 ---
 
 ## Codebase & Automated Test Verification
-- **Production Files**: `setup.php`, `hook.php`, `src/Config.php`, `src/CronTask.php`, `src/Utility/SanityChecker.php`, `tools/generatePot.sh`, `tools/mkzip.sh`
+- **Production Files**: `setup.php`, `hook.php`, `src/Config.php`, `src/CronTask.php`, `src/Console/MigrateLdapUsersCommand.php`, `src/Utility/LdapUserMigrator.php`, `src/Utility/SanityChecker.php`, `tools/migrate_ldap_users.php`, `tools/generatePot.sh`, `tools/mkzip.sh`
 - **Automated Tests**: `tests/LifecycleIntegrityTest.php`, `tests/DatabaseUpdateTest.php`, `tests/CronTaskTest.php`, `tests/SanityCheckerTest.php`, `tests/AdrComplianceTest.php`

@@ -120,13 +120,6 @@ class Acs extends LoginFlow
      * @return void
      * @since 1.0.0
      */
-    /**
-     * Init pre fetches loginState or fails.
-     *
-     * @param Request $request Incoming HTTP request
-     * @return void
-     * @since 1.0.0
-     */
     public function init(Request $request)             #NOSONAR Yes TLDR not fixing it.
     {
         if (!$request->isMethod('POST')) {
@@ -576,4 +569,3 @@ class Acs extends LoginFlow
         return var_export($safe, true);
     }
 }
-

@@ -48,6 +48,7 @@ declare(strict_types=1);
 namespace GlpiPlugin\Samlsso\Scim;
 
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\LoginFlow\User as SamlUser;
 use GlpiPlugin\Samlsso\LoginState;
 use GlpiPlugin\Samlsso\RuleSamlCollection;
 use GlpiPlugin\Samlsso\ScimLink;
@@ -58,7 +59,7 @@ use User as GlpiUser;
 /**
  * ScimUserService implements fail-closed RFC 7644 /Users provisioning, adoption,
  * querying, patching, immediate session revocation, and non-destructive offboarding
- * strictly scoped to (authtype = Auth::EXTERNAL, auths_id = $idpId).
+ * strictly scoped to (authtype = Auth::EXTERNAL, auths_id = User::toAuthsId($idpId)).
  *
  * @since 1.4.0
  */
@@ -181,6 +182,8 @@ final class ScimUserService
             }
         }
 
+        $expectedAuthsId = SamlUser::toAuthsId($idpId);
+
         $adoptableRow = $this->inspectCollisionsAndFindAdoptableJitUser(
             $idpId,
             $userName,
@@ -190,6 +193,12 @@ final class ScimUserService
 
         if ($adoptableRow !== null) {
             $adoptedId = (int) $adoptableRow['id'];
+            if ((int) ($adoptableRow['auths_id'] ?? 0) !== $expectedAuthsId) {
+                global $DB;
+                if ($DB !== null && method_exists($DB, 'update')) {
+                    $DB->update('glpi_users', ['auths_id' => $expectedAuthsId], ['id' => $adoptedId]);
+                }
+            }
             $this->applyExtractedUpdateToOwnedUser($idpId, $adoptedId, $extracted);
             $this->logScimAudit(sprintf(
                 'SCIM adopted existing SAML JIT user #%d (%s) for %s (IdP #%d)',
@@ -203,7 +212,7 @@ final class ScimUserService
 
         $addPayload = $extracted['user_fields'];
         $addPayload['authtype'] = self::externalAuthType();
-        $addPayload['auths_id'] = $idpId;
+        $addPayload['auths_id'] = $expectedAuthsId;
         $addPayload['_extauth'] = 1;
         $addPayload['is_active'] = ($extracted['active'] ?? true) ? 1 : 0;
         $addPayload['is_deleted'] = 0;
@@ -416,7 +425,8 @@ final class ScimUserService
     }
 
     /**
-     * Check whether a glpi_users row is strictly bound to (Auth::EXTERNAL, $idpId) and not 'glpi'.
+     * Check whether a glpi_users row is strictly bound to (Auth::EXTERNAL, User::toAuthsId($idpId))
+     * (or an unmigrated legacy pre-offset row without user_dn) and is not 'glpi'.
      *
      * @param array<string, mixed> $row   Database user row.
      * @param int                  $idpId Target IdP configuration ID.
@@ -424,13 +434,56 @@ final class ScimUserService
      */
     public function isRowOwnedByIdp(array $row, int $idpId): bool
     {
+        if ($idpId <= 0) {
+            return false;
+        }
         $name = strtolower(trim((string) ($row['name'] ?? '')));
         if ($name === 'glpi') {
             return false;
         }
+        if ((int) ($row['authtype'] ?? 0) !== self::externalAuthType()) {
+            return false;
+        }
 
-        return ((int) ($row['authtype'] ?? 0) === self::externalAuthType())
-            && ((int) ($row['auths_id'] ?? 0) === $idpId);
+        $authsId = (int) ($row['auths_id'] ?? 0);
+        if ($authsId === SamlUser::toAuthsId($idpId)) {
+            return true;
+        }
+
+        return $authsId === $idpId && trim((string) ($row['user_dn'] ?? '')) === '';
+    }
+
+    /**
+     * Check whether a candidate glpi_users row can be adopted during POST /Users creation:
+     * either already owned by $idpId (without a ScimLink) or an unbound (Auth::EXTERNAL, 0)
+     * row with empty user_dn and no foreign ScimLink.
+     *
+     * @param array<string, mixed> $row   Database user row.
+     * @param int                  $idpId Target IdP configuration ID.
+     * @return bool
+     */
+    private function isRowAdoptableOnCreate(array $row, int $idpId): bool
+    {
+        if ($this->isRowOwnedByIdp($row, $idpId)) {
+            return true;
+        }
+        if ($idpId <= 0) {
+            return false;
+        }
+        $name = strtolower(trim((string) ($row['name'] ?? '')));
+        if ($name === 'glpi') {
+            return false;
+        }
+        if (
+            (int) ($row['authtype'] ?? 0) !== self::externalAuthType()
+            || (int) ($row['auths_id'] ?? -1) !== 0
+            || trim((string) ($row['user_dn'] ?? '')) !== ''
+        ) {
+            return false;
+        }
+
+        $candId = (int) ($row['id'] ?? 0);
+        return $candId > 0 && ScimLink::findForeignOwner($idpId, ScimLink::TYPE_USER, $candId) === null;
     }
 
     /**
@@ -482,7 +535,7 @@ final class ScimUserService
      * Inspect username and email collisions across glpi_users and glpi_useremails.
      * Fails closed with HTTP 409 uniqueness on any local, LDAP, 'glpi', foreign-IdP,
      * soft-deleted, or already-SCIM-linked collision. Returns an unlinked active SAML JIT
-     * row for ($idpId) when $updatingUserId is null.
+     * or unbound external row for ($idpId) when $updatingUserId is null.
      *
      * @param int                $idpId          Target IdP configuration ID.
      * @param string             $userName       Target SCIM userName.
@@ -542,7 +595,7 @@ final class ScimUserService
                 continue;
             }
 
-            if ($updatingUserId !== null || !$this->isRowOwnedByIdp($candRow, $idpId)) {
+            if ($updatingUserId !== null || !$this->isRowAdoptableOnCreate($candRow, $idpId)) {
                 throw new ScimException(
                     Response::HTTP_CONFLICT,
                     'Username or email conflicts with an existing GLPI user account.',
@@ -585,9 +638,13 @@ final class ScimUserService
     {
         global $DB;
 
+        if ($idpId <= 0) {
+            return [];
+        }
+
         $where = [
             'authtype' => self::externalAuthType(),
-            'auths_id' => $idpId,
+            'auths_id' => [SamlUser::toAuthsId($idpId), $idpId],
         ];
 
         if (isset($hints['id'])) {

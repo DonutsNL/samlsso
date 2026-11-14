@@ -512,7 +512,7 @@ class Config extends ConfigCompat
 
 
     /**
-     * Install table needed for Ticket Filter configuration dropdowns.
+     * Install or upgrade the samlSSO Identity Provider configurations table.
      *
      * @param   Migration   $migration Plugin migration information;
      * @return  void
@@ -686,13 +686,20 @@ class Config extends ConfigCompat
             }
 
             /**
-             * Migrate existing plaintext SP private keys stored in the database to GLPIKey encryption.
+             * Migrate existing plaintext SP private keys stored in the database to GLPIKey encryption,
+             * and upgrade legacy unnamespaced SAML/SCIM glpi_users.auths_id bindings (1..999) to
+             * User::AUTHS_ID_OFFSET + $cfgId (1,000,000 + $cfgId) so they never collide with glpi_authldaps.
              */
+            $legacyConfigIds = [];
             $existingRows = $DB->request([
                 'SELECT' => [ConfigEntity::ID, ConfigEntity::SP_KEY, ConfigEntity::SP_KEY_SOURCE],
                 'FROM'   => $table,
             ]);
             foreach ($existingRows as $row) {
+                $cfgId = (int)($row[ConfigEntity::ID] ?? 0);
+                if ($cfgId > 0 && $cfgId < \GlpiPlugin\Samlsso\LoginFlow\User::AUTHS_ID_OFFSET) {
+                    $legacyConfigIds[] = $cfgId;
+                }
                 $keySource = (string)($row[ConfigEntity::SP_KEY_SOURCE] ?? 'db');
                 $rawKey    = (string)($row[ConfigEntity::SP_KEY] ?? '');
                 if ($keySource === 'db' && $rawKey !== '' && str_starts_with(trim($rawKey), '-----BEGIN')) {
@@ -701,7 +708,31 @@ class Config extends ConfigCompat
                         $DB->update(
                             $table,
                             [ConfigEntity::SP_KEY => $encryptedKey],
-                            [ConfigEntity::ID => (int)$row[ConfigEntity::ID]]
+                            [ConfigEntity::ID => $cfgId]
+                        );
+                    }
+                }
+            }
+
+            if (!empty($legacyConfigIds) && $DB->tableExists('glpi_users') && method_exists($DB, 'update')) {
+                $externalAuthType = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? (int)\Auth::EXTERNAL : 4;
+                $legacyUsers = $DB->request([
+                    'SELECT' => ['id', 'auths_id', 'user_dn'],
+                    'FROM'   => 'glpi_users',
+                    'WHERE'  => [
+                        'authtype' => $externalAuthType,
+                        'auths_id' => array_values(array_unique($legacyConfigIds)),
+                    ],
+                ]);
+                foreach ($legacyUsers as $legacyUser) {
+                    $uid = (int)($legacyUser['id'] ?? 0);
+                    $oldAuthsId = (int)($legacyUser['auths_id'] ?? 0);
+                    $userDn = trim((string)($legacyUser['user_dn'] ?? ''));
+                    if ($uid > 0 && $oldAuthsId > 0 && $oldAuthsId < \GlpiPlugin\Samlsso\LoginFlow\User::AUTHS_ID_OFFSET && $userDn === '') {
+                        $DB->update(
+                            'glpi_users',
+                            ['auths_id' => \GlpiPlugin\Samlsso\LoginFlow\User::toAuthsId($oldAuthsId)],
+                            ['id' => $uid]
                         );
                     }
                 }
@@ -760,7 +791,8 @@ class Config extends ConfigCompat
     }
 
     /**
-     * Uninstall table needed for Ticket Filter configuration dropdowns
+     * Back up and drop the samlSSO Identity Provider configurations table on plugin uninstall.
+     *
      * @param   Migration $migration    - Plugin migration information;
      * @return  void
      * @see                             - GLPISaml/hook.php

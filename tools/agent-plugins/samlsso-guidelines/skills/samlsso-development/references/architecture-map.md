@@ -32,7 +32,7 @@
      - Verifies `$this->samlResponse->isValid($expectedRequestId)`, `SubjectConfirmationData/@InResponseTo === $expectedRequestId`, and unique assertion/response IDs (`setSamlResponseId()`).
      - Transitions state to `PHASE_SAML_AUTH (3)`.
    - Calls `LoginFlow::performGlpiLogin()` -> `User::getOrCreateUser()`:
-     - Binds user to `Auth::EXTERNAL` and `auths_id = $idpId`, blocks local `Auth::DB_GLPI` / `glpi` accounts, and runs JIT or `sync_on_login` (`RuleSamlCollection`).
+     - Binds user to `Auth::EXTERNAL` and `auths_id = User::toAuthsId($idpId)` (`1,000,000 + $idpId`, with one-time adoption + stamping of unbound `(Auth::EXTERNAL, 0)` or legacy `(Auth::EXTERNAL, $idpId)` empty-`user_dn` rows), blocks local `Auth::DB_GLPI` / `glpi` / `Auth::LDAP` / `authtype = 0` accounts, and runs JIT or `sync_on_login` (`RuleSamlCollection`).
      - Re-enables cookies (`ini_set('session.use_cookies', 1)`), destroys any transient session, mints a fresh stateful GLPI session (`Session::start()` + `Session::init($auth)` -> `PHASE_GLPI_AUTH (4)`), rebinds the `LoginState` row to the new `session_id()` (`$state->setSessionId()`), and calls `LoginFlow::performBrowserRedirect()` (`HTTP 200 OK` `<meta http-equiv="refresh">`) to reset the browser's cross-site request chain so `session.cookie_samesite = "Strict"` (and `"Lax"`) cookies work seamlessly.
 
 ### C. Per-IdP SCIM 2.0 Provisioning (`/plugins/samlsso/front/scim/v2/{idpId}/{subpath}`)
@@ -41,7 +41,7 @@
    - `ScimAuthenticator::authenticate()` enforces HTTPS (`$request->isSecure()`), active/valid/enabled `ConfigEntity($idpId)`, optional IPv4/IPv6 CIDR allowlist (`scim_allowed_ips` via `LoginState::resolveClientIp()`), `10/60s` failed-auth rate limiting, and constant-time `hash_equals()` Bearer verification (`db` SHA-256 digest or `env`/`define` >= 32 chars).
    - Dispatches RFC 7643/7644 discovery (`ScimDiscoveryService`), `/Users` (`ScimUserService`), and `/Groups` (`ScimGroupService`) using bounded local `ScimFilterParser` (max 32 tokens, depth 4) and `ScimPatchProcessor` (max 1 MiB, 100 operations).
    - `ScimAttributeMapper` translates standard SCIM Core + Enterprise 2.0 JSON independently of SAML `ClaimMap` and feeds `RuleSamlCollection` downstream (`scimDepartment`, `scimOrganization`, `scimDivision`, `scimCostCenter`, `scimEmployeeNumber`, `groups`).
-   - Enforces `(Auth::EXTERNAL, $idpId)` + `ScimLink` (`glpi_plugin_samlsso_scimlinks`) ownership, `is_dynamic = 1` group memberships under `scim_group_policy` (`create_scoped` | `link_existing` | `disabled`), and immediate offboarding (`is_active = 0`, GLPI 12 `glpi_usertokens` / GLPI 11 `cookie_token` cleanup, and `LoginState::forceLogoffForUser()` -> `PHASE_FORCE_LOG`).
+   - Enforces `(Auth::EXTERNAL, User::toAuthsId($idpId))` (`1,000,000 + $idpId`) + `ScimLink` (`glpi_plugin_samlsso_scimlinks`) ownership, `is_dynamic = 1` group memberships under `scim_group_policy` (`create_scoped` | `link_existing` | `disabled`), and immediate offboarding (`is_active = 0`, GLPI 12 `glpi_usertokens` / GLPI 11 `cookie_token` cleanup, and `LoginState::forceLogoffForUser()` -> `PHASE_FORCE_LOG`).
 
 ---
 
@@ -55,7 +55,7 @@
 | `src/LoginFlow.php` | `tests/FlowLogicTest.php`, `tests/RegressionTest.php` |
 | `src/LoginFlow/User.php`, `src/RuleSaml*.php` | `tests/UserProvisioningTest.php` |
 | `src/Scim/*.php`, `src/ScimLink.php` | `tests/ScimAuthTest.php`, `tests/ScimProtocolTest.php`, `tests/ScimProvisioningTest.php` |
-| `tools/migrate_ldap_users.php` | `tests/LdapMigrationToolTest.php` |
+| `src/Console/MigrateLdapUsersCommand.php`, `src/Utility/LdapUserMigrator.php`, `tools/migrate_ldap_users.php` | `tests/LdapMigrationToolTest.php` |
 | `src/Config.php`, `src/Config/ConfigEntity.php`, `src/Config/ConfigItem.php`, `src/Config/ConfigForm.php`, `templates/configForm*.twig` | `tests/ConfigIntegrityTest.php`, `tests/ConfigCachingTest.php`, `tests/CertValidationTest.php` |
 | `src/Config/ClaimMapEntity.php`, `src/Config/ClaimMapItem.php`, `src/ObservedClaim.php` | `tests/ClaimMappingTest.php` |
 | `src/Exclude.php` | `tests/ExcludeTest.php` |
@@ -64,4 +64,3 @@
 | `src/Utility/SanityChecker.php` | `tests/SanityCheckerTest.php` |
 | `src/compat.php`, `setup.php` | `tests/Glpi12CompatTest.php`, `tests/GlpiComplianceTest.php`, `tests/VersionAndCopyrightTest.php` |
 | `hook.php` (`install` / `uninstall` / migrations) | `tests/LifecycleIntegrityTest.php`, `tests/DatabaseUpdateTest.php` |
-
