@@ -24,11 +24,11 @@
                                placeholder="{{ __('Search username, session ID, location, or ID...', plugin) }}" 
                                value="{{ logging_search }}">
                         {% if logging_search is not empty %}
-                            <button type="button" class="btn btn-outline-secondary border-start-0 border-end-0" onclick="clearLoggingSearch()">
+                            <button type="button" id="btn-clear-logging-search" class="btn btn-outline-secondary border-start-0 border-end-0">
                                 <i class="ti ti-x"></i>
                             </button>
                         {% endif %}
-                        <button type="button" class="btn btn-primary" onclick="performLoggingSearch()">
+                        <button type="button" id="btn-perform-logging-search" class="btn btn-primary">
                             {{ __("Search", plugin) }}
                         </button>
                     </div>
@@ -169,7 +169,7 @@
                                     </td>
                                     <td class="text-center text-nowrap">
                                         {% if logrow.isUserActive == 1 and logrow.phase != 6 and logrow.phase != 8 %}
-                                            <button type="button" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1" onclick="samlssoForceLogoff({{ logrow.id }}, {{ inputfields.id.value }})">
+                                            <button type="button" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 js-samlsso-forcelogoff" data-state-id="{{ logrow.id }}" data-config-id="{{ inputfields.id.value }}">
                                                 <i class="ti ti-user-off fs-4"></i>
                                                 {{ __("Force Logoff & Disable", plugin) }}
                                             </button>
@@ -195,14 +195,14 @@
                     <nav aria-label="Logging pagination">
                         <ul class="pagination pagination-sm mb-0">
                             <li class="page-item {% if logging_page <= 1 %}disabled{% endif %}">
-                                <a class="page-link" href="#" onclick="changeLoggingPage({{ logging_page - 1 }}); return false;">
+                                <a class="page-link js-logging-page-link" href="#" data-logging-page="{{ logging_page - 1 }}">
                                     <i class="ti ti-chevron-left"></i>
                                 </a>
                             </li>
                             
                             {% if start_page > 1 %}
                                 <li class="page-item">
-                                    <a class="page-link" href="#" onclick="changeLoggingPage(1); return false;">1</a>
+                                    <a class="page-link js-logging-page-link" href="#" data-logging-page="1">1</a>
                                 </li>
                                 {% if start_page > 2 %}
                                     <li class="page-item disabled"><span class="page-link">...</span></li>
@@ -211,7 +211,7 @@
                             
                             {% for p in start_page..end_page %}
                                 <li class="page-item {% if p == logging_page %}active{% endif %}">
-                                    <a class="page-link" href="#" onclick="changeLoggingPage({{ p }}); return false;">{{ p }}</a>
+                                    <a class="page-link js-logging-page-link" href="#" data-logging-page="{{ p }}">{{ p }}</a>
                                 </li>
                             {% endfor %}
                             
@@ -220,12 +220,12 @@
                                     <li class="page-item disabled"><span class="page-link">...</span></li>
                                 {% endif %}
                                 <li class="page-item">
-                                    <a class="page-link" href="#" onclick="changeLoggingPage({{ logging_total_pages }}); return false;">{{ logging_total_pages }}</a>
+                                    <a class="page-link js-logging-page-link" href="#" data-logging-page="{{ logging_total_pages }}">{{ logging_total_pages }}</a>
                                 </li>
                             {% endif %}
                             
                             <li class="page-item {% if logging_page >= logging_total_pages %}disabled{% endif %}">
-                                <a class="page-link" href="#" onclick="changeLoggingPage({{ logging_page + 1 }}); return false;">
+                                <a class="page-link js-logging-page-link" href="#" data-logging-page="{{ logging_page + 1 }}">
                                     <i class="ti ti-chevron-right"></i>
                                 </a>
                             </li>
@@ -273,6 +273,27 @@
                     }
                 });
             }
+
+            $(document).on('click', '#btn-perform-logging-search', function() {
+                performLoggingSearch();
+            });
+
+            $(document).on('click', '#btn-clear-logging-search', function() {
+                clearLoggingSearch();
+            });
+
+            $(document).on('click', '#logging .js-logging-page-link', function(e) {
+                e.preventDefault();
+                if ($(this).closest('.page-item').hasClass('disabled')) {
+                    return;
+                }
+                changeLoggingPage($(this).attr('data-logging-page'));
+            });
+
+            $(document).on('click', '#logging .js-samlsso-forcelogoff', function(e) {
+                e.preventDefault();
+                samlssoForceLogoff($(this).attr('data-state-id'), $(this).attr('data-config-id'));
+            });
             
             // Initialize popovers on logging tab using the unified popover manager
             setTimeout(function() {

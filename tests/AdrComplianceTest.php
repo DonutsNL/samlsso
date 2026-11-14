@@ -473,7 +473,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 }
             }
 
-            // ADR 0006: On-demand HTML diagnostic popovers and inline table hiding
+            // ADR 0006: On-demand HTML diagnostic popovers, inline table hiding, & CSP compliance
             if (
                 !str_contains($configFormTwig, 'SamlSsoPopoverManager') ||
                 !str_contains($configFormTwig, 'sanitize: true') ||
@@ -482,6 +482,35 @@ namespace GlpiPlugin\Samlsso\Tests {
                 !str_contains($css, 'display: none !important;')
             ) {
                 throw new \Exception('ADR 0006 violation: SamlSsoPopoverManager sanitizer allowList or .samlsso-diagnostic-table-container inline hiding is missing.');
+            }
+            if (!preg_match("/'csp_compliant'\s*=>\s*true/", $setup)) {
+                throw new \Exception("ADR 0006 violation: setup.php must declare 'csp_compliant' => true in plugin_version_samlsso().");
+            }
+            $baseDir = realpath(__DIR__ . '/..');
+            $inlineHandlerRegex = '/\b(?:onclick|onchange|oninput|onsubmit|onload|onerror|onfocus|onblur|onkeydown|onkeyup|onkeypress|onmousedown|onmouseup|onmouseover|onmouseout)\s*=\s*["\']/i';
+            $jsUriRegex = '/\b(?:href|src|action)\s*=\s*["\']\s*javascript:/i';
+            $uiScanIterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($baseDir));
+            foreach ($uiScanIterator as $scanFile) {
+                if (!$scanFile->isFile()) {
+                    continue;
+                }
+                $scanPath = (string) $scanFile->getRealPath();
+                $relPath = ltrim(substr($scanPath, strlen((string) $baseDir)), '/');
+                $isTemplate = str_starts_with($relPath, 'templates/') && str_ends_with($relPath, '.twig');
+                $isPhpSrc = (str_starts_with($relPath, 'src/') || $relPath === 'setup.php' || $relPath === 'hook.php') && str_ends_with($relPath, '.php');
+                if (!$isTemplate && !$isPhpSrc) {
+                    continue;
+                }
+                $scanContent = (string) file_get_contents($scanPath);
+                if (preg_match($inlineHandlerRegex, $scanContent, $m)) {
+                    throw new \Exception("ADR 0006 CSP violation: Inline event handler ({$m[0]}) found in $relPath.");
+                }
+                if (preg_match($jsUriRegex, $scanContent, $m)) {
+                    throw new \Exception("ADR 0006 CSP violation: javascript: URI ({$m[0]}) found in $relPath.");
+                }
+                if ($isPhpSrc && preg_match('/<script(?:\s|>)/i', $scanContent)) {
+                    throw new \Exception("ADR 0006 CSP violation: Raw <script> tag found in PHP file $relPath (use a Twig template or Html::scriptBlock()).");
+                }
             }
 
             // ADR 0007: Deterministic lifecycle, migrationOneTable execution across tables, static i18n, & hardened GeoIPUpdater

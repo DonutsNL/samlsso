@@ -98,8 +98,6 @@ class ConfigForm    //NOSONAR complexity by design.
 
     /**
      * Render the Backup & Restore card above the configuration listing.
-     * Uses an inline Bootstrap 5 card with a download link for export
-     * and a multipart POST form for restore.
      *
      * @return void
      */
@@ -108,59 +106,16 @@ class ConfigForm    //NOSONAR complexity by design.
         if (!Session::haveRight('config', UPDATE)) {
             return;
         }
-        $exportUrl    = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=backup_all';
-        $restoreUrl   = samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=restore_all';
-        $csrfToken    = method_exists(\Session::class, 'getNewCSRFToken') ? \Session::getNewCSRFToken() : '';
-        $csrfField    = $csrfToken !== '' ? "<input type=\"hidden\" name=\"_glpi_csrf_token\" value=\"{$csrfToken}\">" : '';
-        $toggleLabel  = htmlspecialchars(__('Backup / Restore', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
-        $cardTitle    = htmlspecialchars(__('Configuration Backup & Restore', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
-        $cardDesc     = htmlspecialchars(__('Export all IDP configurations to a JSON backup file, or restore from a previously exported backup.', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
-        $downloadText = htmlspecialchars(__('Download Backup', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
-        $restoreText  = htmlspecialchars(__('Restore', PLUGIN_NAME), ENT_QUOTES, 'UTF-8');
-        $confirmMsg   = json_encode(
-            __("WARNING: This will permanently DELETE all current IDP configurations and restore from the backup file.\n\nThis action cannot be undone. Make sure you have a recent backup before proceeding.\n\nContinue with restore?", PLUGIN_NAME),
-            JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+
+        TemplateRenderer::getInstance()->display(
+            '@samlsso/configBackupRestore.html.twig',
+            [
+                'plugin'      => PLUGIN_NAME,
+                'export_url'  => samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=backup_all',
+                'restore_url' => samlsso_webdir() . SamlSsoController::CONFIG_ROUTE . '?action=restore_all',
+                'csrf_token'  => method_exists(\Session::class, 'getNewCSRFToken') ? \Session::getNewCSRFToken() : '',
+            ]
         );
-
-        echo <<<HTML
-<div class="container-fluid mb-2 d-flex justify-content-end" id="samlsso-backup-toggle-container">
-  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#samlsso-backup-collapse" aria-expanded="false" aria-controls="samlsso-backup-collapse">
-    <i class="fas fa-database me-2"></i>{$toggleLabel}
-  </button>
-</div>
-<div class="collapse container-fluid mb-3" id="samlsso-backup-collapse">
-  <div class="card card-body bg-light border-0 shadow-sm py-3">
-    <div class="row align-items-center g-3">
-      <div class="col">
-        <h6 class="mb-1 fw-bold text-dark">{$cardTitle}</h6>
-        <p class="text-muted mb-0" style="font-size: 0.85rem;">{$cardDesc}</p>
-      </div>
-      <div class="col-auto">
-        <a href="{$exportUrl}" id="samlsso-export-btn" class="btn btn-sm btn-outline-primary">
-          <i class="fas fa-download me-2"></i>{$downloadText}
-        </a>
-      </div>
-      <div class="col-auto">
-        <form method="POST" action="{$restoreUrl}" enctype="multipart/form-data" id="samlsso-restore-form" onsubmit="return samlssoConfirmRestore()">
-          {$csrfField}
-          <div class="input-group input-group-sm">
-            <input type="file" name="restore_file" id="samlsso-restore-file" accept=".json,application/json" class="form-control form-control-sm" required onchange="document.getElementById('samlsso-restore-btn').disabled = false;">
-            <button class="btn btn-danger" type="submit" id="samlsso-restore-btn" disabled>
-              <i class="fas fa-upload me-2"></i>{$restoreText}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-function samlssoConfirmRestore() {
-    return confirm({$confirmMsg});
-}
-</script>
-HTML;
     }
 
 

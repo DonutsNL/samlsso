@@ -20,7 +20,7 @@
                     <div class="col-md-7">
                         <div class="d-flex align-items-center">
                             <label class="mb-0 me-3 fw-bold" style="white-space: nowrap;">{{ __('Apply Preset', plugin) }}</label>
-                            <select id="preset_selector" class="form-select form-select-sm" onchange="applyPreset(this.value)">
+                            <select id="preset_selector" class="form-select form-select-sm">
                                 <option value="">-- {{ __('Select Preset', plugin) }} --</option>
                                 {% for name, preset in mapping_presets %}
                                     <option value="{{ name }}">{{ name|title }}</option>
@@ -96,7 +96,7 @@
                                 {% if is_system_required %}
                                     <input type="hidden" name="claim_map[{{ index }}][target_type]" value="{{ mapping.target_type }}">
                                 {% endif %}
-                                <select name="claim_map[{{ index }}][target_type]" class="form-select target-type-select" onchange="updateGlpiFields(this)" {% if is_system_required %}disabled{% endif %}>
+                                <select name="claim_map[{{ index }}][target_type]" class="form-select target-type-select" {% if is_system_required %}disabled{% endif %}>
                                     <option value="user_field" {% if mapping.target_type == 'user_field' %}selected{% endif %}>{{ __('User Field', plugin) }}</option>
                                     <option value="rule_field" {% if mapping.target_type == 'rule_field' %}selected{% endif %}>{{ __('Rule Field', plugin) }}</option>
                                 </select>
@@ -122,12 +122,12 @@
                                     <input type="hidden" name="claim_map[{{ index }}][saml_claim]" value="NameId">
                                 {% endif %}
                                 <div class="input-group">
-                                    <input type="text" name="claim_map[{{ index }}][saml_claim]" value="{{ is_username_locked ? 'NameId' : mapping.saml_claim }}" class="form-control saml-claim-input" oninput="checkObserved(this)" {% if is_username_locked %}disabled{% else %}list="observed_claims_list"{% endif %}>
+                                    <input type="text" name="claim_map[{{ index }}][saml_claim]" value="{{ is_username_locked ? 'NameId' : mapping.saml_claim }}" class="form-control saml-claim-input" {% if is_username_locked %}disabled{% else %}list="observed_claims_list"{% endif %}>
                                     {% if not is_username_locked and observed_claims is not empty %}
                                         <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false"></button>
                                         <ul class="dropdown-menu dropdown-menu-end" style="max-height: 200px; overflow-y: auto;">
                                             {% for claim in observed_claims %}
-                                                <li><a class="dropdown-item" href="#" onclick="selectClaim(this, '{{ claim|escape('js') }}'); return false;">{{ claim }}</a></li>
+                                                <li><a class="dropdown-item js-select-claim" href="#" data-claim="{{ claim }}">{{ claim }}</a></li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
@@ -156,7 +156,7 @@
                             </td>
                             <td>
                                 {% if not is_system_required %}
-                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteRow(this)">
+                                    <button type="button" class="btn btn-outline-danger btn-sm js-delete-claim-row">
                                         <i class="fas fa-trash"></i> {{ __('Delete') }}
                                     </button>
                                 {% endif %}
@@ -168,7 +168,7 @@
         </div>
 
         <div class="mb-4">
-            <button type="button" class="btn btn-primary" onclick="addRow('', '', '', '', 0)">
+            <button type="button" id="btn-add-claim-row" class="btn btn-primary">
                 <i class="fas fa-plus"></i> {{ __('Add Mapping', plugin) }}
             </button>
         </div>

@@ -38,7 +38,7 @@
                                         {'applyto': 'meta_warning_' ~ rand}
                                     ]) %}
                                 {% endif %}
-                                <button type="button" class="btn btn-outline-secondary" onclick="copyDisclosablePasswordFieldToClipboard('MetaUrl')">
+                                <button type="button" id="btn-copy-meta-url" class="btn btn-outline-secondary">
                                     <i class="ti ti-clipboard-copy disclose"></i>
                                 </button>
                             </div>
@@ -391,6 +391,18 @@
                                 }
                             }
                         }
+
+                        $(document).on('click', '#btn-copy-meta-url', function(e) {
+                            e.preventDefault();
+                            if (typeof copyDisclosablePasswordFieldToClipboard === 'function') {
+                                copyDisclosablePasswordFieldToClipboard('MetaUrl');
+                            } else if (navigator.clipboard) {
+                                const metaInput = document.getElementById('MetaUrl');
+                                if (metaInput) {
+                                    navigator.clipboard.writeText(metaInput.value);
+                                }
+                            }
+                        });
 
                         $(document).on('change', 'select[name="sp_private_key_source"]', function() {
                             updateKeySourceUI($(this).val());

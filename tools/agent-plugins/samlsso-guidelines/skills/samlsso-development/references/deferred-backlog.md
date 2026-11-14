@@ -17,6 +17,8 @@ When analyzing a reported GitHub issue, check whether it touches any of the file
 
 ## 2. Completed Codebase Assessment Items
 
+- **Issue #193 (`1.4.0` GLPI Content Security Policy Readiness)**: Replaced all 21 inline `on*` event handler attributes across `logging.html.twig`, `provider.html.twig`, `claim_mapping.html.twig`, and `configForm.html.twig` with `data-*` attributes and delegated event listeners, extracted `ConfigForm::renderBackupRestoreCard()`'s PHP heredoc `<script>` into `templates/configBackupRestore.html.twig` using a Bootstrap 5 confirmation modal, declared `'csp_compliant' => true` in `plugin_version_samlsso()` (`setup.php`), and added automated CSP static enforcement to `ADR 0006` and `tests/AdrComplianceTest.php`.
+
 - **Issue #199 (`1.4.0` Per-IdP SCIM 2.0 Provisioning & `LoginState` Legacy Column Cleanup — Items C & D)**: Shipped per-IdP stateless HTTPS-only SCIM 2.0 provisioning (`/front/scim/v2/{idpId}`, `ScimAuthenticator` with SHA-256 `db` / `env` / `define` `hash_equals()` Bearer tokens, CIDR allowlist, and `10/60s` rate limiting; bounded local `ScimFilterParser` and `ScimPatchProcessor` with zero external Composer dependencies; decoupled `ScimAttributeMapper` feeding `RuleSamlCollection`; `ScimUserService` & `ScimGroupService` enforcing `(Auth::EXTERNAL, $idpId)` + `ScimLink` isolation, 3-mode `scim_group_policy`, `is_dynamic = 1` group memberships, and immediate `PHASE_FORCE_LOG` + GLPI 11/12 remember-me token revocation; minimalist Tabler SCIM `Beta` tab), and dropped legacy `serverParams`, `loggedOff`, and `enforceLogoff` SQL columns in `LoginState::install()` (Item C).
 
 - **Issue #189 (`1.3.2` Scoped Candidate Lookup & Reversible LDAP Migration Tool)**: Replaced single-row `getFromDBByCrit()` / `getFromDBbyEmail()` calls in `User::getOrCreateUser()` with parameterized `User::findCandidateUsers()` to prevent `TooManyResultsException` while failing closed on `Auth::DB_GLPI` / `'glpi'` / foreign `authtype` matches, and shipped `tools/migrate_ldap_users.php` with `0600` `GLPIKey` HMAC-signed `migrated_user_ids` registers, `--list-registers`, `--revert`, and active `glpi_authldaps` sync deactivation guard.
@@ -35,12 +37,14 @@ When analyzing a reported GitHub issue, check whether it touches any of the file
 ---
 
 ## 3. Learned Environment & Tooling Quirks
+- **IDE-Native Tools Over Shell CLI (`Allow` Fatigue)**: Use IDE file/search tools (`read_file`, `edit_file`, `write_file`) for all file inspection, searching, creation, and editing; reserve `run_command` strictly for `php tests/RunAllTests.php`, `./tools/mkzip.sh`, and `git`/`gh` CLI commands.
 - **Dead Local Proxy (`socks5h`)**: The shell environment defines a dead `ALL_PROXY`/`HTTPS_PROXY` (`socks5h://...`) that breaks `gh` CLI and `git push`. Always prefix `gh` and `git push` commands with:
   ```bash
   HTTPS_PROXY= HTTP_PROXY= ALL_PROXY= https_proxy= http_proxy= all_proxy=
   ```
+- **Single-LF EOF Formatter Quirk**: Background editor/formatter hooks can occasionally append a second trailing newline (`0a 0a`) to PHP/Twig files. Always check `git diff` before committing to keep clean single-LF EOFs.
+- **GitHub Wiki Mermaid `sequenceDiagram` Lexer Quirk**: GitHub's Mermaid renderer fails with a syntax error if bare `+` characters appear in `sequenceDiagram` notes or message text (e.g., `authenticates user + MFA` is parsed as an arrow/activation token) or if statements lack line breaks. Always write `and` / `&` instead of `+` in sequence diagram text and put one statement per line.
 - **`MockConfigEntity` Parity (`tests/TestHarness.php`)**: Whenever a constant is added to `src/Config/ConfigEntity.php`, also add it to `MockConfigEntity` in `tests/TestHarness.php`.
 - **`AcsTest::testPhaseMismatchAfterRegistration()` Mock Phase Count**: `LoginState::$mockPhases` in `AcsTest` is consumed sequentially on each `$this->state->getPhase()` call inside `Acs::assertSaml()`. Avoid adding redundant `$this->state->getPhase()` calls in `Acs::assertSaml()`.
 - **GLPI 11 vs. GLPI 12 Remember-Me Token Storage (`glpi_usertokens` vs. `cookie_token`)**: GLPI 12 dropped `glpi_users.cookie_token` and moved remember-me tokens to `glpi_usertokens` (`users_id`, `type = 'rememberme'`), whereas GLPI 11.0.x stores `cookie_token` on `glpi_users`. Any offboarding / session revocation flow (`ScimUserService::revokeUserSessions()`) must check `$DB->tableExists('glpi_usertokens')` first and fall back to `$DB->fieldExists('glpi_users', 'cookie_token', false)`.
-
-
+- **GLPI Unsigned Foreign Keys (`migration:unsigned_keys`)**: All foreign keys referencing GLPI or plugin primary keys (`users_id`, `auths_id`, `entities_id`, `groups_id`) must use `INT UNSIGNED` (`fkey` in `Migration::addField()`) so GLPI's `bin/console migration:unsigned_keys` never flags signed-key warnings.

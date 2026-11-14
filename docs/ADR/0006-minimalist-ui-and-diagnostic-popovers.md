@@ -11,11 +11,13 @@ The administrative interface must remain **clean, functional, and minimalist**, 
 ## Architectural Invariants
 
 ### 1. Modular Twig Template Architecture & External Stylesheet
-1. `templates/configForm.html.twig` acts as the master skeleton and includes each of the 7 configuration tabs from `templates/configForm/`:
-   - `general.html.twig`, `transit.html.twig`, `provider.html.twig`, `idp.html.twig`, `security.html.twig`, `claim.html.twig`, and `logging.html.twig`.
+1. `templates/configForm.html.twig` acts as the master skeleton and includes each of the 8 configuration tabs from `templates/configForm/`:
+   - `general.html.twig`, `transit.html.twig`, `provider.html.twig`, `idp.html.twig`, `security.html.twig`, `claim_mapping.html.twig`, `scim.html.twig`, and `logging.html.twig` (plus `templates/configBackupRestore.html.twig` above the configuration list).
 2. All CSS rules reside in the external stylesheet `public/css/samlSSO.css` (registered via `$PLUGIN_HOOKS['add_css']` in `setup.php`).
 3. Every template variable and sub-key must be initialized and guarded (`is defined`) so templates render without error under GLPI 12 Twig `strict_variables` debug mode.
-4. Country indicators in `logging.html.twig` use offline Unicode country flag emojis rather than external CDN image requests.
+4. **Content Security Policy (CSP) Compliance**: All plugin templates and PHP UI classes must remain compatible with GLPI's nonce-based CSP (`script-src 'nonce-<random>'`, `'csp_compliant' => true` in `plugin_version_samlsso()`): bind UI interactions exclusively via `data-*` attributes and delegated event listeners inside Twig `<script>` blocks (or external JS assets), never emit inline `on*` HTML event handler attributes or `javascript:` URLs, and never echo raw `<script>` tags from PHP strings.
+5. Country indicators in `logging.html.twig` use offline Unicode country flag emojis rather than external CDN image requests.
+6. Major capabilities shipped in `Beta` (such as `scim.html.twig`) use a neutral `bg-secondary-lt` `Beta` badge on their tab and top notice and link directly (`target="_blank" rel="noopener noreferrer"`) to their GitHub Wiki documentation page.
 
 ### 2. Harmonized Popover Module (`SamlSsoPopoverManager`) & Inline Table Hiding
 1. All field tooltips, warning indicators (`⚠️`), error indicators (`⭕`), and diagnostic tables are initialized and managed through `SamlSsoPopoverManager` in `templates/configForm.html.twig`.
@@ -36,6 +38,7 @@ The administrative interface must remain **clean, functional, and minimalist**, 
 - **NEVER** disable Bootstrap's popover sanitizer (`sanitize: false`) or strip table HTML with `.text()` before passing diagnostic tables to `SamlSsoPopoverManager`.
 - **NEVER** add promotional taglines, marketing descriptions of internal safeguards ("Just There Features"), or high-saturation "Christmas tree" styling to administrative screens.
 - **NEVER** map a field in `ConfigForm::getTabWarnings()` to a tab other than the child template that renders it.
+- **NEVER** emit inline `on*` event handler attributes, `javascript:` URLs, or raw PHP `<script>` tags in templates or PHP classes (violating GLPI's nonce-based Content Security Policy).
 
 ---
 
@@ -48,4 +51,3 @@ The administrative interface must remain **clean, functional, and minimalist**, 
 ## Codebase & Automated Test Verification
 - **Production Files**: `src/Config/ConfigForm.php`, `src/Config/ConfigItem.php`, `templates/configForm.html.twig`, `templates/configForm/*.html.twig`, `public/css/samlSSO.css`
 - **Automated Tests**: `tests/ConfigIntegrityTest.php`, `tests/Glpi12CompatTest.php`, `tests/AdrComplianceTest.php`
-

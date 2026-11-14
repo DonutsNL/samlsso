@@ -245,6 +245,7 @@ function plugin_version_samlsso(): array                                        
         'author'         => 'Chris Gralike',
         'license'        => 'GPLv3',
         'homepage'       => 'https://github.com/DonutsNL/samlSSO/',
+        'csp_compliant'  => true,
         'requirements'   => [
             'glpi' => [
                 'min' => PLUGIN_SAMLSSO_MIN_GLPI,

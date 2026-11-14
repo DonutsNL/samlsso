@@ -201,6 +201,31 @@
         if ($.fn.select2) {
             $('#preset_selector').select2();
         }
+
+        $(document).on('change', '#preset_selector', function() {
+            applyPreset($(this).val());
+        });
+
+        $(document).on('change', '#claim_mapping_tbody .target-type-select', function() {
+            updateGlpiFields(this);
+        });
+
+        $(document).on('input', '#claim_mapping_tbody .saml-claim-input', function() {
+            checkObserved(this);
+        });
+
+        $(document).on('click', '#claim_mapping_tbody .js-select-claim', function(e) {
+            e.preventDefault();
+            selectClaim(this, this.getAttribute('data-claim') || '');
+        });
+
+        $(document).on('click', '#claim_mapping_tbody .js-delete-claim-row', function() {
+            deleteRow(this);
+        });
+
+        $(document).on('click', '#btn-add-claim-row', function() {
+            addRow('', '', '', '', 0);
+        });
         
         function toggleFooterVisibility(tabId) {
             if (tabId === '#claim_mapping' || tabId === '#logging') {
@@ -584,7 +609,7 @@
         `;
         
         const deleteButton = isSystemRequired ? '' : `
-            <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteRow(this)">
+            <button type="button" class="btn btn-outline-danger btn-sm js-delete-claim-row">
                 <i class="fas fa-trash"></i> Delete
             </button>
         `;
@@ -596,9 +621,8 @@
                 <ul class="dropdown-menu dropdown-menu-end" style="max-height: 200px; overflow-y: auto;">
             `;
             observedClaims.forEach(claim => {
-                const safeClaim = $('<div>').text(claim).html();
-                const safeAttr = encodeURIComponent(claim);
-                dropdownHtml += `<li><a class="dropdown-item" href="#" data-claim="${safeAttr}" onclick="selectClaim(this, decodeURIComponent(this.getAttribute('data-claim'))); return false;">${safeClaim}</a></li>`;
+                const safeClaim = escapeAttr(claim);
+                dropdownHtml += `<li><a class="dropdown-item js-select-claim" href="#" data-claim="${safeClaim}">${safeClaim}</a></li>`;
             });
             dropdownHtml += `</ul>`;
         }
@@ -606,7 +630,7 @@
         tr.innerHTML = `
             <td>
                 ${hiddenInputs}
-                <select name="claim_map[${index}][target_type]" class="form-select target-type-select" onchange="updateGlpiFields(this)" ${disabledAttr}>
+                <select name="claim_map[${index}][target_type]" class="form-select target-type-select" ${disabledAttr}>
                     <option value="" ${targetType === '' ? 'selected' : ''}>-- Select Target Type --</option>
                     <option value="user_field" ${targetType === 'user_field' ? 'selected' : ''}>User Field</option>
                     <option value="rule_field" ${targetType === 'rule_field' ? 'selected' : ''}>Rule Field</option>
@@ -619,7 +643,7 @@
             </td>
             <td>
                 <div class="input-group">
-                    <input type="text" name="claim_map[${index}][saml_claim]" value="${safeSamlClaim}" class="form-control saml-claim-input" oninput="checkObserved(this)" ${isUsernameLocked ? 'disabled' : 'list="observed_claims_list"'}>
+                    <input type="text" name="claim_map[${index}][saml_claim]" value="${safeSamlClaim}" class="form-control saml-claim-input" ${isUsernameLocked ? 'disabled' : 'list="observed_claims_list"'}>
                     ${dropdownHtml}
                 </div>
             </td>

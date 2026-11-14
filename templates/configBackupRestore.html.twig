@@ -1,0 +1,80 @@
+<div class="container-fluid mb-2 d-flex justify-content-end" id="samlsso-backup-toggle-container">
+    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#samlsso-backup-collapse" aria-expanded="false" aria-controls="samlsso-backup-collapse">
+        <i class="fas fa-database me-2"></i>{{ __('Backup / Restore', plugin) }}
+    </button>
+</div>
+<div class="collapse container-fluid mb-3" id="samlsso-backup-collapse">
+    <div class="card card-body bg-light border-0 shadow-sm py-3">
+        <div class="row align-items-center g-3">
+            <div class="col">
+                <h6 class="mb-1 fw-bold text-dark">{{ __('Configuration Backup & Restore', plugin) }}</h6>
+                <p class="text-muted mb-0" style="font-size: 0.85rem;">
+                    {{ __('Export all IDP configurations to a JSON backup file, or restore from a previously exported backup.', plugin) }}
+                </p>
+            </div>
+            <div class="col-auto">
+                <a href="{{ export_url }}" id="samlsso-export-btn" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-download me-2"></i>{{ __('Download Backup', plugin) }}
+                </a>
+            </div>
+            <div class="col-auto">
+                <form method="POST" action="{{ restore_url }}" enctype="multipart/form-data" id="samlsso-restore-form">
+                    {% if csrf_token is defined and csrf_token != '' %}
+                        <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+                    {% endif %}
+                    <div class="input-group input-group-sm">
+                        <input type="file" name="restore_file" id="samlsso-restore-file" accept=".json,application/json" class="form-control form-control-sm" required>
+                        <button class="btn btn-danger" type="button" id="samlsso-restore-btn" data-bs-toggle="modal" data-bs-target="#samlsso-restore-confirm-modal" disabled>
+                            <i class="fas fa-upload me-2"></i>{{ __('Restore', plugin) }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="samlsso-restore-confirm-modal" tabindex="-1" aria-labelledby="samlsso-restore-confirm-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="samlsso-restore-confirm-title">{{ __('Configuration Backup & Restore', plugin) }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">{{ __('WARNING: This will permanently DELETE all current IDP configurations and restore from the backup file.', plugin) }}</p>
+                <p class="text-muted mb-0">{{ __('This action cannot be undone. Make sure you have a recent backup before proceeding.', plugin) }}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                <button type="button" class="btn btn-danger" id="samlsso-confirm-restore-submit">
+                    <i class="fas fa-upload me-2"></i>{{ __('Restore', plugin) }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('samlsso-restore-file');
+    const restoreBtn = document.getElementById('samlsso-restore-btn');
+    const confirmBtn = document.getElementById('samlsso-confirm-restore-submit');
+    const restoreForm = document.getElementById('samlsso-restore-form');
+
+    if (fileInput && restoreBtn) {
+        fileInput.addEventListener('change', function() {
+            restoreBtn.disabled = !(fileInput.files && fileInput.files.length > 0);
+        });
+    }
+
+    if (confirmBtn && restoreForm) {
+        confirmBtn.addEventListener('click', function() {
+            if (fileInput && (!fileInput.files || fileInput.files.length === 0)) {
+                return;
+            }
+            restoreForm.submit();
+        });
+    }
+});
+</script>
