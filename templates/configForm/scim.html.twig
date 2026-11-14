@@ -1,9 +1,14 @@
 {% import glpi_tpl_macro as fields %}
 <div class="tab-pane fade d-none" id="scim" role="tabpanel" aria-labelledby="scim-tab">
     <div class="card-body">
-        <div class="alert bg-secondary-lt border-0 text-muted small mb-4 d-flex align-items-center" role="status">
-            <span class="badge bg-secondary-lt text-muted me-2">{{ __('Beta', plugin) }}</span>
-            <span>{{ __('SCIM 2.0 provisioning is currently in beta. Validate user and group provisioning policies in a staging environment before enabling in production.', plugin) }}</span>
+        <div class="alert bg-secondary-lt border-0 text-muted small mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
+            <div class="d-flex align-items-center">
+                <span class="badge bg-secondary-lt text-muted me-2">{{ __('Beta', plugin) }}</span>
+                <span>{{ __('SCIM 2.0 provisioning is currently in beta. Validate user and group provisioning policies in a staging environment before enabling in production.', plugin) }}</span>
+            </div>
+            <a href="https://github.com/DonutsNL/samlsso/wiki/Configure-SCIM-Provisioning" target="_blank" rel="noopener noreferrer" class="text-reset text-decoration-underline ms-auto">
+                <i class="ti ti-external-link me-1"></i>{{ __('SCIM Documentation', plugin) }}
+            </a>
         </div>
 
         <div class="row">

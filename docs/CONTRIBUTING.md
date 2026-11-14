@@ -52,19 +52,11 @@ This repository is maintained with an "AI-First" mindset. Whether you are a huma
 - **Add Tests**: When adding new functionality, you **MUST** add new tests to the `tests` folder to verify the new functionality. Try to follow the style of the existing tests. If the tests fail, fix the tests and make sure they pass before proposing the change. Also try to improve the existing tests if applicable.
 
 ### 5. Deployment & Proxy Configurations
-- **TLS Terminated Proxies**: When configuring GLPI behind TLS-terminating reverse proxies (such as Kubernetes Ingress, Traefik, or Nginx proxies), PHP does not natively recognize the secure HTTPS context. This results in ACS URL validation mismatches and GLPI `SessionCheckCookieListener` blocks (HTTP 400).
-- **Required Local Configuration**: Developers and administrators testing the proxy scenario must ensure `config/local_define.php` maps the proxy header to force HTTPS context detection:
-  ```php
-  define('GLPI_USE_SECURE_COOKIES', true);
-  if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
-      $_SERVER['HTTPS'] = 'on';
-      $_SERVER['SERVER_PORT'] = 443;
-  }
-  ```
-- **Requests Proxied Configuration**: The plugin's "Requests Proxied" configuration setting must be enabled to activate proxy header processing in phpSAML (`Utils::setProxyVars(true)`).
+- **TLS Terminated Proxies & Stateless Endpoints**: The `/front/acs/{idpId}`, `/front/logout`, and `/front/scim/v2/{idpId}` endpoints boot statelessly (`SessionManager::RegisterPluginStatelessPath()`), and `LoginFlow::performBrowserRedirect()` issues an `HTTP 200 OK` `<meta http-equiv="refresh">` after assertion validation to reset cross-site request chains—supporting both `session.cookie_samesite = "Strict"` and `"Lax"` natively.
+- **Required Reverse Proxy Configuration**: Behind TLS-terminating reverse proxies (Nginx, Traefik, HAProxy, Kubernetes Ingress), configure `session.cookie_secure = On` and `session.cookie_httponly = On` in `php.ini`, register the proxy IP/CIDR via Symfony `Request::setTrustedProxies(['<PROXY_IP_OR_CIDR>'], ...)` in `config/config_db.php`, and enable **Requests Proxied** on the **Transit** tab (`Utils::setProxyVars(true)`), verifying `HTTP_X_FORWARDED_PROTO = https` in the Proxy Diagnostic popover.
 
 ## Architectural Integrity
-The core of this plugin is its **State Machine**. Any modifications to `LoginState.php`, `Acs.php`, or `LoginFlow.php` must be handled with extreme caution. The preservation of the authentication phases (1-8) is critical to the plugin's security posture.
+The core of this plugin is its **State Machine**. Any modifications to `LoginState.php`, `Acs.php`, or `LoginFlow.php` must be handled with extreme caution. The preservation of the authentication phases (1–9) is critical to the plugin's security posture.
 
 ## 🔧 Local Agent Skill Setup
 

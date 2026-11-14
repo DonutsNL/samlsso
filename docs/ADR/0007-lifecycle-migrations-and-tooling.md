@@ -13,7 +13,7 @@ Plugin installation, database schema migrations, upgrades, uninstallation, cache
 ### 1. Deterministic Class Lifecycle (`PLUGIN_SAMLSSO_CLASSES`) & Shared Migration
 1. All database-backed and lifecycle-managed classes are explicitly listed in dependency order in the `PLUGIN_SAMLSSO_CLASSES` constant in `setup.php`. Dynamic directory scanning (`scandir()`) is forbidden.
 2. `plugin_samlsso_install()` iterates forward through `PLUGIN_SAMLSSO_CLASSES` using a single shared `\Migration` instance, and `plugin_samlsso_uninstall()` iterates through `array_reverse(PLUGIN_SAMLSSO_CLASSES)` so dependent tables and rules are torn down deterministically.
-3. Every `install()` method that queues schema updates via `$migration->addField()`, `$migration->changeField()`, or `$migration->addKey()` **must** invoke `$migration->migrationOneTable($table)` before returning so queued DDL statements execute immediately on existing installations.
+3. Every `install()` method that queues schema updates via `$migration->addField()`, `$migration->changeField()`, or `$migration->addKey()` **must** invoke `$migration->migrationOneTable($table)` before returning so queued DDL statements execute immediately on existing installations, and all foreign-key columns referencing GLPI or plugin primary keys (`users_id`, `auths_id`, `entities_id`, `groups_id`) must use `INT UNSIGNED` (`fkey`) to satisfy GLPI's `migration:unsigned_keys` check.
 4. Uninstalling the plugin cleans up all SAML JIT rules from `glpi_rules`, `glpi_rulecriterias`, and `glpi_ruleactions`.
 
 ### 2. Upgrade Deduplication & Post-Install `SanityChecker`
@@ -43,5 +43,4 @@ Plugin installation, database schema migrations, upgrades, uninstallation, cache
 
 ## Codebase & Automated Test Verification
 - **Production Files**: `setup.php`, `hook.php`, `src/Config.php`, `src/CronTask.php`, `src/Utility/SanityChecker.php`, `tools/generatePot.sh`, `tools/mkzip.sh`
-- **Automated Tests**: `tests/InstallUninstallTest.php`, `tests/DatabaseUpdateTest.php`, `tests/CronTaskTest.php`, `tests/SanityCheckerTest.php`, `tests/AdrComplianceTest.php`
-
+- **Automated Tests**: `tests/LifecycleIntegrityTest.php`, `tests/DatabaseUpdateTest.php`, `tests/CronTaskTest.php`, `tests/SanityCheckerTest.php`, `tests/AdrComplianceTest.php`

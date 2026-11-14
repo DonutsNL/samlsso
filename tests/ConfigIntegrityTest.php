@@ -1128,6 +1128,12 @@ namespace GlpiPlugin\Samlsso\Tests {
             if (!str_contains($mainTpl, 'id="scim-tab"') || !str_contains($mainTpl, "@samlsso/configForm/scim.html.twig") || !str_contains($mainTpl, "__('Beta', plugin)")) {
                 throw new \Exception('configForm.html.twig missing #scim-tab, Beta badge, or scim.html.twig include.');
             }
+            if (
+                !str_contains($scimTpl, 'https://github.com/DonutsNL/samlsso/wiki/Configure-SCIM-Provisioning') ||
+                !str_contains($scimTpl, 'rel="noopener noreferrer"')
+            ) {
+                throw new \Exception('scim.html.twig missing Configure-SCIM-Provisioning wiki link or rel="noopener noreferrer".');
+            }
             foreach (['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'localStorage', 'sessionStorage', 'alert(', 'confirm(', 'prompt('] as $forbiddenJs) {
                 if (str_contains($scimTpl, $forbiddenJs)) {
                     throw new \Exception("scim.html.twig contains forbidden frontend pattern: $forbiddenJs");

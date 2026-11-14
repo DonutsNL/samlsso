@@ -20,7 +20,7 @@ Every visitor and authenticated SAML session is tracked through 9 explicit phase
 | `PHASE_SAML_AUTH` | `3` | Expected & cryptographically verified `SAMLResponse` accepted at ACS; unique `SAML_RESPONSE_ID` recorded. Permanently locks the assertion against replay. | `Acs::assertSaml()` **only** |
 | `PHASE_GLPI_AUTH` | `4` | Authenticated session handed over to GLPI core (`$_SESSION['glpiname']` and `$_SESSION['valid_id']` active). | `LoginState::evalGlpiAuth()` |
 | `PHASE_RESERVED` | `5` | Reserved for future use. | None |
-| `PHASE_FORCE_LOG` | `6` | Administrator triggered Force Logoff & Disable User (`is_active = 0`). Next request in `LoginFlow::doAuth()` destroys the session and redirects to `/index.php?noAuto=1`. | `ConfigForm` (`forcelogoff` POST action) |
+| `PHASE_FORCE_LOG` | `6` | Administrator or SCIM offboarding triggered Force Logoff & Disable User (`is_active = 0`). Next request in `LoginFlow::doAuth()` destroys the session and redirects to `/index.php?noAuto=1`. | `ConfigForm` (`forcelogoff` POST action) / `LoginState::forceLogoffForUser()` |
 | `PHASE_TIMED_OUT` | `7` | Pending `PHASE_SAML_ACS (2)` exceeded `request_timeout`. Rejected at ACS with a user-facing message and redirect to `/index.php?noAuto=1`. | `LoginState::getPhase()` / `LoginState::expireStaleAcsRequests()` |
 | `PHASE_LOGOFF` | `8` | Session terminated (local logout, SLO logout, or post-timeout/force-logoff cleanup). Excluded from active lookups. | `LoginFlow::doAuth()` / `Acs::handleRequestTimeout()` |
 | `PHASE_ERROR` | `9` | Assertion validation, CSRF, IdP mismatch, or replay failure. Excluded from active lookups (`NOT PHASE IN (8, 9)`). | `LoginFlow::printError()` / `LoginFlow::PrintFatalLoginError()` |
@@ -66,7 +66,7 @@ stateDiagram-v2
 - **NEVER** promote an unrecognized or unsolicited `SAMLResponse` directly to `PHASE_SAML_ACS (2)` in `LoginState::getState()` or `Acs::fetchRequestState()`.
 - **NEVER** add a configuration toggle to "allow unsolicited / IdP-initiated logins without re-authentication".
 - **NEVER** read post-login redirect URLs from `$_POST['RelayState']` or unvalidated client parameters on `/front/acs/{idpId}`.
-- **NEVER** use raw string paths for ACS or SLO routes; always reference `SamlSsoController::ACS_ROUTE` and `SamlSsoController::SLO_ROUTE`.
+- **NEVER** use raw string paths for ACS, SLO, or SCIM routes; always reference `SamlSsoController::ACS_ROUTE`, `SamlSsoController::SLO_ROUTE`, and `SamlSsoController::SCIM_ROUTE`.
 
 ---
 
@@ -79,5 +79,4 @@ stateDiagram-v2
 
 ## Codebase & Automated Test Verification
 - **Production Files**: `src/LoginState.php`, `src/LoginFlow.php`, `src/LoginFlow/Acs.php`, `src/Controller/SamlSsoController.php`, `src/Exclude.php`
-- **Automated Tests**: `tests/AcsTest.php`, `tests/LoginStateTest.php`, `tests/LoginFlowTest.php`, `tests/ExcludeTest.php`, `tests/AdrComplianceTest.php`
-
+- **Automated Tests**: `tests/AcsTest.php`, `tests/LoginStateTest.php`, `tests/FlowLogicTest.php`, `tests/RegressionTest.php`, `tests/ExcludeTest.php`, `tests/AdrComplianceTest.php`
