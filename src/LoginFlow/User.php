@@ -94,15 +94,38 @@ class User
     public const PROFILE_RECURSIVE  = 'is_recursive';
     public const ENTITY_ID          = 'entities_id';
     public const ENTITY_DEFAULT     = '_entities_id_default';
-    public const AUTHTYPE           = 'authtype';
-    public const AUTHTYPE_LOCAL     = 1;
-    public const AUTHS_ID_OFFSET    = 1000000;
-    public const SYNCDATE           = 'date_sync';  //Y-m-d H:i:s
-    public const SAMLGROUPS         = 'samlClaimedGroups';
-    public const SAMLJOBTITLE       = 'samlClaimedJobTitle';
-    public const SAMLCOUNTRY        = 'country';
-    public const SAMLCITY           = 'city';
-    public const SAMLSTREET         = 'street';
+    public const AUTHTYPE              = 'authtype';
+    public const AUTHTYPE_LOCAL        = 1;
+    public const AUTHS_ID              = 'auths_id';
+    public const AUTHS_ID_OFFSET       = 1000000;
+    public const USER_DN               = 'user_dn';
+    public const USER_DN_HASH          = 'user_dn_hash';
+    public const SYNC_FIELD            = 'sync_field';
+    public const IS_DELETED_LDAP       = 'is_deleted_ldap';
+    public const PASSWORD_MD5          = 'password_md5';
+    public const API_TOKEN             = 'api_token';
+    public const PERSONAL_TOKEN        = 'personal_token';
+    public const PASSWORD_FORGET_TOKEN = 'password_forget_token';
+    public const COOKIE_TOKEN          = 'cookie_token';
+    public const EXTAUTH               = '_extauth';
+    public const DATE_MOD              = 'date_mod';
+    public const TIMEZONE              = 'timezone';
+    public const LOCATIONS_ID          = 'locations_id';
+    public const USERCATEGORIES_ID     = 'usercategories_id';
+    public const USERTITLES_ID         = 'usertitles_id';
+    public const LANGUAGE              = 'language';
+    public const SYNCDATE              = 'date_sync';  //Y-m-d H:i:s
+    public const RULE_FIELDS_KEY       = '_saml_rule_fields';
+    public const SAMLGROUPS            = 'samlClaimedGroups';
+    public const SAMLJOBTITLE          = 'samlClaimedJobTitle';
+    public const SAMLCOUNTRY           = 'country';
+    public const SAMLCITY              = 'city';
+    public const SAMLSTREET            = 'street';
+    public const SCIM_DEPARTMENT       = 'scimDepartment';
+    public const SCIM_ORGANIZATION     = 'scimOrganization';
+    public const SCIM_DIVISION         = 'scimDivision';
+    public const SCIM_COST_CENTER      = 'scimCostCenter';
+    public const SCIM_EMPLOYEE_NUMBER  = 'scimEmployeeNumber';
 
 
     /**
@@ -206,8 +229,8 @@ class User
 
         foreach ($candidates as $candidate) {
             $candAuthtype = (int)($candidate[User::AUTHTYPE] ?? 0);
-            $candAuthsId = (int)($candidate['auths_id'] ?? 0);
-            $candUserDn = trim((string)($candidate['user_dn'] ?? ''));
+            $candAuthsId = (int)($candidate[User::AUTHS_ID] ?? 0);
+            $candUserDn = trim((string)($candidate[User::USER_DN] ?? ''));
 
             if ($candAuthtype === $externalAuthType && $candAuthsId === $expectedAuthsId) {
                 $exactMatch = $candidate;
@@ -249,18 +272,18 @@ class User
             if ($DB !== null && method_exists($DB, 'update')) {
                 $DB->update(
                     'glpi_users',
-                    ['auths_id' => $expectedAuthsId],
+                    [User::AUTHS_ID => $expectedAuthsId],
                     [User::USERID => $matchedUserId]
                 );
             }
-            $selectedRow['auths_id'] = $expectedAuthsId;
+            $selectedRow[User::AUTHS_ID] = $expectedAuthsId;
         }
 
         $user = new glpiUser();
         if ($matchedUserId <= 0 || !$user->getFromDB($matchedUserId)) {
             $user->fields = $selectedRow;
         }
-        $user->fields['auths_id'] = $expectedAuthsId;
+        $user->fields[User::AUTHS_ID] = $expectedAuthsId;
 
         if ($user->fields[User::DELETED] == 1) {
             LoginFlow::PrintFatalLoginError(sprintf(__("User with GlpiUserid: %s is marked deleted but still exists in the GLPI database. Because of this we cannot log you in as this would violate GLPI its security policies. Please contact the GLPI administrator to restore the user with provided ID or purge the user to allow the Just in Time (JIT) user creation to create a new user with the idp provided claims.", PLUGIN_NAME), $user->fields[User::USERID]));
@@ -394,7 +417,7 @@ class User
 
         if ($configEntity->getField(ConfigEntity::USER_JIT)) {
             $userFields[User::AUTHTYPE] = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? \Auth::EXTERNAL : 4;
-            $userFields['auths_id'] = self::toAuthsId((int)$dbId);
+            $userFields[User::AUTHS_ID] = self::toAuthsId((int)$dbId);
             $addPayload = self::stripSyntheticRuleFields($userFields);
             $id = $user->add(self::sanitizeInput($addPayload));
             if (!$id) {
@@ -547,8 +570,8 @@ class User
             'groups'             => $userFields[User::SAMLGROUPS] ?? false,
         ];
 
-        if (isset($userFields['_saml_rule_fields']) && is_array($userFields['_saml_rule_fields'])) {
-            foreach ($userFields['_saml_rule_fields'] as $field => $val) {
+        if (isset($userFields[User::RULE_FIELDS_KEY]) && is_array($userFields[User::RULE_FIELDS_KEY])) {
+            foreach ($userFields[User::RULE_FIELDS_KEY] as $field => $val) {
                 $matchInput[$field] = $val;
                 if ($field === 'jobtitle') {
                     $matchInput[User::SAMLJOBTITLE] = $val;
@@ -647,17 +670,17 @@ class User
             User::PASSWORD,
             User::PASSWORDN,
             User::COMMENT,
-            'user_dn',
-            'auths_id',
-            'password_md5',
-            'api_token',
-            'personal_token',
+            User::USER_DN,
+            User::AUTHS_ID,
+            User::PASSWORD_MD5,
+            User::API_TOKEN,
+            User::PERSONAL_TOKEN,
         ];
         foreach ($protectedFields as $protectedField) {
             unset($userFields[$protectedField]);
         }
 
-        $userFields['id'] = $user->fields[User::USERID];
+        $userFields[User::USERID] = $user->fields[User::USERID];
 
         $updateFields = array_filter($userFields, static function ($value) {
             return $value !== false && $value !== null;
@@ -688,7 +711,7 @@ class User
     private static function stripSyntheticRuleFields(array $fields): array
     {
         $syntheticKeys = [
-            '_saml_rule_fields',
+            User::RULE_FIELDS_KEY,
             User::SAMLGROUPS,
             User::SAMLJOBTITLE,
             User::SAMLCOUNTRY,
@@ -892,12 +915,12 @@ class User
             $defaultGroup !== null ||
             $defaultEntity !== null ||
             $defaultProfile !== null ||
-            isset($update[User::ACTIVE])         ||
-            isset($update['timezone'])           ||
-            isset($update['locations_id'])       ||
-            isset($update['usercategories_id'])  ||
-            isset($update['usertitles_id'])      ||
-            isset($update['language'])
+            isset($update[User::ACTIVE])            ||
+            isset($update[User::TIMEZONE])          ||
+            isset($update[User::LOCATIONS_ID])      ||
+            isset($update[User::USERCATEGORIES_ID]) ||
+            isset($update[User::USERTITLES_ID])     ||
+            isset($update[User::LANGUAGE])
         ) {
             /* Set the user Id. */
             $userDefaults = [];
@@ -954,13 +977,13 @@ class User
                 );
             }
             /* Do we need to set timezone? */
-            if (isset($update['timezone'])) {
-                $userDefaults['timezone'] = $update['timezone'];
+            if (isset($update[User::TIMEZONE])) {
+                $userDefaults[User::TIMEZONE] = $update[User::TIMEZONE];
                 Toolbox::logInFile(
                     PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS,
                     sprintf(
                         __('JIT found timezone: %s for userId: %s', PLUGIN_NAME),
-                        (string)$update['timezone'],
+                        (string)$update[User::TIMEZONE],
                         (string)$update[User::USERSID]
                     ) . "\n"
                 );
@@ -978,49 +1001,49 @@ class User
                 );
             }
             /* Do we need to set location? */
-            if (isset($update['locations_id'])) {
-                $userDefaults['locations_id'] = $update['locations_id'];
+            if (isset($update[User::LOCATIONS_ID])) {
+                $userDefaults[User::LOCATIONS_ID] = $update[User::LOCATIONS_ID];
                 Toolbox::logInFile(
                     PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS,
                     sprintf(
                         __('JIT found locations_id: %s for userId: %s', PLUGIN_NAME),
-                        (string)$update['locations_id'],
+                        (string)$update[User::LOCATIONS_ID],
                         (string)$update[User::USERSID]
                     ) . "\n"
                 );
             }
             /* Do we need to set department? */
-            if (isset($update['usercategories_id'])) {
-                $userDefaults['usercategories_id'] = $update['usercategories_id'];
+            if (isset($update[User::USERCATEGORIES_ID])) {
+                $userDefaults[User::USERCATEGORIES_ID] = $update[User::USERCATEGORIES_ID];
                 Toolbox::logInFile(
                     PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS,
                     sprintf(
                         __('JIT found usercategories_id: %s for userId: %s', PLUGIN_NAME),
-                        (string)$update['usercategories_id'],
+                        (string)$update[User::USERCATEGORIES_ID],
                         (string)$update[User::USERSID]
                     ) . "\n"
                 );
             }
             /* Do we need to set user title? */
-            if (isset($update['usertitles_id'])) {
-                $userDefaults['usertitles_id'] = $update['usertitles_id'];
+            if (isset($update[User::USERTITLES_ID])) {
+                $userDefaults[User::USERTITLES_ID] = $update[User::USERTITLES_ID];
                 Toolbox::logInFile(
                     PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS,
                     sprintf(
                         __('JIT found usertitles_id: %s for userId: %s', PLUGIN_NAME),
-                        (string)$update['usertitles_id'],
+                        (string)$update[User::USERTITLES_ID],
                         (string)$update[User::USERSID]
                     ) . "\n"
                 );
             }
             /* Do we need to set language? */
-            if (isset($update['language'])) {
-                $userDefaults['language'] = $update['language'];
+            if (isset($update[User::LANGUAGE])) {
+                $userDefaults[User::LANGUAGE] = $update[User::LANGUAGE];
                 Toolbox::logInFile(
                     PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS,
                     sprintf(
                         __('JIT found language: %s for userId: %s', PLUGIN_NAME),
-                        (string)$update['language'],
+                        (string)$update[User::LANGUAGE],
                         (string)$update[User::USERSID]
                     ) . "\n"
                 );

@@ -35,7 +35,7 @@ Execute these workflows automatically without waiting for the user to type `/lea
   - Ensure all code paths return a value; use `Html::displayError()` or throw `PluginException` instead of `die()`.
   - Omit closing `?>` tags in PHP files; use 4-space indentation and keep lines under 120 characters where possible.
 - **Translation Strings (`__()`)**: Pass **only static literal string constants** to `__()`. Never concatenate variables or `\n` inside `__()`; use `sprintf(__('Message: %s', PLUGIN_NAME), $var)`.
-- **Constants Over Raw Strings**: Always use `ConfigEntity::*`, `ConfigItem::*`, `ClaimMapItem::FIELD_*`, `LoginState::*`, and `SamlSsoController::ACS_ROUTE` / `SLO_ROUTE` / `SCIM_ROUTE` constants instead of raw string literals.
+- **Constants Over Raw Strings (`ADR 0008`)**: Define and reference domain class constants (`ConfigEntity::*`, `ConfigItem::*`, `ClaimMap::*`, `ClaimMapItem::*`, `ObservedClaim::*`, `LoginState::*`, `User::*`, `ScimLink::*`, `Exclude::*`, and `SamlSsoController::ACS_ROUTE` / `SLO_ROUTE` / `SCIM_ROUTE`) for all DB columns, GLPI user/group/profile fields, rule criteria/action keys, and routes instead of hardcoding raw string literals. Mirror any added/updated `public const` declarations on corresponding mocks in `tests/TestHarness.php`.
 - **GLPI 11 & 12 Dual Compatibility & Schema Types**:
   - Concrete classes (`Config`, `Exclude`, `LoginFlow`, `RuleSaml`, `RuleSamlCollection`) extend their intermediate class in `src/compat.php` and must never redeclare `$dohistory`, `$rightname`, or `$menu_option`.
   - Declare all foreign-key columns (`users_id`, `auths_id`, `entities_id`, `groups_id`) as `INT UNSIGNED` (`fkey`) to satisfy `migration:unsigned_keys`.

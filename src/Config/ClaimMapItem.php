@@ -141,7 +141,7 @@ class ClaimMapItem
     protected function validateTargetType(mixed $value): array
     {
         $error = false;
-        if (!is_string($value) || !in_array($value, ['user_field', 'rule_field'], true)) {
+        if (!is_string($value) || !in_array($value, [self::TARGET_TYPE_USER_FIELD, self::TARGET_TYPE_RULE_FIELD], true)) {
             $error = __('Invalid mapping target type', PLUGIN_NAME);
         }
 
@@ -159,10 +159,10 @@ class ClaimMapItem
      * @param string $targetType The target_type value
      * @return array Validation result
      */
-    protected function validateGlpiField(mixed $value, string $targetType = 'user_field'): array
+    protected function validateGlpiField(mixed $value, string $targetType = self::TARGET_TYPE_USER_FIELD): array
     {
         $error = false;
-        $allowed = ($targetType === 'rule_field') ? self::ALLOWED_RULE_FIELDS : self::ALLOWED_USER_FIELDS;
+        $allowed = ($targetType === self::TARGET_TYPE_RULE_FIELD) ? self::ALLOWED_RULE_FIELDS : self::ALLOWED_USER_FIELDS;
         if (!is_string($value) || !in_array($value, $allowed, true)) {
             $error = __('Invalid GLPI field selected for target type', PLUGIN_NAME);
         }

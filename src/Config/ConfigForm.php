@@ -171,15 +171,15 @@ class ConfigForm    //NOSONAR complexity by design.
             $claimMappings = [];
             $cmIterator = $DB->request([
                 'FROM'  => $claimMapTable,
-                'WHERE' => ['configs_id' => (int)$row['id']],
+                'WHERE' => [ClaimMap::CONFIGS_ID => (int)$row[ConfigEntity::ID]],
             ]);
             foreach ($cmIterator as $cmRow) {
                 $claimMappings[] = [
-                    'target_type'   => (string)($cmRow['target_type']   ?? 'user_field'),
-                    'glpi_field'    => (string)($cmRow['glpi_field']    ?? ''),
-                    'saml_claim'    => (string)($cmRow['saml_claim']    ?? ''),
-                    'default_value' => (string)($cmRow['default_value'] ?? ''),
-                    'is_required'   => (int)($cmRow['is_required']      ?? 0),
+                    ClaimMap::TARGET_TYPE   => (string)($cmRow[ClaimMap::TARGET_TYPE]   ?? ClaimMapItem::TARGET_TYPE_USER_FIELD),
+                    ClaimMap::GLPI_FIELD    => (string)($cmRow[ClaimMap::GLPI_FIELD]    ?? ''),
+                    ClaimMap::SAML_CLAIM    => (string)($cmRow[ClaimMap::SAML_CLAIM]    ?? ''),
+                    ClaimMap::DEFAULT_VALUE => (string)($cmRow[ClaimMap::DEFAULT_VALUE] ?? ''),
+                    ClaimMap::IS_REQUIRED   => (int)($cmRow[ClaimMap::IS_REQUIRED]      ?? 0),
                 ];
             }
 
@@ -391,10 +391,10 @@ class ConfigForm    //NOSONAR complexity by design.
 
         // Build insert row; only use known fields that are present in export
         $defaultTpl = ConfigDefaultTpl::template();
-        $insertRow = [ConfigEntity::IS_DELETED => 0, ConfigEntity::SCIM_TOKEN_HASH => '', 'date_creation' => $now, 'date_mod' => $now];
+        $insertRow = [ConfigEntity::IS_DELETED => 0, ConfigEntity::SCIM_TOKEN_HASH => '', ConfigEntity::CREATE_DATE => $now, ConfigEntity::MOD_DATE => $now];
         foreach ($exportFields as $field) {
             if ($field === ConfigEntity::ID) {
-                $insertRow['id'] = $origId;
+                $insertRow[ConfigEntity::ID] = $origId;
                 continue;
             }
             if (array_key_exists($field, $cfgData) && $cfgData[$field] !== null) {
@@ -969,7 +969,7 @@ class ConfigForm    //NOSONAR complexity by design.
             }
             if (!empty($observedClaims)) {
                 foreach ($claimMappings as $index => $mapping) {
-                    $claim = $mapping['saml_claim'] ?? '';
+                    $claim = $mapping[ClaimMap::SAML_CLAIM] ?? '';
                     if ($claim !== '' && !in_array($claim, $observedClaims, true)) {
                         $claimWarnings[$index] = __('This claim key has not been observed in any SAML responses yet.', PLUGIN_NAME);
                         $hasClaimWarning = true;

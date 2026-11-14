@@ -400,10 +400,10 @@ namespace GlpiPlugin\Samlsso\Tests {
             if (
                 !str_contains($user, '\Auth::DB_GLPI') ||
                 !str_contains($user, '\Auth::EXTERNAL') ||
-                !str_contains($user, 'AUTHS_ID_OFFSET    = 1000000') ||
+                !preg_match('/AUTHS_ID_OFFSET\s*=\s*1000000/', $user) ||
                 !str_contains($user, 'function toAuthsId') ||
                 !str_contains($user, '$protectedFields') ||
-                !str_contains($user, "'auths_id'") ||
+                (!str_contains($user, 'self::AUTHS_ID') && !str_contains($user, "'auths_id'")) ||
                 !str_contains($migrateCmd, 'plugins:samlsso:migrate_ldap_users') ||
                 !str_contains($migrator, 'User::toAuthsId')
             ) {

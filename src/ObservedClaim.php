@@ -158,7 +158,7 @@ class ObservedClaim extends CommonDBTM
              * UNSIGNED aligns it with the primary key it references in
              * glpi_plugin_samlsso_configs.
              */
-            $migration->changeField($table, 'configs_id', 'configs_id', "INT {$default_key_sign} NOT NULL");
+            $migration->changeField($table, self::CONFIGS_ID, self::CONFIGS_ID, "INT {$default_key_sign} NOT NULL");
             $migration->migrationOneTable($table);
         }
     }
@@ -232,16 +232,16 @@ class ObservedClaim extends CommonDBTM
         $iterator = $DB->request([
             'FROM'  => $table,
             'WHERE' => [
-                'configs_id' => $configs_id,
-                'saml_claim' => $claim
+                self::CONFIGS_ID => $configs_id,
+                self::SAML_CLAIM => $claim
             ]
         ]);
 
         if (count($iterator) === 0) {
             $model = new self();
             $model->add([
-                'configs_id' => $configs_id,
-                'saml_claim' => $claim
+                self::CONFIGS_ID => $configs_id,
+                self::SAML_CLAIM => $claim
             ]);
         }
     }

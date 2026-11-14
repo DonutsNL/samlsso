@@ -272,7 +272,7 @@ class Config extends ConfigCompat
         $length = (is_numeric($length)) ? $length : 255;
 
         // Iterate through the IDP config rows and generate the buttons for twig template.
-        foreach ($DB->request(['FROM' => Config::getTable(), 'WHERE' => ['is_deleted'  => 0]]) as $value) {
+        foreach ($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::IS_DELETED => 0]]) as $value) {
             // Only populate buttons that are considered valid by ConfigEntity;
             $configEntity = new ConfigEntity($value[ConfigEntity::ID]);
 
@@ -581,40 +581,40 @@ class Config extends ConfigCompat
             SQL;
             $DB->doQuery($query);
 
-            if (!$DB->fieldExists($table, 'saml_xml_structure', false)) {
-                $migration->addField($table, 'saml_xml_structure', 'text', ['value' => null]);
+            if (!$DB->fieldExists($table, ConfigEntity::SAML_XML_STRUCTURE, false)) {
+                $migration->addField($table, ConfigEntity::SAML_XML_STRUCTURE, 'text', ['value' => null]);
             }
 
-            if (!$DB->fieldExists($table, 'request_timeout', false)) {
-                $migration->addField($table, 'request_timeout', 'integer', ['value' => 15]);
+            if (!$DB->fieldExists($table, ConfigEntity::REQUEST_TIMEOUT, false)) {
+                $migration->addField($table, ConfigEntity::REQUEST_TIMEOUT, 'integer', ['value' => 15]);
             }
 
-            if (!$DB->fieldExists($table, 'inactivity_timeout', false)) {
-                $migration->addField($table, 'inactivity_timeout', 'integer', ['value' => 0]);
+            if (!$DB->fieldExists($table, ConfigEntity::INACTIVITY_TIMEOUT, false)) {
+                $migration->addField($table, ConfigEntity::INACTIVITY_TIMEOUT, 'integer', ['value' => 0]);
             }
 
-            if (!$DB->fieldExists($table, 'sync_on_login', false)) {
-                $migration->addField($table, 'sync_on_login', 'bool', ['value' => '0']);
+            if (!$DB->fieldExists($table, ConfigEntity::SYNC_ON_LOGIN, false)) {
+                $migration->addField($table, ConfigEntity::SYNC_ON_LOGIN, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_wantmessagessigned', false)) {
-                $migration->addField($table, 'security_wantmessagessigned', 'bool', ['value' => '0']);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_WANTMESSAGESSIGNED, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_WANTMESSAGESSIGNED, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_wantassertionssigned', false)) {
-                $migration->addField($table, 'security_wantassertionssigned', 'bool', ['value' => '0']);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_WANTASSERTIONSSIGNED, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_WANTASSERTIONSSIGNED, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_wantassertionsencrypted', false)) {
-                $migration->addField($table, 'security_wantassertionsencrypted', 'bool', ['value' => '0']);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_signmetadata', false)) {
-                $migration->addField($table, 'security_signmetadata', 'bool', ['value' => '0']);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_SIGNMETADATA, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_SIGNMETADATA, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_wantnameid', false)) {
-                $migration->addField($table, 'security_wantnameid', 'bool', ['value' => '0']);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_WANTNAMEID, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_WANTNAMEID, 'bool', ['value' => '0']);
             }
 
             if (!$DB->fieldExists($table, ConfigEntity::SP_KEY_SOURCE, false)) {
@@ -664,12 +664,12 @@ class Config extends ConfigCompat
              * on <= 1.3.2-rc upgrades (#173): backfill NULL values first so MySQL strict mode accepts NOT NULL.
              */
             $boolColsToNormalize = [
-                'sync_on_login',
-                'security_wantmessagessigned',
-                'security_wantassertionssigned',
-                'security_wantassertionsencrypted',
-                'security_signmetadata',
-                'security_wantnameid',
+                ConfigEntity::SYNC_ON_LOGIN,
+                ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
+                ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
+                ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
+                ConfigEntity::SECURITY_SIGNMETADATA,
+                ConfigEntity::SECURITY_WANTNAMEID,
                 ConfigEntity::FORCE_AUTHN,
             ];
             foreach ($boolColsToNormalize as $boolCol) {
@@ -680,8 +680,8 @@ class Config extends ConfigCompat
             }
 
             $intColsToNormalize = [
-                'request_timeout'    => 15,
-                'inactivity_timeout' => 0,
+                ConfigEntity::REQUEST_TIMEOUT    => 15,
+                ConfigEntity::INACTIVITY_TIMEOUT => 0,
             ];
             foreach ($intColsToNormalize as $intCol => $defaultVal) {
                 if ($DB->fieldExists($table, $intCol, false)) {
@@ -724,21 +724,21 @@ class Config extends ConfigCompat
             if (!empty($legacyConfigIds) && $DB->tableExists('glpi_users') && method_exists($DB, 'update')) {
                 $externalAuthType = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? (int)\Auth::EXTERNAL : 4;
                 $legacyUsers = $DB->request([
-                    'SELECT' => [SamlUser::USERID, 'auths_id', 'user_dn'],
+                    'SELECT' => [SamlUser::USERID, SamlUser::AUTHS_ID, SamlUser::USER_DN],
                     'FROM'   => 'glpi_users',
                     'WHERE'  => [
                         SamlUser::AUTHTYPE => $externalAuthType,
-                        'auths_id'         => array_values(array_unique($legacyConfigIds)),
+                        SamlUser::AUTHS_ID => array_values(array_unique($legacyConfigIds)),
                     ],
                 ]);
                 foreach ($legacyUsers as $legacyUser) {
                     $uid = (int)($legacyUser[SamlUser::USERID] ?? 0);
-                    $oldAuthsId = (int)($legacyUser['auths_id'] ?? 0);
-                    $userDn = trim((string)($legacyUser['user_dn'] ?? ''));
+                    $oldAuthsId = (int)($legacyUser[SamlUser::AUTHS_ID] ?? 0);
+                    $userDn = trim((string)($legacyUser[SamlUser::USER_DN] ?? ''));
                     if ($uid > 0 && $oldAuthsId > 0 && $oldAuthsId < SamlUser::AUTHS_ID_OFFSET && $userDn === '') {
                         $DB->update(
                             'glpi_users',
-                            ['auths_id' => SamlUser::toAuthsId($oldAuthsId)],
+                            [SamlUser::AUTHS_ID => SamlUser::toAuthsId($oldAuthsId)],
                             [SamlUser::USERID => $uid]
                         );
                     }

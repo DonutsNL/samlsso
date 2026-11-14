@@ -434,15 +434,38 @@ namespace GlpiPlugin\Samlsso\LoginFlow {
             public const PROFILE_RECURSIVE   = 'is_recursive';
             public const ENTITY_ID           = 'entities_id';
             public const ENTITY_DEFAULT      = '_entities_id_default';
-            public const AUTHTYPE            = 'authtype';
-            public const AUTHTYPE_LOCAL      = 1;
-            public const AUTHS_ID_OFFSET     = 1000000;
-            public const SYNCDATE            = 'date_sync';
-            public const SAMLGROUPS          = 'samlClaimedGroups';
-            public const SAMLJOBTITLE        = 'samlClaimedJobTitle';
-            public const SAMLCOUNTRY         = 'country';
-            public const SAMLCITY            = 'city';
-            public const SAMLSTREET          = 'street';
+            public const AUTHTYPE              = 'authtype';
+            public const AUTHTYPE_LOCAL        = 1;
+            public const AUTHS_ID              = 'auths_id';
+            public const AUTHS_ID_OFFSET       = 1000000;
+            public const USER_DN               = 'user_dn';
+            public const USER_DN_HASH          = 'user_dn_hash';
+            public const SYNC_FIELD            = 'sync_field';
+            public const IS_DELETED_LDAP       = 'is_deleted_ldap';
+            public const PASSWORD_MD5          = 'password_md5';
+            public const API_TOKEN             = 'api_token';
+            public const PERSONAL_TOKEN        = 'personal_token';
+            public const PASSWORD_FORGET_TOKEN = 'password_forget_token';
+            public const COOKIE_TOKEN          = 'cookie_token';
+            public const EXTAUTH               = '_extauth';
+            public const DATE_MOD              = 'date_mod';
+            public const TIMEZONE              = 'timezone';
+            public const LOCATIONS_ID          = 'locations_id';
+            public const USERCATEGORIES_ID     = 'usercategories_id';
+            public const USERTITLES_ID         = 'usertitles_id';
+            public const LANGUAGE              = 'language';
+            public const SYNCDATE              = 'date_sync';
+            public const RULE_FIELDS_KEY       = '_saml_rule_fields';
+            public const SAMLGROUPS            = 'samlClaimedGroups';
+            public const SAMLJOBTITLE          = 'samlClaimedJobTitle';
+            public const SAMLCOUNTRY           = 'country';
+            public const SAMLCITY              = 'city';
+            public const SAMLSTREET            = 'street';
+            public const SCIM_DEPARTMENT       = 'scimDepartment';
+            public const SCIM_ORGANIZATION     = 'scimOrganization';
+            public const SCIM_DIVISION         = 'scimDivision';
+            public const SCIM_COST_CENTER      = 'scimCostCenter';
+            public const SCIM_EMPLOYEE_NUMBER  = 'scimEmployeeNumber';
 
             /**
              * Maps an IdP ID into the isolated glpi_users.auths_id namespace (1,000,000 + $idpId).

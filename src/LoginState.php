@@ -995,8 +995,8 @@ class LoginState extends CommonDBTM
                 'LEFT JOIN' => [
                     'glpi_users' => [
                         'ON' => [
-                            LoginState::getTable() => 'userId',
-                            'glpi_users' => 'id'
+                            LoginState::getTable() => self::USER_ID,
+                            'glpi_users' => SamlUser::USERID
                         ]
                     ]
                 ],
@@ -1568,10 +1568,10 @@ class LoginState extends CommonDBTM
         $handledIdpIds = [];
         if ($configs) {
             foreach ($configs as $cfg) {
-                $idpId = (int)$cfg['id'];
+                $idpId = (int)$cfg[ConfigEntity::ID];
                 $handledIdpIds[] = $idpId;
-                $timeoutMinutes = (isset($cfg['request_timeout']) && is_numeric($cfg['request_timeout']))
-                    ? (int)$cfg['request_timeout']
+                $timeoutMinutes = (isset($cfg[ConfigEntity::REQUEST_TIMEOUT]) && is_numeric($cfg[ConfigEntity::REQUEST_TIMEOUT]))
+                    ? (int)$cfg[ConfigEntity::REQUEST_TIMEOUT]
                     : 15;
                 if ($timeoutMinutes <= 0) {
                     $timeoutMinutes = 15;

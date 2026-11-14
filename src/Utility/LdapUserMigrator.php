@@ -313,8 +313,8 @@ class LdapUserMigrator
             $uid = (int)$uRow[User::USERID];
             $unameLower = strtolower((string)($uRow[User::NAME] ?? ''));
             $uAuthtype = (int)($uRow[User::AUTHTYPE] ?? 0);
-            $uAuthsId = (int)($uRow['auths_id'] ?? 0);
-            $uUserDn = trim((string)($uRow['user_dn'] ?? ''));
+            $uAuthsId = (int)($uRow[User::AUTHS_ID] ?? 0);
+            $uUserDn = trim((string)($uRow[User::USER_DN] ?? ''));
 
             $allUsers[$uid] = $uRow;
 
@@ -333,7 +333,7 @@ class LdapUserMigrator
             $isEligibleCandidate = $uAuthtype === $ldapAuthType
                 && ($ldapId === -1 || $uAuthsId === $ldapId)
                 && (int)($uRow[User::DELETED] ?? 0) === 0
-                && ($opts['include_deleted_ldap'] || (int)($uRow['is_deleted_ldap'] ?? 0) === 0);
+                && ($opts['include_deleted_ldap'] || (int)($uRow[User::IS_DELETED_LDAP] ?? 0) === 0);
 
             if (!$isEligibleCandidate && $unameLower !== '') {
                 $existingOtherUserNames[$unameLower] = $uid;
@@ -370,14 +370,14 @@ class LdapUserMigrator
             if ((int)($uRow[User::AUTHTYPE] ?? 0) !== $ldapAuthType) {
                 continue;
             }
-            if ($ldapId !== -1 && (int)($uRow['auths_id'] ?? 0) !== $ldapId) {
+            if ($ldapId !== -1 && (int)($uRow[User::AUTHS_ID] ?? 0) !== $ldapId) {
                 continue;
             }
             if ((int)($uRow[User::DELETED] ?? 0) === 1) {
                 $skipped[] = "ID {$uid} ({$uRow[User::NAME]}): skipped (user is in GLPI trashbin is_deleted=1).";
                 continue;
             }
-            if (!$opts['include_deleted_ldap'] && (int)($uRow['is_deleted_ldap'] ?? 0) === 1) {
+            if (!$opts['include_deleted_ldap'] && (int)($uRow[User::IS_DELETED_LDAP] ?? 0) === 1) {
                 $skipped[] = "ID {$uid} ({$uRow[User::NAME]}): skipped (is_deleted_ldap=1 and --skip-deleted-ldap set).";
                 continue;
             }
@@ -460,14 +460,14 @@ class LdapUserMigrator
 
             $planned[$uid] = [
                 'before'      => [
-                    User::NAME        => $currentName,
-                    User::AUTHTYPE    => (int)($uRow[User::AUTHTYPE] ?? $ldapAuthType),
-                    'auths_id'        => (int)($uRow['auths_id'] ?? 0),
-                    'user_dn'         => $uRow['user_dn'] ?? null,
-                    'user_dn_hash'    => $uRow['user_dn_hash'] ?? null,
-                    'sync_field'      => $uRow['sync_field'] ?? null,
-                    'is_deleted_ldap' => (int)($uRow['is_deleted_ldap'] ?? 0),
-                    User::ACTIVE      => (int)($uRow[User::ACTIVE] ?? 1),
+                    User::NAME            => $currentName,
+                    User::AUTHTYPE        => (int)($uRow[User::AUTHTYPE] ?? $ldapAuthType),
+                    User::AUTHS_ID        => (int)($uRow[User::AUTHS_ID] ?? 0),
+                    User::USER_DN         => $uRow[User::USER_DN] ?? null,
+                    User::USER_DN_HASH    => $uRow[User::USER_DN_HASH] ?? null,
+                    User::SYNC_FIELD      => $uRow[User::SYNC_FIELD] ?? null,
+                    User::IS_DELETED_LDAP => (int)($uRow[User::IS_DELETED_LDAP] ?? 0),
+                    User::ACTIVE          => (int)($uRow[User::ACTIVE] ?? 1),
                 ],
                 'target_name' => $targetName,
             ];
@@ -490,8 +490,8 @@ class LdapUserMigrator
             fwrite($stdout, sprintf(
                 "  [MIGRATE] userId=%d : '%s' (LDAP #%d) -> '%s' (Auth::EXTERNAL, samlIdp=#%d / auths_id=%d)\n",
                 $uid,
-                $item['before']['name'],
-                $item['before']['auths_id'],
+                $item['before'][User::NAME],
+                $item['before'][User::AUTHS_ID],
                 $item['target_name'],
                 $samlIdpId,
                 $targetAuthsId
@@ -554,15 +554,15 @@ class LdapUserMigrator
             $DB->update(
                 'glpi_users',
                 [
-                    User::NAME        => $item['target_name'],
-                    User::AUTHTYPE    => $externalAuthType,
-                    'auths_id'        => $targetAuthsId,
-                    User::PASSWORD    => '',
-                    'user_dn'         => null,
-                    'user_dn_hash'    => null,
-                    'sync_field'      => null,
-                    'is_deleted_ldap' => 0,
-                    'date_mod'        => $now,
+                    User::NAME            => $item['target_name'],
+                    User::AUTHTYPE        => $externalAuthType,
+                    User::AUTHS_ID        => $targetAuthsId,
+                    User::PASSWORD        => '',
+                    User::USER_DN         => null,
+                    User::USER_DN_HASH    => null,
+                    User::SYNC_FIELD      => null,
+                    User::IS_DELETED_LDAP => 0,
+                    User::DATE_MOD        => $now,
                 ],
                 [User::USERID => (int)$uid]
             );
@@ -572,7 +572,7 @@ class LdapUserMigrator
                 \Log::history(
                     (int)$uid,
                     'User',
-                    [0, '', sprintf('Migrated authentication from LDAP #%d to samlSSO IdP #%d', $item['before']['auths_id'], $samlIdpId)],
+                    [0, '', sprintf('Migrated authentication from LDAP #%d to samlSSO IdP #%d', $item['before'][User::AUTHS_ID], $samlIdpId)],
                     '',
                     $actionCode
                 );
@@ -691,22 +691,22 @@ class LdapUserMigrator
                 $uid,
                 (string)($snap[User::NAME] ?? ''),
                 (int)($snap[User::AUTHTYPE] ?? 3),
-                (int)($snap['auths_id'] ?? 0)
+                (int)($snap[User::AUTHS_ID] ?? 0)
             ));
 
             if ($apply) {
                 $DB->update(
                     'glpi_users',
                     [
-                        User::NAME        => (string)($snap[User::NAME] ?? ''),
-                        User::AUTHTYPE    => (int)($snap[User::AUTHTYPE] ?? 3),
-                        'auths_id'        => (int)($snap['auths_id'] ?? 0),
-                        'user_dn'         => $snap['user_dn'] ?? null,
-                        'user_dn_hash'    => $snap['user_dn_hash'] ?? null,
-                        'sync_field'      => $snap['sync_field'] ?? null,
-                        'is_deleted_ldap' => (int)($snap['is_deleted_ldap'] ?? 0),
-                        User::ACTIVE      => (int)($snap[User::ACTIVE] ?? 1),
-                        'date_mod'        => $now,
+                        User::NAME            => (string)($snap[User::NAME] ?? ''),
+                        User::AUTHTYPE        => (int)($snap[User::AUTHTYPE] ?? 3),
+                        User::AUTHS_ID        => (int)($snap[User::AUTHS_ID] ?? 0),
+                        User::USER_DN         => $snap[User::USER_DN] ?? null,
+                        User::USER_DN_HASH    => $snap[User::USER_DN_HASH] ?? null,
+                        User::SYNC_FIELD      => $snap[User::SYNC_FIELD] ?? null,
+                        User::IS_DELETED_LDAP => (int)($snap[User::IS_DELETED_LDAP] ?? 0),
+                        User::ACTIVE          => (int)($snap[User::ACTIVE] ?? 1),
+                        User::DATE_MOD        => $now,
                     ],
                     [User::USERID => $uid]
                 );
@@ -716,7 +716,7 @@ class LdapUserMigrator
                     \Log::history(
                         $uid,
                         'User',
-                        [0, '', sprintf('Reverted samlSSO migration back to LDAP #%d via register %s', (int)($snap['auths_id'] ?? 0), basename($safePath))],
+                        [0, '', sprintf('Reverted samlSSO migration back to LDAP #%d via register %s', (int)($snap[User::AUTHS_ID] ?? 0), basename($safePath))],
                         '',
                         $actionCode
                     );

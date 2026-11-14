@@ -199,17 +199,17 @@ class ClaimMap extends CommonDBTM
              * GLPI 11 warns about signed foreign key columns; making it UNSIGNED aligns
              * it with the primary key it references in glpi_plugin_samlsso_configs.
              */
-            $migration->changeField($table, 'configs_id', 'configs_id', "INT {$default_key_sign} NOT NULL");
+            $migration->changeField($table, self::CONFIGS_ID, self::CONFIGS_ID, "INT {$default_key_sign} NOT NULL");
             $migration->migrationOneTable($table);
 
-            if (!$DB->fieldExists($table, 'target_type', false)) {
-                $migration->addField($table, 'target_type', 'string', ['value' => 'user_field']);
+            if (!$DB->fieldExists($table, self::TARGET_TYPE, false)) {
+                $migration->addField($table, self::TARGET_TYPE, 'string', ['value' => Config\ClaimMapItem::TARGET_TYPE_USER_FIELD]);
             }
-            if (!$DB->fieldExists($table, 'default_value', false)) {
-                $migration->addField($table, 'default_value', 'string', ['value' => '']);
+            if (!$DB->fieldExists($table, self::DEFAULT_VALUE, false)) {
+                $migration->addField($table, self::DEFAULT_VALUE, 'string', ['value' => '']);
             }
-            if (!$DB->fieldExists($table, 'is_required', false)) {
-                $migration->addField($table, 'is_required', 'bool', ['value' => '0']);
+            if (!$DB->fieldExists($table, self::IS_REQUIRED, false)) {
+                $migration->addField($table, self::IS_REQUIRED, 'bool', ['value' => '0']);
             }
 
             /**
@@ -228,7 +228,7 @@ class ClaimMap extends CommonDBTM
                 ]
             ]);
             if ($indexes->count() === 0) {
-                $migration->addKey($table, ['configs_id', 'target_type', 'glpi_field'], 'configs_id_target_glpi', 'UNIQUE');
+                $migration->addKey($table, [self::CONFIGS_ID, self::TARGET_TYPE, self::GLPI_FIELD], 'configs_id_target_glpi', 'UNIQUE');
             }
             $migration->migrationOneTable($table);
         }

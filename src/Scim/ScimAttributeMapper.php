@@ -171,14 +171,14 @@ final class ScimAttributeMapper
         $employeeNumber = self::cleanString($enterprise['employeeNumber'] ?? '', 255);
         if ($employeeNumber !== '') {
             $userFields[SamlUser::REGISTRATION_NUMBER] = $employeeNumber;
-            $ruleInput['scimEmployeeNumber'] = $employeeNumber;
+            $ruleInput[SamlUser::SCIM_EMPLOYEE_NUMBER] = $employeeNumber;
         }
 
         $enterpriseCriteriaMap = [
-            'department'   => 'scimDepartment',
-            'organization' => 'scimOrganization',
-            'division'     => 'scimDivision',
-            'costCenter'   => 'scimCostCenter',
+            'department'   => SamlUser::SCIM_DEPARTMENT,
+            'organization' => SamlUser::SCIM_ORGANIZATION,
+            'division'     => SamlUser::SCIM_DIVISION,
+            'costCenter'   => SamlUser::SCIM_COST_CENTER,
         ];
         foreach ($enterpriseCriteriaMap as $scimKey => $ruleKey) {
             $val = self::cleanString($enterprise[$scimKey] ?? '', 255);

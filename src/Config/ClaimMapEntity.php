@@ -101,19 +101,19 @@ class ClaimMapEntity extends ClaimMapItem
         $iterator = $DB->request([
             'FROM'  => $claimMapTable,
             'WHERE' => [
-                'configs_id' => $configs_id
+                ClaimMap::CONFIGS_ID => $configs_id
             ]
         ]);
 
         $this->mappings = [];
         foreach ($iterator as $row) {
             $this->mappings[] = [
-                'id'            => (int)($row['id'] ?? 0),
-                'target_type'   => (string)($row['target_type'] ?? 'user_field'),
-                'glpi_field'    => (string)($row['glpi_field'] ?? ''),
-                'saml_claim'    => (string)($row['saml_claim'] ?? ''),
-                'default_value' => (string)($row['default_value'] ?? ''),
-                'is_required'   => (int)($row['is_required'] ?? 0)
+                ClaimMap::ID            => (int)($row[ClaimMap::ID] ?? 0),
+                ClaimMap::TARGET_TYPE   => (string)($row[ClaimMap::TARGET_TYPE] ?? ClaimMapItem::TARGET_TYPE_USER_FIELD),
+                ClaimMap::GLPI_FIELD    => (string)($row[ClaimMap::GLPI_FIELD] ?? ''),
+                ClaimMap::SAML_CLAIM    => (string)($row[ClaimMap::SAML_CLAIM] ?? ''),
+                ClaimMap::DEFAULT_VALUE => (string)($row[ClaimMap::DEFAULT_VALUE] ?? ''),
+                ClaimMap::IS_REQUIRED   => (int)($row[ClaimMap::IS_REQUIRED] ?? 0)
             ];
         }
     }
@@ -125,11 +125,11 @@ class ClaimMapEntity extends ClaimMapItem
      * @param string $targetType The target type ('user_field' or 'rule_field')
      * @return string|null The mapped claim, or null
      */
-    public function getMapping(string $glpiField, string $targetType = 'user_field'): ?string
+    public function getMapping(string $glpiField, string $targetType = ClaimMapItem::TARGET_TYPE_USER_FIELD): ?string
     {
         foreach ($this->mappings as $mapping) {
-            if ($mapping['glpi_field'] === $glpiField && $mapping['target_type'] === $targetType) {
-                return $mapping['saml_claim'];
+            if ($mapping[ClaimMap::GLPI_FIELD] === $glpiField && $mapping[ClaimMap::TARGET_TYPE] === $targetType) {
+                return $mapping[ClaimMap::SAML_CLAIM];
             }
         }
         return null;
@@ -142,11 +142,11 @@ class ClaimMapEntity extends ClaimMapItem
      * @param string $targetType The target type ('user_field' or 'rule_field')
      * @return string The default value, or empty string
      */
-    public function getDefault(string $glpiField, string $targetType = 'user_field'): string
+    public function getDefault(string $glpiField, string $targetType = ClaimMapItem::TARGET_TYPE_USER_FIELD): string
     {
         foreach ($this->mappings as $mapping) {
-            if ($mapping['glpi_field'] === $glpiField && $mapping['target_type'] === $targetType) {
-                return $mapping['default_value'];
+            if ($mapping[ClaimMap::GLPI_FIELD] === $glpiField && $mapping[ClaimMap::TARGET_TYPE] === $targetType) {
+                return $mapping[ClaimMap::DEFAULT_VALUE];
             }
         }
         return '';
@@ -159,11 +159,11 @@ class ClaimMapEntity extends ClaimMapItem
      * @param string $targetType The target type ('user_field' or 'rule_field')
      * @return bool True if required
      */
-    public function isRequired(string $glpiField, string $targetType = 'user_field'): bool
+    public function isRequired(string $glpiField, string $targetType = ClaimMapItem::TARGET_TYPE_USER_FIELD): bool
     {
         foreach ($this->mappings as $mapping) {
-            if ($mapping['glpi_field'] === $glpiField && $mapping['target_type'] === $targetType) {
-                return $mapping['is_required'] === 1;
+            if ($mapping[ClaimMap::GLPI_FIELD] === $glpiField && $mapping[ClaimMap::TARGET_TYPE] === $targetType) {
+                return $mapping[ClaimMap::IS_REQUIRED] === 1;
             }
         }
         return false;
@@ -180,8 +180,8 @@ class ClaimMapEntity extends ClaimMapItem
         $unused = [];
         $ruleFields = [];
         foreach ($this->mappings as $mapping) {
-            if ($mapping['target_type'] === 'rule_field') {
-                $ruleFields[] = $mapping['glpi_field'];
+            if ($mapping[ClaimMap::TARGET_TYPE] === ClaimMapItem::TARGET_TYPE_RULE_FIELD) {
+                $ruleFields[] = $mapping[ClaimMap::GLPI_FIELD];
             }
         }
 
@@ -273,8 +273,8 @@ class ClaimMapEntity extends ClaimMapItem
         $others = [];
 
         foreach ($mappings as $mapping) {
-            $targetType = $mapping['target_type'] ?? '';
-            $glpiField  = $mapping['glpi_field'] ?? '';
+            $targetType = $mapping[ClaimMap::TARGET_TYPE] ?? '';
+            $glpiField  = $mapping[ClaimMap::GLPI_FIELD] ?? '';
 
             $isEnforced = ($targetType === self::TARGET_TYPE_USER_FIELD && in_array($glpiField, [self::FIELD_USERNAME, self::FIELD_EMAIL], true));
 
@@ -354,11 +354,11 @@ class ClaimMapEntity extends ClaimMapItem
      */
     private function validateSingleMapping(int $index, array $mapping, array &$seen, array &$validatedMappings, bool &$hasUsername, bool &$hasEmail): void
     {
-        $targetType   = $mapping['target_type'] ?? '';
-        $glpiField    = $mapping['glpi_field'] ?? '';
-        $samlClaim    = $mapping['saml_claim'] ?? '';
-        $defaultValue = $mapping['default_value'] ?? '';
-        $isRequired   = $mapping['is_required'] ?? 0;
+        $targetType   = $mapping[ClaimMap::TARGET_TYPE] ?? '';
+        $glpiField    = $mapping[ClaimMap::GLPI_FIELD] ?? '';
+        $samlClaim    = $mapping[ClaimMap::SAML_CLAIM] ?? '';
+        $defaultValue = $mapping[ClaimMap::DEFAULT_VALUE] ?? '';
+        $isRequired   = $mapping[ClaimMap::IS_REQUIRED] ?? 0;
 
         if ($targetType === self::TARGET_TYPE_USER_FIELD) {
             if ($glpiField === self::FIELD_USERNAME) {
@@ -415,11 +415,11 @@ class ClaimMapEntity extends ClaimMapItem
             } else {
                 $seen[$uniqueKey] = true;
                 $validatedMappings[] = [
-                    'target_type'   => $targetTypeVal['value'],
-                    'glpi_field'    => $fieldVal['value'],
-                    'saml_claim'    => $claimVal['value'],
-                    'default_value' => $defaultVal['value'],
-                    'is_required'   => $requiredVal['value']
+                    ClaimMap::TARGET_TYPE   => $targetTypeVal['value'],
+                    ClaimMap::GLPI_FIELD    => $fieldVal['value'],
+                    ClaimMap::SAML_CLAIM    => $claimVal['value'],
+                    ClaimMap::DEFAULT_VALUE => $defaultVal['value'],
+                    ClaimMap::IS_REQUIRED   => $requiredVal['value']
                 ];
             }
         }
@@ -438,7 +438,7 @@ class ClaimMapEntity extends ClaimMapItem
         $configsIdVal = $this->validateConfigsId($this->configs_id);
         if (!$configsIdVal['valid']) {
             $this->isValid = false;
-            $this->errors['configs_id'] = $configsIdVal['error'];
+            $this->errors[ClaimMap::CONFIGS_ID] = $configsIdVal['error'];
             return false;
         }
 
@@ -450,19 +450,19 @@ class ClaimMapEntity extends ClaimMapItem
         $DB->delete(
             $claimMapTable,
             [
-                'configs_id' => $this->configs_id
+                ClaimMap::CONFIGS_ID => $this->configs_id
             ]
         );
 
         $claimMap = new ClaimMap();
         foreach ($this->mappings as $mapping) {
             $input = [
-                'configs_id'    => $this->configs_id,
-                'target_type'   => $mapping['target_type'],
-                'glpi_field'    => $mapping['glpi_field'],
-                'saml_claim'    => $mapping['saml_claim'],
-                'default_value' => $mapping['default_value'],
-                'is_required'   => $mapping['is_required']
+                ClaimMap::CONFIGS_ID    => $this->configs_id,
+                ClaimMap::TARGET_TYPE   => $mapping[ClaimMap::TARGET_TYPE],
+                ClaimMap::GLPI_FIELD    => $mapping[ClaimMap::GLPI_FIELD],
+                ClaimMap::SAML_CLAIM    => $mapping[ClaimMap::SAML_CLAIM],
+                ClaimMap::DEFAULT_VALUE => $mapping[ClaimMap::DEFAULT_VALUE],
+                ClaimMap::IS_REQUIRED   => $mapping[ClaimMap::IS_REQUIRED]
             ];
             $claimMap->add($input);
         }
@@ -482,14 +482,14 @@ class ClaimMapEntity extends ClaimMapItem
         $iterator = $DB->request([
             'FROM'  => $observedClaimsTable,
             'WHERE' => [
-                'configs_id' => $this->configs_id
+                ObservedClaim::CONFIGS_ID => $this->configs_id
             ],
-            'ORDER' => 'saml_claim ASC'
+            'ORDER' => ObservedClaim::SAML_CLAIM . ' ASC'
         ]);
 
         $claims = [];
         foreach ($iterator as $row) {
-            $claims[] = (string)$row['saml_claim'];
+            $claims[] = (string)$row[ObservedClaim::SAML_CLAIM];
         }
         return $claims;
     }
@@ -716,23 +716,23 @@ class ClaimMapEntity extends ClaimMapItem
         }
 
         $result = [
-            \GlpiPlugin\Samlsso\LoginFlow\User::SAMLGROUPS => is_array($groupsVal) ? $groupsVal : (array)$groupsVal,
-            '_saml_rule_fields' => []
+            \GlpiPlugin\Samlsso\LoginFlow\User::SAMLGROUPS      => is_array($groupsVal) ? $groupsVal : (array)$groupsVal,
+            \GlpiPlugin\Samlsso\LoginFlow\User::RULE_FIELDS_KEY => []
         ];
 
         $ruleFields = [ClaimMapItem::FIELD_JOBTITLE, ClaimMapItem::FIELD_COUNTRY, ClaimMapItem::FIELD_CITY, ClaimMapItem::FIELD_STREET];
         foreach ($this->getMappings() as $mapping) {
             if (
-                $mapping['target_type'] === ClaimMapItem::TARGET_TYPE_RULE_FIELD &&
-                $mapping['glpi_field'] !== ClaimMapItem::FIELD_GROUPS
+                $mapping[ClaimMap::TARGET_TYPE] === ClaimMapItem::TARGET_TYPE_RULE_FIELD &&
+                $mapping[ClaimMap::GLPI_FIELD] !== ClaimMapItem::FIELD_GROUPS
             ) {
-                $ruleFields[] = $mapping['glpi_field'];
+                $ruleFields[] = $mapping[ClaimMap::GLPI_FIELD];
             }
         }
         $ruleFields = array_unique($ruleFields);
 
         foreach ($ruleFields as $field) {
-            $result['_saml_rule_fields'][$field] = $this->resolveSingleRuleField($field, $claims, $response);
+            $result[\GlpiPlugin\Samlsso\LoginFlow\User::RULE_FIELDS_KEY][$field] = $this->resolveSingleRuleField($field, $claims, $response);
         }
 
         return $result;

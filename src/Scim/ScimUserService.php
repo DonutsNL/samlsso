@@ -68,15 +68,15 @@ final class ScimUserService
     /** @var array<int, string> Protected GLPI user columns that SCIM updates must never mutate. */
     private const PROTECTED_USER_COLUMNS = [
         SamlUser::AUTHTYPE,
-        'auths_id',
+        SamlUser::AUTHS_ID,
         SamlUser::PASSWORD,
         SamlUser::PASSWORDN,
-        'password_md5',
-        'user_dn',
-        'user_dn_hash',
-        'api_token',
-        'personal_token',
-        'password_forget_token',
+        SamlUser::PASSWORD_MD5,
+        SamlUser::USER_DN,
+        SamlUser::USER_DN_HASH,
+        SamlUser::API_TOKEN,
+        SamlUser::PERSONAL_TOKEN,
+        SamlUser::PASSWORD_FORGET_TOKEN,
     ];
 
     /**
@@ -193,10 +193,10 @@ final class ScimUserService
 
         if ($adoptableRow !== null) {
             $adoptedId = (int) $adoptableRow[SamlUser::USERID];
-            if ((int) ($adoptableRow['auths_id'] ?? 0) !== $expectedAuthsId) {
+            if ((int) ($adoptableRow[SamlUser::AUTHS_ID] ?? 0) !== $expectedAuthsId) {
                 global $DB;
                 if ($DB !== null && method_exists($DB, 'update')) {
-                    $DB->update('glpi_users', ['auths_id' => $expectedAuthsId], [SamlUser::USERID => $adoptedId]);
+                    $DB->update('glpi_users', [SamlUser::AUTHS_ID => $expectedAuthsId], [SamlUser::USERID => $adoptedId]);
                 }
             }
             $this->applyExtractedUpdateToOwnedUser($idpId, $adoptedId, $extracted);
@@ -212,8 +212,8 @@ final class ScimUserService
 
         $addPayload = $extracted['user_fields'];
         $addPayload[SamlUser::AUTHTYPE] = self::externalAuthType();
-        $addPayload['auths_id'] = $expectedAuthsId;
-        $addPayload['_extauth'] = 1;
+        $addPayload[SamlUser::AUTHS_ID] = $expectedAuthsId;
+        $addPayload[SamlUser::EXTAUTH] = 1;
         $addPayload[SamlUser::ACTIVE] = ($extracted['active'] ?? true) ? 1 : 0;
         $addPayload[SamlUser::DELETED] = 0;
         $addPayload[SamlUser::SYNCDATE] = date('Y-m-d H:i:s');
@@ -225,11 +225,11 @@ final class ScimUserService
 
         $titleId = $this->resolveExistingUserTitleId($extracted['jobtitle']);
         if ($titleId > 0) {
-            $addPayload['usertitles_id'] = $titleId;
+            $addPayload[SamlUser::USERTITLES_ID] = $titleId;
         }
         $locationId = $this->resolveExistingLocationId($extracted['address']);
         if ($locationId > 0) {
-            $addPayload['locations_id'] = $locationId;
+            $addPayload[SamlUser::LOCATIONS_ID] = $locationId;
         }
 
         $glpiUser = new GlpiUser();
@@ -388,7 +388,7 @@ final class ScimUserService
             SamlUser::EMAIL     => $emails[0] ?? '',
         ];
         if (!empty($row[SamlUser::REGISTRATION_NUMBER])) {
-            $ruleInput['scimEmployeeNumber'] = (string) $row[SamlUser::REGISTRATION_NUMBER];
+            $ruleInput[SamlUser::SCIM_EMPLOYEE_NUMBER] = (string) $row[SamlUser::REGISTRATION_NUMBER];
         }
 
         $this->runRulesEngine($idpId, $userId, $ruleInput);
@@ -445,12 +445,12 @@ final class ScimUserService
             return false;
         }
 
-        $authsId = (int) ($row['auths_id'] ?? 0);
+        $authsId = (int) ($row[SamlUser::AUTHS_ID] ?? 0);
         if ($authsId === SamlUser::toAuthsId($idpId)) {
             return true;
         }
 
-        return $authsId === $idpId && trim((string) ($row['user_dn'] ?? '')) === '';
+        return $authsId === $idpId && trim((string) ($row[SamlUser::USER_DN] ?? '')) === '';
     }
 
     /**
@@ -476,8 +476,8 @@ final class ScimUserService
         }
         if (
             (int) ($row[SamlUser::AUTHTYPE] ?? 0) !== self::externalAuthType()
-            || (int) ($row['auths_id'] ?? -1) !== 0
-            || trim((string) ($row['user_dn'] ?? '')) !== ''
+            || (int) ($row[SamlUser::AUTHS_ID] ?? -1) !== 0
+            || trim((string) ($row[SamlUser::USER_DN] ?? '')) !== ''
         ) {
             return false;
         }
@@ -512,11 +512,11 @@ final class ScimUserService
 
         $titleId = $this->resolveExistingUserTitleId($extracted['jobtitle']);
         if ($titleId > 0) {
-            $updatePayload['usertitles_id'] = $titleId;
+            $updatePayload[SamlUser::USERTITLES_ID] = $titleId;
         }
         $locationId = $this->resolveExistingLocationId($extracted['address']);
         if ($locationId > 0) {
-            $updatePayload['locations_id'] = $locationId;
+            $updatePayload[SamlUser::LOCATIONS_ID] = $locationId;
         }
 
         $glpiUser = new GlpiUser();
@@ -644,7 +644,7 @@ final class ScimUserService
 
         $where = [
             SamlUser::AUTHTYPE => self::externalAuthType(),
-            'auths_id' => [SamlUser::toAuthsId($idpId), $idpId],
+            SamlUser::AUTHS_ID => [SamlUser::toAuthsId($idpId), $idpId],
         ];
 
         if (isset($hints['id'])) {
@@ -698,7 +698,7 @@ final class ScimUserService
         $userId = (int) ($row[SamlUser::USERID] ?? 0);
         $emails = $this->fetchUserEmails($userId);
         $groups = $this->fetchUserGroupSummaries($userId);
-        $jobTitle = $this->fetchUserTitleName((int) ($row['usertitles_id'] ?? 0));
+        $jobTitle = $this->fetchUserTitleName((int) ($row[SamlUser::USERTITLES_ID] ?? 0));
 
         return ScimAttributeMapper::toScimUserResource(
             $row,
@@ -736,7 +736,14 @@ final class ScimUserService
             SamlUser::SAMLSTREET   => $ruleInput[SamlUser::SAMLSTREET] ?? false,
         ];
 
-        foreach (['scimDepartment', 'scimOrganization', 'scimDivision', 'scimCostCenter', 'scimEmployeeNumber'] as $scimCrit) {
+        $scimCriteriaKeys = [
+            SamlUser::SCIM_DEPARTMENT,
+            SamlUser::SCIM_ORGANIZATION,
+            SamlUser::SCIM_DIVISION,
+            SamlUser::SCIM_COST_CENTER,
+            SamlUser::SCIM_EMPLOYEE_NUMBER,
+        ];
+        foreach ($scimCriteriaKeys as $scimCrit) {
             if (isset($ruleInput[$scimCrit]) && $ruleInput[$scimCrit] !== '') {
                 $matchInput[$scimCrit] = $ruleInput[$scimCrit];
             }
@@ -764,8 +771,8 @@ final class ScimUserService
                     SamlUser::USERSID => $userId,
                     'type'            => 'rememberme',
                 ]);
-            } elseif (method_exists($DB, 'fieldExists') && $DB->fieldExists('glpi_users', 'cookie_token', false)) {
-                $DB->update('glpi_users', ['cookie_token' => null], [SamlUser::USERID => $userId]);
+            } elseif (method_exists($DB, 'fieldExists') && $DB->fieldExists('glpi_users', SamlUser::COOKIE_TOKEN, false)) {
+                $DB->update('glpi_users', [SamlUser::COOKIE_TOKEN => null], [SamlUser::USERID => $userId]);
             }
         }
 

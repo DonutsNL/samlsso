@@ -506,7 +506,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
             ],
-            ConfigItem::handleAsBool($var, 'is_deleted'),
+            ConfigItem::handleAsBool($var, ConfigEntity::IS_DELETED),
         );
     }
 

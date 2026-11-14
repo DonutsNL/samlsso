@@ -212,50 +212,50 @@ class RuleSaml extends RuleSamlCompat
             $criterias[SamlUser::SAMLSTREET]['virtual']         = true;
             $criterias[SamlUser::SAMLSTREET]['id']              = SamlUser::SAMLSTREET;
 
-            $criterias['scimDepartment']['table']        = '';
-            $criterias['scimDepartment']['field']        = '';
-            $criterias['scimDepartment']['name']         = __('SCIM Department', PLUGIN_NAME);
-            $criterias['scimDepartment']['linkfield']    = '';
-            $criterias['scimDepartment']['virtual']      = true;
-            $criterias['scimDepartment']['id']           = 'scimDepartment';
+            $criterias[SamlUser::SCIM_DEPARTMENT]['table']        = '';
+            $criterias[SamlUser::SCIM_DEPARTMENT]['field']        = '';
+            $criterias[SamlUser::SCIM_DEPARTMENT]['name']         = __('SCIM Department', PLUGIN_NAME);
+            $criterias[SamlUser::SCIM_DEPARTMENT]['linkfield']    = '';
+            $criterias[SamlUser::SCIM_DEPARTMENT]['virtual']      = true;
+            $criterias[SamlUser::SCIM_DEPARTMENT]['id']           = SamlUser::SCIM_DEPARTMENT;
 
-            $criterias['scimOrganization']['table']      = '';
-            $criterias['scimOrganization']['field']      = '';
-            $criterias['scimOrganization']['name']       = __('SCIM Organization', PLUGIN_NAME);
-            $criterias['scimOrganization']['linkfield']  = '';
-            $criterias['scimOrganization']['virtual']    = true;
-            $criterias['scimOrganization']['id']         = 'scimOrganization';
+            $criterias[SamlUser::SCIM_ORGANIZATION]['table']      = '';
+            $criterias[SamlUser::SCIM_ORGANIZATION]['field']      = '';
+            $criterias[SamlUser::SCIM_ORGANIZATION]['name']       = __('SCIM Organization', PLUGIN_NAME);
+            $criterias[SamlUser::SCIM_ORGANIZATION]['linkfield']  = '';
+            $criterias[SamlUser::SCIM_ORGANIZATION]['virtual']    = true;
+            $criterias[SamlUser::SCIM_ORGANIZATION]['id']         = SamlUser::SCIM_ORGANIZATION;
 
-            $criterias['scimDivision']['table']          = '';
-            $criterias['scimDivision']['field']          = '';
-            $criterias['scimDivision']['name']           = __('SCIM Division', PLUGIN_NAME);
-            $criterias['scimDivision']['linkfield']      = '';
-            $criterias['scimDivision']['virtual']        = true;
-            $criterias['scimDivision']['id']             = 'scimDivision';
+            $criterias[SamlUser::SCIM_DIVISION]['table']          = '';
+            $criterias[SamlUser::SCIM_DIVISION]['field']          = '';
+            $criterias[SamlUser::SCIM_DIVISION]['name']           = __('SCIM Division', PLUGIN_NAME);
+            $criterias[SamlUser::SCIM_DIVISION]['linkfield']      = '';
+            $criterias[SamlUser::SCIM_DIVISION]['virtual']        = true;
+            $criterias[SamlUser::SCIM_DIVISION]['id']             = SamlUser::SCIM_DIVISION;
 
-            $criterias['scimCostCenter']['table']        = '';
-            $criterias['scimCostCenter']['field']        = '';
-            $criterias['scimCostCenter']['name']         = __('SCIM Cost Center', PLUGIN_NAME);
-            $criterias['scimCostCenter']['linkfield']    = '';
-            $criterias['scimCostCenter']['virtual']      = true;
-            $criterias['scimCostCenter']['id']           = 'scimCostCenter';
+            $criterias[SamlUser::SCIM_COST_CENTER]['table']        = '';
+            $criterias[SamlUser::SCIM_COST_CENTER]['field']        = '';
+            $criterias[SamlUser::SCIM_COST_CENTER]['name']         = __('SCIM Cost Center', PLUGIN_NAME);
+            $criterias[SamlUser::SCIM_COST_CENTER]['linkfield']    = '';
+            $criterias[SamlUser::SCIM_COST_CENTER]['virtual']      = true;
+            $criterias[SamlUser::SCIM_COST_CENTER]['id']           = SamlUser::SCIM_COST_CENTER;
 
-            $criterias['scimEmployeeNumber']['table']    = '';
-            $criterias['scimEmployeeNumber']['field']    = '';
-            $criterias['scimEmployeeNumber']['name']     = __('SCIM Employee Number', PLUGIN_NAME);
-            $criterias['scimEmployeeNumber']['linkfield']= '';
-            $criterias['scimEmployeeNumber']['virtual']  = true;
-            $criterias['scimEmployeeNumber']['id']       = 'scimEmployeeNumber';
+            $criterias[SamlUser::SCIM_EMPLOYEE_NUMBER]['table']    = '';
+            $criterias[SamlUser::SCIM_EMPLOYEE_NUMBER]['field']    = '';
+            $criterias[SamlUser::SCIM_EMPLOYEE_NUMBER]['name']     = __('SCIM Employee Number', PLUGIN_NAME);
+            $criterias[SamlUser::SCIM_EMPLOYEE_NUMBER]['linkfield']= '';
+            $criterias[SamlUser::SCIM_EMPLOYEE_NUMBER]['virtual']  = true;
+            $criterias[SamlUser::SCIM_EMPLOYEE_NUMBER]['id']       = SamlUser::SCIM_EMPLOYEE_NUMBER;
 
             global $DB;
             if (isset($DB) && method_exists($DB, 'tableExists') && $DB->tableExists(ClaimMap::getTable())) {
                 $claimMapTable = ClaimMap::getTable();
                 $iterator = $DB->request([
-                    'SELECT'   => ['glpi_field'],
+                    'SELECT'   => [ClaimMap::GLPI_FIELD],
                     'DISTINCT' => true,
                     'FROM'     => $claimMapTable,
                     'WHERE'    => [
-                        'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD
+                        ClaimMap::TARGET_TYPE => ClaimMapItem::TARGET_TYPE_RULE_FIELD
                     ]
                 ]);
                 $canonicalBuiltins = [
@@ -265,7 +265,7 @@ class RuleSaml extends RuleSamlCompat
                     ClaimMapItem::FIELD_EMAIL,
                 ];
                 foreach ($iterator as $row) {
-                    $field = (string)$row['glpi_field'];
+                    $field = (string)$row[ClaimMap::GLPI_FIELD];
                     if ($field === '' || isset($criterias[$field]) || in_array($field, $canonicalBuiltins, true)) {
                         continue;
                     }
@@ -330,23 +330,23 @@ class RuleSaml extends RuleSamlCompat
         $actions[SamlUser::PROFILE_DEFAULT]['linkfield']              = SamlUser::PROFILESID;
         $actions[SamlUser::PROFILE_DEFAULT]['type']                   = 'dropdown';
 
-        $actions['timezone']['name']                          = __('Timezone', PLUGIN_NAME);
-        $actions['timezone']['type']                          = 'timezone';
+        $actions[SamlUser::TIMEZONE]['name']                          = __('Timezone', PLUGIN_NAME);
+        $actions[SamlUser::TIMEZONE]['type']                          = 'timezone';
 
-        $actions['locations_id']['name']                      = Location::getTypeName(Session::getPluralNumber());
-        $actions['locations_id']['type']                      = 'dropdown';
-        $actions['locations_id']['table']                     = 'glpi_locations';
+        $actions[SamlUser::LOCATIONS_ID]['name']                      = Location::getTypeName(Session::getPluralNumber());
+        $actions[SamlUser::LOCATIONS_ID]['type']                      = 'dropdown';
+        $actions[SamlUser::LOCATIONS_ID]['table']                     = 'glpi_locations';
 
-        $actions['usercategories_id']['name']                  = UserCategory::getTypeName(Session::getPluralNumber());
-        $actions['usercategories_id']['type']                  = 'dropdown';
-        $actions['usercategories_id']['table']                 = 'glpi_usercategories';
+        $actions[SamlUser::USERCATEGORIES_ID]['name']                 = UserCategory::getTypeName(Session::getPluralNumber());
+        $actions[SamlUser::USERCATEGORIES_ID]['type']                 = 'dropdown';
+        $actions[SamlUser::USERCATEGORIES_ID]['table']                = 'glpi_usercategories';
 
-        $actions['usertitles_id']['name']                     = UserTitle::getTypeName(Session::getPluralNumber());
-        $actions['usertitles_id']['type']                     = 'dropdown';
-        $actions['usertitles_id']['table']                    = 'glpi_usertitles';
+        $actions[SamlUser::USERTITLES_ID]['name']                     = UserTitle::getTypeName(Session::getPluralNumber());
+        $actions[SamlUser::USERTITLES_ID]['type']                     = 'dropdown';
+        $actions[SamlUser::USERTITLES_ID]['table']                    = 'glpi_usertitles';
 
-        $actions['language']['name']                          = __('Language', PLUGIN_NAME);
-        $actions['language']['type']                          = 'language';
+        $actions[SamlUser::LANGUAGE]['name']                          = __('Language', PLUGIN_NAME);
+        $actions[SamlUser::LANGUAGE]['type']                          = 'language';
 
         return $actions;
     }
