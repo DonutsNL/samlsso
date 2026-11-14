@@ -24,9 +24,12 @@ Codebase maintainability relies on **coarse-grained, execution-ordered class lay
    - Traceability & refactoring safety: constants make property provenance and cross-codebase usages immediately searchable via IDE tools and allow safe column/key renames without brittle string search-and-replace.
    - Test mocks in `tests/TestHarness.php` (such as `MockLoginFlowUser` and `MockConfigEntity`) MUST mirror all public constants of the production classes they stub.
 5. **Defensive Coding & Static Analysis Compliance**:
-   - All PHP files declare `strict_types=1` where applicable, omit closing `?>` tags, use 4-space indentation, and contain zero obfuscated payloads (`base64_decode` / `eval` / magic hashes).
+   - All PHP files declare `strict_types=1` where applicable, omit closing `?>` tags, use 4-space indentation, avoid unnecessary string concatenation (`'<\?(?!php|xml)'`), and contain zero obfuscated payloads (`base64_decode` / `eval` / magic hashes).
    - Never use `die()` or `exit()` in testable library methods where `Html::displayError()` or `PluginException` is expected.
-   - Initialize variables before `try/catch` or conditional blocks and wrap intentional conditional assignments in double parentheses (`if (($row = $iter->next()))`).
+   - Initialize variables before `try/catch` or conditional blocks and assign variables **outside** `if` / `elseif` conditions (`$row = $iter->next(); if ($row) {`) so both CodeFactor (PHPCS `AssignmentInCondition`) and SonarCloud pass cleanly.
+   - Keep individual PHP and Python functions cohesive (target cyclomatic complexity `< 15`) by decomposing branches into private/module helpers, and extract shared helpers instead of duplicating multi-line blocks across methods or files.
+   - Keep CSS Stylelint-clean (no duplicate selectors and no redundant 4-value `margin`/`padding` shorthands when horizontal sides match).
+   - Python maintenance scripts under `tools/` must avoid `urllib.request.urlopen()` (Bandit B310) and use explicit TLS clients (`http.client.HTTPSConnection`) when making HTTPS requests.
 
 ### 2. Process-Isolated Test Harness (`tests/RunAllTests.php`)
 1. Every `*Test.php` suite in `tests/` is discovered and executed in its own isolated PHP child process by `tests/RunAllTests.php` to prevent class-redeclaration and mock-state collisions.

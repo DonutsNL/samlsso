@@ -29,9 +29,10 @@ Execute these workflows automatically without waiting for the user to type `/lea
 ## 💻 3. Code Standards, Tooling & Documentation Hygiene
 - **IDE-Native File Tools First**: Use IDE file/search tools (`read_file`, `edit_file`, `write_file`) for reading, searching, creating, and modifying files rather than shell commands so the developer is not prompted with unnecessary `Allow` dialogs. Check `git diff` before committing to guard against duplicate trailing newlines (`\n\n`) at EOF.
 - **DocBlocks Only (No Inline Comments)**: Document every method and major logic block with DocBlocks (`@param`, `@return`, `@throws`). Do not use `//` inline comments inside method bodies; use `/** ... */` block comments. Explicitly import (`use`) or fully qualify (`\Migration`, `\Throwable`) global classes in namespaced files.
-- **Defensive Static Analysis Hygiene**:
-  - Wrap intentional conditional assignments in double parentheses: `if (($row = $iterator->next()))`.
+- **Defensive Static Analysis Hygiene (`ADR 0008`)**:
+  - Assign variables **outside** `if`/`elseif` conditions (`$row = $iter->next(); if ($row) {`) rather than inside conditions; avoid unnecessary string concatenation.
   - Initialize variables (`$auth = null;`, `$fields = [];`) at the start of a scope before `try/catch` or conditional branches.
+  - Keep methods cohesive (target cyclomatic complexity `< 15`) and extract shared helpers instead of duplicating blocks; keep CSS Stylelint-clean (no duplicate selectors or redundant 4-value box shorthands).
   - Ensure all code paths return a value; use `Html::displayError()` or throw `PluginException` instead of `die()`.
   - Omit closing `?>` tags in PHP files; use 4-space indentation and keep lines under 120 characters where possible.
 - **Translation Strings (`__()`)**: Pass **only static literal string constants** to `__()`. Never concatenate variables or `\n` inside `__()`; use `sprintf(__('Message: %s', PLUGIN_NAME), $var)`.
