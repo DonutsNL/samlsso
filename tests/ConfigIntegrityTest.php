@@ -77,90 +77,90 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @throws \Exception if capturing schema fails or if mismatched types are found.
          */
         public function testSchemaVsConstants(): void {
-            global $DB;
-            
+            $dbFields = $this->captureInstalledConfigColumns();
+            $constants = (new \ReflectionClass(ConfigEntity::class))->getConstants();
+            $metaConstants = (new \ReflectionClass(ConfigItem::class))->getConstants();
+
+            foreach ($constants as $name => $field) {
+                if ($name === 'class' || !is_string($field) || array_key_exists($name, $metaConstants)) {
+                    continue;
+                }
+                if (!isset($dbFields[$field])) {
+                    throw new \Exception("ConfigEntity constant '$name' refers to field '$field' which is NOT in the captured database schema.");
+                }
+                $this->assertFieldTypeMatchesSchema($field, $dbFields[$field]);
+            }
+
+            echo "✅ Deep Schema Integrity: Constants, Environmental Mocks, and Datatypes validated\n";
+        }
+
+        /**
+         * Run Config::install() against a mock schema environment and parse column definitions.
+         *
+         * @return array Map of column name => uppercase SQL type keyword.
+         * @throws \Exception when captured CREATE TABLE SQL is missing expected options or columns.
+         */
+        private function captureInstalledConfigColumns(): array {
             $customCharset = 'test_charset_' . uniqid();
             $customCollation = 'test_collation_' . uniqid();
             $customSign = 'UNSIGNED_TEST';
-            
+
             DBConnection::$defaultCharset = $customCharset;
             DBConnection::$defaultCollation = $customCollation;
             DBConnection::$defaultPrimaryKeySignOption = $customSign;
-            
+
             $this->db->mockTableExists = false;
-            $migration = new Migration('1.0.0');
-            
-            Config::install($migration);
-            
+            Config::install(new Migration('1.0.0'));
             $sql = $this->db->lastQuery;
-            
+
             if (empty($sql) || !str_contains($sql, 'CREATE TABLE')) {
-                throw new \Exception("Failed to capture CREATE TABLE statement.");
+                throw new \Exception('Failed to capture CREATE TABLE statement.');
             }
-
-            if (!str_contains($sql, $customCharset)) {
-                throw new \Exception("SQL missing custom charset: $customCharset");
+            if (!str_contains($sql, $customCharset) || !str_contains($sql, $customCollation) || !str_contains($sql, $customSign)) {
+                throw new \Exception('SQL missing custom charset, collation, or PK sign option.');
             }
-            if (!str_contains($sql, $customCollation)) {
-                throw new \Exception("SQL missing custom collation: $customCollation");
-            }
-            if (!str_contains($sql, $customSign)) {
-                throw new \Exception("SQL missing custom PK sign: $customSign");
-            }
-
             if (!preg_match('/\((.*)\)/s', $sql, $matches)) {
-                throw new \Exception("Could not parse fields from SQL.");
+                throw new \Exception('Could not parse fields from SQL.');
             }
-            
-            $fieldsBlock = $matches[1];
-            preg_match_all('/`(\w+)`?\s+([A-Za-z]+)/', $fieldsBlock, $fieldMatches);
-            
+
+            preg_match_all('/`(\w+)`?\s+([A-Za-z]+)/', $matches[1], $fieldMatches);
             $dbFields = [];
             for ($i = 0; $i < count($fieldMatches[1]); $i++) {
                 $dbFields[$fieldMatches[1][$i]] = strtoupper($fieldMatches[2][$i]);
             }
 
-            $reflection = new \ReflectionClass(ConfigEntity::class);
-            $constants = $reflection->getConstants();
-            $itemReflection = new \ReflectionClass(ConfigItem::class);
-            $metaConstants = $itemReflection->getConstants();
+            return $dbFields;
+        }
 
-            foreach ($constants as $name => $field) {
-                if ($name === 'class' || !is_string($field)) {
-                    continue;
-                }
-                if (array_key_exists($name, $metaConstants)) {
-                    continue;
-                }
-                
-                if (!isset($dbFields[$field])) {
-                    throw new \Exception("ConfigEntity constant '$name' refers to field '$field' which is NOT in the captured database schema.");
-                }
+        /**
+         * Verify that a ConfigEntity constant column maps to the expected SQL data type.
+         *
+         * @param string $field Column name.
+         * @param string $actualType Uppercase SQL type name.
+         * @return void
+         * @throws \Exception on column type mismatch.
+         */
+        private function assertFieldTypeMatchesSchema(string $field, string $actualType): void {
+            $textFields = ['sp_certificate', 'sp_private_key', 'idp_certificate', 'requested_authn_context', 'comment', 'scim_allowed_ips'];
+            if ($field === 'id' && $actualType !== 'INT') {
+                throw new \Exception("Field 'id' should be INT, found $actualType");
+            }
+            if (str_starts_with($field, 'date_') && $actualType !== 'TIMESTAMP') {
+                throw new \Exception("Field '$field' should be TIMESTAMP, found $actualType");
+            }
+            if (in_array($field, $textFields, true) && $actualType !== 'TEXT') {
+                throw new \Exception("Field '$field' should be TEXT, found $actualType");
+            }
+            if (!in_array($actualType, ['TINYINT', 'INT', 'VARCHAR', 'TEXT', 'TIMESTAMP'], true)) {
+                return;
+            }
 
-                $actualType = $dbFields[$field];
-                
-                if ($field === 'id') {
-                    if ($actualType !== 'INT') {
-                        throw new \Exception("Field 'id' should be INT, found $actualType");
-                    }
-                } elseif (str_starts_with($field, 'date_')) {
-                    if ($actualType !== 'TIMESTAMP') {
-                        throw new \Exception("Field '$field' should be TIMESTAMP, found $actualType");
-                    }
-                } elseif (in_array($field, ['sp_certificate', 'sp_private_key', 'idp_certificate', 'requested_authn_context', 'comment', 'scim_allowed_ips'])) {
-                    if ($actualType !== 'TEXT') {
-                        throw new \Exception("Field '$field' should be TEXT, found $actualType");
-                    }
-                } elseif (in_array($actualType, ['TINYINT', 'INT', 'VARCHAR', 'TEXT', 'TIMESTAMP'])) {
-                    $boolPrefixes = ['enforce_', 'proxied', 'strict', 'debug', 'user_jit', 'security_', 'compress_', 'validate_', 'lowercase_', 'is_', 'force_', 'scim_enabled'];
-                    foreach ($boolPrefixes as $prefix) {
-                        if (str_starts_with($field, $prefix) && $actualType !== 'TINYINT') {
-                            throw new \Exception("Flag field '$field' should be TINYINT, found $actualType");
-                        }
-                    }
+            $boolPrefixes = ['enforce_', 'proxied', 'strict', 'debug', 'user_jit', 'security_', 'compress_', 'validate_', 'lowercase_', 'is_', 'force_', 'scim_enabled'];
+            foreach ($boolPrefixes as $prefix) {
+                if (str_starts_with($field, $prefix) && $actualType !== 'TINYINT') {
+                    throw new \Exception("Flag field '$field' should be TINYINT, found $actualType");
                 }
             }
-            echo "✅ Deep Schema Integrity: Constants, Environmental Mocks, and Datatypes validated\n";
         }
 
         /**
