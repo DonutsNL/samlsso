@@ -11,7 +11,7 @@ This file serves as persistent cross-session memory for:
 
 When analyzing a reported GitHub issue, check whether it touches any of the files below and propose folding the corresponding improvement into the fix:
 
-*(No open queued codebase assessment items currently remain.)*
+- **Issue #202 (Environment-Agnostic 3-Tier Smoke Testing Suite)**: Introduce `tools/smoke/` (`kernel_smoke.php` via `\Glpi\Kernel\Kernel`, `http_smoke.sh` via `curl`, and Playwright browser/CSP smoke tests) configured strictly via CLI args, env vars, or gitignored `.env.smoke.local` (never committing dev hostnames, paths, or credentials to the public repo). Default mode must be read-only / fail-closed (`--mutate` opt-in for throwaway fixtures). Covers live Symfony routes (`meta`, `acs`, `logout` with SLO no-redirect invariant, `scim/v2`), GLPI CLI/schema integrity, `samlSSO.css`, all 8 `ConfigForm` tabs, `SamlSsoPopoverManager`, and `#193` CSP `data-*` handlers.
 
 ---
 
