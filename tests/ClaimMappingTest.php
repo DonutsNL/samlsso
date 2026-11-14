@@ -33,13 +33,13 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -476,19 +476,23 @@ XML;
         {
             $this->db->setResponse('glpi_plugin_samlsso_claimmaps', [
                 ['glpi_field' => ClaimMapItem::FIELD_GROUPS, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD],
-                ['glpi_field' => ClaimMapItem::FIELD_JOBTITLE, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD]
+                ['glpi_field' => ClaimMapItem::FIELD_JOBTITLE, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD],
+                ['glpi_field' => ClaimMapItem::FIELD_DEPARTMENT, 'target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD],
             ]);
 
             $rule = new \GlpiPlugin\Samlsso\RuleSaml();
             $criterias = $rule->getCriterias();
 
-            if (!isset($criterias[ClaimMapItem::FIELD_GROUPS]) || !isset($criterias[ClaimMapItem::FIELD_JOBTITLE])) {
-                throw new \Exception("Dynamic rule_field criteria registration failed.");
+            if (!isset($criterias['samlClaimedGroups']) || !isset($criterias['samlClaimedJobTitle'])) {
+                throw new \Exception("Canonical built-in SAML Groups / Job Title criteria missing.");
             }
-            if (($criterias[ClaimMapItem::FIELD_GROUPS]['name'] ?? '') !== 'SAML Claim: Groups') {
-                throw new \Exception("Incorrect dynamic criteria name mapping.");
+            if (isset($criterias[ClaimMapItem::FIELD_GROUPS]) || isset($criterias[ClaimMapItem::FIELD_JOBTITLE])) {
+                throw new \Exception("Built-in groups/jobtitle criteria should not be duplicated as dynamic rule_field criteria (Issue #197).");
             }
-            echo "✅ Dynamic rule_field criteria registration verified\n";
+            if (!isset($criterias[ClaimMapItem::FIELD_DEPARTMENT]) || ($criterias[ClaimMapItem::FIELD_DEPARTMENT]['name'] ?? '') !== 'SAML Claim: Department') {
+                throw new \Exception("Dynamic rule_field criteria registration for department failed.");
+            }
+            echo "✅ Dynamic rule_field criteria registration and duplicate prevention verified\n";
         }
 
 
@@ -504,78 +508,92 @@ XML;
          */
         public function testBulkExportImport(): void
         {
-            // --- EXPORT VERIFICATION ---
-            // Simulate two configs and their claim maps being returned by the DB
+            $configExportFields = $this->seedBulkExportTestData();
+            $decoded = $this->buildAndDecodeBulkExportPayload($configExportFields);
+            $this->assertBulkExportPayload($decoded);
+
+            $restoredCount = $this->executeBulkRestoreRoundTrip($decoded, $configExportFields);
+            $this->assertBulkRestoreResults($restoredCount);
+
+            echo "✅ Bulk JSON export/import round-trip verified successfully\n";
+        }
+
+        /**
+         * Seed mock DB rows for bulk export/import testing and return the exported config fields list.
+         *
+         * @return array List of ConfigEntity column constants included in exports.
+         */
+        private function seedBulkExportTestData(): array
+        {
             $this->db->setResponse('glpi_plugin_samlsso_configs', [
                 [
-                    'id'                              => 1,
-                    'name'                            => 'Test IDP Alpha',
-                    'conf_domain'                     => 'alpha.example.com',
-                    'conf_icon'                       => '',
-                    'enforce_sso'                     => 0,
-                    'proxied'                         => 0,
-                    'strict'                          => 0,
-                    'debug'                           => 0,
-                    'user_jit'                        => 1,
-                    'sp_certificate'                  => 'CERT_A',
-                    'sp_private_key'                  => 'KEY_A',
-                    'sp_nameid_format'                => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
-                    'idp_entity_id'                   => 'https://idp.alpha.example.com',
-                    'idp_single_sign_on_service'      => 'https://idp.alpha.example.com/sso',
-                    'idp_single_logout_service'       => 'https://idp.alpha.example.com/slo',
-                    'idp_certificate'                 => 'IDP_CERT_A',
-                    'requested_authn_context'         => 'PasswordProtectedTransport',
+                    'id'                                 => 1,
+                    'name'                               => 'Test IDP Alpha',
+                    'conf_domain'                        => 'alpha.example.com',
+                    'conf_icon'                          => '',
+                    'enforce_sso'                        => 0,
+                    'proxied'                            => 0,
+                    'strict'                             => 0,
+                    'debug'                              => 0,
+                    'user_jit'                           => 1,
+                    'sp_certificate'                     => 'CERT_A',
+                    'sp_private_key'                     => 'KEY_A',
+                    'sp_nameid_format'                   => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+                    'idp_entity_id'                      => 'https://idp.alpha.example.com',
+                    'idp_single_sign_on_service'         => 'https://idp.alpha.example.com/sso',
+                    'idp_single_logout_service'          => 'https://idp.alpha.example.com/slo',
+                    'idp_certificate'                    => 'IDP_CERT_A',
+                    'requested_authn_context'            => 'PasswordProtectedTransport',
                     'requested_authn_context_comparison' => 'exact',
-                    'security_nameidencrypted'        => 0,
-                    'security_authnrequestssigned'    => 0,
-                    'security_logoutrequestsigned'    => 0,
-                    'security_logoutresponsesigned'   => 0,
-                    'compress_requests'               => 1,
-                    'compress_responses'              => 1,
-                    'validate_xml'                    => 0,
-                    'validate_destination'            => 1,
-                    'lowercase_url_encoding'          => 0,
-                    'comment'                         => 'Alpha test IDP',
-                    'is_active'                       => 1,
-                    'is_deleted'                      => 0,
-                    'inactivity_timeout'              => 0,
+                    'security_nameidencrypted'           => 0,
+                    'security_authnrequestssigned'       => 0,
+                    'security_logoutrequestsigned'       => 0,
+                    'security_logoutresponsesigned'      => 0,
+                    'compress_requests'                  => 1,
+                    'compress_responses'                 => 1,
+                    'validate_xml'                       => 0,
+                    'validate_destination'               => 1,
+                    'lowercase_url_encoding'             => 0,
+                    'comment'                            => 'Alpha test IDP',
+                    'is_active'                          => 1,
+                    'is_deleted'                         => 0,
+                    'inactivity_timeout'                 => 0,
                 ],
                 [
-                    'id'                              => 2,
-                    'name'                            => 'Test IDP Beta',
-                    'conf_domain'                     => 'beta.example.com',
-                    'conf_icon'                       => '',
-                    'enforce_sso'                     => 0,
-                    'proxied'                         => 0,
-                    'strict'                          => 0,
-                    'debug'                           => 0,
-                    'user_jit'                        => 0,
-                    'sp_certificate'                  => 'CERT_B',
-                    'sp_private_key'                  => 'KEY_B',
-                    'sp_nameid_format'                => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
-                    'idp_entity_id'                   => 'https://idp.beta.example.com',
-                    'idp_single_sign_on_service'      => 'https://idp.beta.example.com/sso',
-                    'idp_single_logout_service'       => 'https://idp.beta.example.com/slo',
-                    'idp_certificate'                 => 'IDP_CERT_B',
-                    'requested_authn_context'         => 'Password',
+                    'id'                                 => 2,
+                    'name'                               => 'Test IDP Beta',
+                    'conf_domain'                        => 'beta.example.com',
+                    'conf_icon'                          => '',
+                    'enforce_sso'                        => 0,
+                    'proxied'                            => 0,
+                    'strict'                             => 0,
+                    'debug'                              => 0,
+                    'user_jit'                           => 0,
+                    'sp_certificate'                     => 'CERT_B',
+                    'sp_private_key'                     => 'KEY_B',
+                    'sp_nameid_format'                   => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+                    'idp_entity_id'                      => 'https://idp.beta.example.com',
+                    'idp_single_sign_on_service'         => 'https://idp.beta.example.com/sso',
+                    'idp_single_logout_service'          => 'https://idp.beta.example.com/slo',
+                    'idp_certificate'                    => 'IDP_CERT_B',
+                    'requested_authn_context'            => 'Password',
                     'requested_authn_context_comparison' => 'minimum',
-                    'security_nameidencrypted'        => 0,
-                    'security_authnrequestssigned'    => 0,
-                    'security_logoutrequestsigned'    => 0,
-                    'security_logoutresponsesigned'   => 0,
-                    'compress_requests'               => 1,
-                    'compress_responses'              => 1,
-                    'validate_xml'                    => 0,
-                    'validate_destination'            => 1,
-                    'lowercase_url_encoding'          => 0,
-                    'comment'                         => 'Beta test IDP',
-                    'is_active'                       => 0,
-                    'is_deleted'                      => 0,
-                    'inactivity_timeout'              => 0,
+                    'security_nameidencrypted'           => 0,
+                    'security_authnrequestssigned'       => 0,
+                    'security_logoutrequestsigned'       => 0,
+                    'security_logoutresponsesigned'      => 0,
+                    'compress_requests'                  => 1,
+                    'compress_responses'                 => 1,
+                    'validate_xml'                       => 0,
+                    'validate_destination'               => 1,
+                    'lowercase_url_encoding'             => 0,
+                    'comment'                            => 'Beta test IDP',
+                    'is_active'                          => 0,
+                    'is_deleted'                         => 0,
+                    'inactivity_timeout'                 => 0,
                 ],
             ]);
 
-            // Claim maps for config 1
             $this->db->setResponse('glpi_plugin_samlsso_claimmaps', [
                 [
                     'id'            => 1,
@@ -606,8 +624,7 @@ XML;
                 ],
             ]);
 
-            // Build export payload inline (mirrors ConfigForm::exportAllConfigs logic)
-            $configExportFields = [
+            return [
                 ConfigEntity::ID, ConfigEntity::NAME, ConfigEntity::CONF_DOMAIN,
                 ConfigEntity::CONF_ICON, ConfigEntity::ENFORCE_SSO, ConfigEntity::PROXIED,
                 ConfigEntity::STRICT, ConfigEntity::DEBUG, ConfigEntity::USER_JIT,
@@ -619,9 +636,17 @@ XML;
                 ConfigEntity::XML_VALIDATION, ConfigEntity::DEST_VALIDATION, ConfigEntity::LOWERCASE_URL,
                 ConfigEntity::COMMENT, ConfigEntity::IS_ACTIVE, ConfigEntity::INACTIVITY_TIMEOUT,
             ];
+        }
 
-            global $DB;
-
+        /**
+         * Export seeded mock rows to JSON and decode back into an associative payload array.
+         *
+         * @param array $configExportFields List of ConfigEntity field keys to export.
+         * @return array Decoded export payload array.
+         * @throws \Exception if generated JSON is invalid.
+         */
+        private function buildAndDecodeBulkExportPayload(array $configExportFields): array
+        {
             $configs = [];
             $cfgRows = $this->db->request(['FROM' => 'glpi_plugin_samlsso_configs', 'WHERE' => ['is_deleted' => 0]]);
             foreach ($cfgRows as $row) {
@@ -630,14 +655,14 @@ XML;
                     $configFields[$field] = $row[$field] ?? null;
                 }
                 $claimMappings = [];
-                $cmRows = $this->db->request(['FROM' => 'glpi_plugin_samlsso_claimmaps', 'WHERE' => ['configs_id' => (int)$row['id']]]);
+                $cmRows = $this->db->request(['FROM' => 'glpi_plugin_samlsso_claimmaps', 'WHERE' => ['configs_id' => (int) $row['id']]]);
                 foreach ($cmRows as $cmRow) {
                     $claimMappings[] = [
-                        'target_type'   => (string)($cmRow['target_type']   ?? 'user_field'),
-                        'glpi_field'    => (string)($cmRow['glpi_field']    ?? ''),
-                        'saml_claim'    => (string)($cmRow['saml_claim']    ?? ''),
-                        'default_value' => (string)($cmRow['default_value'] ?? ''),
-                        'is_required'   => (int)($cmRow['is_required']      ?? 0),
+                        'target_type'   => (string) ($cmRow['target_type'] ?? 'user_field'),
+                        'glpi_field'    => (string) ($cmRow['glpi_field'] ?? ''),
+                        'saml_claim'    => (string) ($cmRow['saml_claim'] ?? ''),
+                        'default_value' => (string) ($cmRow['default_value'] ?? ''),
+                        'is_required'   => (int) ($cmRow['is_required'] ?? 0),
                     ];
                 }
                 $configs[] = ['config' => $configFields, 'claim_maps' => $claimMappings];
@@ -650,77 +675,82 @@ XML;
                 'configurations' => $configs,
             ];
 
-            $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-            // --- Verify JSON structure ---
-            $decoded = json_decode($json, true);
+            $decoded = json_decode((string) json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), true);
             if (!is_array($decoded)) {
-                throw new \Exception("Export JSON is not valid JSON.");
+                throw new \Exception('Export JSON is not valid JSON.');
             }
+
+            return $decoded;
+        }
+
+        /**
+         * Validate structure and metadata of the exported JSON payload.
+         *
+         * @param array $decoded Decoded export payload.
+         * @return void
+         * @throws \Exception on any mismatch.
+         */
+        private function assertBulkExportPayload(array $decoded): void
+        {
             if (($decoded['schema_version'] ?? '') !== '1') {
-                throw new \Exception("Export JSON missing or wrong schema_version.");
+                throw new \Exception('Export JSON missing or wrong schema_version.');
             }
             if (($decoded['plugin_version'] ?? '') !== PLUGIN_SAMLSSO_VERSION) {
-                throw new \Exception("Export JSON missing or wrong plugin_version.");
+                throw new \Exception('Export JSON missing or wrong plugin_version.');
             }
             if (!isset($decoded['configurations']) || count($decoded['configurations']) !== 2) {
-                throw new \Exception("Export JSON configurations count mismatch: expected 2.");
+                throw new \Exception('Export JSON configurations count mismatch: expected 2.');
             }
 
             $firstEntry = $decoded['configurations'][0];
             if (!isset($firstEntry['config']) || !isset($firstEntry['claim_maps'])) {
-                throw new \Exception("Export JSON configuration entry missing config or claim_maps block.");
+                throw new \Exception('Export JSON configuration entry missing config or claim_maps block.');
             }
-            if (($firstEntry['config']['id'] ?? 0) !== 1) {
-                throw new \Exception("Export JSON config id does not match original (expected 1).");
+            if (($firstEntry['config']['id'] ?? 0) !== 1 || ($firstEntry['config']['name'] ?? '') !== 'Test IDP Alpha') {
+                throw new \Exception('Export JSON config id or name does not match original.');
             }
-            if (($firstEntry['config']['name'] ?? '') !== 'Test IDP Alpha') {
-                throw new \Exception("Export JSON config name does not match original.");
+            if (count($firstEntry['claim_maps']) !== 3 || ($firstEntry['claim_maps'][0]['glpi_field'] ?? '') !== ClaimMapItem::FIELD_USERNAME || ($firstEntry['claim_maps'][0]['is_required'] ?? -1) !== 1) {
+                throw new \Exception('Export JSON claim_maps entries did not match expected values.');
             }
-            if (count($firstEntry['claim_maps']) !== 3) {
-                throw new \Exception("Export JSON claim_maps count mismatch for first config.");
+            if (($decoded['configurations'][1]['config']['id'] ?? 0) !== 2) {
+                throw new \Exception('Export JSON second config id does not match original (expected 2).');
             }
-            if (($firstEntry['claim_maps'][0]['glpi_field'] ?? '') !== ClaimMapItem::FIELD_USERNAME) {
-                throw new \Exception("Export JSON first claim_map glpi_field is incorrect.");
-            }
-            if (($firstEntry['claim_maps'][0]['is_required'] ?? -1) !== 1) {
-                throw new \Exception("Export JSON first claim_map is_required flag not preserved.");
-            }
+        }
 
-            // Second config should have empty claim_maps
-            $secondEntry = $decoded['configurations'][1];
-            if (($secondEntry['config']['id'] ?? 0) !== 2) {
-                throw new \Exception("Export JSON second config id does not match original (expected 2).");
-            }
+        /**
+         * Replay restore logic against decoded backup data after stripping a newer field.
+         *
+         * @param array $decoded Decoded export payload.
+         * @param array $configExportFields ConfigEntity column list.
+         * @return int Number of restored configurations.
+         */
+        private function executeBulkRestoreRoundTrip(array $decoded, array $configExportFields): int
+        {
+            global $DB;
 
-            // --- RESTORE ROUND-TRIP VERIFICATION ---
-            // Reset tracked operations
             $this->db->deletedRows = [];
             $this->db->insertedRows = [];
 
-            // Simulate the restore logic inline (mirrors ConfigForm::restoreAllConfigs)
-            // To simulate an older backup format, remove the request_timeout field from the decoded config entry
             unset($decoded['configurations'][0]['config']['request_timeout']);
             unset($decoded['configurations'][1]['config']['request_timeout']);
-            $data = $decoded;
 
-            // Delete all existing (clean restore)
             $DB->delete('glpi_plugin_samlsso_claimmaps', ['id' => ['>', 0]]);
-            $DB->delete('glpi_plugin_samlsso_configs',   ['id' => ['>', 0]]);
+            $DB->delete('glpi_plugin_samlsso_configs', ['id' => ['>', 0]]);
 
             $restoredCount = 0;
             $now = date('Y-m-d H:i:s');
             $defaultTpl = \GlpiPlugin\Samlsso\Config\ConfigDefaultTpl::template();
 
-            foreach ($data['configurations'] as $index => $entry) {
+            foreach ($decoded['configurations'] as $entry) {
                 if (!isset($entry['config']) || !is_array($entry['config'])) {
                     continue;
                 }
                 $cfgData = $entry['config'];
-                $origId  = isset($cfgData['id']) ? (int)$cfgData['id'] : 0;
+                $origId  = isset($cfgData['id']) ? (int) $cfgData['id'] : 0;
                 if ($origId <= 0) {
                     continue;
                 }
+
                 $insertRow = ['is_deleted' => 0, 'date_creation' => $now, 'date_mod' => $now, 'id' => $origId];
                 foreach ($configExportFields as $field) {
                     if ($field === 'id') {
@@ -734,38 +764,41 @@ XML;
                 }
                 $DB->insert('glpi_plugin_samlsso_configs', $insertRow);
 
-                // Save claim mappings
-                $claimMaps = isset($entry['claim_maps']) && is_array($entry['claim_maps'])
-                    ? $entry['claim_maps']
-                    : [];
+                $claimMaps = isset($entry['claim_maps']) && is_array($entry['claim_maps']) ? $entry['claim_maps'] : [];
                 $claimMapEntity = new ClaimMapEntity($origId);
                 $claimMapEntity->save($claimMaps);
                 $restoredCount++;
             }
 
-            // Verify deletes were called (2 tables purged)
+            return $restoredCount;
+        }
+
+        /**
+         * Verify delete counts, inserted config counts, preserved IDs, and restore count.
+         *
+         * @param int $restoredCount Number of configurations restored.
+         * @return void
+         * @throws \Exception on any assertion failure.
+         */
+        private function assertBulkRestoreResults(int $restoredCount): void
+        {
             if (count($this->db->deletedRows) < 2) {
-                throw new \Exception("Restore did not call delete on both tables as expected.");
+                throw new \Exception('Restore did not call delete on both tables as expected.');
             }
 
-            // Verify inserts were called for 2 configs
             $configInserts = array_filter($this->db->insertedRows, fn($r) => ($r['table'] ?? '') === 'glpi_plugin_samlsso_configs');
             if (count($configInserts) !== 2) {
-                throw new \Exception("Restore inserted wrong number of config rows: expected 2, got " . count($configInserts) . ".");
+                throw new \Exception('Restore inserted wrong number of config rows: expected 2, got ' . count($configInserts) . '.');
             }
 
-            // Verify original IDs are preserved
             $insertedIds = array_map(fn($r) => $r['data']['id'] ?? null, array_values($configInserts));
             if (!in_array(1, $insertedIds, true) || !in_array(2, $insertedIds, true)) {
-                throw new \Exception("Restore did not preserve original IDP configuration IDs.");
+                throw new \Exception('Restore did not preserve original IDP configuration IDs.');
             }
 
-            // Verify restored count
             if ($restoredCount !== 2) {
                 throw new \Exception("Restore round-trip count mismatch: expected 2, got {$restoredCount}.");
             }
-
-            echo "✅ Bulk JSON export/import round-trip verified successfully\n";
         }
 
         /**
@@ -798,6 +831,66 @@ XML;
 
             echo "✅ Dynamic custom rule field mappings resolved correctly\n";
         }
+
+        /**
+         * Test Issue #197: country/city/street allowed in rule_field, multi-value groups preserved,
+         * and getUnusedRuleFields() maps criterion aliases (samlClaimedGroups / samlClaimedJobTitle).
+         */
+        public function testLocationRuleFieldsAndUnusedDetection(): void
+        {
+            $entity = new ClaimMapEntity(1);
+            $saved = $entity->save([
+                ['target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD, 'glpi_field' => ClaimMapItem::FIELD_USERNAME, 'saml_claim' => 'uid'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_USER_FIELD, 'glpi_field' => ClaimMapItem::FIELD_EMAIL, 'saml_claim' => 'mail'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_GROUPS, 'saml_claim' => 'memberOf'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_JOBTITLE, 'saml_claim' => 'title'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_COUNTRY, 'saml_claim' => 'co'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_CITY, 'saml_claim' => 'l'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_STREET, 'saml_claim' => 'streetAddress'],
+                ['target_type' => ClaimMapItem::TARGET_TYPE_RULE_FIELD, 'glpi_field' => ClaimMapItem::FIELD_DEPARTMENT, 'saml_claim' => 'dept'],
+            ]);
+            if (!$saved || !$entity->isValid()) {
+                throw new \Exception("Expected country/city/street rule_field mappings to validate cleanly: " . json_encode($entity->getErrors()));
+            }
+
+            $response = new TestResponse();
+            $response->mockNameId = 'jane.doe';
+            $response->mockAttributes = [
+                'uid'           => ['jane.doe'],
+                'mail'          => ['jane@example.com'],
+                'memberOf'      => ['Group-A', 'Group-B'],
+                'title'         => ['Architect'],
+                'co'            => ['NL'],
+                'l'             => ['Amsterdam'],
+                'streetAddress' => ['Damrak 1'],
+                'dept'          => ['Security'],
+            ];
+
+            $userFields = SamlUser::getUserInputFieldsFromSamlClaim($response, 1);
+            if (($userFields[SamlUser::SAMLGROUPS] ?? null) !== ['Group-A', 'Group-B']) {
+                throw new \Exception("Multi-valued groups claim array was not preserved.");
+            }
+            if (isset($userFields['_saml_rule_fields'][ClaimMapItem::FIELD_GROUPS])) {
+                throw new \Exception("groups must not be duplicated into scalar _saml_rule_fields.");
+            }
+            if (($userFields['_saml_rule_fields'][ClaimMapItem::FIELD_COUNTRY] ?? '') !== 'NL') {
+                throw new \Exception("country rule_field was not resolved.");
+            }
+
+            $this->db->setResponse('glpi_rulecriterias', [
+                ['criteria' => 'samlClaimedGroups'],
+                ['criteria' => 'samlClaimedJobTitle'],
+                ['criteria' => 'country'],
+                ['criteria' => 'city'],
+                ['criteria' => 'street'],
+            ]);
+            $unused = $entity->getUnusedRuleFields();
+            if ($unused !== [ClaimMapItem::FIELD_DEPARTMENT]) {
+                throw new \Exception("Expected only 'department' to be reported unused when alias criteria exist, got: " . json_encode($unused));
+            }
+
+            echo "✅ Location rule_field validation, multi-group preservation, and alias-aware unused detection verified (Issue #197)\n";
+        }
     }
 }
 
@@ -814,6 +907,7 @@ namespace {
         $test->testDynamicCriterias();
         $test->testBulkExportImport();
         $test->testDynamicRuleFieldClaimMapping();
+        $test->testLocationRuleFieldsAndUnusedDetection();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

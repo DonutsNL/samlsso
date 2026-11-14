@@ -8,7 +8,7 @@
  *  caused by the gradual development of GLPI and the broad amount of
  *  wishes expressed by the community.
  *
- *  Copyright (C) 2024 by Chris Gralike
+ *  Copyright (C) 2026 by DonutsNL
  *  ------------------------------------------------------------------------
  *
  * LICENSE
@@ -32,13 +32,13 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.3
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -58,10 +58,6 @@ namespace GlpiPlugin\Samlsso\Tests {
      * plugin web-dir helper that no longer relies on the removed
      * Plugin::getWebDir(), the declared maximum supported GLPI version, and the
      * absence of any obfuscation or core patching in the compatibility layer.
-     *
-     * The checks are static (they read plugin source files as text) so they run
-     * deterministically in the standalone unit-test harness, without a real GLPI
-     * install.
      */
     class Glpi12CompatTest
     {
@@ -101,7 +97,6 @@ namespace GlpiPlugin\Samlsso\Tests {
                 'version gate helper' => 'function samlsso_glpi12(): bool',
                 'GLPI 12 major threshold' => "'12.0.0'",
                 'ConfigCompat' => 'abstract class ConfigCompat extends CommonDBTM',
-                'LoginFlowCompat' => 'abstract class LoginFlowCompat extends CommonDBTM',
                 'ExcludeCompat' => 'abstract class ExcludeCompat extends CommonDropdown',
                 'RuleSamlCompat' => 'abstract class RuleSamlCompat extends Rule',
                 'RuleSamlCollectionCompat' => 'abstract class RuleSamlCollectionCompat extends RuleCollection',
@@ -137,7 +132,6 @@ namespace GlpiPlugin\Samlsso\Tests {
             $bindings = [
                 'src/Config.php' => ['Config', 'ConfigCompat'],
                 'src/Exclude.php' => ['Exclude', 'ExcludeCompat'],
-                'src/LoginFlow.php' => ['LoginFlow', 'LoginFlowCompat'],
                 'src/RuleSaml.php' => ['RuleSaml', 'RuleSamlCompat'],
                 'src/RuleSamlCollection.php' => ['RuleSamlCollection', 'RuleSamlCollectionCompat'],
             ];
@@ -225,6 +219,62 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Validated compatibility layer: no obfuscation or dynamic code execution in src/compat.php.\n";
         }
+
+        /**
+         * Test that the Single Logout (SLO) endpoint is properly registered as
+         * stateless in plugin_samlsso_boot() to prevent GLPI CSRF 403 on
+         * asynchronous LogoutResponse from IdPs (Issue #164).
+         *
+         * @throws \Exception if the stateless path registration is missing.
+         */
+        public function testStatelessPathRegistration(): void
+        {
+            $setup = $this->readPluginFile('setup.php');
+            $errors = [];
+
+            if (
+                !str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/front/logout#')") &&
+                !str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::SLO_ROUTE . '#')")
+            ) {
+                $errors[] = "setup.php does not register SLO_ROUTE ('#^/front/logout#') as a stateless path.";
+            }
+            if (
+                !str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#')") &&
+                !str_contains($setup, "RegisterPluginStatelessPath(PLUGIN_NAME, '#^/front/acs/#')") &&
+                !str_contains($setup, "registerPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::ACS_ROUTE . '/#')") &&
+                !str_contains($setup, "RegisterPluginStatelessPath(PLUGIN_NAME, '#^/' . SamlSsoController::ACS_ROUTE . '/#')")
+            ) {
+                $errors[] = "setup.php does not register ACS_ROUTE ('#^/front/acs/#') as a stateless path.";
+            }
+
+            if (!empty($errors)) {
+                throw new \Exception("Stateless path registration failed:\n" . implode("\n", $errors));
+            }
+
+            echo "✅ Validated stateless path registration: ACS and SLO (/front/logout) registered to prevent CSRF 403.\n";
+        }
+
+        /**
+         * Test that RuleSamlCompat and RuleSamlCollectionCompat use 'rule_ldap'
+         * for authorization rights instead of 'rule_import'.
+         *
+         * @throws \Exception if the rightname is not 'rule_ldap'.
+         */
+        public function testRuleSamlRightnameIsRuleLdap(): void
+        {
+            $compat = $this->readPluginFile('src/compat.php');
+            if (str_contains($compat, "public static string \$rightname = 'rule_import'") ||
+                str_contains($compat, "public static \$rightname = 'rule_import'")) {
+                throw new \Exception("src/compat.php still references 'rule_import' instead of 'rule_ldap'.");
+            }
+
+            require_once realpath(__DIR__ . '/../src/compat.php');
+            if (\GlpiPlugin\Samlsso\Compat\RuleSamlCompat::$rightname !== 'rule_ldap') {
+                throw new \Exception("RuleSamlCompat::\$rightname is not 'rule_ldap'. Got: " . \GlpiPlugin\Samlsso\Compat\RuleSamlCompat::$rightname);
+            }
+
+            echo "✅ Validated RuleSaml rightname: governed by 'rule_ldap' for user identity rights.\n";
+        }
     }
 }
 
@@ -238,10 +288,11 @@ namespace {
         $test->testPluginClassesExtendVersionTypedCompat();
         $test->testAbsoluteWebDirHelperAndMaxGlpiVersion();
         $test->testCompatLayerContainsNoObfuscation();
+        $test->testStatelessPathRegistration();
+        $test->testRuleSamlRightnameIsRuleLdap();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);
     }
 }
-

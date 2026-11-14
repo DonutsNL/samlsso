@@ -32,13 +32,13 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -50,6 +50,9 @@ namespace GlpiPlugin\Samlsso\Tests {
     require_once __DIR__ . '/../src/Config.php';
     require_once __DIR__ . '/../src/ClaimMap.php';
     require_once __DIR__ . '/../src/LoginState.php';
+    if (file_exists(__DIR__ . '/../src/ScimLink.php')) {
+        require_once __DIR__ . '/../src/ScimLink.php';
+    }
 
     use GlpiPlugin\Samlsso\Config;
     use GlpiPlugin\Samlsso\ClaimMap;
@@ -63,6 +66,41 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @var array
          */
         public array $addFieldCalls = [];
+
+        /**
+         * @var array
+         */
+        public array $changeFieldCalls = [];
+
+        /**
+         * @var array
+         */
+        public array $addKeyCalls = [];
+
+        /**
+         * @var array
+         */
+        public array $migrationOneTableCalls = [];
+
+        /**
+         * @var array
+         */
+        public array $dropFieldCalls = [];
+
+        /**
+         * Intercept call to dropField.
+         *
+         * @param string $table Table name
+         * @param string $field Field name
+         * @return bool
+         */
+        public function dropField(string $table, string $field): bool {
+            $this->dropFieldCalls[] = [
+                'table' => $table,
+                'field' => $field,
+            ];
+            return true;
+        }
 
         /**
          * Intercept call to addField.
@@ -94,6 +132,13 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @return bool
          */
         public function changeField(string $table, string $field, string $new_field, string $type, array $options = []): bool {
+            $this->changeFieldCalls[] = [
+                'table'     => $table,
+                'field'     => $field,
+                'new_field' => $new_field,
+                'type'      => $type,
+                'options'   => $options,
+            ];
             return true;
         }
 
@@ -103,7 +148,9 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @param string $table Table name
          * @return void
          */
-        public function migrationOneTable(string $table): void {}
+        public function migrationOneTable(string $table): void {
+            $this->migrationOneTableCalls[] = $table;
+        }
 
         /**
          * Stub addKey method.
@@ -115,6 +162,12 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @return bool
          */
         public function addKey(string $table, array $fields, string $keyname, string $keytype = ''): bool {
+            $this->addKeyCalls[] = [
+                'table'   => $table,
+                'fields'  => $fields,
+                'keyname' => $keyname,
+                'keytype' => $keytype,
+            ];
             return true;
         }
     }
@@ -123,6 +176,27 @@ namespace GlpiPlugin\Samlsso\Tests {
      * Simple mock DB implementation to support running migration checks.
      */
     class SimpleMockDB {
+        /**
+         * Map of existing fields per table.
+         *
+         * @var array
+         */
+        public array $existingFields = [];
+
+        /**
+         * Optional mocked rows keyed by table name.
+         *
+         * @var array<string, array<int, array<string, mixed>>>
+         */
+        public array $mockResponses = [];
+
+        /**
+         * Recorded update calls.
+         *
+         * @var array<int, array<string, mixed>>
+         */
+        public array $updatedRows = [];
+
         /**
          * Check if table exists in mock DB.
          *
@@ -152,7 +226,7 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @return bool
          */
         public function fieldExists(string $table, string $field, bool $cache = true): bool {
-            return false;
+            return in_array($field, $this->existingFields[$table] ?? [], true);
         }
 
         /**
@@ -162,14 +236,36 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @return object
          */
         public function request(array $params): object {
-            return new class implements \Iterator, \Countable {
-                public function count(): int { return 0; }
-                public function current(): mixed { return null; }
-                public function key(): mixed { return null; }
-                public function next(): void {}
-                public function rewind(): void {}
-                public function valid(): bool { return false; }
+            $table = (string)($params['FROM'] ?? '');
+            $rows = $this->mockResponses[$table] ?? [];
+            return new class($rows) implements \Iterator, \Countable {
+                private array $rows;
+                private int $pos = 0;
+                public function __construct(array $rows) { $this->rows = array_values($rows); }
+                public function count(): int { return count($this->rows); }
+                public function current(): mixed { return $this->rows[$this->pos]; }
+                public function key(): mixed { return $this->pos; }
+                public function next(): void { $this->pos++; }
+                public function rewind(): void { $this->pos = 0; }
+                public function valid(): bool { return isset($this->rows[$this->pos]); }
             };
+        }
+
+        /**
+         * Record mock DB update payloads.
+         *
+         * @param string $table Table name.
+         * @param array $data Columns to update.
+         * @param array $where Where condition.
+         * @return bool
+         */
+        public function update(string $table, array $data, array $where): bool {
+            $this->updatedRows[] = [
+                'table' => $table,
+                'data'  => $data,
+                'where' => $where,
+            ];
+            return true;
         }
 
         /**
@@ -203,7 +299,7 @@ namespace GlpiPlugin\Samlsso\Tests {
             global $DB;
             $DB = new SimpleMockDB();
 
-            $migration = new InterceptingMigration('1.3.2');
+            $migration = new InterceptingMigration('1.4.0');
 
             // 1. Test Config update/install
             Config::install($migration);
@@ -219,6 +315,12 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Expected addField calls to be intercepted, but none were captured.");
             }
 
+            $allowedFieldFormatTypes = [
+                'bool', 'boolean', 'char', 'character', 'str', 'string',
+                'int', 'integer', 'date', 'time', 'timestamp', 'datetime',
+                'text', 'mediumtext', 'longtext',
+            ];
+
             foreach ($migration->addFieldCalls as $call) {
                 $opts = $call['options'];
                 if (array_key_exists('after', $opts)) {
@@ -227,9 +329,295 @@ namespace GlpiPlugin\Samlsso\Tests {
                 if (array_key_exists('before', $opts)) {
                     throw new \Exception("Detected forbidden 'before' option in field addition: Table={$call['table']}, Field={$call['field']}, before={$opts['before']}");
                 }
+                if (array_key_exists('update', $opts)) {
+                    throw new \Exception("Detected forbidden 'update' option in addField (Issue #173): Table={$call['table']}, Field={$call['field']}.");
+                }
+                if (array_key_exists('default', $opts)) {
+                    throw new \Exception("Detected ignored 'default' option in addField (Issue #173): Table={$call['table']}, Field={$call['field']}. Use 'value' instead.");
+                }
+                if (!in_array(strtolower($call['type']), $allowedFieldFormatTypes, true)) {
+                    throw new \Exception("Detected invalid Migration::fieldFormat() type '{$call['type']}' in addField (Issue #173): Table={$call['table']}, Field={$call['field']}.");
+                }
             }
 
-            echo "✅ Database Migrations: Verified all addField calls are order-independent (no 'after' or 'before' options found in " . count($migration->addFieldCalls) . " field updates)\n";
+            echo "✅ Database Migrations: Verified all addField calls use valid fieldFormat types and no 'update'/'default'/order options (" . count($migration->addFieldCalls) . " field updates)\n";
+        }
+
+        /**
+         * Verifies that Config::install() backfills NULL values and normalizes legacy nullable
+         * boolean and timeout columns via changeField() for MySQL strict mode (#173).
+         *
+         * @return void
+         * @throws \Exception if NULL backfills or changeField calls are missing.
+         */
+        public function testLegacyNullableColumnNormalization(): void {
+            global $DB;
+            $DB = new SimpleMockDB();
+            $table = Config::getTable();
+
+            $boolCols = [
+                'sync_on_login',
+                'security_wantmessagessigned',
+                'security_wantassertionssigned',
+                'security_wantassertionsencrypted',
+                'security_signmetadata',
+                'security_wantnameid',
+                'force_authn',
+            ];
+            $intCols = [
+                'request_timeout'    => 15,
+                'inactivity_timeout' => 0,
+            ];
+            $DB->existingFields[$table] = array_merge($boolCols, array_keys($intCols));
+
+            $migration = new InterceptingMigration('1.4.0');
+            Config::install($migration);
+
+            $updatedMap = [];
+            foreach ($DB->updatedRows as $upd) {
+                if ($upd['table'] === $table) {
+                    foreach ($upd['data'] as $col => $val) {
+                        $updatedMap[$col] = [
+                            'val'    => $val,
+                            'isNull' => array_key_exists($col, $upd['where']) && $upd['where'][$col] === null,
+                        ];
+                    }
+                }
+            }
+            $changedMap = [];
+            foreach ($migration->changeFieldCalls as $chg) {
+                if ($chg['table'] === $table) {
+                    $changedMap[$chg['field']] = $chg;
+                }
+            }
+
+            foreach ($boolCols as $col) {
+                if (!isset($updatedMap[$col]) || $updatedMap[$col]['val'] !== 0 || !$updatedMap[$col]['isNull']) {
+                    throw new \Exception("Expected NULL->0 backfill for Config::$col (#173).");
+                }
+                if (($changedMap[$col]['type'] ?? '') !== 'bool' || ($changedMap[$col]['options']['value'] ?? null) !== '0') {
+                    throw new \Exception("Expected changeField('bool', ['value' => '0']) for Config::$col (#173).");
+                }
+            }
+            foreach ($intCols as $col => $expectedDefault) {
+                if (!isset($updatedMap[$col]) || $updatedMap[$col]['val'] !== $expectedDefault || !$updatedMap[$col]['isNull']) {
+                    throw new \Exception("Expected NULL->$expectedDefault backfill for Config::$col (#173).");
+                }
+                if (($changedMap[$col]['type'] ?? '') !== 'integer' || ($changedMap[$col]['options']['value'] ?? null) !== $expectedDefault) {
+                    throw new \Exception("Expected changeField('integer', ['value' => $expectedDefault]) for Config::$col (#173).");
+                }
+            }
+            if (count(array_keys($migration->migrationOneTableCalls, $table, true)) < 2) {
+                throw new \Exception("Expected migrationOneTable($table) to run after normalizing legacy columns (#173).");
+            }
+
+            echo "✅ Database Migrations: Verified legacy nullable bool/int column backfill and normalization (#173)\n";
+        }
+
+        /**
+         * Verifies that the phase column is converted to tinyint unsigned and indexed (Issue #160),
+         * and redirect is migrated or added as TEXT (Issue #165).
+         *
+         * @throws \Exception if migration calls do not match expectations.
+         */
+        public function testLoginStatePhaseAndRedirectMigration(): void {
+            global $DB;
+
+            /**
+             * Case 1: Fresh upgrade where redirect does not yet exist.
+             */
+            $DB = new SimpleMockDB();
+            $migration = new InterceptingMigration('1.4.0');
+            LoginState::install($migration);
+
+            $table = getTableForItemType(LoginState::class);
+
+            $phaseChanged = false;
+            foreach ($migration->changeFieldCalls as $call) {
+                if ($call['table'] === $table && $call['field'] === 'phase') {
+                    if (str_contains($call['type'], 'tinyint') && str_contains($call['type'], 'DEFAULT 1')) {
+                        $phaseChanged = true;
+                        break;
+                    }
+                }
+            }
+            if (!$phaseChanged) {
+                throw new \Exception("Expected phase column to be changed to tinyint unsigned DEFAULT 1 (Issue #160).");
+            }
+
+            $phaseKeyAdded = false;
+            foreach ($migration->addKeyCalls as $call) {
+                if ($call['table'] === $table && $call['keyname'] === 'phase') {
+                    $phaseKeyAdded = true;
+                    break;
+                }
+            }
+            if (!$phaseKeyAdded) {
+                throw new \Exception("Expected phase index to be added to LoginState (Issue #160).");
+            }
+
+            $redirectAdded = false;
+            foreach ($migration->addFieldCalls as $call) {
+                if ($call['table'] === $table && $call['field'] === LoginState::REDIRECT) {
+                    if (strtolower($call['type']) === 'text') {
+                        $redirectAdded = true;
+                        break;
+                    }
+                }
+            }
+            if (!$redirectAdded) {
+                throw new \Exception("Expected redirect column to be added as TEXT when not existing (Issue #165).");
+            }
+
+            /**
+             * Case 2: Existing upgrade where redirect was previously varchar(255).
+             */
+            $DB = new SimpleMockDB();
+            $DB->existingFields[$table] = [LoginState::REDIRECT];
+            $migrationExisting = new InterceptingMigration('1.4.0');
+            LoginState::install($migrationExisting);
+
+            $redirectChanged = false;
+            foreach ($migrationExisting->changeFieldCalls as $call) {
+                if ($call['table'] === $table && $call['field'] === LoginState::REDIRECT) {
+                    if (strtolower($call['type']) === 'text') {
+                        $redirectChanged = true;
+                        break;
+                    }
+                }
+            }
+            if (!$redirectChanged) {
+                throw new \Exception("Expected existing redirect column to be changed to TEXT (Issue #165).");
+            }
+
+            echo "✅ Database Migrations: Verified phase is tinyint with index (#160) and redirect is TEXT (#165)\n";
+        }
+
+        /**
+         * Verifies that Config::install() invokes migrationOneTable on the configs table
+         * so all queued addField migrations are executed during upgrade (Issue #182).
+         *
+         * @return void
+         * @throws \Exception if migrationOneTable was not invoked for glpi_plugin_samlsso_configs.
+         */
+        public function testConfigTableMigrationExecution(): void {
+            global $DB;
+            $DB = new SimpleMockDB();
+            $table = Config::getTable();
+            $DB->existingTables = [$table];
+
+            $migration = new InterceptingMigration('1.4.0');
+            Config::install($migration);
+
+            if (!in_array($table, $migration->migrationOneTableCalls, true)) {
+                throw new \Exception("Expected migrationOneTable to be called for $table in Config::install() (Issue #182).");
+            }
+
+            $claimTable = getTableForItemType(ClaimMap::class);
+            $migrationClaim = new InterceptingMigration('1.4.0');
+            ClaimMap::install($migrationClaim);
+            $claimFlushCount = count(array_keys($migrationClaim->migrationOneTableCalls, $claimTable, true));
+            if ($claimFlushCount < 2) {
+                throw new \Exception("Expected ClaimMap::install() upgrade branch to flush migrationOneTable after addField/addKey (Issue #196), got $claimFlushCount calls.");
+            }
+
+            echo "✅ Database Migrations: Verified migrationOneTable is called for $table in Config::install() (#182) and $claimTable in ClaimMap::install() (#196)\n";
+        }
+
+        /**
+         * Verifies v1.4.0 schema migrations: ScimLink table lifecycle, Config SCIM columns,
+         * and LoginState legacy column cleanup (serverParams, loggedOff, enforceLogoff).
+         *
+         * @return void
+         * @throws \Exception if v1.4.0 schema migrations are missing.
+         */
+        public function testV140ScimAndLoginStateLegacyCleanup(): void {
+            global $DB;
+            if (!class_exists('GlpiPlugin\Samlsso\ScimLink')) {
+                throw new \Exception('ScimLink class does not exist yet.');
+            }
+
+            $DB = new SimpleMockDB();
+            $loginStateTable = getTableForItemType(LoginState::class);
+            $DB->existingFields[$loginStateTable] = ['serverParams', 'loggedOff', 'enforceLogoff', 'requestParams'];
+
+            $migration = new InterceptingMigration('1.4.0');
+            Config::install($migration);
+            LoginState::install($migration);
+            \GlpiPlugin\Samlsso\ScimLink::install($migration);
+
+            $droppedFields = array_column($migration->dropFieldCalls, 'field');
+            foreach (['serverParams', 'loggedOff', 'enforceLogoff', 'requestParams'] as $legacyCol) {
+                if (!in_array($legacyCol, $droppedFields, true)) {
+                    throw new \Exception("Expected LoginState::install() to drop legacy column '$legacyCol' in v1.4.0.");
+                }
+            }
+
+            $addedConfigFields = array_column($migration->addFieldCalls, 'field');
+            foreach ([
+                'scim_enabled',
+                'scim_token_hash',
+                'scim_token_source',
+                'scim_allowed_ips',
+                'scim_deprovision',
+                'scim_group_policy',
+            ] as $scimCol) {
+                if (!in_array($scimCol, $addedConfigFields, true)) {
+                    throw new \Exception("Expected Config::install() upgrade path to add '$scimCol'.");
+                }
+            }
+
+            $scimTable = getTableForItemType(\GlpiPlugin\Samlsso\ScimLink::class);
+            if (!in_array($scimTable, $migration->migrationOneTableCalls, true)) {
+                throw new \Exception("Expected ScimLink::install() upgrade path to flush migrationOneTable($scimTable).");
+            }
+
+            echo "✅ Database Migrations: Verified v1.4.0 ScimLink lifecycle, SCIM Config columns, and LoginState legacy column cleanup (#199)\n";
+        }
+
+        /**
+         * Verifies that Config::install() idempotently upgrades legacy SAML users
+         * (authtype = EXTERNAL, auths_id matching an active config ID < AUTHS_ID_OFFSET,
+         * and empty user_dn) to User::toAuthsId($oldAuthsId) (1,000,000 + $oldAuthsId)
+         * while leaving non-SAML external rows with non-empty user_dn untouched (#189).
+         *
+         * @return void
+         * @throws \Exception if legacy SAML rows are not upgraded or non-empty user_dn rows are modified.
+         */
+        public function testLegacySamlAuthsIdNamespaceUpgrade(): void {
+            global $DB;
+            $DB = new SimpleMockDB();
+            $configTable = Config::getTable();
+            $DB->mockResponses[$configTable] = [
+                ['id' => 5, 'sp_private_key' => '', 'sp_private_key_source' => 'db'],
+            ];
+            $DB->mockResponses['glpi_users'] = [
+                ['id' => 41, 'authtype' => 4, 'auths_id' => 5, 'user_dn' => ''],
+                ['id' => 42, 'authtype' => 4, 'auths_id' => 5, 'user_dn' => null],
+                ['id' => 43, 'authtype' => 4, 'auths_id' => 5, 'user_dn' => 'CN=cas,DC=local'],
+                ['id' => 44, 'authtype' => 4, 'auths_id' => 1000005, 'user_dn' => ''],
+            ];
+
+            $migration = new InterceptingMigration('1.4.0');
+            Config::install($migration);
+
+            $userUpdates = [];
+            foreach ($DB->updatedRows as $upd) {
+                if ($upd['table'] === 'glpi_users' && isset($upd['where']['id'])) {
+                    $userUpdates[(int)$upd['where']['id']] = $upd['data'];
+                }
+            }
+
+            if (
+                (int)($userUpdates[41]['auths_id'] ?? 0) !== 1000005 ||
+                (int)($userUpdates[42]['auths_id'] ?? 0) !== 1000005 ||
+                isset($userUpdates[43]) ||
+                isset($userUpdates[44])
+            ) {
+                throw new \Exception('Config::install() legacy auths_id upgrade payload unexpected: ' . json_encode($userUpdates));
+            }
+
+            echo "✅ Database Migrations: Verified legacy SAML auths_id namespace upgrade (5 -> 1000005) leaving non-empty user_dn untouched (#189)\n";
         }
     }
 }
@@ -241,6 +629,11 @@ namespace {
     $test = new GlpiPlugin\Samlsso\Tests\DatabaseUpdateTest();
     try {
         $test->testUpdateProcedureNoAfterBefore();
+        $test->testLegacyNullableColumnNormalization();
+        $test->testLoginStatePhaseAndRedirectMigration();
+        $test->testConfigTableMigrationExecution();
+        $test->testV140ScimAndLoginStateLegacyCleanup();
+        $test->testLegacySamlAuthsIdNamespaceUpgrade();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);

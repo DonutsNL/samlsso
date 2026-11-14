@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -73,12 +73,9 @@ class Auth extends glpiAuth
         $this->user = (new User())->getOrCreateUser($userFields, $configEntity, $state);
 
         // Setting this property actually authorizes the login for the user.
-        // The core consumes it as a boolean (Session::check_login_status does a
-        // truthiness check; AuthLDAP/HL Router assign true the same way), and
-        // GLPI 12 types it as `bool`, so assigning the user object there is a
-        // fatal TypeError. Be aware (sic) Succeeded is spelled incorrectly in
-        // parent GLPI object as per Auth.php:1043
-        $this->auth_succeded = true;
+        // In GLPI 12, Auth::$auth_succeded has a strict native boolean type (public bool $auth_succeded).
+        // Be aware (sic) Succeeded is spelled incorrectly in parent GLPI object.
+        $this->auth_succeded = ($this->user !== null && $this->user !== false);
 
         // Return this object for injection into the session.
         return $this;

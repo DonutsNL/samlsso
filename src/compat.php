@@ -1,5 +1,4 @@
 <?php
-
 /**
  *  ------------------------------------------------------------------------
  *  samlSSO
@@ -9,7 +8,7 @@
  *  caused by the gradual development of GLPI and the broad amount of
  *  wishes expressed by the community.
  *
- *  Copyright (C) 2024 by Chris Gralike
+ *  Copyright (C) 2026 by DonutsNL
  *  ------------------------------------------------------------------------
  *
  * LICENSE
@@ -33,13 +32,13 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -123,15 +122,7 @@ namespace GlpiPlugin\Samlsso\Compat {
         {
             public bool $dohistory = true;
             public static string $rightname = 'config';
-        }
-
-        /**
-         * LoginFlow intermediate: 'config' rights + history on, GLPI 12 typing.
-         */
-        abstract class LoginFlowCompat extends CommonDBTM
-        {
-            public bool $dohistory = true;
-            public static string $rightname = 'config';
+            public static array $undisclosedFields = ['sp_private_key'];
         }
 
         /**
@@ -146,11 +137,11 @@ namespace GlpiPlugin\Samlsso\Compat {
         }
 
         /**
-         * RuleSaml intermediate: import-classified rule, GLPI 12 typing.
+         * RuleSaml intermediate: user-rights-classified rule, GLPI 12 typing.
          */
         abstract class RuleSamlCompat extends Rule
         {
-            public static string $rightname = 'rule_import';
+            public static string $rightname = 'rule_ldap';
         }
 
         /**
@@ -161,7 +152,7 @@ namespace GlpiPlugin\Samlsso\Compat {
         if (class_exists('RuleCollection')) {
             abstract class RuleSamlCollectionCompat extends RuleCollection
             {
-                public static string $rightname = 'rule_import';
+                public static string $rightname = 'rule_ldap';
                 public string $menu_option = "Saml";
             }
         }
@@ -186,15 +177,7 @@ namespace GlpiPlugin\Samlsso\Compat {
         {
             public $dohistory = true;
             public static $rightname = 'config';
-        }
-
-        /**
-         * LoginFlow intermediate: 'config' rights + history on, GLPI 11 shape.
-         */
-        abstract class LoginFlowCompat extends CommonDBTM
-        {
-            public $dohistory = true;
-            public static $rightname = 'config';
+            public static $undisclosedFields = ['sp_private_key'];
         }
 
         /**
@@ -209,11 +192,11 @@ namespace GlpiPlugin\Samlsso\Compat {
         }
 
         /**
-         * RuleSaml intermediate: import-classified rule, GLPI 11 shape.
+         * RuleSaml intermediate: user-rights-classified rule, GLPI 11 shape.
          */
         abstract class RuleSamlCompat extends Rule
         {
-            public static $rightname = 'rule_import';
+            public static $rightname = 'rule_ldap';
         }
 
         /**
@@ -224,7 +207,7 @@ namespace GlpiPlugin\Samlsso\Compat {
         if (class_exists('RuleCollection')) {
             abstract class RuleSamlCollectionCompat extends RuleCollection
             {
-                public static $rightname = 'rule_import';
+                public static $rightname = 'rule_ldap';
                 public $menu_option = "Saml";
             }
         }

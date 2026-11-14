@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -70,6 +70,14 @@ class ConfigEntity extends ConfigItem
     public const NAME            = 'name';                                   // Configuration name, not used in SAML handling
     public const CONF_DOMAIN     = 'conf_domain';                            // Configuration domain, used to identify saml handled logins
     public const CONF_ICON       = 'conf_icon';                              // Configuration ICON to use in UI elements
+    /**
+     * @var string Database column: custom image or logo URL for the login button icon.
+     */
+    public const CONF_ICON_URL   = 'conf_icon_url';
+    /**
+     * @var string Database column: custom header text displayed above login buttons on the login screen.
+     */
+    public const LOGIN_HEADER_TEXT = 'login_header_text';
     public const ENFORCE_SSO     = 'enforce_sso';                            // Enforce SSO
     public const PROXIED         = 'proxied';                                // Handle proxied responses (X-forwarded-for)
     public const STRICT          = 'strict';                                 // Enforce encryption
@@ -77,6 +85,7 @@ class ConfigEntity extends ConfigItem
     public const USER_JIT        = 'user_jit';                               // Enable Just In Time user creation
     public const SP_CERTIFICATE  = 'sp_certificate';                         // Service provider certificate
     public const SP_KEY          = 'sp_private_key';                         // Service provider certificate key
+    public const SP_KEY_SOURCE   = 'sp_private_key_source';                  // Service provider private key source
     public const SP_NAME_FORMAT  = 'sp_nameid_format';                       // Service provider nameID formatting
     public const IDP_ENTITY_ID   = 'idp_entity_id';                          // Identity provider Entity ID
     public const IDP_SSO_URL     = 'idp_single_sign_on_service';             // Identity provider Single Sign On Url
@@ -86,6 +95,10 @@ class ConfigEntity extends ConfigItem
     public const AUTHN_COMPARE   = 'requested_authn_context_comparison';     // Requested authn context comparison (to be evaluated by Idp)
     public const ENCRYPT_NAMEID  = 'security_nameidencrypted';               // Encrypt nameId field using service provider certificate
     public const SIGN_AUTHN      = 'security_authnrequestssigned';           // Sign authN request using service provider certificate
+    /**
+     * @var string Database column: flag to force IdP re-authentication on outgoing AuthnRequests.
+     */
+    public const FORCE_AUTHN     = 'force_authn';
     public const SIGN_SLO_REQ    = 'security_logoutrequestsigned';           // Sign logout request using service provider certificate
     public const SIGN_SLO_RES    = 'security_logoutresponsesigned';          // Sign logout response using service provider certificate
     public const COMPRESS_REQ    = 'compress_requests';                      // Compress all requests
@@ -111,6 +124,40 @@ class ConfigEntity extends ConfigItem
     public const SECURITY_WANTASSERTIONSENCRYPTED = 'security_wantassertionsencrypted';
     public const SECURITY_SIGNMETADATA = 'security_signmetadata';
     public const SECURITY_WANTNAMEID = 'security_wantnameid';
+    /** @var string Database column: enable per-IdP SCIM 2.0 provisioning endpoints. */
+    public const SCIM_ENABLED        = 'scim_enabled';
+    /** @var string Database column: SHA-256 hex digest ('db') or env/define identifier name. */
+    public const SCIM_TOKEN_HASH     = 'scim_token_hash';
+    /** @var string Database column: SCIM Bearer token source ('db', 'env', or 'define'). */
+    public const SCIM_TOKEN_SOURCE   = 'scim_token_source';
+    /** @var string Database column: newline-separated IPv4/IPv6 CIDR allowlist for SCIM requests. */
+    public const SCIM_ALLOWED_IPS    = 'scim_allowed_ips';
+    /** @var string Database column: user offboarding action on DELETE /Users ('disable' or 'trashbin'). */
+    public const SCIM_DEPROVISION    = 'scim_deprovision';
+    /** @var string Database column: SCIM /Groups lifecycle policy ('create_scoped', 'link_existing', or 'disabled'). */
+    public const SCIM_GROUP_POLICY   = 'scim_group_policy';
+
+    /**
+     * Cache for loaded database configurations to prevent duplicate queries within the same request.
+     * @var array<int, array|null>
+     */
+    private static array $dbRowCache = [];
+
+    /**
+     * Cache for table column metadata keyed by database instance ID.
+     * @var array<int, array<int, array<string, mixed>>>
+     */
+    private static array $tableColumnsCache = [];
+
+    /**
+     * Clear the static database configuration cache (mainly for testing purposes).
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        self::$dbRowCache = [];
+        self::$tableColumnsCache = [];
+    }
 
     /**
      * True, if an configuration issue is found its set to false.
@@ -167,11 +214,31 @@ class ConfigEntity extends ConfigItem
             array_key_exists('postData', $options)
         ) {
             $this->populationSource = 'post';
-            // Only evaluate valid Config Items;
             $configItems = $this->getConstants();
             foreach ($options['postData'] as $field => $value) {
                 if (array_search($field, $configItems)) {
                     $this->evaluateItem($field, $value);
+                }
+            }
+            $postedId = isset($options['postData'][self::ID]) ? (int)$options['postData'][self::ID] : -1;
+            $postedKeySource = (string)($options['postData'][self::SP_KEY_SOURCE] ?? 'db');
+            $postedKeyVal = trim((string)($options['postData'][self::SP_KEY] ?? ''));
+            if ($postedId > 0 && $postedKeySource === 'db' && $postedKeyVal === '') {
+                $existingConfig = new SamlConfig();
+                if ($existingConfig->getFromDB($postedId) && !empty($existingConfig->fields[self::SP_KEY])) {
+                    $this->evaluateItem(self::SP_KEY, $existingConfig->fields[self::SP_KEY]);
+                }
+            }
+            $postedScimSource = (string)($options['postData'][self::SCIM_TOKEN_SOURCE] ?? 'db');
+            $postedScimVal = trim((string)($options['postData'][self::SCIM_TOKEN_HASH] ?? ''));
+            if ($postedId > 0 && $postedScimSource === 'db' && $postedScimVal === '') {
+                $existingConfig = $existingConfig ?? new SamlConfig();
+                if (
+                    (!empty($existingConfig->fields[self::ID]) || $existingConfig->getFromDB($postedId)) &&
+                    !empty($existingConfig->fields[self::SCIM_TOKEN_HASH]) &&
+                    preg_match('/^[a-fA-F0-9]{64}$/', (string)$existingConfig->fields[self::SCIM_TOKEN_HASH]) === 1
+                ) {
+                    $this->evaluateItem(self::SCIM_TOKEN_HASH, $existingConfig->fields[self::SCIM_TOKEN_HASH]);
                 }
             }
         } else {
@@ -207,18 +274,27 @@ class ConfigEntity extends ConfigItem
         $this->populationSource = 'Database:' . $id;
 
         // Get configuration from database;
-        $config = new SamlConfig();
-        if ($config->getFromDB($id)) {
+        if (!array_key_exists($id, self::$dbRowCache)) {
+            $config = new SamlConfig();
+            if ($config->getFromDB($id)) {
+                self::$dbRowCache[$id] = $config->fields;
+            } else {
+                self::$dbRowCache[$id] = null;
+            }
+        }
+
+        $fields = self::$dbRowCache[$id];
+        if ($fields !== null) {
             // Iterate through fetched fields
-            foreach ($config->fields as $field => $value) {
+            foreach ($fields as $field => $value) {
                 // Do validations on all provided fields. All fields need to be
                 // verified by GlpiPlugin\Glpisaml\Config\ConfigItem per default.
                 $this->evaluateItem((string) $field, $value);
             }
         } else {
-            // Return the default configuration, this exception can be verified
-            // by checking the absence of the 'id' field in the returned ConfigEntity.
             $this->validateAndPopulateTemplateEntity(['template' => 'default']);
+            $this->isValid = false;
+            $this->invalidMessages[self::ID] = __('Configuration ID not found in database.', PLUGIN_NAME);
         }
         // Do some final consistency check here.
     }
@@ -288,25 +364,30 @@ class ConfigEntity extends ConfigItem
     {
         global $DB;
         $fields = [];
-        // Fetch config item constants;
         $classConstants = ConfigEntity::getConstants();
-        $sql = 'SHOW COLUMNS FROM ' . SamlConfig::getTable();
-        $result = $DB->doQuery($sql);
-        if ($result) {
-            while ($data = $result->fetch_assoc()) {
-                $key = array_search($data['Field'], $classConstants);
-                $fields[$data['Field']] = [
-                    ConfigItem::FIELD       => $data['Field'],
-                    ConfigItem::TYPE        => $data['Type'],
-                    ConfigItem::NULL        => $data['Null'],
-                    ConfigItem::CONSTANT    => $key ? "ConfigEntity::$key" : 'UNDEFINED',
-                    ConfigItem::VALUE       => (isset($this->fields[$data['Field']])) ? $this->fields[$data['Field']] : null,
-                ];
-                // Evaluate and merge results.
-                $fields[$data['Field']] = array_merge($fields[$data['Field']], $this->evaluateItem($data['Field'], (isset($this->fields[$data['Field']])) ? $this->fields[$data['Field']] : ''));
+        $dbInstanceId = is_object($DB) ? spl_object_id($DB) : 0;
+        if (!array_key_exists($dbInstanceId, self::$tableColumnsCache)) {
+            $columns = [];
+            $sql = 'SHOW COLUMNS FROM ' . SamlConfig::getTable();
+            $result = $DB->doQuery($sql);
+            if ($result) {
+                while ($data = $result->fetch_assoc()) {
+                    $columns[] = $data;
+                }
             }
+            self::$tableColumnsCache[$dbInstanceId] = $columns;
         }
-        // Validate spcert and key if provided
+        foreach (self::$tableColumnsCache[$dbInstanceId] as $data) {
+            $key = array_search($data['Field'], $classConstants);
+            $fields[$data['Field']] = [
+                ConfigItem::FIELD       => $data['Field'],
+                ConfigItem::TYPE        => $data['Type'],
+                ConfigItem::NULL        => $data['Null'],
+                ConfigItem::CONSTANT    => $key ? "ConfigEntity::$key" : 'UNDEFINED',
+                ConfigItem::VALUE       => (isset($this->fields[$data['Field']])) ? $this->fields[$data['Field']] : null,
+            ];
+            $fields[$data['Field']] = array_merge($fields[$data['Field']], $this->evaluateItem($data['Field'], (isset($this->fields[$data['Field']])) ? $this->fields[$data['Field']] : ''));
+        }
         $fields = $this->validateAdvancedConfig($fields);
         return $fields;
     }
@@ -349,6 +430,26 @@ class ConfigEntity extends ConfigItem
             $this->fields[ConfigEntity::CONF_DOMAIN] != 'youruserdomain.tld') ? $this->fields[ConfigEntity::CONF_DOMAIN] : '';
     }
 
+    /**
+     * Returns custom icon image URL if configured.
+     *
+     * @return string|null
+     */
+    public function getConfIconUrl(): ?string
+    {
+        return !empty($this->fields[self::CONF_ICON_URL]) ? (string)$this->fields[self::CONF_ICON_URL] : null;
+    }
+
+    /**
+     * Returns custom login screen header text if configured.
+     *
+     * @return string|null
+     */
+    public function getLoginHeaderText(): ?string
+    {
+        return !empty($this->fields[self::LOGIN_HEADER_TEXT]) ? (string)$this->fields[self::LOGIN_HEADER_TEXT] : null;
+    }
+
 
     /**
      * Validate advanced configuration options and correct params if not supported by provided setup.
@@ -358,94 +459,249 @@ class ConfigEntity extends ConfigItem
      */
     private function validateAdvancedConfig(array $fields): array
     {
-        $disable = false;
-        if (isset($fields[configEntity::SP_CERTIFICATE]) && isset($fields[configEntity::SP_KEY])) {
-            if (empty($fields[configEntity::SP_CERTIFICATE][ConfigItem::VALUE]) || empty($fields[configEntity::SP_KEY][ConfigItem::VALUE])) {
-                $disable = true;
-            } else {
-                // Perform key validation
-                if (!$this->validateCertKeyPairModulus($fields[configEntity::SP_CERTIFICATE][configItem::VALUE], $fields[configEntity::SP_KEY][configItem::VALUE])) {
-                    $fields[configEntity::SP_KEY][configItem::ERRORS] = __('⚠️ SP private key does not seem to match provided SP certificates modulus.', PLUGIN_NAME);
-                    $disable = true;
-                } // Only show key issue on error.
-            }
-        }
-        if ($disable) {
-            $errormsg = __('⚠️ Will be defaulted to "No" because the provided SP certificate does not look valid!', PLUGIN_NAME);
-            // Strict cannot be enabled without valid certificate!
-            if (isset($fields[configEntity::ENCRYPT_NAMEID]) && $fields[configEntity::ENCRYPT_NAMEID][configItem::VALUE]) {
-                $fields[configEntity::ENCRYPT_NAMEID][configItem::VALUE] = false;
-                $fields[configEntity::ENCRYPT_NAMEID][configItem::ERRORS] = $errormsg;
-            }
-            // Strict cannot be enabled without valid certificate!
-            if (isset($fields[configEntity::SIGN_AUTHN]) && $fields[configEntity::SIGN_AUTHN][configItem::VALUE]) {
-                $fields[configEntity::SIGN_AUTHN][configItem::VALUE] = false;
-                $fields[configEntity::SIGN_AUTHN][configItem::ERRORS] = $errormsg;
-            }
-            // Strict cannot be enabled without valid certificate!
-            if (isset($fields[configEntity::SIGN_SLO_REQ]) && $fields[configEntity::SIGN_SLO_REQ][configItem::VALUE]) {
-                $fields[configEntity::SIGN_SLO_REQ][configItem::VALUE] = false;
-                $fields[configEntity::SIGN_SLO_REQ][configItem::ERRORS] = $errormsg;
-            }
-            // Strict cannot be enabled without valid certificate!
-            if (isset($fields[configEntity::SIGN_SLO_RES]) && $fields[configEntity::SIGN_SLO_RES][configItem::VALUE]) {
-                $fields[configEntity::SIGN_SLO_RES][configItem::VALUE] = false;
-                $fields[configEntity::SIGN_SLO_RES][configItem::ERRORS] = $errormsg;
-            }
+        if ($this->validateSpCertificateKeyPair($fields)) {
+            $this->disableCertDependentOptions($fields);
         }
 
-        /**
-         * Disable inbound security options if strict mode is disabled
-         * and attach a warning message explaining they are not enforced.
-         */
-        if (isset($fields[configEntity::STRICT])) {
-            $strict = (bool)($fields[configEntity::STRICT][configItem::VALUE] ?? false);
-            if (!$strict) {
-                $strictWarning = __('⚠️ These fields are only enforced when strict mode is enabled. Your environment is at risk without strict mode.', PLUGIN_NAME);
-                $inboundFields = [
-                    configEntity::SECURITY_WANTMESSAGESSIGNED,
-                    configEntity::SECURITY_WANTASSERTIONSSIGNED,
-                    configEntity::SECURITY_WANTASSERTIONSENCRYPTED,
-                    configEntity::SECURITY_WANTNAMEID
-                ];
-                foreach ($inboundFields as $secField) {
-                    if (isset($fields[$secField])) {
-                        $fields[$secField][configItem::VALUE] = false;
-                        $fields[$secField][configItem::ERRORS] = $strictWarning;
-                    }
-                }
-            }
-        }
-
-        // Enforce option check for multiple active IDPs.
-        // If there are more than one active and configured IDPs, we automatically disable the enforce option
-        // and display a warning inline in the form.
-        global $DB;
-        $isActive = (int)($fields[configEntity::IS_ACTIVE][configItem::VALUE] ?? 0);
-        $isDeleted = (int)($fields[configEntity::IS_DELETED][configItem::VALUE] ?? 0);
-
-        if ($isActive === 1 && $isDeleted === 0) {
-            $id = $fields[configEntity::ID][configItem::VALUE] ?? null;
-            $where = [
-                configEntity::IS_ACTIVE  => 1,
-                configEntity::IS_DELETED => 0
-            ];
-            if ($id !== null && is_numeric($id) && $id > 0) {
-                $where['NOT'] = [configEntity::ID => (int)$id];
-            }
-
-            $otherActiveCount = count(iterator_to_array($DB->request([
-                'FROM'  => SamlConfig::getTable(),
-                'WHERE' => $where
-            ])));
-
-            if ($otherActiveCount > 0) {
-                $fields[configEntity::ENFORCE_SSO][configItem::VALUE] = 0;
-                $fields[configEntity::ENFORCE_SSO][configItem::ERRORS] = __('⚠️ IDPs cannot be enforced if more than one is present in the IDP list.', PLUGIN_NAME);
-            }
-        }
+        $this->enforceStrictModeInboundGuards($fields);
+        $this->enforceSingleActiveIdpLimit($fields);
+        $this->validateScimTokenConfig($fields);
 
         return $fields;
+    }
+
+    /**
+     * Validate SP certificate presence and private key source resolution/modulus match.
+     *
+     * @param array $fields Normalized config fields array (mutated on validation errors).
+     * @return bool True when signing/encryption features must be disabled due to missing or invalid credentials.
+     */
+    private function validateSpCertificateKeyPair(array &$fields): bool
+    {
+        if (!isset($fields[self::SP_CERTIFICATE], $fields[self::SP_KEY])) {
+            return false;
+        }
+
+        $spCert      = $fields[self::SP_CERTIFICATE][ConfigItem::VALUE] ?? '';
+        $spKeySource = $fields[self::SP_KEY_SOURCE][ConfigItem::VALUE] ?? 'db';
+        $spKeyInput  = $fields[self::SP_KEY][ConfigItem::VALUE] ?? '';
+        if (empty($spCert) || empty($spKeyInput)) {
+            return true;
+        }
+
+        $error = null;
+        $resolvedKey = $this->resolveSpPrivateKeyMaterial((string) $spKeySource, (string) $spKeyInput, $error);
+        if ($error === null && !$this->validateCertKeyPairModulus($spCert, (string) $resolvedKey)) {
+            $error = __('⚠️ SP private key does not seem to match provided SP certificates modulus.', PLUGIN_NAME);
+        }
+
+        if ($error !== null) {
+            $fields[self::SP_KEY][ConfigItem::ERRORS] = $error;
+            $fields[self::SP_KEY][ConfigItem::EVAL]   = ConfigItem::INVALID;
+            $this->isValid = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve raw SP private key PEM content from the configured source without storing secrets blindly.
+     *
+     * @param string $spKeySource Source selector ('db', 'file', 'env', 'define').
+     * @param string $spKeyInput Field input value (path, variable name, constant name, or DB ciphertext).
+     * @param string|null $error Populated with a translated error string on failure.
+     * @return string|null Private key PEM string or null on resolution failure.
+     */
+    private function resolveSpPrivateKeyMaterial(string $spKeySource, string $spKeyInput, ?string &$error): ?string
+    {
+        if ($spKeySource === 'file') {
+            $realGLPIRoot = realpath(GLPI_ROOT);
+            $realPath = realpath($spKeyInput);
+            if ($realPath === false || $realGLPIRoot === false || str_starts_with($realPath, $realGLPIRoot)) {
+                $error = __('⚠️ Private key file path must be located outside the GLPI root directory (docroot) for security.', PLUGIN_NAME);
+                return null;
+            }
+            if (!is_readable($realPath) || !is_file($realPath)) {
+                $error = __('⚠️ Private key file does not exist or is not readable.', PLUGIN_NAME);
+                return null;
+            }
+            return file_get_contents($realPath) ?: '';
+        }
+
+        if ($spKeySource === 'env') {
+            $envVal = getenv($spKeyInput);
+            if ($envVal === false || empty($envVal)) {
+                $error = __('⚠️ Environment variable is not defined or is empty.', PLUGIN_NAME);
+                return null;
+            }
+            return (string) $envVal;
+        }
+
+        if ($spKeySource === 'define') {
+            if (!defined($spKeyInput) || empty(constant($spKeyInput))) {
+                $error = __('⚠️ PHP constant (define) is not defined or is empty.', PLUGIN_NAME);
+                return null;
+            }
+            return (string) constant($spKeyInput);
+        }
+
+        return self::decryptPrivateKey($spKeyInput);
+    }
+
+    /**
+     * Disable outbound signing/encryption flags when a valid SP keypair is unavailable.
+     *
+     * @param array $fields Normalized config fields array.
+     * @return void
+     */
+    private function disableCertDependentOptions(array &$fields): void
+    {
+        $errormsg = __('⚠️ Will be defaulted to "No" because the provided SP certificate does not look valid!', PLUGIN_NAME);
+        $certDependentFields = [
+            ConfigEntity::ENCRYPT_NAMEID,
+            ConfigEntity::SIGN_AUTHN,
+            ConfigEntity::SIGN_SLO_REQ,
+            ConfigEntity::SIGN_SLO_RES,
+        ];
+        foreach ($certDependentFields as $depField) {
+            if (isset($fields[$depField]) && $fields[$depField][ConfigItem::VALUE]) {
+                $fields[$depField][ConfigItem::VALUE]  = false;
+                $fields[$depField][ConfigItem::ERRORS] = $errormsg;
+            }
+        }
+    }
+
+    /**
+     * Force inbound SAML security checkboxes off with a risk warning when strict mode is disabled.
+     *
+     * @param array $fields Normalized config fields array.
+     * @return void
+     */
+    private function enforceStrictModeInboundGuards(array &$fields): void
+    {
+        if (!isset($fields[ConfigEntity::STRICT]) || (bool) ($fields[ConfigEntity::STRICT][ConfigItem::VALUE] ?? false)) {
+            return;
+        }
+
+        $strictWarning = __('⚠️ These fields are only enforced when strict mode is enabled. Your environment is at risk without strict mode.', PLUGIN_NAME);
+        $inboundFields = [
+            ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
+            ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
+            ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
+            ConfigEntity::SECURITY_WANTNAMEID,
+        ];
+        foreach ($inboundFields as $secField) {
+            if (isset($fields[$secField])) {
+                $fields[$secField][ConfigItem::VALUE]  = false;
+                $fields[$secField][ConfigItem::ERRORS] = $strictWarning;
+            }
+        }
+    }
+
+    /**
+     * Disable ENFORCE_SSO when another active, non-deleted IdP configuration already exists.
+     *
+     * @param array $fields Normalized config fields array.
+     * @return void
+     */
+    private function enforceSingleActiveIdpLimit(array &$fields): void
+    {
+        global $DB;
+
+        $isActive  = (int) ($fields[ConfigEntity::IS_ACTIVE][ConfigItem::VALUE] ?? 0);
+        $isDeleted = (int) ($fields[ConfigEntity::IS_DELETED][ConfigItem::VALUE] ?? 0);
+        if ($isActive !== 1 || $isDeleted !== 0) {
+            return;
+        }
+
+        $id = $fields[ConfigEntity::ID][ConfigItem::VALUE] ?? null;
+        $where = [
+            ConfigEntity::IS_ACTIVE  => 1,
+            ConfigEntity::IS_DELETED => 0,
+        ];
+        if ($id !== null && is_numeric($id) && $id > 0) {
+            $where['NOT'] = [ConfigEntity::ID => (int) $id];
+        }
+
+        $otherActiveCount = count(iterator_to_array($DB->request([
+            'FROM'  => SamlConfig::getTable(),
+            'WHERE' => $where,
+        ])));
+        if ($otherActiveCount > 0) {
+            $fields[ConfigEntity::ENFORCE_SSO][ConfigItem::VALUE]  = 0;
+            $fields[ConfigEntity::ENFORCE_SSO][ConfigItem::ERRORS] = __('⚠️ IDPs cannot be enforced if more than one is present in the IDP list.', PLUGIN_NAME);
+        }
+    }
+
+    /**
+     * Validate SCIM Bearer token configuration across db, env, and define sources.
+     *
+     * @param array $fields Normalized config fields array.
+     * @return void
+     */
+    private function validateScimTokenConfig(array &$fields): void
+    {
+        if (!isset($fields[self::SCIM_ENABLED])) {
+            return;
+        }
+
+        $scimEnabled = (bool) ($fields[self::SCIM_ENABLED][ConfigItem::VALUE] ?? false);
+        $scimSource  = (string) ($fields[self::SCIM_TOKEN_SOURCE][ConfigItem::VALUE] ?? 'db');
+        $scimHash    = trim((string) ($fields[self::SCIM_TOKEN_HASH][ConfigItem::VALUE] ?? ''));
+
+        if ($scimSource === 'db' && $scimHash !== '' && preg_match('/^[a-fA-F0-9]{64}$/', $scimHash) !== 1) {
+            $fields[self::SCIM_TOKEN_HASH][ConfigItem::VALUE] = '';
+            $scimHash = '';
+        }
+
+        if (!$scimEnabled) {
+            return;
+        }
+
+        if ($scimSource === 'db' && $scimHash === '') {
+            $fields[self::SCIM_ENABLED][ConfigItem::ERRORS] = __('⚠️ SCIM provisioning is enabled without a generated Bearer token. Requests will fail closed until a token is generated.', PLUGIN_NAME);
+            return;
+        }
+
+        if ($scimSource === 'env' || $scimSource === 'define') {
+            $this->validateExternalScimTokenReference($fields, $scimSource, $scimHash);
+        }
+    }
+
+    /**
+     * Validate env or PHP constant identifier syntax and minimum token length for SCIM auth.
+     *
+     * @param array $fields Normalized config fields array.
+     * @param string $scimSource 'env' or 'define'.
+     * @param string $scimHash Variable or constant identifier name.
+     * @return void
+     */
+    private function validateExternalScimTokenReference(array &$fields, string $scimSource, string $scimHash): void
+    {
+        $meta = [
+            'env' => [
+                'invalid'  => __('⭕ Valid environment variable name is required when SCIM token source is set to Environment Variable.', PLUGIN_NAME),
+                'short'    => __('⚠️ Configured SCIM environment variable is undefined or shorter than 32 characters.', PLUGIN_NAME),
+                'resolved' => $scimHash !== '' ? getenv($scimHash) : false,
+            ],
+            'define' => [
+                'invalid'  => __('⭕ Valid PHP constant name is required when SCIM token source is set to PHP Constant.', PLUGIN_NAME),
+                'short'    => __('⚠️ Configured SCIM PHP constant is undefined or shorter than 32 characters.', PLUGIN_NAME),
+                'resolved' => ($scimHash !== '' && defined($scimHash)) ? constant($scimHash) : false,
+            ],
+        ][$scimSource];
+
+        if ($scimHash === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]{0,127}$/', $scimHash) !== 1) {
+            $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = $meta['invalid'];
+            $fields[self::SCIM_TOKEN_HASH][ConfigItem::EVAL]   = ConfigItem::INVALID;
+            $this->isValid = false;
+            return;
+        }
+
+        if ($meta['resolved'] === false || strlen((string) $meta['resolved']) < 32) {
+            $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = $meta['short'];
+        }
     }
 
 
@@ -460,7 +716,7 @@ class ConfigEntity extends ConfigItem
         if (
             key_exists($fieldName, $this->fields) &&
             is_numeric($this->fields[$fieldName]) &&
-            !in_array($fieldName, [self::REQUEST_TIMEOUT, self::INACTIVITY_TIMEOUT], true)
+            !in_array($fieldName, [self::ID, self::REQUEST_TIMEOUT, self::INACTIVITY_TIMEOUT, self::SCIM_TOKEN_HASH], true)
         ) {
             return (bool) $this->fields[$fieldName];
         } elseif (key_exists($fieldName, $this->fields)) {
@@ -493,12 +749,24 @@ class ConfigEntity extends ConfigItem
 
 
     /**
-     * Returns the validity state of the currently loaded ConfigEntity
+     * Returns whether the currently loaded ConfigEntity is active.
+     *
      * @return bool
      */
     public function isActive(): bool
     {
-        return (bool) $this->fields[ConfigEntity::IS_ACTIVE];
+        return (bool) ($this->fields[ConfigEntity::IS_ACTIVE] ?? false);
+    }
+
+
+    /**
+     * Returns whether the currently loaded ConfigEntity is marked as deleted.
+     *
+     * @return bool
+     */
+    public function isDeleted(): bool
+    {
+        return (bool) ($this->fields[ConfigEntity::IS_DELETED] ?? false);
     }
 
 
@@ -508,11 +776,204 @@ class ConfigEntity extends ConfigItem
      */
     public function getRequestedAuthnContextArray(): array
     {
-        if (strstr($this->fields[ConfigEntity::AUTHN_CONTEXT], ':')) {
-            return explode(':', $this->fields[ConfigEntity::AUTHN_CONTEXT]);
+        $context = (string)($this->fields[ConfigEntity::AUTHN_CONTEXT] ?? '');
+        if (str_contains($context, ':')) {
+            return explode(':', $context);
         } else {
-            return [$this->fields[ConfigEntity::AUTHN_CONTEXT]];
+            return [$context];
         }
+    }
+
+    /**
+     * Resolves the Service Provider private key from its configured source.
+     *
+     * @param string $source The key source ('db', 'file', or 'env')
+     * @param string $input The key value/path/variable name
+     * @return string The private key content, or empty string on failure
+     */
+    private function resolvePrivateKey(string $source, string $input): string
+    {
+        if (empty($input)) {
+            return '';
+        }
+        if ($source === 'file') {
+            $realGLPIRoot = realpath(GLPI_ROOT);
+            $realPath = realpath($input);
+            if ($realPath === false || $realGLPIRoot === false || str_starts_with($realPath, $realGLPIRoot)) {
+                return '';
+            }
+            if (is_readable($realPath) && is_file($realPath)) {
+                return file_get_contents($realPath) ?: '';
+            }
+            return '';
+        } elseif ($source === 'env') {
+            return (string)getenv($input);
+        } elseif ($source === 'define') {
+            return defined($input) ? (string)constant($input) : '';
+        }
+        return self::decryptPrivateKey($input);
+    }
+
+    /**
+     * Decrypts a private key if it was encrypted with GLPIKey.
+     * If the string already starts with '-----BEGIN' or GLPIKey is unavailable/fails, returns the input.
+     *
+     * @param string $keyInput
+     * @return string
+     */
+    public static function decryptPrivateKey(string $keyInput): string
+    {
+        $trimmed = trim($keyInput);
+        if (empty($trimmed) || str_starts_with($trimmed, '-----BEGIN')) {
+            return $keyInput;
+        }
+
+        if (class_exists('\GLPIKey')) {
+            try {
+                $glpiKey = new \GLPIKey();
+                $decrypted = $glpiKey->decrypt($keyInput);
+                if (!empty($decrypted) && str_starts_with(trim($decrypted), '-----BEGIN')) {
+                    return $decrypted;
+                }
+            } catch (\Throwable $e) {
+                // Return original input if decryption fails
+            }
+        }
+
+        return $keyInput;
+    }
+
+    /**
+     * Encrypts a private key using GLPIKey if available and not already encrypted.
+     *
+     * @param string $keyInput
+     * @return string
+     */
+    public static function encryptPrivateKey(string $keyInput): string
+    {
+        $trimmed = trim($keyInput);
+        if (empty($trimmed)) {
+            return '';
+        }
+
+        if (str_starts_with($trimmed, '-----BEGIN') && class_exists('\GLPIKey')) {
+            try {
+                $glpiKey = new \GLPIKey();
+                $encrypted = $glpiKey->encrypt($keyInput);
+                if (!empty($encrypted)) {
+                    return $encrypted;
+                }
+            } catch (\Throwable $e) {
+                // Fallback to original input if encryption fails
+            }
+        }
+
+        return $keyInput;
+    }
+
+    /**
+     * Generates a self-signed X.509 certificate and private key pair using OpenSSL with configurable parameters.
+     *
+     * @param string|null $commonName Common Name for the certificate subject, defaults to GLPI host
+     * @param int $daysValid Validity period in days (defaults to 1095 = 3 years, bounded between 30 and 3650)
+     * @param string $keyType Cryptographic key type ('RSA' or 'EC', defaults to 'RSA')
+     * @param int $keyBits RSA key bit length (2048, 3072, 4096 - minimum 2048)
+     * @param string $curveName EC curve name ('prime256v1', 'secp384r1', 'secp521r1' - minimum 256 bits)
+     * @param string $digestAlg Message digest algorithm ('sha256', 'sha384', 'sha512' - defaults to 'sha256')
+     * @return array|false Returns associative array with 'certificate' and 'private_key' strings, or false on failure
+     */
+    public static function generateSelfSignedCertificate(
+        ?string $commonName = null,
+        int $daysValid = 1095,
+        string $keyType = 'RSA',
+        int $keyBits = 2048,
+        string $curveName = 'prime256v1',
+        string $digestAlg = 'sha256'
+    ): array|false {
+        if (!extension_loaded('openssl') || !function_exists('openssl_pkey_new')) {
+            return false;
+        }
+
+        global $CFG_GLPI;
+
+        if (empty($commonName)) {
+            $urlBase = (string)($CFG_GLPI['url_base'] ?? '');
+            $host = !empty($urlBase) ? parse_url($urlBase, PHP_URL_HOST) : null;
+            $commonName = !empty($host) ? (string)$host : 'glpi-saml-sp';
+        } else {
+            $commonName = substr(trim((string)preg_replace('/[^\w.\-]/', '', $commonName)), 0, 64);
+            if (empty($commonName)) {
+                $commonName = 'glpi-saml-sp';
+            }
+        }
+
+        // Clamp validity period to between 30 days and 3650 days (10 years)
+        $daysValid = max(30, min(3650, $daysValid));
+
+        // Enforce community-accepted digest algorithms
+        $digestAlg = strtolower(trim($digestAlg));
+        if (!in_array($digestAlg, ['sha256', 'sha384', 'sha512'], true)) {
+            $digestAlg = 'sha256';
+        }
+
+        $keyType = strtoupper(trim($keyType));
+        if ($keyType === 'EC') {
+            // Enforce community-accepted elliptic curves (minimum 256 bits)
+            $allowedCurves = ['prime256v1', 'secp384r1', 'secp521r1'];
+            if (!in_array($curveName, $allowedCurves, true)) {
+                $curveName = 'prime256v1';
+            }
+            $privKeyConfig = [
+                'curve_name'       => $curveName,
+                'private_key_type' => OPENSSL_KEYTYPE_EC,
+            ];
+        } else {
+            // Default to RSA. Enforce community-accepted minimum key length (NIST/BSI standard: >= 2048 bits)
+            $keyType = 'RSA';
+            $allowedBits = [2048, 3072, 4096];
+            if (!in_array($keyBits, $allowedBits, true)) {
+                if ($keyBits < 2048) {
+                    return false; // Strictly disallow sub-standard/weak keys
+                }
+                $keyBits = 2048;
+            }
+            $privKeyConfig = [
+                'private_key_bits' => $keyBits,
+                'private_key_type' => OPENSSL_KEYTYPE_RSA,
+            ];
+        }
+
+        $dn = [
+            'commonName'             => $commonName,
+            'organizationName'       => 'GLPI SAML Service Provider',
+            'organizationalUnitName' => 'IT Department',
+        ];
+
+        $privKeyRes = openssl_pkey_new($privKeyConfig);
+        if ($privKeyRes === false) {
+            return false;
+        }
+
+        $csr = openssl_csr_new($dn, $privKeyRes, ['digest_alg' => $digestAlg]);
+        if ($csr === false) {
+            return false;
+        }
+
+        $certRes = openssl_csr_sign($csr, null, $privKeyRes, $daysValid, ['digest_alg' => $digestAlg]);
+        if ($certRes === false) {
+            return false;
+        }
+
+        $certOut = '';
+        $privKeyOut = '';
+        if (!openssl_x509_export($certRes, $certOut) || !openssl_pkey_export($privKeyRes, $privKeyOut)) {
+            return false;
+        }
+
+        return [
+            'certificate' => trim($certOut),
+            'private_key' => trim($privKeyOut),
+        ];
     }
 
     /**
@@ -540,7 +1001,10 @@ class ConfigEntity extends ConfigItem
                         'url'                           => samlsso_webdir() . SamlSsoController::SLO_ROUTE,
                     ],
                     'x509cert'                          => $this->fields[ConfigEntity::SP_CERTIFICATE],
-                    'privateKey'                        => $this->fields[ConfigEntity::SP_KEY],
+                    'privateKey'                        => self::decryptPrivateKey($this->resolvePrivateKey(
+                        $this->fields[self::SP_KEY_SOURCE] ?? 'db',
+                        $this->fields[self::SP_KEY] ?? ''
+                    )),
                     'NameIDFormat'                      => (isset($this->fields[ConfigEntity::SP_NAME_FORMAT]) ? $this->fields[ConfigEntity::SP_NAME_FORMAT]
                         : 'unspecified'),
                 ],
@@ -561,6 +1025,7 @@ class ConfigEntity extends ConfigItem
                 'security'                              => [
                     'nameIdEncrypted'                   => (bool) $this->fields[ConfigEntity::ENCRYPT_NAMEID],
                     'authnRequestsSigned'               => (bool) $this->fields[ConfigEntity::SIGN_AUTHN],
+                    'forceAuthn'                        => (bool) ($this->fields[ConfigEntity::FORCE_AUTHN] ?? false),
                     'logoutRequestSigned'               => (bool) $this->fields[ConfigEntity::SIGN_SLO_REQ],
                     'logoutResponseSigned'              => (bool) $this->fields[ConfigEntity::SIGN_SLO_RES],
                     'wantMessagesSigned'                => (bool)$this->fields[ConfigEntity::SECURITY_WANTMESSAGESSIGNED],
@@ -608,31 +1073,41 @@ class ConfigEntity extends ConfigItem
      * @since           1.0.0
      * @example         https://github.com/SAML-Toolkits/php-saml/blob/master/settings_example.php
      */
-    private static function getAuthn($value): array|bool
+    private static function getAuthn(mixed $value): array|bool
     {
-        if (preg_match('/^none,.+/i', $value)) {
-            $array  = explode(':', $value);
-            $output = array();
-            foreach ($array as $item) {
-                switch ($item) {
-                    case 'PasswordProtectedTransport':
-                        $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport';
-                        break;
-                    case 'Password':
-                        $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:Password';
-                        break;
-                    case 'X509':
-                        $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:X509';
-                        break;
-                    default:
-                        $output[] = '';
-                        break;
-                }
-            }
-            return $output;
+        if (is_array($value)) {
+            $items = $value;
+        } elseif (is_string($value) && $value !== '') {
+            $items = preg_split('/[:,\s]+/', trim($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         } else {
             return false;
         }
+
+        $output = [];
+        foreach ($items as $item) {
+            $item = trim((string) $item);
+            if ($item === '' || strcasecmp($item, 'none') === 0) {
+                return false;
+            }
+            switch ($item) {
+                case 'PasswordProtectedTransport':
+                    $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport';
+                    break;
+                case 'Password':
+                    $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:Password';
+                    break;
+                case 'X509':
+                    $output[] = 'urn:oasis:names:tc:SAML:2.0:ac:classes:X509';
+                    break;
+                default:
+                    if (str_starts_with($item, 'urn:oasis:names:tc:SAML:2.0:ac:classes:')) {
+                        $output[] = $item;
+                    }
+                    break;
+            }
+        }
+
+        return !empty($output) ? array_values(array_unique($output)) : false;
     }
 
     /**
@@ -657,6 +1132,7 @@ class ConfigEntity extends ConfigItem
                 $config = new SamlConfig();
                 $config->update($fields);
                 $this->fields[self::SAML_XML_STRUCTURE] = $anonymizedXml;
+                self::$dbRowCache[(int)$id] = $this->fields;
             }
         }
     }
@@ -683,7 +1159,7 @@ class ConfigEntity extends ConfigItem
         $dom->preserveWhiteSpace = false;
         $dom->formatOutput = true;
 
-        if (!@$dom->loadXML($xml, LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR | LIBXML_NOCDATA)) {
+        if (!@$dom->loadXML($xml, LIBXML_NONET | LIBXML_NOCDATA)) {
             if (\PHP_VERSION_ID < 80000 && $old_entity_loader !== null) {
                 libxml_disable_entity_loader($old_entity_loader);
             }

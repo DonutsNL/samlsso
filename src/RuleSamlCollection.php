@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -53,7 +53,7 @@ require_once __DIR__ . '/compat.php';
 
 /**
  * JIT import rule collection, extending the core RuleCollection through the
- * version-selected compatibility layer: $rightname ('rule_import') and
+ * version-selected compatibility layer: $rightname ('rule_ldap') and
  * $menu_option ('Saml') are carried by RuleSamlCollectionCompat, version-typed
  * for GLPI 11 and GLPI 12. $stop_on_first_match keeps the core default (false).
  **/
@@ -82,7 +82,8 @@ class RuleSamlCollection extends RuleSamlCollectionCompat
      */
     public static function getRulesTestURL(): string
     {
-        return '/front/rulesengine.test.php';
+        global $CFG_GLPI;
+        return ($CFG_GLPI['root_doc'] ?? '') . '/front/rulesengine.test.php';
     }
 
 }

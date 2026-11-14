@@ -1,68 +1,128 @@
 # samlSSO
+
 [![CodeFactor](https://www.codefactor.io/repository/github/donutsnl/samlsso/badge)](https://www.codefactor.io/repository/github/donutsnl/samlsso)
-[![GLPI Compatibility](https://img.shields.io/badge/GLPI-%E2%89%A5%2011.0.0-green.svg)](https://github.com/DonutsNL/samlsso)
-[![Tests Passing](https://img.shields.io/badge/tests-16%20suites%20passed-brightgreen.svg)](tests/RunAllTests.php)
+[![GLPI Compatibility](https://img.shields.io/badge/GLPI-11%20%7C%2012-green.svg)](https://github.com/DonutsNL/samlsso)
+[![Tests Passing](https://img.shields.io/badge/tests-24%20suites%20passed-brightgreen.svg)](tests/RunAllTests.php)
 [![GitHub release](https://img.shields.io/github/v/release/DonutsNL/samlsso.svg)](https://github.com/DonutsNL/samlsso/releases)
+[![Pre-release](https://img.shields.io/badge/RC-v1.4.0--rc1-orange.svg)](https://github.com/DonutsNL/samlsso/releases/tag/v1.4.0-rc1)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
-This plugin is a full rewrite by Chris Gralike of Derrick Smith's initial PHPSAML plugin for GLPI. This plugin has evolved quite a bit since then and is fully redesigned and rewritten to be compatible with GLPI 11. It now supports multiple SAML Identity Providers (IdPs), implements advanced user right rules, Just-In-Time (JIT) provisioning, and more. 
+> [!IMPORTANT]
+> **Release Candidate Available (`v1.4.0-rc1`) — Feedback Wanted!**
+> [`v1.4.0-rc1`](https://github.com/DonutsNL/samlsso/releases/tag/v1.4.0-rc1) is now available on GitHub Releases for **non-production testing**.
+> The GLPI Marketplace descriptor (`samlsso.xml`) remains on the current stable channel until `1.4.0` verification is complete.
+>
+> Please test in staging and share your findings via [GitHub Issues](https://github.com/DonutsNL/samlsso/issues) or [Discord](https://discord.gg/KyMdkqJcGz), especially around:
+> - **SCIM 2.0 Provisioning (`Beta`)**: User and group synchronization, Bearer authentication, CIDR filtering, and offboarding with Microsoft Entra ID, Okta, or Keycloak ([Wiki setup guide](https://github.com/DonutsNL/samlsso/wiki/Configure-SCIM-Provisioning)).
+> - **LDAP-to-SAML User Migration**: `php bin/console plugins:samlsso:migrate_ldap_users` and `AUTHS_ID_OFFSET` namespace isolation ([Wiki migration guide](https://github.com/DonutsNL/samlsso/wiki/Migrating-Users-from-LDAP-to-SAML)).
+> - **GLPI 11 & 12 Compatibility / CSP Compliance**: Admin configuration UI, popover diagnostics, certificate modals, and JIT rule behavior.
 
-The plugin is fully configurable from the GLPI UI and doesn't require any coding skills. It uses GLPI core components where possible for maximum compatibility and maintainability. It utilizes Composer for quick 3rd party library updates if security issues require it. It follows PSR best practices and, most importantly, is written with a "security-by-design-by-default" approach to help you visually identify security issues.
+---
 
-## Want to support my work?
-- Star ⭐ my repo and contribute to my stargazer achievement. 
-- Think my work earns me a cofee? Consider buying me one at https://www.buymeacoffee.com/donutsnl
+## Overview
+
+`samlSSO` is a SAML 2.0 Single Sign-On (SSO) plugin for **GLPI 11 and 12**, originally rewritten by Chris Gralike from Derrick Smith's `PHPSAML` plugin. It integrates natively with GLPI Core components, uses Composer (`onelogin/php-saml`) for maintainability, follows PSR coding standards, and enforces a database-backed 9-phase authentication state machine ([ADR 0001](docs/ADR/0001-security-by-design-and-state-machine.md)).
+
+### Requirements
+
+| Component | Requirement |
+| :--- | :--- |
+| **GLPI** | `11.0.0` – `12.9.99` |
+| **PHP** | `>= 8.0` with `simplexml` and `openssl` extensions |
+| **Transport** | HTTPS (strongly recommended for SAML SSO; strictly required for SCIM 2.0) |
+| **Sessions** | `session.cookie_httponly = On`; `SameSite=Lax` or `Strict` supported natively via stateless ACS |
+
+---
 
 ## Key Capabilities & Features
-* **Multiple SAML Identity Providers**: Configure and manage multiple IdPs simultaneously.
-* **Just-In-Time (JIT) Provisioning**: Automatically create and update GLPI users dynamically on successful SAML login.
-* **Flexible Claim Mapping**: Bind custom SAML assertion attributes and claims directly to GLPI user fields.
-* **User Association & Authorization Rules**: Assign profiles, groups, and entities to users based on SAML claims.
-* **Security Hardening**: Replay attack protection using assertion ID database tracking, strict time-window verification, and state-machine-backed login/logout flows.
-* **Extensive Logging & Audit Trails**: Thorough logging of phase-by-phase login stages for security validation and SIEM monitoring.
-* **Configuration Backup & Restore**: Built-in backup functionality to easily export and restore plugin configuration state.
-* **Proxy Support**: Native compatibility with TLS-terminating proxies (Kubernetes Ingress, Traefik, HAProxy) using the "Requests Proxied" configuration setting.
-* **Continuous Live Update Improvements**: Ongoing architectural updates ensuring seamless configuration adjustments and session synchronization.
-* **Localizations**: Supports automated translation workflows to localize the interface for multiple languages.
 
-## Feedback
-I am very interested in your challenges and ideas. Want to contribute those? Look for issues with the label 'Public feedback wanted' or create a feedback issue yourself. I would love to engage with you!
+### Authentication & Identity Providers
+- **Multiple SAML Identity Providers**: Configure and operate multiple IdPs concurrently (Microsoft Entra ID, Okta, Keycloak, Ping, Authentik, Google Workspace, JumpCloud, WatchGuard AuthPoint, and generic SAML 2.0 IdPs).
+- **Double-Pass Solicited Authentication**: Enforces `InResponseTo` and unique `SAMLResponse` ID replay tracking through `LoginState`, handling IdP-initiated clicks via transparent solicited re-authentication.
+- **Exclusions & Token-Guarded Bypass**: Configure exclusions and optional cryptographic `?bypass=1` escape hatches for emergency local administration.
 
-## Current Focus
-* Hardening the plugin security state machine
-* Translation quality and localization coverage (https://app.transifex.com/quinquies/samlsso/)
-* Usability optimization and remote logout handling
-* SCIM provisioning capability research
-* Enhancing the audit log state table for SIEM security monitoring
+### Provisioning, Directory Migration & Rules
+- **Just-In-Time (JIT) Provisioning & Claim Mapping**: Dynamically create and synchronize GLPI user accounts on login using SAML attributes mapped to GLPI user fields.
+- **GLPI Rule Engine Integration**: Assign profiles, entities, and groups via native `RuleSaml` authorization rules.
+- **SCIM 2.0 Provisioning (`Beta`)**: Per-IdP stateless HTTPS Bearer endpoint (`/front/scim/v2/{idpId}`) supporting user create/update/deactivate/offboarding, filter queries, PATCH operations, and scoped/existing group membership policies.
+- **LDAP-to-SAML User Migration (`bin/console`)**: Migrate existing LDAP-bound accounts safely in-place (`plugins:samlsso:migrate_ldap_users`) with HMAC-signed revert registers.
 
-## Documentation
-* Officially supported by Teclib: https://glpi-plugins.readthedocs.io/en/latest/saml/requirements.html
-* Further documentation is available in the /docs/ folder and in the Project Wiki https://github.com/DonutsNL/samlsso/wiki.
-* [Contributing & Agentic Maintenance](docs/CONTRIBUTING.md)
-* [Architecture Decision Records (ADRs)](docs/ADR/)
+### Operations, Administration & Security
+- **Audit Trails & Diagnostics**: Phase-by-phase login trace logging and on-demand sanitized diagnostic popovers for TLS reverse proxies (`X-Forwarded-*`) and clock synchronization.
+- **SP Certificate Management & Encrypted Secrets**: Built-in OpenSSL certificate/key generator (`RSA >= 2048` / ECDSA `P-256`–`P-521`), file/env/define key source support, and `GLPIKey` encryption at rest.
+- **Configuration Backup & Restore**: Export and validate/restore full IdP, claim map, and exclusion configurations directly from the UI.
+- **Content Security Policy (CSP) Ready**: Compliant with GLPI nonce-based CSP (`'csp_compliant' => true`).
+- **Localizations**: Automated localization pipeline supporting 21 languages via [Transifex](https://app.transifex.com/quinquies/samlsso/).
+
+---
+
+## Documentation & Project Wiki
+
+Comprehensive setup manuals, IdP walkthroughs, and troubleshooting playbooks live in the **[Project Wiki](https://github.com/DonutsNL/samlsso/wiki)** and local `/docs` directory:
+
+| Topic | Resource |
+| :--- | :--- |
+| **Wiki Home & Overview** | [Project Wiki](https://github.com/DonutsNL/samlsso/wiki) |
+| **Installation, Upgrade & Cookies** | [Installation and Lifecycle](https://github.com/DonutsNL/samlsso/wiki/Installation-and-Lifecycle) · [Teclib Official Docs](https://glpi-plugins.readthedocs.io/en/latest/saml/requirements.html) |
+| **Configuration UI Reference** | [Tab-by-Tab Configuration Reference](https://github.com/DonutsNL/samlsso/wiki/Tab-by-Tab-Configuration-Reference) |
+| **Identity Provider Guides** | [Entra ID & Okta](https://github.com/DonutsNL/samlsso/wiki/Configure-Entra-ID-and-Okta) · [Keycloak](https://github.com/DonutsNL/samlsso/wiki/Configure-Keycloak) · [Ping / Authentik / OneLogin / JumpCloud](https://github.com/DonutsNL/samlsso/wiki/Configure-Ping-Authentik-OneLogin-and-JumpCloud) · [WatchGuard AuthPoint](https://github.com/DonutsNL/samlsso/wiki/Configure-Watchguard-AuthPoint) |
+| **Provisioning & Migrations** | [Claim Mapping & JIT Rules](https://github.com/DonutsNL/samlsso/wiki/Claim-Mapping-and-JIT-Rules) · [Configure SCIM Provisioning (`Beta`)](https://github.com/DonutsNL/samlsso/wiki/Configure-SCIM-Provisioning) · [Migrating Users from LDAP to SAML](https://github.com/DonutsNL/samlsso/wiki/Migrating-Users-from-LDAP-to-SAML) |
+| **Security, Bypass & SLO** | [Login Scenarios & Bypass](https://github.com/DonutsNL/samlsso/wiki/Login-Scenarios-and-Bypass) · [Exclusions, Logout & Cron](https://github.com/DonutsNL/samlsso/wiki/Exclusions-Logout-and-Cron) · [Timeouts, Clocks & Secrets](https://github.com/DonutsNL/samlsso/wiki/Timeouts-Clocks-and-Secrets) · [Unsolicited Login Flows](https://github.com/DonutsNL/samlsso/wiki/Unsollicited-%E2%80%90-IdP-initiated-login-flows) |
+| **Troubleshooting & Containers** | [Troubleshooting Playbook](https://github.com/DonutsNL/samlsso/wiki/Troubleshooting-Playbook) · [Docker Setup Guide](https://github.com/DonutsNL/samlsso/wiki/Enable-samlSSO-inside-Docker-containers) |
+| **Architecture & Contribution** | [Architecture Decision Records (`docs/ADR/`)](docs/ADR/) · [Contributing & Agentic Maintenance](docs/CONTRIBUTING.md) · [Changelog](changelog.md) |
 
 > [!NOTE]
 > *Admin Interface Images Notice*: The screenshots in the wiki and documentation will be renewed to reflect the latest version once updates to the configuration form are completed.
 
-## Building Awareness About the OSS Funding Gap
+---
+
+## Feedback, Roadmap & Contributing
+
+### Feedback Wanted
+Share challenges, deployment quirks, or SCIM `Beta` feedback via [GitHub Issues](https://github.com/DonutsNL/samlsso/issues) (check issues labeled `Public feedback wanted`) or join the community [Discord](https://discord.gg/KyMdkqJcGz).
+
+### Current Focus
+- Gathering `v1.4.0-rc1` real-world feedback on **SCIM 2.0 Provisioning (`Beta`)** and **GLPI 12** deployments
+- Hardening the plugin security state machine and introducing environment-agnostic smoke testing ([#202](https://github.com/DonutsNL/samlsso/issues/202))
+- Translation quality and localization coverage ([Transifex](https://app.transifex.com/quinquies/samlsso/))
+- Usability optimization and remote logout (SLO) handling
+- Enhancing the audit log state table for SIEM security monitoring
+
+### Contributing & Testing
+Review [CONTRIBUTING.md](docs/CONTRIBUTING.md) and [ADR 0000–0008](docs/ADR/) before submitting changes, and run the full automated test suite:
+
+```bash
+php tests/RunAllTests.php
+```
+
+---
+
+## Want to Support This Project?
+- Star ⭐ the repository to help visibility and project growth.
+- Think this work earned a coffee? You can contribute at https://www.buymeacoffee.com/donutsnl.
+
+### Building Awareness About the OSS Funding Gap
 - 4000+ downloads and counting.
-- Hours spent maintaining and supporting glpisaml/samlsso for the past 3 years: +1000h and counting. Coffees received YTD: 29. Hourly compensation for efforts: €0.145.
-- I am not in the begging-for-money business, but I do want to build some awareness about the OSS funding gap problem. Be honest about the benefits and consider supporting the OSS projects you are using and making money off of (like GLPI). Building quality software is time-consuming and expensive!
+- Hours spent maintaining and supporting `glpisaml`/`samlsso` for the past 3 years: +1000h and counting. Coffees received YTD: 29. Hourly compensation for efforts: €0.145.
+- This is not about begging for money — it is about awareness around the OSS sustainability gap. If your organization relies on open-source software commercially (including GLPI and this plugin), please consider supporting the maintainers behind it.
 
-## Contribute, or learn to code yourself?
-Join our Discord at: https://discord.gg/KyMdkqJcGz
+---
 
-If you have coding experience (or are learning to code) and want to add meaningful changes, please refer to our guidelines in [CONTRIBUTING.md](docs/CONTRIBUTING.md) to understand coding standards, testing, and pull request workflows.
+## Credits
 
-# Credits
-OSS depends on community effort! So honor where honours are due 🫶:
-- Raul, @gambware, Koen, Marc-henri, Vijay Nayani, Fabio Grasso, for supporting  the OSS-community.
-- @MikeDevresse, @eduardomozart, @Neozlag, @tomas321 for providing fixes to the codebase.
-- @andreaPress for figuring out and sharing the docker config needed.
-- @SpyK-01 for licensing and sharing the logo via https://elements.envato.com/letter-shield-gradient-colorful-logo-XZ7LYCM.
-- @dollierp for adding a cleanup task
-- Translations: @CTparental, Alan Lehoux (sp), Achraf Chico (fr), Eduardo Peres (us), Jonathan Ronquillo (sp), Achraf Oueldelferraga (fr), Joaquin Etchegaray (sp), Soporte Infrastructura (sp).
-- Number of downloads so far: https://hanadigital.github.io/grev/?user=DonutsNL&repo=samlsso (not counting codeberg downloads +3K)
+OSS depends on community effort — thank you to everyone who has contributed🫶:
+- Raul, `@gambware`, Koen, Marc-henri, Vijay Nayani, and Fabio Grasso for supporting the OSS community.
+- `@beeone42` (Sebastien BENOIT) for architecting the dual GLPI 11/12 property typing compatibility layer, call-time webdir helpers, and Twig strict mode fixes (`#169`, `#167`).
+- `@froberts0n` (Frank Robertson, Synairgis) for adding `registration_number` to user claims mapping (`#134`, `#157`).
+- `@MikeDevresse`, `@eduardomozart`, `@Neozlag`, `@tomas321`, `@albertogalisteo`, `@KawanCostaNs`, `@enricomv`, and `@Siruv` for fixes and codebase improvements.
+- `@andreaPress` for figuring out and sharing the Docker configuration needed.
+- `@SpyK-01` for licensing and sharing the logo via https://elements.envato.com/letter-shield-gradient-colorful-logo-XZ7LYCM.
+- `@dollierp` for adding the cleanup cron task.
+- Translations: `@CTparental`, Alan Lehoux (`es`), Achraf Chico (`fr`), Eduardo Peres (`us`), Jonathan Ronquillo (`es`), Achraf Oueldelferraga (`fr`), Joaquin Etchegaray (`es`), Soporte Infrastructura (`es`).
+- Download statistics: https://hanadigital.github.io/grev/?user=DonutsNL&repo=samlsso (excluding +3K historical Codeberg downloads).
 
-# Architecture Decision Records (ADRs)
-Architectural decisions are structured and logged as ADRs inside the `docs/ADR/` folder.
+---
+
+## License
+
+Licensed under the [GNU Affero General Public License v3 (AGPL-3.0) / GPLv3+](LICENSE). Architectural decisions are tracked under [`docs/ADR/`](docs/ADR/).

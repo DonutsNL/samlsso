@@ -1,71 +1,59 @@
 ---
 name: samlsso-development
-description: Coding and architectural guidelines for maintaining the samlsso plugin. Use this skill whenever you write or modify PHP code, shims, tests, or documentation in this repository.
+description: Coding, architectural, issue-triage, and self-learning guidelines for maintaining the samlsso GLPI plugin. Activate whenever analyzing issues or writing/modifying PHP, Twig, CSS, tests, or documentation in this repository.
 ---
 
-# SAMLSSO Development Guidelines
+# SAMLSSO Development & 3-Tier Memory Skill
 
-You MUST follow these rules when performing any changes in this repository.
+You MUST follow these guidelines exclusively when analyzing issues or performing changes in `plugins/samlsso`. Never mix or import concepts, files, ADRs, or open-tab context from any sibling plugin installed side-by-side in `plugins/`—they share nothing with `samlsso` beyond GLPI Core.
 
-## 🤝 Developer & User Alignment
-- **Developer-First Coding**: Always propose changes to the developer. Do not automatically implement them unless the user explicitly asks you to. Your role is to assist the developer by analyzing, suggesting issues, solutions, or optimizations that they can choose to implement. Always validate the logic of developer reviews, adding to them or challenging them if flawed or if a better alternative exists.
-- **User-First Coding**: Always consider the end-user. Avoid technical jargon where simple language will suffice. Ensure error messages are clear, actionable, and do not expose raw technical data or stack traces.
-- **Security & Safe Coding Audits**: Always review implementations for strict compliance with safe coding standards to ensure that no logic or security bypass loops are created.
+## 🧠 1. Progressive Disclosure Memory Map (Read On-Demand)
+To operate with maximum speed and minimum token overhead, consult these Tier 3 reference files in `references/` instead of grepping the codebase from scratch:
+- **[references/architecture-map.md](references/architecture-map.md)**: Complete request call-flow (`POST_INIT` -> `LoginFlow` -> `Acs` -> `LoginState` phases 1–9 -> `User`), database table schemas, and 1:1 `src/` to `tests/*Test.php` mapping.
+- **[references/issue-triage-playbook.md](references/issue-triage-playbook.md)**: Standard decision trees and responses for recurring GitHub issues (unsolicited/IdP-initiated login, session vs. request timeouts, `strict` mode behavior, reverse proxy HTTP 400, local account linking).
+- **[references/deferred-backlog.md](references/deferred-backlog.md)**: Persistent cross-session backlog of queued codebase improvements and environment quirks. **Always check this file when analyzing a new issue** to see if a queued fix touches the same files.
 
-## 🤖 Workflow & Preparation
-- **Read the Wiki**: Before performing any functional changes, read the Project Wiki (https://github.com/DonutsNL/samlsso/wiki) to understand state-machine logic, the assertion lifecycle, and architectural design patterns.
-- **Understand Security**: Never propose changes that bypass the state-machine or weaken replay protection.
-- **Issue-First**: A formal GitHub Issue must exist before any code changes are allowed. If none exists, create a new issue on GitHub describing the intended change and reasoning, and reference it in the changelog and ADRs.
-- **Change Traceability**: Record every single change (no matter how small) in `changelog.md` under the appropriate version header. Always use a single, clean list of short, concise descriptions (e.g., `- Fixed issue https://github.com/DonutsNL/samlsso/issues/27 with undefined tabs in twig.`). Do not use categories, headers, or sub-lists within a version entry.
-- **Wiki Updates**: If changing functional behavior, configuration, or endpoints, suggest updates to the corresponding Wiki pages.
-- **Twig Template Cache**: The GLPI cache must be cleaned whenever Twig templates are changed (e.g., by executing `php bin/console cache:clear` from the GLPI root directory) to ensure updates are loaded successfully.
+## 🤖 2. Autonomous Workflows & Two-Gate ADR Governance
+Execute these workflows automatically without waiting for the user to type `/learn` or `/grill-me`:
+1. **Gate 1 — Pre-Implementation ADR Validation**:
+   - Before writing any code, validate the issue and proposed fix against `docs/ADR/0000`–`0008`. Deny and discuss any conflicting request first.
+2. **Gate 2 — Post-Implementation Outcome Validation**:
+   - After implementing an approved change, validate all modified files against `docs/ADR/0000`–`0008` and execute `php tests/RunAllTests.php` (including `tests/AdrComplianceTest.php`).
+3. **Auto-`/learn` (Continuous Memory Persistence)**:
+   - Whenever the developer corrects an assumption, clarifies plugin intent (e.g., honoring `php-saml` `strict` configuration while keeping unsolicited flows blocked), or resolves an environment quirk, immediately update the appropriate file (`docs/ADR/0001`–`0008`, `rules/AGENTS.md`, or `references/*.md`) in the same turn. Do not persist transient local-dev observations explicitly dismissed by the developer.
+4. **Auto-`/grill-me` (Fact-Checked Design Alignment)**:
+   - Never blindly adopt casual hypotheses if a cleaner native GLPI Core primitive or bounded local design exists. Verify remarks against GLPI Core source (`/var/www/glpi-dev_quinquies_nl/src/`), RFC specs, and Composer package maintenance before writing ADRs, plans, Wiki pages, or code, and align on structured trade-offs first.
+5. **Auto-Backlog Check & Sync**:
+   - Before proposing a fix for a GitHub issue, check `references/deferred-backlog.md`. If a queued backlog item touches the same class or workflow, propose folding it into the fix. Once committed, remove or mark it completed in `references/deferred-backlog.md`.
 
+## 💻 3. Code Standards, Tooling & Documentation Hygiene
+- **IDE-Native File Tools First**: Use IDE file/search tools (`read_file`, `edit_file`, `write_file`) for reading, searching, creating, and modifying files rather than shell commands so the developer is not prompted with unnecessary `Allow` dialogs. Check `git diff` before committing to guard against duplicate trailing newlines (`\n\n`) at EOF.
+- **DocBlocks Only (No Inline Comments)**: Document every method and major logic block with DocBlocks (`@param`, `@return`, `@throws`). Do not use `//` inline comments inside method bodies; use `/** ... */` block comments. Explicitly import (`use`) or fully qualify (`\Migration`, `\Throwable`) global classes in namespaced files.
+- **Defensive Static Analysis Hygiene (`ADR 0008`)**:
+  - Assign variables **outside** `if`/`elseif` conditions (`$row = $iter->next(); if ($row) {`) rather than inside conditions; avoid unnecessary string concatenation.
+  - Initialize variables (`$auth = null;`, `$fields = [];`) at the start of a scope before `try/catch` or conditional branches.
+  - Keep methods cohesive (target cyclomatic complexity `< 15`) and extract shared helpers instead of duplicating blocks; keep CSS Stylelint-clean (no duplicate selectors or redundant 4-value box shorthands).
+  - Ensure all code paths return a value; use `Html::displayError()` or throw `PluginException` instead of `die()`.
+  - Omit closing `?>` tags in PHP files; use 4-space indentation and keep lines under 120 characters where possible.
+- **Translation Strings (`__()`)**: Pass **only static literal string constants** to `__()`. Never concatenate variables or `\n` inside `__()`; use `sprintf(__('Message: %s', PLUGIN_NAME), $var)`.
+- **Constants Over Raw Strings (`ADR 0008`)**: Define and reference domain class constants (`ConfigEntity::*`, `ConfigItem::*`, `ClaimMap::*`, `ClaimMapItem::*`, `ObservedClaim::*`, `LoginState::*`, `User::*`, `ScimLink::*`, `Exclude::*`, and `SamlSsoController::ACS_ROUTE` / `SLO_ROUTE` / `SCIM_ROUTE`) for all DB columns, GLPI user/group/profile fields, rule criteria/action keys, and routes instead of hardcoding raw string literals. Mirror any added/updated `public const` declarations on corresponding mocks in `tests/TestHarness.php`.
+- **GLPI 11 & 12 Dual Compatibility & Schema Types**:
+  - Concrete classes (`Config`, `Exclude`, `LoginFlow`, `RuleSaml`, `RuleSamlCollection`) extend their intermediate class in `src/compat.php` and must never redeclare `$dohistory`, `$rightname`, or `$menu_option`.
+  - Declare all foreign-key columns (`users_id`, `auths_id`, `entities_id`, `groups_id`) as `INT UNSIGNED` (`fkey`) to satisfy `migration:unsigned_keys`.
+  - Resolve web paths at call time via `samlsso_webdir(bool $relative = false)` and guard Twig variables with `is defined` for GLPI 12 `strict_variables` compatibility.
+- **Form, Popover & Wiki Consistency (`ADR 0006`)**:
+  - Follow GLPI's native Tabler UI without marketing bloat or redundant parenthetical constraint hints.
+  - Major `Beta` subsystems display a subtle `bg-secondary-lt` `Beta` badge and link directly (`target="_blank" rel="noopener noreferrer"`) to their GitHub Wiki page in the top notice; CLI tools in `tools/*.php` include their Wiki manual URL in `--help` output.
+  - In GitHub Wiki Mermaid `sequenceDiagram` blocks, put every statement on its own line and never use bare `+` characters in message/note text (which breaks GitHub's Mermaid lexer).
+  - Surface field warnings/errors and diagnostic tables via `ConfigItem::ERRORS`, hidden inline (`.samlsso-diagnostic-table-container { display: none !important; }`) and rendered on demand inside `SamlSsoPopoverManager`.
 
-## 💻 Code Standards & Cleanliness
-- **DocBlocks**: Document every method and major logic block with detailed docblocks (description, `@param`, `@return`, `@throws`). Do not use inline comments (`//`); use DocBlocks instead. Ensure all `@param` and `@return` types and parameter names are strictly aligned with the actual method signature and implementation. External types used in DocBlocks within namespaced files (like global classes such as `Migration`) must be explicitly imported via `use` statements or fully qualified (e.g., `\Migration`) to prevent undefined namespace type warnings.
-- **Intentional Assignments in Conditions**: When intentionally assigning a variable inside a conditional statement (e.g. `if`, `elseif`), always wrap the assignment in an extra set of parentheses (e.g. `if (($var = val))`) to explicitly signal intent to static analyzers and resolve linter warnings.
-- **Variable Initialization & Guarding**: Always explicitly initialize variables (e.g. `$auth = null;`, `$fields = [];`) at the start of a scope if they are assigned inside `try/catch` or conditional blocks, preventing "potentially undefined variable" static analysis warnings on subsequent uses.
-- **Bash Command Substitution**: When executing commands inside bash scripts (e.g., in `tools/mkzip.sh`), always use the modern `$()` syntax (e.g., `$(pwd)`) instead of legacy backticks (e.g., `` `pwd` ``) to comply with modern shell standards and pass shellcheck rules.
-- **Translation String Concatenation**: Translation helper functions (e.g. `__()`) must only be passed static, literal string constants to ensure they remain extractable by static parser tools. Never concatenate variables, function calls, or newline sequences (like `"\n"`) *inside* a translation function. Instead, concatenate variables outside the helper call or use `sprintf` with placeholders (e.g. `sprintf(__('Message: %s', PLUGIN_NAME), $var)`).
-- **PSR Compliance**: Follow PSR-12 coding standards.
-- **Linting Enforcement**: All code must pass static analysis and linting (Intelephense, SonarLint) with all errors corrected prior to proposing code, creating a release, or submitting a pull request.
-- **No Closing PHP Tags**: PHP-only files must not end with a closing `?>` tag to avoid accidental whitespace emissions.
-- **Indentation & Spacing**: Use 4 spaces for indentation. Avoid extra empty lines, spaces, or tabs.
-- **Line Length**: Keep lines under 120 characters where possible.
-- **Descriptive Naming**: Use descriptive names for variables, classes, functions, and constants. Follow GLPI naming conventions first, then plugin conventions.
-- **Obfuscations**: Never allow obfuscations (e.g., minification, magic strings, hashed strings, or encoded payloads) in the code. If detected, report it immediately and attempt to uncover its purpose.
-- **No Raw Strings for Config/Claim Mapping Fields**: Never use raw string literals when referencing configuration keys or claim mapping fields (e.g. use `ClaimMapItem::FIELD_EMAIL` instead of `'email'`). All fields and keys must be defined as class constants.
-- **Form Layout & Element Consistency**: All tab panels and their constituent elements must follow a single, unified visual layout system. If an element style or behavior (such as toggles, inputs, warning/error row styles, warning tooltips, or info helper hovers) changes in one child template or tab, the change must be identically and consistently applied to all similar elements across all tabs. Info messages underneath fields should be wrapped in `.form-text-info-hover-box` to trigger only on field/row hover.
-
-## 🔒 Security & GLPI Architecture
-- **GLPI Core As-Is Rule**: Never modify or alter any class or method belonging to the GLPI core. Core files and methods must be considered "as-is". Always notify the developer immediately if any core security issues are found.
-- **Separation of Duties & No Core Feature Manipulation**: We do not intervene, modify, or manipulate core GLPI features that the plugin utilizes. Core operations must remain untouched to respect a strict separation of duties.
-- **Native GLPI Components**: Use native GLPI core components (e.g. `CommonDBTM`, `Session`, `Html`, `Toolbox`) where possible.
-- **Sanitization & Input Validation**: Never trust external input. Always use GLPI's `Sanitizer` or native filter functions.
-- **Access Control (Rights)**: Every entry point (e.g., in `front/` or `ajax/`) must explicitly verify that the user has the required rights (e.g. using `Session::checkLoginUser()`).
-- **i18n & Localization**: All user-facing strings must use GLPI translation helper functions like `__('string', PLUGIN_NAME)` for localization.
-- **Error Handling**: Do not use `die()`. Always use `Html::displayError()` or throw a `PluginException`.
-- **Return Values**: Ensure all code paths return a value. If a code path is theoretically unreachable, return an empty string or the appropriate default value to satisfy static analysis.
-- **PluginContext**: Always use `PluginContext::get()` for global plugin configuration.
-- **ADRs**: Document the rationale, alternatives, pros, and cons of your changes in an ADR under `ADRS/`.
-- **Never Use Sudo**: Never use `sudo` to bypass permission or security issues during development, testing, or operations (such as cache clearing). If a permission issue is encountered, ask the user/administrator to correct it instead of using elevated privileges.
-- **Never Clear Cache**: Never attempt to clear the GLPI cache yourself. If the cache needs to be cleared (e.g. after changing Twig templates or locales), ask the user to clear it.
-
-## 🧪 Testing & Releases
-- **LoginFlow Test Coverage**: Every function included in the main `LoginFlow` class and its subclasses must be mapped to and covered by the automated test suite.
-- **No Core Mocking**: We do not implement shim or pseudo functions that mimic GLPI core behaviors. Test environments must bootstrap the actual GLPI framework to execute real core behaviors rather than stubbing them out.
-- **Add Tests**: When adding new functionality, you MUST add new tests to the `tests/` folder. Ensure they pass successfully before proposing any change.
-- **Running Tests**: Run the automated test runner from the root of the plugin directory:
-  ```bash
-  php tests/RunAllTests.php
-  ```
-- **Creating a Release**: To package a new release zip using `tools/mkzip.sh`:
-  1. **Controlled Releases**: Note that the `main` branch is actively monitored by the GLPI plugins directory website. Updating `samlsso.xml` or pushing tags to `main` will trigger a release immediately. Always perform build, packaging, and testing on dedicated version branches (e.g., `1.3.2`) and **do not** merge to `main` or publish the GitHub release until the version is officially approved and ready to go live.
-  2. Update the version constant `PLUGIN_SAMLSSO_VERSION` in `setup.php`.
-  3. Update the `OLDVERSION` and `NEWVERSION` variables in `tools/mkzip.sh` to match the version bump.
-  4. Run the release packaging script (it will automatically run the automated test suite and abort on any failure):
-     ```bash
-     ./tools/mkzip.sh
-     ```
-  5. Manually update `samlsso.xml` to add a new `<version>` block listing the new version and its download URL.
-  6. Run the test suite (`php tests/RunAllTests.php`) one final time to verify version and copyright alignments check out across all files.
+## 🧪 4. Verification & Release Packaging
+1. **Run All Tests**:
+   ```bash
+   php tests/RunAllTests.php
+   ```
+   All 24 test suites (including `AdrComplianceTest.php` and `ConfigIntegrityTest.php`) must pass before proposing or pushing any commit. Keep passing test output concise (single `✅` line per test, no raw data dumps); print input, return value, and execution state (exception/redirect/trace) only on failure.
+2. **Release Packaging (`./tools/mkzip.sh`)**:
+   - Update `PLUGIN_SAMLSSO_VERSION` in `setup.php` and `OLDVERSION` / `NEWVERSION` in `tools/mkzip.sh` when bumping versions.
+   - Run `./tools/mkzip.sh` (which runs `RunAllTests.php` and builds `release/samlsso.zip`).
+   - Push verified commits to `origin/<branch>` with proxy variables unset (`HTTPS_PROXY= HTTP_PROXY= ALL_PROXY= git push`).

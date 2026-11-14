@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -60,6 +60,7 @@ use GlpiPlugin\Samlsso\Compat\ConfigCompat;
 use GlpiPlugin\Samlsso\Config\ConfigItem;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\Controller\SamlSsoController;
+use GlpiPlugin\Samlsso\LoginFlow\User as SamlUser;
 
 // Version-selected compatibility layer (GLPI 11 untyped / GLPI 12 typed core
 // properties). Must be required before the class below extends ConfigCompat.
@@ -77,6 +78,25 @@ require_once __DIR__ . '/compat.php';
  */
 class Config extends ConfigCompat
 {
+    private static ?bool $isEnforcedCache = null;
+    private static ?int $isOnlyOneConfigCache = null;
+    private static array $configIdByEmailDomainCache = [];
+    private static ?int $hideLoginFieldsCache = null;
+    private static ?bool $isProxiedActiveCache = null;
+
+    /**
+     * Clear all static request caches (mainly for testing purposes).
+     * @return void
+     */
+    public static function clearCache(): void
+    {
+        self::$isEnforcedCache = null;
+        self::$isOnlyOneConfigCache = null;
+        self::$configIdByEmailDomainCache = [];
+        self::$hideLoginFieldsCache = null;
+        self::$isProxiedActiveCache = null;
+    }
+
     /**
      * Overloads missing canCreate Setup right and returns canUpdate instead
      *
@@ -201,7 +221,9 @@ class Config extends ConfigCompat
                 $field[ConfigItem::FIELD] != ConfigEntity::NAME          &&
                 $field[ConfigItem::FIELD] != ConfigEntity::IDP_ENTITY_ID &&
                 $field[ConfigItem::FIELD] != ConfigEntity::IS_ACTIVE     &&
-                $field[ConfigItem::FIELD] != ConfigEntity::IS_DELETED
+                $field[ConfigItem::FIELD] != ConfigEntity::IS_DELETED    &&
+                $field[ConfigItem::FIELD] != ConfigEntity::SP_KEY        &&
+                $field[ConfigItem::FIELD] != ConfigEntity::SCIM_TOKEN_HASH
             ) {
                 // Remap DB fields to Search dataTypes
                 if (strstr($field[ConfigItem::TYPE], 'varchar')) {
@@ -250,7 +272,7 @@ class Config extends ConfigCompat
         $length = (is_numeric($length)) ? $length : 255;
 
         // Iterate through the IDP config rows and generate the buttons for twig template.
-        foreach ($DB->request(['FROM' => Config::getTable(), 'WHERE' => ['is_deleted'  => 0]]) as $value) {
+        foreach ($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::IS_DELETED => 0]]) as $value) {
             // Only populate buttons that are considered valid by ConfigEntity;
             $configEntity = new ConfigEntity($value[ConfigEntity::ID]);
 
@@ -261,10 +283,14 @@ class Config extends ConfigCompat
             ) {     // Must not have a domain configured
                 // Populate the button we found in the array.
                 $tplvars['buttons'][] = [
-                    'id'      => $value[ConfigEntity::ID],
-                    'icon'    => $value[ConfigEntity::CONF_ICON],
-                    'name'    => sprintf("%." . $length . "s", $value[ConfigEntity::NAME])
+                    'id'       => $value[ConfigEntity::ID],
+                    'icon'     => $value[ConfigEntity::CONF_ICON],
+                    'icon_url' => !empty($value[ConfigEntity::CONF_ICON_URL]) ? $value[ConfigEntity::CONF_ICON_URL] : null,
+                    'name'     => sprintf("%." . $length . "s", $value[ConfigEntity::NAME])
                 ];
+                if (!empty($value[ConfigEntity::LOGIN_HEADER_TEXT]) && empty($tplvars['header'])) {
+                    $tplvars['header'] = $value[ConfigEntity::LOGIN_HEADER_TEXT];
+                }
             }
         }
 
@@ -283,11 +309,44 @@ class Config extends ConfigCompat
      */
     public static function getIsEnforced(): bool
     {
+        if (self::$isEnforcedCache !== null) {
+            return self::$isEnforcedCache;
+        }
         // Get global DB object to query the configTable.
         global $DB;
 
-        // Return true if we have more then one row that enforces the config
-        return (count($DB->request(['FROM' => Config::getTable(), 'WHERE' => [ConfigEntity::ENFORCE_SSO  => 1, ConfigEntity::IS_DELETED => 0]])) > 0) ? true : false;
+        // Return true only if at least one ACTIVE, non-deleted IdP configuration enforces SSO
+        self::$isEnforcedCache = (count($DB->request([
+            'FROM'  => Config::getTable(),
+            'WHERE' => [
+                ConfigEntity::ENFORCE_SSO => 1,
+                ConfigEntity::IS_ACTIVE   => 1,
+                ConfigEntity::IS_DELETED  => 0,
+            ],
+        ])) > 0);
+        return self::$isEnforcedCache;
+    }
+
+    /**
+     * Returns true if at least one active, non-deleted IdP configuration operates behind a trusted reverse proxy.
+     *
+     * @return bool
+     */
+    public static function isProxiedActive(): bool
+    {
+        if (self::$isProxiedActiveCache !== null) {
+            return self::$isProxiedActiveCache;
+        }
+        global $DB;
+        self::$isProxiedActiveCache = (count($DB->request([
+            'FROM'  => Config::getTable(),
+            'WHERE' => [
+                ConfigEntity::PROXIED    => 1,
+                ConfigEntity::IS_ACTIVE  => 1,
+                ConfigEntity::IS_DELETED => 0,
+            ],
+        ])) > 0);
+        return self::$isProxiedActiveCache;
     }
 
     /**
@@ -299,6 +358,9 @@ class Config extends ConfigCompat
      */
     public static function getIsOnlyOneConfig(): int
     {
+        if (self::$isOnlyOneConfigCache !== null) {
+            return self::$isOnlyOneConfigCache;
+        }
         // Get global DB object to query the configTable.
         global $DB;
 
@@ -314,12 +376,13 @@ class Config extends ConfigCompat
         if (count($res) == 1) {
             // Assign the result to a var
             $row = $res->current();
-            return (is_numeric($row[ConfigEntity::ID])) ? $row[ConfigEntity::ID] : 0;
+            self::$isOnlyOneConfigCache = (is_numeric($row[ConfigEntity::ID])) ? (int)$row[ConfigEntity::ID] : 0;
             // If we find more then one row return 0
             // because we cant enforce multiple idps
         } else {
-            return 0;
+            self::$isOnlyOneConfigCache = 0;
         }
+        return self::$isOnlyOneConfigCache;
     }
 
     /**
@@ -332,11 +395,15 @@ class Config extends ConfigCompat
      */
     public static function getConfigIdByEmailDomain(string $fielda): int
     {
+        if (array_key_exists($fielda, self::$configIdByEmailDomainCache)) {
+            return self::$configIdByEmailDomainCache[$fielda];
+        }
         // Get global DB object to query the configTable.
         global $DB;
         $upn = filter_var($fielda, FILTER_VALIDATE_EMAIL);
         if (!$upn) {
             // Username is not formatted as an email address, return 0
+            self::$configIdByEmailDomainCache[$fielda] = 0;
             return 0;
         }
         // This is now guaranteed to work since $upn is a valid email string
@@ -357,6 +424,7 @@ class Config extends ConfigCompat
         // In strict mode, we can't assume $DB->request() always returns an iterable object.
         // If the query fails, it might return false or null.
         if (!$req) {
+            self::$configIdByEmailDomainCache[$fielda] = 0;
             return 0;
         }
         // PROCESS ROWS
@@ -373,12 +441,14 @@ class Config extends ConfigCompat
                 if (in_array($userDomain, $configured_domains_array)) {
                     // FINAL VALIDATION: Ensure the ID is valid before returning.
                     if (!empty($row[ConfigEntity::ID])) {      //NOSONAR BY DESIGN
+                        self::$configIdByEmailDomainCache[$fielda] = (int) $row[ConfigEntity::ID];
                         return (int) $row[ConfigEntity::ID];
                     }
                     // If ID is bad, continue loop just in case of duplicate domain
                 } // If no match continue to the next row.
             } // If row data is not a string, this row is skipped, preventing errors.
         } // foreach Loop.
+        self::$configIdByEmailDomainCache[$fielda] = 0;
         return 0;
     }
 
@@ -392,6 +462,9 @@ class Config extends ConfigCompat
      */
     public static function getHideLoginFields(): int
     {
+        if (self::$hideLoginFieldsCache !== null) {
+            return self::$hideLoginFieldsCache;
+        }
         // Get global DB object to query the configTable.
         global $DB;
 
@@ -411,25 +484,13 @@ class Config extends ConfigCompat
             ]
         ]);
 
-        if ($req->numrows() > 0) {
-            // Dont hide if we are trying to bypass
-            if (
-                isset($_GET[LoginFlow::SAMLBYPASS])  &&  // Is ?bypass=1 set in our uri
-                $_GET[LoginFlow::SAMLBYPASS] == 1
-            ) {
-                return 0;
-            }
-            // More then one result, hide the password fields.
-            return 1;
-        } else {
-            // Dont hide.
-            return 0;
-        }
+        self::$hideLoginFieldsCache = ($req->numrows() > 0) ? 1 : 0;
+        return self::$hideLoginFieldsCache;
     }
 
 
     /**
-     * Install table needed for Ticket Filter configuration dropdowns.
+     * Install or upgrade the samlSSO Identity Provider configurations table.
      *
      * @param   Migration   $migration Plugin migration information;
      * @return  void
@@ -458,6 +519,8 @@ class Config extends ConfigCompat
             `name`                          VARCHAR(255) NOT NULL,
             `conf_domain`                   VARCHAR(50) NOT NULL,
             `conf_icon`                     VARCHAR(50) NOT NULL,
+            `conf_icon_url`                 VARCHAR(255) NULL,
+            `login_header_text`             VARCHAR(255) NULL,
             `enforce_sso`                   tinyint NOT NULL DEFAULT '0',
             `proxied`                       tinyint NOT NULL DEFAULT '0',
             `strict`                        tinyint NOT NULL DEFAULT '0',
@@ -468,6 +531,7 @@ class Config extends ConfigCompat
             `inactivity_timeout`            int NOT NULL DEFAULT '0',
             `sp_certificate`                TEXT NOT NULL,
             `sp_private_key`                TEXT NOT NULL,
+            `sp_private_key_source`         VARCHAR(25) NOT NULL DEFAULT 'db',
             `sp_nameid_format`              VARCHAR(128) NOT NULL,
             `idp_entity_id`                 VARCHAR(128) NOT NULL,
             `idp_single_sign_on_service`    VARCHAR(128) NOT NULL,
@@ -477,6 +541,7 @@ class Config extends ConfigCompat
             `requested_authn_context_comparison` VARCHAR(25) NOT NULL,
             `security_nameidencrypted`      tinyint NOT NULL DEFAULT '0',
             `security_authnrequestssigned`  tinyint NOT NULL DEFAULT '0',
+            `force_authn`                   tinyint NOT NULL DEFAULT '0',
             `security_logoutrequestsigned`  tinyint NOT NULL DEFAULT '0',
             `security_logoutresponsesigned` tinyint NOT NULL DEFAULT '0',
             `security_wantmessagessigned`   tinyint NOT NULL DEFAULT '0',
@@ -491,6 +556,12 @@ class Config extends ConfigCompat
             `lowercase_url_encoding`        tinyint NOT NULL DEFAULT '0',
             `comment`                       text NULL,
             `saml_xml_structure`            text NULL,
+            `scim_enabled`                  tinyint NOT NULL DEFAULT '0',
+            `scim_token_hash`               VARCHAR(128) NOT NULL DEFAULT '',
+            `scim_token_source`             VARCHAR(16) NOT NULL DEFAULT 'db',
+            `scim_allowed_ips`              TEXT NULL,
+            `scim_deprovision`              VARCHAR(16) NOT NULL DEFAULT 'disable',
+            `scim_group_policy`             VARCHAR(24) NOT NULL DEFAULT 'create_scoped',
             `is_active`                     tinyint NOT NULL DEFAULT '0',
             `is_deleted`                    tinyint NOT NULL default '0',
             `date_creation`                 timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -498,53 +569,180 @@ class Config extends ConfigCompat
             PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            $DB->doQuery($query);
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
         }
 
-        // Alter column width for conf_domain
         if ($DB->tableExists($table)) {
             $migration->displayMessage("Updating table layout for $table");
             $query = <<<SQL
                 ALTER TABLE $table
                 MODIFY COLUMN `conf_domain` varchar(255) null;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            $DB->doQuery($query);
 
-            if (!$DB->fieldExists($table, 'saml_xml_structure', false)) {
-                $migration->addField($table, 'saml_xml_structure', 'text', ['null' => true, 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::SAML_XML_STRUCTURE, false)) {
+                $migration->addField($table, ConfigEntity::SAML_XML_STRUCTURE, 'text', ['value' => null]);
             }
 
-            if (!$DB->fieldExists($table, 'request_timeout', false)) {
-                $migration->addField($table, 'request_timeout', 'int', ['null' => false, 'default' => '15', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::REQUEST_TIMEOUT, false)) {
+                $migration->addField($table, ConfigEntity::REQUEST_TIMEOUT, 'integer', ['value' => 15]);
             }
 
-            if (!$DB->fieldExists($table, 'inactivity_timeout', false)) {
-                $migration->addField($table, 'inactivity_timeout', 'int', ['null' => false, 'default' => '0', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::INACTIVITY_TIMEOUT, false)) {
+                $migration->addField($table, ConfigEntity::INACTIVITY_TIMEOUT, 'integer', ['value' => 0]);
             }
 
-            if (!$DB->fieldExists($table, 'sync_on_login', false)) {
-                $migration->addField($table, 'sync_on_login', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::SYNC_ON_LOGIN, false)) {
+                $migration->addField($table, ConfigEntity::SYNC_ON_LOGIN, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_wantmessagessigned', false)) {
-                $migration->addField($table, 'security_wantmessagessigned', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_WANTMESSAGESSIGNED, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_WANTMESSAGESSIGNED, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_wantassertionssigned', false)) {
-                $migration->addField($table, 'security_wantassertionssigned', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_WANTASSERTIONSSIGNED, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_WANTASSERTIONSSIGNED, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_wantassertionsencrypted', false)) {
-                $migration->addField($table, 'security_wantassertionsencrypted', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_signmetadata', false)) {
-                $migration->addField($table, 'security_signmetadata', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_SIGNMETADATA, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_SIGNMETADATA, 'bool', ['value' => '0']);
             }
 
-            if (!$DB->fieldExists($table, 'security_wantnameid', false)) {
-                $migration->addField($table, 'security_wantnameid', 'tinyint', ['null' => false, 'default' => '0', 'update' => true]);
+            if (!$DB->fieldExists($table, ConfigEntity::SECURITY_WANTNAMEID, false)) {
+                $migration->addField($table, ConfigEntity::SECURITY_WANTNAMEID, 'bool', ['value' => '0']);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SP_KEY_SOURCE, false)) {
+                $migration->addField($table, ConfigEntity::SP_KEY_SOURCE, 'string', ['value' => 'db']);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::FORCE_AUTHN, false)) {
+                $migration->addField($table, ConfigEntity::FORCE_AUTHN, 'bool', ['value' => '0']);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::CONF_ICON_URL, false)) {
+                $migration->addField($table, ConfigEntity::CONF_ICON_URL, 'string', ['value' => null]);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::LOGIN_HEADER_TEXT, false)) {
+                $migration->addField($table, ConfigEntity::LOGIN_HEADER_TEXT, 'string', ['value' => null]);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_ENABLED, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_ENABLED, 'bool', ['value' => '0']);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_TOKEN_HASH, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_TOKEN_HASH, 'string', ['value' => '']);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_TOKEN_SOURCE, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_TOKEN_SOURCE, 'string', ['value' => 'db']);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_ALLOWED_IPS, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_ALLOWED_IPS, 'text', ['value' => null]);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_DEPROVISION, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_DEPROVISION, 'string', ['value' => 'disable']);
+            }
+
+            if (!$DB->fieldExists($table, ConfigEntity::SCIM_GROUP_POLICY, false)) {
+                $migration->addField($table, ConfigEntity::SCIM_GROUP_POLICY, 'string', ['value' => 'create_scoped']);
+            }
+
+            $migration->migrationOneTable($table);
+
+            /**
+             * Normalize columns previously created with bare 'tinyint' or ignored 'default' keys
+             * on <= 1.3.2-rc upgrades (#173): backfill NULL values first so MySQL strict mode accepts NOT NULL.
+             */
+            $boolColsToNormalize = [
+                ConfigEntity::SYNC_ON_LOGIN,
+                ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
+                ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
+                ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
+                ConfigEntity::SECURITY_SIGNMETADATA,
+                ConfigEntity::SECURITY_WANTNAMEID,
+                ConfigEntity::FORCE_AUTHN,
+            ];
+            foreach ($boolColsToNormalize as $boolCol) {
+                if ($DB->fieldExists($table, $boolCol, false)) {
+                    $DB->update($table, [$boolCol => 0], [$boolCol => null]);
+                    $migration->changeField($table, $boolCol, $boolCol, 'bool', ['value' => '0']);
+                }
+            }
+
+            $intColsToNormalize = [
+                ConfigEntity::REQUEST_TIMEOUT    => 15,
+                ConfigEntity::INACTIVITY_TIMEOUT => 0,
+            ];
+            foreach ($intColsToNormalize as $intCol => $defaultVal) {
+                if ($DB->fieldExists($table, $intCol, false)) {
+                    $DB->update($table, [$intCol => $defaultVal], [$intCol => null]);
+                    $migration->changeField($table, $intCol, $intCol, 'integer', ['value' => $defaultVal]);
+                }
+            }
+
+            $migration->migrationOneTable($table);
+
+            /**
+             * Migrate existing plaintext SP private keys stored in the database to GLPIKey encryption,
+             * and upgrade legacy unnamespaced SAML/SCIM glpi_users.auths_id bindings (1..999) to
+             * User::AUTHS_ID_OFFSET + $cfgId (1,000,000 + $cfgId) so they never collide with glpi_authldaps.
+             */
+            $legacyConfigIds = [];
+            $existingRows = $DB->request([
+                'SELECT' => [ConfigEntity::ID, ConfigEntity::SP_KEY, ConfigEntity::SP_KEY_SOURCE],
+                'FROM'   => $table,
+            ]);
+            foreach ($existingRows as $row) {
+                $cfgId = (int)($row[ConfigEntity::ID] ?? 0);
+                if ($cfgId > 0 && $cfgId < \GlpiPlugin\Samlsso\LoginFlow\User::AUTHS_ID_OFFSET) {
+                    $legacyConfigIds[] = $cfgId;
+                }
+                $keySource = (string)($row[ConfigEntity::SP_KEY_SOURCE] ?? 'db');
+                $rawKey    = (string)($row[ConfigEntity::SP_KEY] ?? '');
+                if ($keySource === 'db' && $rawKey !== '' && str_starts_with(trim($rawKey), '-----BEGIN')) {
+                    $encryptedKey = ConfigEntity::encryptPrivateKey($rawKey);
+                    if ($encryptedKey !== $rawKey && method_exists($DB, 'update')) {
+                        $DB->update(
+                            $table,
+                            [ConfigEntity::SP_KEY => $encryptedKey],
+                            [ConfigEntity::ID => $cfgId]
+                        );
+                    }
+                }
+            }
+
+            if (!empty($legacyConfigIds) && $DB->tableExists('glpi_users') && method_exists($DB, 'update')) {
+                $externalAuthType = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? (int)\Auth::EXTERNAL : 4;
+                $legacyUsers = $DB->request([
+                    'SELECT' => [SamlUser::USERID, SamlUser::AUTHS_ID, SamlUser::USER_DN],
+                    'FROM'   => 'glpi_users',
+                    'WHERE'  => [
+                        SamlUser::AUTHTYPE => $externalAuthType,
+                        SamlUser::AUTHS_ID => array_values(array_unique($legacyConfigIds)),
+                    ],
+                ]);
+                foreach ($legacyUsers as $legacyUser) {
+                    $uid = (int)($legacyUser[SamlUser::USERID] ?? 0);
+                    $oldAuthsId = (int)($legacyUser[SamlUser::AUTHS_ID] ?? 0);
+                    $userDn = trim((string)($legacyUser[SamlUser::USER_DN] ?? ''));
+                    if ($uid > 0 && $oldAuthsId > 0 && $oldAuthsId < SamlUser::AUTHS_ID_OFFSET && $userDn === '') {
+                        $DB->update(
+                            'glpi_users',
+                            [SamlUser::AUTHS_ID => SamlUser::toAuthsId($oldAuthsId)],
+                            [SamlUser::USERID => $uid]
+                        );
+                    }
+                }
             }
 
             Session::addMessageAfterRedirect("🆗 Updated: $table layout.");
@@ -552,14 +750,72 @@ class Config extends ConfigCompat
     }
 
     /**
-     * Uninstall table needed for Ticket Filter configuration dropdowns
+     * Return list of fields that must not be disclosed in history logs or search.
+     *
+     * @return array
+     */
+    public static function getUndisclosedFields(): array
+    {
+        return [ConfigEntity::SP_KEY, ConfigEntity::SCIM_TOKEN_HASH];
+    }
+
+    /**
+     * Prepare input for adding a new configuration entry.
+     * Encrypts the SP private key using GLPIKey if provided.
+     *
+     * @param array $input
+     * @return array|false
+     */
+    public function prepareInputForAdd($input)
+    {
+        $input = parent::prepareInputForAdd($input);
+        if ($input === false) {
+            return false;
+        }
+        if (!empty($input[ConfigEntity::SP_KEY])) {
+            $input[ConfigEntity::SP_KEY] = ConfigEntity::encryptPrivateKey($input[ConfigEntity::SP_KEY]);
+        }
+        return $input;
+    }
+
+    /**
+     * Prepare input for updating an existing configuration entry.
+     * Encrypts the SP private key using GLPIKey if provided.
+     *
+     * @param array $input
+     * @return array|false
+     */
+    public function prepareInputForUpdate($input)
+    {
+        $input = parent::prepareInputForUpdate($input);
+        if ($input === false) {
+            return false;
+        }
+        if (!empty($input[ConfigEntity::SP_KEY])) {
+            $input[ConfigEntity::SP_KEY] = ConfigEntity::encryptPrivateKey($input[ConfigEntity::SP_KEY]);
+        }
+        return $input;
+    }
+
+    /**
+     * Back up and drop the samlSSO Identity Provider configurations table on plugin uninstall.
+     *
      * @param   Migration $migration    - Plugin migration information;
      * @return  void
      * @see                             - GLPISaml/hook.php
      */
     public static function uninstall(Migration $migration): void
     {
+        global $DB;
         $table = getTableForItemType(static::class);
+        // Clear sensitive private keys before backing up table on uninstall
+        if ($DB->tableExists($table) && $DB->fieldExists($table, ConfigEntity::SP_KEY, false)) {
+            $clearSecrets = [ConfigEntity::SP_KEY => ''];
+            if ($DB->fieldExists($table, ConfigEntity::SCIM_TOKEN_HASH, false)) {
+                $clearSecrets[ConfigEntity::SCIM_TOKEN_HASH] = '';
+            }
+            $DB->update($table, $clearSecrets, [ConfigEntity::ID => ['>', 0]]);
+        }
         // Make this smarter in the future. Never create a backup
         // when the source table is empty and an existing table is
         // populated! Allow user to restore from backup table. Current

@@ -32,13 +32,13 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -73,112 +73,122 @@ namespace GlpiPlugin\Samlsso\Tests {
             $srcDir = $basePath . '/src';
             $setupFile = $basePath . '/setup.php';
 
-            if (!file_exists($setupFile)) {
-                throw new \Exception("setup.php not found at $setupFile");
-            }
-
-            // Extract PLUGIN_SAMLSSO_CLASSES from setup.php
-            $setupContent = file_get_contents($setupFile);
-            if (!preg_match('/define\(\'PLUGIN_SAMLSSO_CLASSES\'\s*,\s*\[(.*?)\]\)/s', $setupContent, $matches)) {
-                throw new \Exception("PLUGIN_SAMLSSO_CLASSES constant not found in setup.php");
-            }
-
-            // Support both formats:
-            //   Old: \GlpiPlugin\Samlsso\Config::class
-            //   New: 'GlpiPlugin\\Samlsso\\Config'  (string literal, autoloader-safe)
-            $classesInSetup = [];
-
-            // Match ::class constants
-            preg_match_all('/\\\\?GlpiPlugin\\\\Samlsso\\\\\\w+(?:\\\\\\w+)*::class/', $matches[1], $classConstMatches);
-            foreach ($classConstMatches[0] as $match) {
-                $class = str_replace('::class', '', $match);
-                $class = ltrim($class, '\\');
-                $classesInSetup[] = $class;
-            }
-
-            // Match quoted string literals: 'GlpiPlugin\\Samlsso\\Foo' or "GlpiPlugin\\Samlsso\\Foo"
-            preg_match_all('/[\'"]GlpiPlugin\\\\\\\\Samlsso\\\\\\\\[\\w\\\\\\\\]+[\'"]/', $matches[1], $classStringMatches);
-            foreach ($classStringMatches[0] as $match) {
-                $class = trim($match, '\'"');           // strip surrounding quotes
-                $class = str_replace('\\\\', '\\', $class); // unescape double-backslashes
-                $classesInSetup[] = $class;
-            }
-
-            $classesInSetup = array_unique($classesInSetup);
-
-            // Find all PHP files in src/ recursively
-            $directoryIterator = new \RecursiveDirectoryIterator($srcDir);
-            $iterator = new \RecursiveIteratorIterator($directoryIterator);
-
-            $classesWithLifecycle = [];
-            $mismatchedClasses = [];
-
-            foreach ($iterator as $file) {
-                if ($file->isFile() && $file->getExtension() === 'php') {
-                    $filePath = $file->getRealPath();
-                    if ($filePath === false) {
-                        continue;
-                    }
-
-                    // Extract methods using token_get_all to ignore commented code
-                    $content = file_get_contents($filePath);
-                    $tokens = token_get_all($content);
-                    $count = count($tokens);
-                    $hasInstall = false;
-                    $hasUninstall = false;
-
-                    for ($i = 0; $i < $count; $i++) {
-                        if (is_array($tokens[$i]) && $tokens[$i][0] === T_FUNCTION) {
-                            $j = $i + 1;
-                            while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
-                                $j++;
-                            }
-                            if ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_STRING) {
-                                $funcName = $tokens[$j][1];
-                                if ($funcName === 'install') {
-                                    $hasInstall = true;
-                                } elseif ($funcName === 'uninstall') {
-                                    $hasUninstall = true;
-                                }
-                            }
-                        }
-                    }
-
-                    // Verify symmetry: a class has both or neither
-                    if ($hasInstall !== $hasUninstall) {
-                        $relative = str_replace($srcDir . DIRECTORY_SEPARATOR, '', $filePath);
-                        $mismatchedClasses[] = "Class in $relative has " . ($hasInstall ? 'install' : 'uninstall') . " but is missing the corresponding " . ($hasInstall ? 'uninstall' : 'install') . " method.";
-                    }
-
-                    if ($hasInstall && $hasUninstall) {
-                        // Construct class FQCN
-                        $relative = str_replace($srcDir . DIRECTORY_SEPARATOR, '', $filePath);
-                        $relative = str_replace('.php', '', $relative);
-                        $className = 'GlpiPlugin\\Samlsso\\' . str_replace(DIRECTORY_SEPARATOR, '\\', $relative);
-                        $classesWithLifecycle[] = $className;
-                    }
-                }
-            }
+            $classesInSetup = $this->parseSetupLifecycleClasses($setupFile);
+            [$classesWithLifecycle, $mismatchedClasses] = $this->scanLifecycleClassesInSource($srcDir);
 
             if (!empty($mismatchedClasses)) {
                 throw new \Exception("Lifecycle Method Mismatch Failure:\n" . implode("\n", $mismatchedClasses));
             }
 
-            // Verify all classes containing install/uninstall are in PLUGIN_SAMLSSO_CLASSES
             $missingFromSetup = array_diff($classesWithLifecycle, $classesInSetup);
             if (!empty($missingFromSetup)) {
                 throw new \Exception("The following classes have install/uninstall methods but are missing from PLUGIN_SAMLSSO_CLASSES in setup.php:\n" . implode("\n", $missingFromSetup));
             }
 
-            // Verify that all classes listed in PLUGIN_SAMLSSO_CLASSES actually exist and have install/uninstall methods
             foreach ($classesInSetup as $class) {
-                if (!in_array($class, $classesWithLifecycle)) {
+                if (!in_array($class, $classesWithLifecycle, true)) {
                     throw new \Exception("Class '$class' is listed in PLUGIN_SAMLSSO_CLASSES in setup.php but does not implement both install and uninstall methods in the codebase.");
                 }
             }
 
             echo "✅ Validated lifecycle classes list: All lifecycle-managed classes are correctly registered in PLUGIN_SAMLSSO_CLASSES.\n";
             echo "✅ Validated lifecycle completeness: Classes implementing install also implement uninstall.\n";
+        }
+
+        /**
+         * Extract FQCN strings declared in PLUGIN_SAMLSSO_CLASSES inside setup.php.
+         *
+         * @param string $setupFile Path to setup.php.
+         * @return array Unique list of declared FQCNs.
+         * @throws \Exception if setup.php or PLUGIN_SAMLSSO_CLASSES is missing.
+         */
+        private function parseSetupLifecycleClasses(string $setupFile): array {
+            if (!file_exists($setupFile)) {
+                throw new \Exception("setup.php not found at $setupFile");
+            }
+
+            $setupContent = file_get_contents($setupFile);
+            if (!preg_match('/define\(\'PLUGIN_SAMLSSO_CLASSES\'\s*,\s*\[(.*?)\]\)/s', $setupContent, $matches)) {
+                throw new \Exception("PLUGIN_SAMLSSO_CLASSES constant not found in setup.php");
+            }
+
+            $classesInSetup = [];
+            preg_match_all('/\\\\?GlpiPlugin\\\\Samlsso\\\\\\w+(?:\\\\\\w+)*::class/', $matches[1], $classConstMatches);
+            foreach ($classConstMatches[0] as $match) {
+                $classesInSetup[] = ltrim(str_replace('::class', '', $match), '\\');
+            }
+
+            preg_match_all('/[\'"]GlpiPlugin\\\\\\\\Samlsso\\\\\\\\[\\w\\\\\\\\]+[\'"]/', $matches[1], $classStringMatches);
+            foreach ($classStringMatches[0] as $match) {
+                $classesInSetup[] = str_replace('\\\\', '\\', trim($match, '\'"'));
+            }
+
+            return array_unique($classesInSetup);
+        }
+
+        /**
+         * Scan src/ PHP files for install() and uninstall() implementations.
+         *
+         * @param string $srcDir Path to plugin src/ directory.
+         * @return array Tuple of [array $classesWithLifecycle, array $mismatchedClasses].
+         */
+        private function scanLifecycleClassesInSource(string $srcDir): array {
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($srcDir));
+            $classesWithLifecycle = [];
+            $mismatchedClasses = [];
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+                $filePath = $file->getRealPath();
+                if ($filePath === false) {
+                    continue;
+                }
+
+                [$hasInstall, $hasUninstall] = $this->detectLifecycleMethods($filePath);
+                $relative = str_replace($srcDir . DIRECTORY_SEPARATOR, '', $filePath);
+
+                if ($hasInstall !== $hasUninstall) {
+                    $present = $hasInstall ? 'install' : 'uninstall';
+                    $missing = $hasInstall ? 'uninstall' : 'install';
+                    $mismatchedClasses[] = "Class in $relative has $present but is missing the corresponding $missing method.";
+                } elseif ($hasInstall && $hasUninstall) {
+                    $fqcnSuffix = str_replace(DIRECTORY_SEPARATOR, '\\', str_replace('.php', '', $relative));
+                    $classesWithLifecycle[] = 'GlpiPlugin\\Samlsso\\' . $fqcnSuffix;
+                }
+            }
+
+            return [$classesWithLifecycle, $mismatchedClasses];
+        }
+
+        /**
+         * Inspect PHP tokens in a file to determine if install and uninstall methods exist.
+         *
+         * @param string $filePath Absolute path to PHP file.
+         * @return array Tuple of [bool $hasInstall, bool $hasUninstall].
+         */
+        private function detectLifecycleMethods(string $filePath): array {
+            $tokens = token_get_all((string) file_get_contents($filePath));
+            $count = count($tokens);
+            $hasInstall = false;
+            $hasUninstall = false;
+
+            for ($i = 0; $i < $count; $i++) {
+                if (!is_array($tokens[$i]) || $tokens[$i][0] !== T_FUNCTION) {
+                    continue;
+                }
+                $j = $i + 1;
+                while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
+                    $j++;
+                }
+                if ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_STRING) {
+                    $hasInstall = $hasInstall || $tokens[$j][1] === 'install';
+                    $hasUninstall = $hasUninstall || $tokens[$j][1] === 'uninstall';
+                }
+            }
+
+            return [$hasInstall, $hasUninstall];
         }
 
         /**
@@ -193,6 +203,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 'src/Config.php',
                 'src/ClaimMap.php',
                 'src/ObservedClaim.php',
+                'src/ScimLink.php',
                 'src/Exclude.php',
                 'src/LoginState.php',
             ];
@@ -233,8 +244,8 @@ namespace GlpiPlugin\Samlsso\Tests {
                                 }
                             }
 
-                            // Foreign keys (configs_id, idpId, userId)
-                            if ($fieldName === 'configs_id' || $fieldName === 'idpId' || $fieldName === 'userId') {
+                            // Foreign keys (configs_id, idpId, userId, glpi_item_id)
+                            if ($fieldName === 'configs_id' || $fieldName === 'idpId' || $fieldName === 'userId' || $fieldName === 'glpi_item_id') {
                                 if (!str_contains($fieldModifiers, '{$default_key_sign}') && !str_contains($fieldModifiers, '{$default_primary_key_sign}')) {
                                     throw new \Exception("Foreign key '$fieldName' in $relPath does not use the default_key_sign placeholder: $line");
                                 }
@@ -288,6 +299,93 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Validated cache reset: CacheManager::resetAllCaches() is called during installation.\n";
         }
+
+        /**
+         * Test that plugin_samlsso_uninstall removes RuleSaml entries from glpi_rules,
+         * glpi_rulecriterias, and glpi_ruleactions.
+         */
+        public function testUninstallCleansJitRules(): void {
+            global $DB;
+            require_once realpath(__DIR__ . '/../hook.php');
+
+            $db = new MockDB();
+            $DB = $db;
+
+            // Set up mock rules table with a RuleSaml rule
+            $db->setResponse('glpi_rules', [
+                ['id' => 101, 'sub_type' => \GlpiPlugin\Samlsso\RuleSaml::class]
+            ]);
+
+            $result = plugin_samlsso_uninstall();
+            if (!$result) {
+                throw new \Exception("plugin_samlsso_uninstall returned false");
+            }
+
+            // Verify that delete was called on glpi_rules, glpi_rulecriterias, and glpi_ruleactions
+            $deletedTables = array_column($db->deletedRows, 'table');
+            if (!in_array('glpi_rules', $deletedTables) ||
+                !in_array('glpi_rulecriterias', $deletedTables) ||
+                !in_array('glpi_ruleactions', $deletedTables)
+            ) {
+                throw new \Exception("plugin_samlsso_uninstall failed to delete rules from glpi_rules/glpi_rulecriterias/glpi_ruleactions");
+            }
+
+            echo "✅ Validated JIT rule cleanup on uninstall: glpi_rules, glpi_rulecriterias, glpi_ruleactions purged.\n";
+        }
+
+        /**
+         * Test that plugin_samlsso_check_prerequisites() accepts 'Strict', 'Lax', and ''
+         * without warning while warning on 'None' (matching GLPI Core SessionsSecurityConfiguration).
+         *
+         * @return void
+         * @throws \Exception if SameSite prerequisite validation behaves unexpectedly.
+         */
+        public function testPrerequisiteCookieSameSiteValidation(): void {
+            $setupPath = realpath(__DIR__ . '/../setup.php');
+            $shimsPath = realpath(__DIR__ . '/Shims.php');
+            if ($setupPath === false || $shimsPath === false) {
+                throw new \Exception("Failed to resolve setup.php or Shims.php path");
+            }
+
+            $cases = [
+                'Strict' => false,
+                'Lax'    => false,
+                ''       => false,
+                'None'   => true,
+            ];
+
+            foreach ($cases as $sameSite => $expectWarning) {
+                $runnerCode = sprintf(
+                    '$_SERVER["HTTPS"] = "on"; require_once %s; require_once %s; ob_start(); $ok = plugin_samlsso_check_prerequisites(); $out = ob_get_clean(); echo json_encode(["ok" => $ok, "out" => $out]);',
+                    var_export($setupPath, true),
+                    var_export($shimsPath, true)
+                );
+                $cmd = sprintf(
+                    '%s -d session.cookie_secure=1 -d session.cookie_httponly=1 -d %s -r %s',
+                    escapeshellarg(PHP_BINARY),
+                    escapeshellarg('session.cookie_samesite="' . $sameSite . '"'),
+                    escapeshellarg($runnerCode)
+                );
+
+                $rawOutput = shell_exec($cmd);
+                $decoded = is_string($rawOutput) ? json_decode($rawOutput, true) : null;
+                if (!is_array($decoded) || ($decoded['ok'] ?? false) !== true) {
+                    throw new \Exception("Prerequisite runner failed for SameSite='$sameSite': " . (string) $rawOutput);
+                }
+
+                $hasWarning = str_contains((string) ($decoded['out'] ?? ''), 'not aligned');
+                if ($hasWarning !== $expectWarning) {
+                    throw new \Exception(sprintf(
+                        "Unexpected prerequisite warning state for session.cookie_samesite='%s': expected warning=%s, got output=%s",
+                        $sameSite,
+                        $expectWarning ? 'true' : 'false',
+                        (string) ($decoded['out'] ?? '')
+                    ));
+                }
+            }
+
+            echo "✅ Validated cookie SameSite prerequisite check: Strict and Lax accepted; None flagged.\n";
+        }
     }
 }
 
@@ -297,6 +395,8 @@ namespace {
         $test->testLifecycleClasses();
         $test->testPrimaryKeyAndForeignKeySigning();
         $test->testInstallResetsCache();
+        $test->testUninstallCleansJitRules();
+        $test->testPrerequisiteCookieSameSiteValidation();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

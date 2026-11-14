@@ -35,13 +35,10 @@
                             {% endif %}
                         {% endset %}
 
-                        {# 'formtitle ~ helper|raw' corrected: bare 'helper' was never
-                           part of the render context (crash under Twig strict_variables);
-                           the field help text is passed via the 'helper' macro option. #}
                         {{ fields.textField( 
                             inputfields.idp_single_sign_on_service.field, 
                             inputfields.idp_single_sign_on_service.value, 
-                            inputfields.idp_single_sign_on_service.formtitle,
+                            inputfields.idp_single_sign_on_service.formtitle, 
                             {
                                 'add_field_html': error_helper|raw,
                                 helper: inputfields.idp_single_sign_on_service.formexplain,
@@ -60,7 +57,7 @@
                         {{ fields.textField( 
                             inputfields.idp_single_logout_service.field, 
                             inputfields.idp_single_logout_service.value, 
-                            inputfields.idp_single_logout_service.formtitle,
+                            inputfields.idp_single_logout_service.formtitle, 
                             {
                                 'add_field_html': error_helper|raw,
                                 helper: inputfields.idp_single_logout_service.formexplain,
@@ -148,7 +145,7 @@
                             inputfields.requested_authn_context_comparison.field,
                             inputfields.requested_authn_context_comparison.value,
                             inputOptionsAuthnCompare,
-                            inputfields.requested_authn_context_comparison.formtitle,
+                            inputfields.requested_authn_context_comparison.formtitle, 
                             {
                                 'add_field_html': error_helper|raw,
                                 helper: inputfields.requested_authn_context_comparison.formexplain,
@@ -170,9 +167,6 @@
                             {% if inputfields.idp_certificate.errors == true %}
                                 <div id="textHelper" class="form-text" style="color:red;">{{ inputfields.idp_certificate.errors }}</div>
                             {% endif %}
-                            {# strict-safe: same guard pattern as provider.html.twig;
-                               'validate' and its sub-keys are only populated when a
-                               certificate was actually parsed and checked #}
                             {% set idp_validate = inputfields.idp_certificate.validate|default({}) %}
                             {% if idp_validate.subject.CN|default(false) == true %}
                                 <div id="textHelper" class="form-text" style="color:rgb(71, 180, 8);">🆗 Valid Certificate found: {{ idp_validate.subject.CN|default('') }}</div>

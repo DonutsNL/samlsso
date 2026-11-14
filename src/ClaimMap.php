@@ -35,13 +35,13 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -68,7 +68,7 @@ use Session;
  * Mappings are consumed by the JIT (Just-In-Time) user provisioning logic in
  * LoginFlow\User during the ACS assertion processing phase.
  *
- * @since  1.3.2
+ * @since  1.4.0
  * @see    ObservedClaim   Tracks claim keys seen in live SAML responses, giving
  *                         administrators candidate values to map here.
  * @see    LoginFlow\User  Reads and applies these mappings during JIT provisioning.
@@ -186,7 +186,9 @@ class ClaimMap extends CommonDBTM
                 UNIQUE KEY `configs_id_target_glpi` (`configs_id`, `target_type`, `glpi_field`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
         } else {
             /**
@@ -197,17 +199,17 @@ class ClaimMap extends CommonDBTM
              * GLPI 11 warns about signed foreign key columns; making it UNSIGNED aligns
              * it with the primary key it references in glpi_plugin_samlsso_configs.
              */
-            $migration->changeField($table, 'configs_id', 'configs_id', "INT {$default_key_sign} NOT NULL");
+            $migration->changeField($table, self::CONFIGS_ID, self::CONFIGS_ID, "INT {$default_key_sign} NOT NULL");
             $migration->migrationOneTable($table);
 
-            if (!$DB->fieldExists($table, 'target_type', false)) {
-                $migration->addField($table, 'target_type', 'VARCHAR(50)', ['value' => 'user_field', 'update' => true]);
+            if (!$DB->fieldExists($table, self::TARGET_TYPE, false)) {
+                $migration->addField($table, self::TARGET_TYPE, 'string', ['value' => Config\ClaimMapItem::TARGET_TYPE_USER_FIELD]);
             }
-            if (!$DB->fieldExists($table, 'default_value', false)) {
-                $migration->addField($table, 'default_value', 'VARCHAR(255)', ['value' => '', 'update' => true]);
+            if (!$DB->fieldExists($table, self::DEFAULT_VALUE, false)) {
+                $migration->addField($table, self::DEFAULT_VALUE, 'string', ['value' => '']);
             }
-            if (!$DB->fieldExists($table, 'is_required', false)) {
-                $migration->addField($table, 'is_required', 'TINYINT', ['value' => '0', 'update' => true]);
+            if (!$DB->fieldExists($table, self::IS_REQUIRED, false)) {
+                $migration->addField($table, self::IS_REQUIRED, 'bool', ['value' => '0']);
             }
 
             /**
@@ -226,8 +228,9 @@ class ClaimMap extends CommonDBTM
                 ]
             ]);
             if ($indexes->count() === 0) {
-                $migration->addKey($table, ['configs_id', 'target_type', 'glpi_field'], 'configs_id_target_glpi', 'UNIQUE');
+                $migration->addKey($table, [self::CONFIGS_ID, self::TARGET_TYPE, self::GLPI_FIELD], 'configs_id_target_glpi', 'UNIQUE');
             }
+            $migration->migrationOneTable($table);
         }
     }
 

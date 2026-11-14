@@ -35,13 +35,13 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
  *  @see        https://github.com/DonutsNL/samlSSO/readme.md
  *  @link       https://github.com/DonutsNL/samlSSO
- *  @since      1.3.2
+ *  @since      1.4.0
  * ------------------------------------------------------------------------
  **/
 
@@ -65,7 +65,7 @@ use Session;
  * Each row stores a unique (configs_id, saml_claim) pair so that the same
  * claim key observed from multiple responses is recorded only once per IDP.
  *
- * @since  1.3.2
+ * @since  1.4.0
  * @see    ClaimMap   Stores the administrator-configured mappings that translate
  *                    observed claim keys to GLPI user fields.
  */
@@ -146,7 +146,9 @@ class ObservedClaim extends CommonDBTM
                 UNIQUE KEY `configs_id_saml_claim` (`configs_id`, `saml_claim`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
         } else {
             /**
@@ -156,7 +158,7 @@ class ObservedClaim extends CommonDBTM
              * UNSIGNED aligns it with the primary key it references in
              * glpi_plugin_samlsso_configs.
              */
-            $migration->changeField($table, 'configs_id', 'configs_id', "INT {$default_key_sign} NOT NULL");
+            $migration->changeField($table, self::CONFIGS_ID, self::CONFIGS_ID, "INT {$default_key_sign} NOT NULL");
             $migration->migrationOneTable($table);
         }
     }
@@ -230,16 +232,16 @@ class ObservedClaim extends CommonDBTM
         $iterator = $DB->request([
             'FROM'  => $table,
             'WHERE' => [
-                'configs_id' => $configs_id,
-                'saml_claim' => $claim
+                self::CONFIGS_ID => $configs_id,
+                self::SAML_CLAIM => $claim
             ]
         ]);
 
         if (count($iterator) === 0) {
             $model = new self();
             $model->add([
-                'configs_id' => $configs_id,
-                'saml_claim' => $claim
+                self::CONFIGS_ID => $configs_id,
+                self::SAML_CLAIM => $claim
             ]);
         }
     }

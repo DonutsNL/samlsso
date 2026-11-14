@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -46,7 +46,6 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Samlsso\Config;
 
-use DateTime;
 use DateTimeImmutable;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
 
@@ -66,7 +65,6 @@ class ConfigItem    //NOSONAR
     public const VALUE      = 'value';                                  // Database value
     public const VALID      = 'valid';                                  // Is content valid?
     public const INVALID    = 'invalid';                                // Is content invalid?
-    public const RICHVALUE  = 'richvalue';                              // Rich values (like date object)
     public const EVAL       = 'eval';                                   // Evaluated properties
     public const ERRORS     = 'errors';                                 // Encountered problems notnull will prevent DB update/inserts
     public const VALIDATE   = 'validate';                               // Could either be string or array
@@ -194,6 +192,26 @@ class ConfigItem    //NOSONAR
         ];
     }
 
+    protected function sp_private_key_source(mixed $var): array //NOSONAR
+    {
+        $val = (string) $var;
+        $allowed = ['db', 'file', 'env', 'define'];
+        $error = false;
+        if (!in_array($val, $allowed)) {
+            $error = __('⭕ Invalid private key source selected.', PLUGIN_NAME);
+            $val = 'db';
+        }
+        return [
+            ConfigItem::FORMEXPLAIN => __('Specify where the Service Provider\'s private key is stored. Keep keys outside the database for enhanced security.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE => __('SP PRIVATE KEY SOURCE', PLUGIN_NAME),
+            ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE     => $val,
+            ConfigItem::FIELD     => __function__,
+            ConfigItem::VALIDATOR => __method__,
+            ConfigItem::ERRORS    => $error,
+        ];
+    }
+
 
 
     protected function sp_nameid_format(mixed $var): array //NOSONAR
@@ -229,8 +247,9 @@ class ConfigItem    //NOSONAR
      * @param string    Single Sign On Service URL to be validated
      * @return array    Contextual information about the parameter and validation outcomes
      */
-    protected function idp_single_sign_on_service(string $var): array //NOSONAR
+    protected function idp_single_sign_on_service(mixed $var): array //NOSONAR
     {
+        $var = (string) ($var ?? '');
         $error = '';
         // This setting is required for SAML to function
         if (empty($var)) {
@@ -250,7 +269,7 @@ class ConfigItem    //NOSONAR
             ConfigItem::FORMEXPLAIN => __('Single Sign On Service endpoint of the IdP. URL Target of the IdP where the Authentication Request Message will be sent. OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
             ConfigItem::FORMTITLE => __('SSO URL', PLUGIN_NAME),
             ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::VALUE     => $var,
             ConfigItem::FIELD     => __function__,
             ConfigItem::VALIDATOR => __method__,
             ConfigItem::ERRORS    => ($error) ? $error : false
@@ -259,11 +278,12 @@ class ConfigItem    //NOSONAR
 
     /**
      * Validates the URL the passed SAML Single Log Off Service string
-     * @param string    Single Sign On Service URL to be validated
+     * @param mixed     Single Sign On Service URL to be validated
      * @return array    Contextual information about the parameter and validation outcomes
      */
-    protected function idp_single_logout_service(string $var): array //NOSONAR
+    protected function idp_single_logout_service(mixed $var): array //NOSONAR
     {
+        $var = (string) ($var ?? '');
         $error = false;
         // This setting is not required because for example in Azure it will log the user out
         // of all online sessions not just GLPI. No url will result in SAML not performing a
@@ -278,7 +298,7 @@ class ConfigItem    //NOSONAR
             ConfigItem::FORMEXPLAIN  => __('Single Logout service endpoint of the IdP. URL Location of the IdP where SLO Request will be sent.OneLogin PHPSAML only supports the \'HTTP-redirect\' binding for this endpoint.', PLUGIN_NAME),
             ConfigItem::FORMTITLE => __('SLO URL', PLUGIN_NAME),
             ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-            ConfigItem::VALUE     => (string) $var,
+            ConfigItem::VALUE     => $var,
             ConfigItem::FIELD     => __function__,
             ConfigItem::VALIDATOR => __method__,
             ConfigItem::ERRORS    => ($error) ? $error : false
@@ -379,6 +399,44 @@ class ConfigItem    //NOSONAR
         ];
     }
 
+    /**
+     * Validates custom button icon URL.
+     *
+     * @param mixed $var Image URL or path.
+     * @return array
+     */
+    protected function conf_icon_url(mixed $var): array
+    {
+        return [
+            ConfigItem::FORMEXPLAIN => __('Optional custom image or logo URL for the login button (e.g. /plugins/samlsso/pics/logo.png). If set, this image replaces the FontAwesome icon.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('CUSTOM BUTTON ICON URL', PLUGIN_NAME),
+            ConfigItem::EVAL        => ConfigItem::VALID,
+            ConfigItem::VALUE       => (string) $var,
+            ConfigItem::VALIDATOR   => __method__,
+            ConfigItem::FIELD       => __function__,
+            ConfigItem::ERRORS      => false,
+        ];
+    }
+
+    /**
+     * Validates custom login screen header text.
+     *
+     * @param mixed $var Header text string.
+     * @return array
+     */
+    protected function login_header_text(mixed $var): array
+    {
+        return [
+            ConfigItem::FORMEXPLAIN => __('Optional custom header text displayed above the login buttons on the login screen. If empty, the default translatable text is used.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('LOGIN SCREEN HEADER TEXT', PLUGIN_NAME),
+            ConfigItem::EVAL        => ConfigItem::VALID,
+            ConfigItem::VALUE       => (string) $var,
+            ConfigItem::VALIDATOR   => __method__,
+            ConfigItem::FIELD       => __function__,
+            ConfigItem::ERRORS      => false,
+        ];
+    }
+
     protected function comment(mixed $var): array                       //NOSONAR
     {
         return [
@@ -415,7 +473,6 @@ class ConfigItem    //NOSONAR
             ConfigItem::VALUE     => (string) $var,
             ConfigItem::FIELD     => __function__,
             ConfigItem::VALIDATOR => __method__,
-            ConfigItem::RICHVALUE => new DateTime($var),
             ConfigItem::ERRORS    => false
         ];
     }
@@ -430,7 +487,6 @@ class ConfigItem    //NOSONAR
             ConfigItem::VALUE     => (string) $var,
             ConfigItem::FIELD     => __function__,
             ConfigItem::VALIDATOR => __method__,
-            ConfigItem::RICHVALUE => new DateTime($var),
             ConfigItem::ERRORS    => false
         ];
     }
@@ -450,7 +506,7 @@ class ConfigItem    //NOSONAR
                 ConfigItem::FIELD         => __function__,
                 ConfigItem::VALIDATOR     => __method__,
             ],
-            ConfigItem::handleAsBool($var, 'is_deleted'),
+            ConfigItem::handleAsBool($var, ConfigEntity::IS_DELETED),
         );
     }
 
@@ -681,6 +737,25 @@ class ConfigItem    //NOSONAR
         );
     }
 
+    /**
+     * Validates and structures the force_authn configuration field.
+     *
+     * @param mixed $var Raw input value.
+     * @return array Configuration field definition array.
+     */
+    protected function force_authn(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN     => htmlspecialchars(__('If enabled, the SP will set ForceAuthn="true" on outgoing AuthnRequests, requiring the IdP to re-authenticate the user directly and execute all authorization checks.', PLUGIN_NAME)),
+                ConfigItem::FORMTITLE     => __('FORCE RE-AUTHENTICATION', PLUGIN_NAME),
+                ConfigItem::FIELD         => __function__,
+                ConfigItem::VALIDATOR     => __method__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::FORCE_AUTHN)
+        );
+    }
+
     protected function security_logoutrequestsigned(mixed $var): array //NOSONAR
     {
         return array_merge(
@@ -775,15 +850,18 @@ class ConfigItem    //NOSONAR
     // Make sure we always return the correct boolean datatype.
     protected function handleAsBool(mixed $var, $field = null): array
     {
-        if ($var === '' || $var === null) {
+        if ($var === '' || $var === null || $var === false) {
             $var = '0';
+        } elseif ($var === true) {
+            $var = '1';
         }
-        // Default to false if no or an impropriate value is provided.
-        $error = (!empty($var) && !preg_match('/[0-1]/', (string) $var)) ? sprintf(__("⭕ %s can only be 1 or 0", PLUGIN_NAME), $field) : false;
+        $strVar = (string) $var;
+        $isValid = preg_match('/^[01]$/', $strVar) === 1;
+        $error = !$isValid ? sprintf(__("⭕ %s can only be 1 or 0", PLUGIN_NAME), $field) : false;
 
         return [
-            ConfigItem::EVAL   => (is_numeric($var)) ? ConfigItem::VALID : ConfigItem::INVALID,
-            ConfigItem::VALUE  => (!$error) ? $var : '0',
+            ConfigItem::EVAL   => $isValid ? ConfigItem::VALID : ConfigItem::INVALID,
+            ConfigItem::VALUE  => $isValid ? $strVar : '0',
             ConfigItem::ERRORS => $error
         ];
     }
@@ -799,7 +877,8 @@ class ConfigItem    //NOSONAR
             // Start with an empty array
             $validations = [];
             // Try to parse the certificate using Openssl.
-            if (($parsedCertificate = openssl_x509_parse($certificate))) {
+            $parsedCertificate = openssl_x509_parse($certificate);
+            if ($parsedCertificate) {
                 // Create time object from current timestamp to calculate with
                 $n = new DateTimeImmutable('now');
                 // Create time objects from certificate validity properties.
@@ -915,34 +994,42 @@ class ConfigItem    //NOSONAR
         return $result;
     }
 
+    /**
+     * Exposes GLPI's native session inactivity timeout (session.gc_maxlifetime) as a
+     * read-only informational field in the configuration UI.
+     *
+     * Authenticated session lifetime is managed natively by GLPI core and PHP's session
+     * garbage collector rather than by the plugin.
+     *
+     * @param  mixed $var Stored value (ignored in favor of active PHP session.gc_maxlifetime).
+     * @return array Evaluated configuration item attributes.
+     */
     protected function inactivity_timeout(mixed $var): array
     {
-        $error = false;
-        if (!is_numeric($var) || (int)$var < 0) {
-            $error = __('⭕ Inactivity timeout must be a non-negative integer (minutes)', PLUGIN_NAME);
+        $coreLifetimeSec = 0;
+        try {
+            $coreLifetimeSec = (int)ini_get('session.gc_maxlifetime');
+        } catch (\Throwable) {
+            $coreLifetimeSec = 0;
         }
+        $coreLifetimeMin = ($coreLifetimeSec > 0) ? intdiv($coreLifetimeSec, 60) : 0;
 
-        $result = [
-            ConfigItem::FORMEXPLAIN => __('The duration in minutes of inactivity before a session is forcefully logged out (0 to disable).', PLUGIN_NAME),
-            ConfigItem::FORMTITLE => __('INACTIVITY TIMEOUT (MINUTES)', PLUGIN_NAME),
-            ConfigItem::EVAL      => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
-            ConfigItem::VALUE     => ($error) ? '0' : (string)(int)$var,
-            ConfigItem::FIELD     => __function__,
-            ConfigItem::VALIDATOR => __method__,
-            ConfigItem::ERRORS    => ($error) ? $error : false,
+        $formExplain = ($coreLifetimeMin > 0)
+            ? sprintf(
+                __('Authenticated session inactivity is managed natively by GLPI (%d minutes). This value originates from PHP\'s session.gc_maxlifetime setting in php.ini and GLPI\'s session cleanup action.', PLUGIN_NAME),
+                $coreLifetimeMin
+            )
+            : __('Authenticated session inactivity is managed natively by GLPI via PHP\'s session.gc_maxlifetime setting in php.ini and GLPI\'s session cleanup action.', PLUGIN_NAME);
+
+        return [
+            ConfigItem::FORMEXPLAIN => $formExplain,
+            ConfigItem::FORMTITLE   => __('GLPI SESSION TIMEOUT (MINUTES)', PLUGIN_NAME),
+            ConfigItem::EVAL        => ConfigItem::VALID,
+            ConfigItem::VALUE       => (string)$coreLifetimeMin,
+            ConfigItem::FIELD       => __function__,
+            ConfigItem::VALIDATOR   => __method__,
+            ConfigItem::ERRORS      => false,
         ];
-
-        if (!$error) {
-            $tzValidation = $this->validateTimezoneEnvironment();
-            if (!empty($tzValidation['htmlTable'])) {
-                $result[ConfigItem::ERRORS] = $tzValidation['htmlTable'];
-                if (!$tzValidation['isValid']) {
-                    $result[ConfigItem::EVAL] = ConfigItem::INVALID;
-                }
-            }
-        }
-
-        return $result;
     }
 
     /**
@@ -952,70 +1039,111 @@ class ConfigItem    //NOSONAR
      */
     private function validateProxyEnvironment(): array
     {
+        $ctx = $this->collectProxyEnvironmentContext();
+        if ($ctx['isValid']) {
+            return ['isValid' => true, 'htmlTable' => ''];
+        }
+
+        return ['isValid' => false, 'htmlTable' => $this->buildProxyDiagnosticTable($ctx)];
+    }
+
+    /**
+     * Collect normalized proxy header values, HTTPS state, and cookie security flags.
+     *
+     * @return array Associative proxy diagnostic context array.
+     */
+    private function collectProxyEnvironmentContext(): array
+    {
         $xff = !empty($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : '';
         $xfp = !empty($_SERVER['HTTP_X_FORWARDED_PROTO']) ? $_SERVER['HTTP_X_FORWARDED_PROTO'] : '';
         $xfh = !empty($_SERVER['HTTP_X_FORWARDED_HOST']) ? $_SERVER['HTTP_X_FORWARDED_HOST'] : '';
-        
-        $isHttps = (
-            (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] == 1)) ||
-            (strtolower($xfp) === 'https')
-        );
-        
-        $cookieSecureEnabled = (bool)ini_get('session.cookie_secure');
-        $cookieConflict = ($cookieSecureEnabled && !$isHttps);
-        $cookieSecurityMissing = ($isHttps && !$cookieSecureEnabled);
-        
-        $hasXForwarded = !empty($xff) || !empty($xfh) || !empty($xfp);
-        
-        if ($hasXForwarded && $isHttps && !$cookieConflict && !$cookieSecurityMissing) {
-            return ['isValid' => true, 'htmlTable' => ''];
-        }
-        
-        $cookieSecure = $cookieSecureEnabled ? __('Active (Secure)', PLUGIN_NAME) : __('Inactive', PLUGIN_NAME);
-        
-        $statusXff = !empty($xff) ? '✅' : '❌';
-        $statusXfp = (strtolower($xfp) === 'https') ? '✅' : '❌';
-        $statusXfh = !empty($xfh) ? '✅' : '❌';
-        $statusHttps = $isHttps ? '✅' : '❌';
-        $statusCookie = ($cookieConflict || $cookieSecurityMissing) ? '❌' : '✅';
-        
-        $detectedHttpsStr = $isHttps ? 'HTTPS' : 'HTTP';
-        
+
+        $isHttps = (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] == 1))
+            || strtolower($xfp) === 'https';
+
+        $cookieSecureEnabled   = (bool) ini_get('session.cookie_secure');
+        $cookieConflict        = $cookieSecureEnabled && !$isHttps;
+        $cookieSecurityMissing = $isHttps && !$cookieSecureEnabled;
+        $hasXForwarded         = !empty($xff) || !empty($xfh) || !empty($xfp);
+
+        return [
+            'xff'                   => $xff,
+            'xfp'                   => $xfp,
+            'xfh'                   => $xfh,
+            'isHttps'               => $isHttps,
+            'cookieSecureEnabled'   => $cookieSecureEnabled,
+            'cookieConflict'        => $cookieConflict,
+            'cookieSecurityMissing' => $cookieSecurityMissing,
+            'isValid'               => $hasXForwarded && $isHttps && !$cookieConflict && !$cookieSecurityMissing,
+        ];
+    }
+
+    /**
+     * Render the diagnostic HTML table and warning banners for proxy/cookie checks.
+     *
+     * @param array $ctx Context array produced by collectProxyEnvironmentContext().
+     * @return string Sanitized diagnostic HTML table string.
+     */
+    private function buildProxyDiagnosticTable(array $ctx): string
+    {
+        $cookieSecure  = $ctx['cookieSecureEnabled'] ? __('Active (Secure)', PLUGIN_NAME) : __('Inactive', PLUGIN_NAME);
+        $statusCookie  = ($ctx['cookieConflict'] || $ctx['cookieSecurityMissing']) ? '❌' : '✅';
+        $expectedCookie = $ctx['isHttps'] ? __('Active (Secure)', PLUGIN_NAME) : __('Any', PLUGIN_NAME);
+
         $table = '<table class="table table-bordered table-sm text-start mt-2" style="font-size: 0.8rem; min-width: 320px; margin-bottom: 0;">';
         $table .= '<thead><tr class="table-light"><th>' . __('Condition / Parameter', PLUGIN_NAME) . '</th><th>' . __('Expected', PLUGIN_NAME) . '</th><th>' . __('Detected', PLUGIN_NAME) . '</th><th>' . __('Status', PLUGIN_NAME) . '</th></tr></thead>';
         $table .= '<tbody>';
-        
-        // session.cookie_secure check
-        $expectedCookie = $isHttps ? __('Active (Secure)', PLUGIN_NAME) : __('Any', PLUGIN_NAME);
         $table .= '<tr><td>session.cookie_secure</td><td>' . $expectedCookie . '</td><td>' . $cookieSecure . '</td><td>' . $statusCookie . '</td></tr>';
-        
-        // Proxy headers
-        $detectedXff = !empty($xff) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $xff) : __('Not Detected', PLUGIN_NAME);
-        $detectedXfp = !empty($xfp) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $xfp) : __('Not Detected', PLUGIN_NAME);
-        $detectedXfh = !empty($xfh) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $xfh) : __('Not Detected', PLUGIN_NAME);
-        
-        $linkXff = '<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For" target="_blank" rel="noopener noreferrer">X-Forwarded-For</a>';
-        $linkXfp = '<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto" target="_blank" rel="noopener noreferrer">X-Forwarded-Proto</a>';
-        $linkXfh = '<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Host" target="_blank" rel="noopener noreferrer">X-Forwarded-Host</a>';
-        
-        $table .= '<tr><td>' . $linkXff . '</td><td>' . __('Present', PLUGIN_NAME) . '</td><td>' . $detectedXff . '</td><td>' . $statusXff . '</td></tr>';
-        $table .= '<tr><td>' . $linkXfp . '</td><td>https</td><td>' . $detectedXfp . '</td><td>' . $statusXfp . '</td></tr>';
-        $table .= '<tr><td>' . $linkXfh . '</td><td>' . __('Present', PLUGIN_NAME) . '</td><td>' . $detectedXfh . '</td><td>' . $statusXfh . '</td></tr>';
-        
-        // HTTPS Context
-        $expectedHttps = $cookieSecureEnabled ? __('HTTPS (Secure)', PLUGIN_NAME) : __('HTTP or HTTPS', PLUGIN_NAME);
-        $table .= '<tr><td>HTTPS Context (PHP)</td><td>' . $expectedHttps . '</td><td>' . $detectedHttpsStr . '</td><td>' . $statusHttps . '</td></tr>';
+        $table .= $this->buildProxyHeaderRow('https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For', 'X-Forwarded-For', __('Present', PLUGIN_NAME), $ctx['xff'], !empty($ctx['xff']));
+        $table .= $this->buildProxyHeaderRow('https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto', 'X-Forwarded-Proto', 'https', $ctx['xfp'], strtolower($ctx['xfp']) === 'https');
+        $table .= $this->buildProxyHeaderRow('https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Host', 'X-Forwarded-Host', __('Present', PLUGIN_NAME), $ctx['xfh'], !empty($ctx['xfh']));
+
+        $expectedHttps = $ctx['cookieSecureEnabled'] ? __('HTTPS (Secure)', PLUGIN_NAME) : __('HTTP or HTTPS', PLUGIN_NAME);
+        $detectedHttps = $ctx['isHttps'] ? 'HTTPS' : 'HTTP';
+        $statusHttps   = $ctx['isHttps'] ? '✅' : '❌';
+        $table .= '<tr><td>HTTPS Context (PHP)</td><td>' . $expectedHttps . '</td><td>' . $detectedHttps . '</td><td>' . $statusHttps . '</td></tr>';
         $table .= '</tbody></table>';
-        
-        if ($cookieConflict) {
-            $table .= '<div class="mt-2 text-danger" style="font-size: 0.75rem; font-weight: 600;">' . __('⚠️ Conflict: Secure cookie is enabled but PHP is running in a non-secure HTTP context. Cookies will be rejected by the browser!', PLUGIN_NAME) . '</div>';
+
+        return $table . $this->buildProxyDiagnosticFooter($ctx);
+    }
+
+    /**
+     * Format a single escaped proxy header diagnostic table row.
+     *
+     * @param string $docUrl Reference URL for the HTTP header.
+     * @param string $headerName Display header name.
+     * @param string $expectedLabel Expected state label.
+     * @param string $rawValue Raw header value.
+     * @param bool $passed Whether the header meets expectations.
+     * @return string HTML table row markup.
+     */
+    private function buildProxyHeaderRow(string $docUrl, string $headerName, string $expectedLabel, string $rawValue, bool $passed): string
+    {
+        $link = '<a href="' . $docUrl . '" target="_blank" rel="noopener noreferrer">' . $headerName . '</a>';
+        $detected = !empty($rawValue)
+            ? sprintf(__('Detected (%s)', PLUGIN_NAME), htmlspecialchars($rawValue, ENT_QUOTES, 'UTF-8'))
+            : __('Not Detected', PLUGIN_NAME);
+        $status = $passed ? '✅' : '❌';
+
+        return '<tr><td>' . $link . '</td><td>' . $expectedLabel . '</td><td>' . $detected . '</td><td>' . $status . '</td></tr>';
+    }
+
+    /**
+     * Build conflict/security warning notices appended below the proxy diagnostic table.
+     *
+     * @param array $ctx Context array produced by collectProxyEnvironmentContext().
+     * @return string HTML warning blocks.
+     */
+    private function buildProxyDiagnosticFooter(array $ctx): string
+    {
+        $footer = '';
+        if ($ctx['cookieConflict']) {
+            $footer .= '<div class="mt-2 text-danger" style="font-size: 0.75rem; font-weight: 600;">' . __('⚠️ Conflict: Secure cookie is enabled but PHP is running in a non-secure HTTP context. Cookies will be rejected by the browser!', PLUGIN_NAME) . '</div>';
         }
-        if ($cookieSecurityMissing) {
-            $table .= '<div class="mt-2 text-warning" style="font-size: 0.75rem; font-weight: 600;">' . __('⚠️ Security Warning: HTTPS is detected but session.cookie_secure is disabled. Cookies are not protected!', PLUGIN_NAME) . '</div>';
+        if ($ctx['cookieSecurityMissing']) {
+            $footer .= '<div class="mt-2 text-warning" style="font-size: 0.75rem; font-weight: 600;">' . __('⚠️ Security Warning: HTTPS is detected but session.cookie_secure is disabled. Cookies are not protected!', PLUGIN_NAME) . '</div>';
         }
-        $table .= '<div class="mt-2 text-muted" style="font-size: 0.75rem;">' . __('Unsatisfied conditions might break the authentication flow in proxied or containerized environments depending on your setup and naming schemes.', PLUGIN_NAME) . '</div>';
-        
-        return ['isValid' => false, 'htmlTable' => $table];
+        return $footer . '<div class="mt-2 text-muted" style="font-size: 0.75rem;">' . __('Unsatisfied conditions might break the authentication flow in proxied or containerized environments depending on your setup and naming schemes.', PLUGIN_NAME) . '</div>';
     }
 
     /**
@@ -1092,5 +1220,201 @@ class ConfigItem    //NOSONAR
         $table .= '<div class="mt-2 text-muted" style="font-size: 0.75rem;">' . __('Ensure GLPI\'s timezone usage configuration is enabled (under Setup > General > System), MySQL timezone tables are loaded, or PHP\'s date.timezone matches the database timezone.', PLUGIN_NAME) . '</div>';
 
         return ['isValid' => true, 'htmlTable' => $table];
+    }
+
+    /**
+     * Validates and normalizes the scim_enabled boolean configuration option.
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_enabled(mixed $var): array
+    {
+        return array_merge(
+            [
+                ConfigItem::FORMEXPLAIN => __('Enable stateless SCIM 2.0 (RFC 7643 / RFC 7644) user and group provisioning for this Identity Provider.', PLUGIN_NAME),
+                ConfigItem::FORMTITLE   => __('ENABLE SCIM PROVISIONING', PLUGIN_NAME),
+                ConfigItem::FIELD       => __FUNCTION__,
+                ConfigItem::VALIDATOR   => __METHOD__,
+            ],
+            ConfigItem::handleAsBool($var, ConfigEntity::SCIM_ENABLED)
+        );
+    }
+
+    /**
+     * Validates the SCIM token SHA-256 hex digest ('db') or env/define identifier name.
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_token_hash(mixed $var): array
+    {
+        $val = trim((string)($var ?? ''));
+        $error = false;
+
+        if ($val !== '') {
+            if (preg_match('/^[a-fA-F0-9]{64}$/', $val) === 1) {
+                $val = strtolower($val);
+            } elseif (preg_match('/^[A-Za-z_][A-Za-z0-9_]{0,127}$/', $val) !== 1) {
+                $error = __('⭕ Invalid SCIM token reference or digest format.', PLUGIN_NAME);
+            }
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Stores either an irreversible SHA-256 hex digest of the generated SCIM Bearer token or the name of a server environment variable / PHP constant.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('SCIM BEARER TOKEN', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $val,
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
+    }
+
+    /**
+     * Validates the SCIM Bearer token storage source ('db', 'env', or 'define').
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_token_source(mixed $var): array
+    {
+        $val = trim((string)($var ?? 'db'));
+        if ($val === '') {
+            $val = 'db';
+        }
+        $allowed = ['db', 'env', 'define'];
+        $error = false;
+        if (!in_array($val, $allowed, true)) {
+            $error = __('⭕ Invalid SCIM token source selected.', PLUGIN_NAME);
+            $val = 'db';
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Select whether the SCIM Bearer token is verified against a SHA-256 digest in the database or resolved from an external environment variable or PHP constant (>= 32 characters).', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('SCIM TOKEN SOURCE', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $val,
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
+    }
+
+    /**
+     * Validates optional newline- or comma-separated IPv4 / IPv6 addresses and CIDR ranges.
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_allowed_ips(mixed $var): array
+    {
+        $raw = trim((string)($var ?? ''));
+        $error = false;
+        $normalized = [];
+
+        if ($raw !== '') {
+            $entries = preg_split('/[\r\n,;]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($entries as $entry) {
+                $candidate = trim($entry);
+                if ($candidate === '') {
+                    continue;
+                }
+                if (substr_count($candidate, '/') > 1) {
+                    $error = sprintf(__('⭕ Invalid IP or CIDR entry in SCIM allowlist: %s', PLUGIN_NAME), $candidate);
+                    break;
+                }
+                $ipPart = $candidate;
+                $prefixPart = null;
+                if (str_contains($candidate, '/')) {
+                    [$ipPart, $prefixPart] = explode('/', $candidate, 2);
+                }
+                $packed = @inet_pton($ipPart);
+                if ($packed === false) {
+                    $error = sprintf(__('⭕ Invalid IP or CIDR entry in SCIM allowlist: %s', PLUGIN_NAME), $candidate);
+                    break;
+                }
+                $maxBits = strlen($packed) === 4 ? 32 : 128;
+                if ($prefixPart !== null) {
+                    if (preg_match('/^\d+$/', $prefixPart) !== 1 || (int)$prefixPart < 0 || (int)$prefixPart > $maxBits) {
+                        $error = sprintf(__('⭕ Invalid CIDR prefix length in SCIM allowlist: %s', PLUGIN_NAME), $candidate);
+                        break;
+                    }
+                    $normalized[] = inet_ntop($packed) . '/' . (int)$prefixPart;
+                } else {
+                    $normalized[] = (string)inet_ntop($packed);
+                }
+            }
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Optional newline-separated IPv4 or IPv6 addresses / CIDR blocks permitted to call this IdP\'s SCIM endpoint. Leave empty to allow requests from any source IP carrying the valid Bearer token.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('ALLOWED SOURCE IPS / CIDRS', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $error ? $raw : implode("\n", array_values(array_unique($normalized))),
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
+    }
+
+    /**
+     * Validates the SCIM user deprovisioning policy ('disable' or 'trashbin').
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_deprovision(mixed $var): array
+    {
+        $val = trim((string)($var ?? 'disable'));
+        if ($val === '') {
+            $val = 'disable';
+        }
+        $allowed = ['disable', 'trashbin'];
+        $error = false;
+        if (!in_array($val, $allowed, true)) {
+            $error = __('⭕ Invalid SCIM deprovisioning action selected.', PLUGIN_NAME);
+            $val = 'disable';
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Action taken on DELETE /Users/{id}: always sets is_active = 0, clears cookie_token, and forces active SAML sessions to log off; "trashbin" additionally sets is_deleted = 1 without purging ticket history.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('DEPROVISIONING ACTION', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $val,
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
+    }
+
+    /**
+     * Validates the SCIM /Groups lifecycle policy ('create_scoped', 'link_existing', or 'disabled').
+     *
+     * @param mixed $var Raw input value.
+     * @return array<string, mixed>
+     */
+    protected function scim_group_policy(mixed $var): array
+    {
+        $val = trim((string)($var ?? 'create_scoped'));
+        if ($val === '') {
+            $val = 'create_scoped';
+        }
+        $allowed = ['create_scoped', 'link_existing', 'disabled'];
+        $error = false;
+        if (!in_array($val, $allowed, true)) {
+            $error = __('⭕ Invalid SCIM group provisioning policy selected.', PLUGIN_NAME);
+            $val = 'create_scoped';
+        }
+
+        return [
+            ConfigItem::FORMEXPLAIN => __('Controls how SCIM /Groups push operations interact with GLPI groups: create missing organizational groups, link only to pre-existing GLPI groups by exact name, or disable /Groups endpoints completely.', PLUGIN_NAME),
+            ConfigItem::FORMTITLE   => __('GROUP PROVISIONING POLICY', PLUGIN_NAME),
+            ConfigItem::EVAL        => ($error) ? ConfigItem::INVALID : ConfigItem::VALID,
+            ConfigItem::VALUE       => $val,
+            ConfigItem::FIELD       => __FUNCTION__,
+            ConfigItem::VALIDATOR   => __METHOD__,
+            ConfigItem::ERRORS      => $error,
+        ];
     }
 }

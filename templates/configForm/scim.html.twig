@@ -1,0 +1,422 @@
+{% import glpi_tpl_macro as fields %}
+<div class="tab-pane fade d-none" id="scim" role="tabpanel" aria-labelledby="scim-tab">
+    <div class="card-body">
+        <div class="alert bg-secondary-lt border-0 text-muted small mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
+            <div class="d-flex align-items-center">
+                <span class="badge bg-secondary-lt text-muted me-2">{{ __('Beta', plugin) }}</span>
+                <span>{{ __('SCIM 2.0 provisioning is currently in beta. Validate user and group provisioning policies in a staging environment before enabling in production.', plugin) }}</span>
+            </div>
+            <a href="https://github.com/DonutsNL/samlsso/wiki/Configure-SCIM-Provisioning" target="_blank" rel="noopener noreferrer" class="text-reset text-decoration-underline ms-auto">
+                <i class="ti ti-external-link me-1"></i>{{ __('SCIM Documentation', plugin) }}
+            </a>
+        </div>
+
+        <div class="row">
+            <div class="col-12 col-lg-6 mb-4">
+                <div class="samlsso-category-header">
+                    <i class="fas fa-sync me-2 text-muted"></i>{{ __('Endpoint & State', plugin) }}
+                </div>
+                <div class="samlsso-category-body">
+                    <div class="mb-3">
+                        {% if (inputfields.id.value|default(-1)) > 0 %}
+                            {{ fields.textField(
+                                'ScimUrl',
+                                scimUrl|default(''),
+                                __('SCIM 2.0 Base URL', plugin),
+                                {
+                                    'id': 'ScimUrl',
+                                    'readonly': true,
+                                    'is_copyable': true,
+                                    helper: __('Configure this URL as the SCIM 2.0 Tenant or Base URL in your Identity Provider. Each Identity Provider configuration exposes its own isolated endpoint.', plugin),
+                                }
+                            ) }}
+                        {% else %}
+                            {{ fields.textField(
+                                'ScimUrl',
+                                __('Save configuration first to generate the SCIM 2.0 Base URL.', plugin),
+                                __('SCIM 2.0 Base URL', plugin),
+                                {
+                                    'id': 'ScimUrl',
+                                    'readonly': true,
+                                    helper: __('The per-IdP SCIM 2.0 endpoint URL becomes available once this Identity Provider configuration is saved.', plugin),
+                                }
+                            ) }}
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {% set scim_enabled_error_helper %}
+                            {% if inputfields.scim_enabled is defined and inputfields.scim_enabled.errors %}
+                                <div class="form-text" style="color:rgb(180, 120, 8);">{{ inputfields.scim_enabled.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.sliderField(
+                            inputfields.scim_enabled.field,
+                            inputfields.scim_enabled.value,
+                            inputfields.scim_enabled.formtitle,
+                            {
+                                'add_field_html': scim_enabled_error_helper|raw,
+                                helper: inputfields.scim_enabled.formexplain,
+                            }
+                        ) }}
+                    </div>
+                </div>
+
+                <div class="samlsso-category-header">
+                    <i class="fas fa-key me-2 text-muted"></i>{{ __('Authentication & Network Access', plugin) }}
+                </div>
+                <div class="samlsso-category-body">
+                    <div class="mb-3">
+                        {% set scim_source_error_helper %}
+                            {% if inputfields.scim_token_source is defined and inputfields.scim_token_source.errors %}
+                                <div class="form-text" style="color:red;">{{ inputfields.scim_token_source.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.dropdownArrayField(
+                            inputfields.scim_token_source.field,
+                            inputfields.scim_token_source.value,
+                            inputOptionsScimTokenSource|default({}),
+                            inputfields.scim_token_source.formtitle,
+                            {
+                                'add_field_html': scim_source_error_helper|raw,
+                                helper: inputfields.scim_token_source.formexplain,
+                            }
+                        ) }}
+                    </div>
+
+                    {% set current_scim_source = inputfields.scim_token_source.value|default('db') %}
+                    {% set is_alt_scim_source = current_scim_source in ['env', 'define'] %}
+                    {% set scim_ref_label = __('Environment Variable Name', plugin) %}
+                    {% set scim_ref_placeholder = 'SAMLSSO_SCIM_TOKEN_IDP1' %}
+                    {% set scim_ref_helper = __('Name of the server environment variable holding the SCIM Bearer token (minimum 32 characters).', plugin) %}
+                    {% if current_scim_source == 'define' %}
+                        {% set scim_ref_label = __('PHP Constant Name', plugin) %}
+                        {% set scim_ref_placeholder = 'SAMLSSO_SCIM_TOKEN_CONSTANT' %}
+                        {% set scim_ref_helper = __('Name of the defined PHP constant holding the SCIM Bearer token (minimum 32 characters).', plugin) %}
+                    {% endif %}
+
+                    <div id="scim_token_db_container" class="mb-3 {% if is_alt_scim_source %}d-none{% endif %}">
+                        {% set scim_db_token_html %}
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <span id="scim-token-status-configured" class="badge bg-success-lt {% if not (has_stored_scim_token|default(false)) %}d-none{% endif %}">
+                                    {{ __('SHA-256 digest stored', plugin) }}
+                                </span>
+                                <span id="scim-token-status-empty" class="badge bg-warning-lt {% if has_stored_scim_token|default(false) %}d-none{% endif %}">
+                                    {{ __('No token generated', plugin) }}
+                                </span>
+                                {% if (inputfields.id.value|default(-1)) > 0 %}
+                                    <button type="button" id="btn-open-scim-token-modal" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#samlsso-scim-token-modal">
+                                        <i class="ti ti-key me-1"></i>{{ __('Generate / Rotate Bearer Token', plugin) }}
+                                    </button>
+                                {% else %}
+                                    <span class="text-muted small">{{ __('Save this configuration first to generate a Bearer token.', plugin) }}</span>
+                                {% endif %}
+                            </div>
+                        {% endset %}
+                        {{ fields.field(
+                            'scim_token_db_status',
+                            scim_db_token_html,
+                            inputfields.scim_token_hash.formtitle,
+                            {
+                                helper: __('Generates a 256-bit random Bearer token. Only its SHA-256 hex digest is stored in the database; the plaintext token is displayed once upon generation.', plugin),
+                            }
+                        ) }}
+                    </div>
+
+                    <div id="scim_token_ref_container" class="mb-3 {% if not is_alt_scim_source %}d-none{% endif %}">
+                        {% set scim_hash_error_helper %}
+                            {% if inputfields.scim_token_hash is defined and inputfields.scim_token_hash.errors %}
+                                <div class="form-text" style="color:red;">{{ inputfields.scim_token_hash.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.textField(
+                            'scim_token_hash',
+                            is_alt_scim_source ? inputfields.scim_token_hash.value : '',
+                            scim_ref_label,
+                            {
+                                'id': 'scim_token_hash_ref',
+                                'disabled': not is_alt_scim_source,
+                                'placeholder': scim_ref_placeholder,
+                                'add_field_html': scim_hash_error_helper|raw,
+                                helper: scim_ref_helper,
+                            }
+                        ) }}
+                    </div>
+
+                    <div class="mb-3">
+                        {% set scim_ips_error_helper %}
+                            {% if inputfields.scim_allowed_ips is defined and inputfields.scim_allowed_ips.errors %}
+                                <div class="form-text" style="color:red;">{{ inputfields.scim_allowed_ips.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.textareaField(
+                            inputfields.scim_allowed_ips.field,
+                            inputfields.scim_allowed_ips.value,
+                            inputfields.scim_allowed_ips.formtitle,
+                            {
+                                'placeholder': "10.0.0.0/8\n2001:db8::/32",
+                                'add_field_html': scim_ips_error_helper|raw,
+                                helper: inputfields.scim_allowed_ips.formexplain,
+                            }
+                        ) }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-6 mb-4">
+                <div class="samlsso-category-header">
+                    <i class="fas fa-users-cog me-2 text-muted"></i>{{ __('Lifecycle & Group Policy', plugin) }}
+                </div>
+                <div class="samlsso-category-body">
+                    <div class="mb-3">
+                        {% set scim_group_error_helper %}
+                            {% if inputfields.scim_group_policy is defined and inputfields.scim_group_policy.errors %}
+                                <div class="form-text" style="color:red;">{{ inputfields.scim_group_policy.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.dropdownArrayField(
+                            inputfields.scim_group_policy.field,
+                            inputfields.scim_group_policy.value,
+                            inputOptionsScimGroupPolicy|default({}),
+                            inputfields.scim_group_policy.formtitle,
+                            {
+                                'add_field_html': scim_group_error_helper|raw,
+                                helper: inputfields.scim_group_policy.formexplain,
+                            }
+                        ) }}
+                    </div>
+
+                    <div class="mb-3">
+                        {% set scim_deprov_error_helper %}
+                            {% if inputfields.scim_deprovision is defined and inputfields.scim_deprovision.errors %}
+                                <div class="form-text" style="color:red;">{{ inputfields.scim_deprovision.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.dropdownArrayField(
+                            inputfields.scim_deprovision.field,
+                            inputfields.scim_deprovision.value,
+                            inputOptionsScimDeprovision|default({}),
+                            inputfields.scim_deprovision.formtitle,
+                            {
+                                'add_field_html': scim_deprov_error_helper|raw,
+                                helper: inputfields.scim_deprovision.formexplain,
+                            }
+                        ) }}
+                    </div>
+                </div>
+
+                <div class="samlsso-category-header">
+                    <i class="fas fa-info-circle me-2 text-muted"></i>{{ __('Provisioning Summary', plugin) }}
+                </div>
+                <div class="samlsso-category-body">
+                    <dl class="row mb-2 small">
+                        <dt class="col-6 text-muted fw-normal">{{ __('Linked SCIM Users', plugin) }}</dt>
+                        <dd class="col-6 text-end mb-2">
+                            <span class="badge bg-secondary-lt text-muted">{{ scim_linked_users_count|default(0) }}</span>
+                        </dd>
+                        <dt class="col-6 text-muted fw-normal">{{ __('Linked SCIM Groups', plugin) }}</dt>
+                        <dd class="col-6 text-end mb-2">
+                            <span class="badge bg-secondary-lt text-muted">{{ scim_linked_groups_count|default(0) }}</span>
+                        </dd>
+                        <dt class="col-6 text-muted fw-normal">{{ __('Last SCIM Activity', plugin) }}</dt>
+                        <dd class="col-6 text-end mb-0">
+                            <code>{{ (scim_last_sync|default('')) != '' ? (scim_last_sync|formatted_datetime) : __('Never', plugin) }}</code>
+                        </dd>
+                    </dl>
+                    <div class="form-text text-muted mt-2">
+                        {{ __('SCIM maps standard RFC 7643 Core and Enterprise attributes automatically and evaluates JIT import rules (scimDepartment, scimOrganization, scimDivision, scimCostCenter, scimEmployeeNumber, groups) to assign GLPI profiles and entities.', plugin) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if (inputfields.id.value|default(-1)) > 0 %}
+        <div class="modal fade" id="samlsso-scim-token-modal" tabindex="-1" role="dialog" aria-labelledby="samlsso-scim-token-modal-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="samlsso-scim-token-modal-title">
+                            <i class="ti ti-key me-2 text-muted"></i>{{ __('SCIM 2.0 Bearer Token', plugin) }}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p id="scim-token-modal-warning" class="text-muted small mb-3">
+                            {{ __('Generating a new Bearer token immediately invalidates any previously issued token for this Identity Provider. The plaintext token is shown only once.', plugin) }}
+                        </p>
+                        <div id="scim-token-result-container" class="d-none mb-3">
+                            <label class="form-label" for="scim-generated-token-output">{{ __('Copy Bearer Token Now', plugin) }}</label>
+                            <div class="input-group">
+                                <input type="text" id="scim-generated-token-output" class="form-control font-monospace" value="" readonly="readonly" autocomplete="off">
+                                <button type="button" id="btn-copy-scim-token" class="btn btn-outline-secondary" title="{{ __('Copy to clipboard', plugin) }}">
+                                    <i class="ti ti-clipboard-copy"></i>
+                                </button>
+                            </div>
+                            <div id="scim-token-copied-feedback" class="form-text text-success d-none mt-1">
+                                {{ __('Copied to clipboard.', plugin) }}
+                            </div>
+                        </div>
+                        <div id="scim-token-error-box" class="alert alert-danger d-none py-2 px-3 mb-0"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            {{ __('Close') }}
+                        </button>
+                        <button type="button" id="btn-confirm-generate-scim-token" class="btn btn-primary">
+                            <span id="scim-token-btn-idle"><i class="ti ti-key me-1"></i>{{ __('Generate New Token', plugin) }}</span>
+                            <span id="scim-token-btn-loading" class="d-none"><i class="ti ti-loader animate-spin me-1"></i>{{ __('Generating...', plugin) }}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <script>
+        $(function() {
+            const scimSourceMeta = {
+                env: {
+                    label: '{{ __("Environment Variable Name", plugin)|escape("js") }}',
+                    placeholder: 'SAMLSSO_SCIM_TOKEN_IDP1',
+                    helper: '{{ __("Name of the server environment variable holding the SCIM Bearer token (minimum 32 characters).", plugin)|escape("js") }}'
+                },
+                define: {
+                    label: '{{ __("PHP Constant Name", plugin)|escape("js") }}',
+                    placeholder: 'SAMLSSO_SCIM_TOKEN_CONSTANT',
+                    helper: '{{ __("Name of the defined PHP constant holding the SCIM Bearer token (minimum 32 characters).", plugin)|escape("js") }}'
+                }
+            };
+
+            function updateScimTokenSourceUI(source) {
+                const $dbContainer = $('#scim_token_db_container');
+                const $refContainer = $('#scim_token_ref_container');
+                const $refInput = $('#scim_token_hash_ref');
+
+                if (source === 'db') {
+                    $refContainer.addClass('d-none');
+                    $refInput.prop('disabled', true);
+                    $dbContainer.removeClass('d-none');
+                } else if (scimSourceMeta[source]) {
+                    $dbContainer.addClass('d-none');
+                    $refContainer.removeClass('d-none');
+                    $refInput.prop('disabled', false);
+
+                    const meta = scimSourceMeta[source];
+                    $refInput.attr('placeholder', meta.placeholder);
+
+                    const $label = $refContainer.find('label.col-form-label');
+                    if ($label.length) {
+                        const $help = $label.find('.form-help');
+                        if ($help.length) {
+                            $label.contents().filter(function() {
+                                return this.nodeType === 3;
+                            }).first().replaceWith(document.createTextNode(meta.label + ' '));
+                            $help.attr('data-bs-title', meta.helper);
+                            $help.attr('aria-label', meta.helper);
+                            if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                                const inst = bootstrap.Tooltip.getInstance($help[0]);
+                                if (inst && typeof inst.setContent === 'function') {
+                                    inst.setContent({ '.tooltip-inner': meta.helper });
+                                }
+                            }
+                        } else {
+                            $label.text(meta.label);
+                        }
+                    }
+                }
+            }
+
+            $(document).on('change', 'select[name="scim_token_source"]', function() {
+                updateScimTokenSourceUI($(this).val());
+            });
+
+            $(document).on('click', '#btn-confirm-generate-scim-token', function(e) {
+                e.preventDefault();
+                const $btn = $(this);
+                const $errorBox = $('#scim-token-error-box');
+                const $resultContainer = $('#scim-token-result-container');
+                const $copiedFeedback = $('#scim-token-copied-feedback');
+                const outputEl = document.getElementById('scim-generated-token-output');
+
+                $errorBox.addClass('d-none').text('');
+                $copiedFeedback.addClass('d-none');
+                $btn.prop('disabled', true);
+                $('#scim-token-btn-idle').addClass('d-none');
+                $('#scim-token-btn-loading').removeClass('d-none');
+
+                $.ajax({
+                    url: '{{ glpi_rootdoc }}',
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        action: 'generate_scim_token',
+                        _glpi_csrf_token: '{{ csrf_token }}',
+                        id: '{{ inputfields.id.value|default(-1) }}'
+                    },
+                    success: function(response) {
+                        if (response && response.success && typeof response.token === 'string') {
+                            if (outputEl) {
+                                outputEl.value = response.token;
+                            }
+                            $resultContainer.removeClass('d-none');
+                            $('#scim-token-status-empty').addClass('d-none');
+                            $('#scim-token-status-configured').removeClass('d-none');
+                            const $sourceSelect = $('select[name="scim_token_source"]');
+                            if ($sourceSelect.length) {
+                                $sourceSelect.val('db').trigger('change');
+                            }
+                        } else {
+                            const errMsg = (response && typeof response.error === 'string')
+                                ? response.error
+                                : '{{ __("Failed to generate SCIM Bearer token.", plugin)|escape("js") }}';
+                            $errorBox.removeClass('d-none').text(errMsg);
+                        }
+                        $btn.prop('disabled', false);
+                        $('#scim-token-btn-loading').addClass('d-none');
+                        $('#scim-token-btn-idle').removeClass('d-none');
+                    },
+                    error: function(xhr) {
+                        let errMsg = '{{ __("Failed to generate SCIM Bearer token.", plugin)|escape("js") }}';
+                        if (xhr && xhr.responseJSON && typeof xhr.responseJSON.error === 'string') {
+                            errMsg = xhr.responseJSON.error;
+                        }
+                        $errorBox.removeClass('d-none').text(errMsg);
+                        $btn.prop('disabled', false);
+                        $('#scim-token-btn-loading').addClass('d-none');
+                        $('#scim-token-btn-idle').removeClass('d-none');
+                    }
+                });
+            });
+
+            $(document).on('click', '#btn-copy-scim-token', function() {
+                const outputEl = document.getElementById('scim-generated-token-output');
+                if (!outputEl || !outputEl.value) {
+                    return;
+                }
+                if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                    navigator.clipboard.writeText(outputEl.value).then(function() {
+                        $('#scim-token-copied-feedback').removeClass('d-none');
+                    });
+                } else {
+                    outputEl.select();
+                    document.execCommand('copy');
+                    $('#scim-token-copied-feedback').removeClass('d-none');
+                }
+            });
+
+            const scimModalEl = document.getElementById('samlsso-scim-token-modal');
+            if (scimModalEl) {
+                scimModalEl.addEventListener('hidden.bs.modal', function() {
+                    const outputEl = document.getElementById('scim-generated-token-output');
+                    if (outputEl) {
+                        outputEl.value = '';
+                    }
+                    $('#scim-token-result-container').addClass('d-none');
+                    $('#scim-token-copied-feedback').addClass('d-none');
+                    $('#scim-token-error-box').addClass('d-none').text('');
+                });
+            }
+        });
+        </script>
+    </div>
+</div>

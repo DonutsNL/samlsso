@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -72,13 +72,13 @@ class Exclude extends ExcludeCompat
     /**
      * Exclude DB fields
      */
+    const ID                = 'id';
     const NAME              = 'name';
     const DATE_CREATION     = 'date_creation';
     const DATE_MOD          = 'date_mod';
     const CLIENTAGENT       = 'ClientAgent';
     const EXCLUDEPATH       = 'ExcludePath';
     const ACTION            = 'action';
-
 
     /**
      * getTypeName(int nb) : string -
@@ -233,71 +233,55 @@ class Exclude extends ExcludeCompat
      *
      * @return bool     On success
      * @since           1.1.0
-     *
      */
-    public static function ProcessExcludes(): bool                                                         //NOSONAR - Maybe fix complexity in future.
+    public static function ProcessExcludes(): bool
     {
-        // Glpi-Agents now post to the root url https://my-server/
-        // So if we see the inventory's UserAgent then we need to exclude it, always.
-        // @see  https://github.com/glpi-project/glpi-agent/blob/77f7cdda24aa6d14ba8800f6bb71a18b98f4526d/lib/GLPI/Agent.pm#L28
-        // @see  https://github.com/glpi-project/glpi/blob/26997c8dbff582c63d407f5599ad2dd69c50f847/index.php#L91
-        // @see  https://codeberg.org/QuinQuies/glpisaml/issues/92
+        /**
+         * Glpi-Agents post inventory payloads to the root URL.
+         * Always exclude POST requests carrying the GLPI-Agent User-Agent substring.
+         *
+         * @see https://github.com/glpi-project/glpi-agent/blob/77f7cdda24aa6d14ba8800f6bb71a18b98f4526d/lib/GLPI/Agent.pm#L28
+         * @see https://github.com/glpi-project/glpi/blob/26997c8dbff582c63d407f5599ad2dd69c50f847/index.php#L91
+         * @see https://codeberg.org/QuinQuies/glpisaml/issues/92
+         */
         if (
-            $_SERVER['REQUEST_METHOD'] == 'POST'                       &&     // The glpi agent uses POST method to send data to the server
-            !empty($_SERVER['HTTP_USER_AGENT'])                        &&     // The user-agent field must not be empty
-            (strpos($_SERVER['HTTP_USER_AGENT'], 'Agent_v') !== false)
-        ) {     // The user-agent field must contain the 'Agent-v' substring
-            // Dont log, dont register, these may include thousands of calls per period and
-            // will be logged by apache's access logging.
+            ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' &&
+            !empty($_SERVER['HTTP_USER_AGENT']) &&
+            str_contains((string)$_SERVER['HTTP_USER_AGENT'], 'Agent_v')
+        ) {
             return true;
-        } // else continue processing
+        }
 
-        // Get the excludes from the database.
-        $excludes = Exclude::getExcludes();
-        // Process configured excluded URIs and agents.
         $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
         if (!is_string($requestPath)) {
             $requestPath = '';
         }
-        foreach ($excludes as $exclude) {
-            if (strpos($requestPath, $exclude[Exclude::EXCLUDEPATH]) !== false) {
-                // Do we need to validate client agent?
-                if (
-                    !empty($exclude[Exclude::CLIENTAGENT])                                        &&         //NOSONAR - Maybe fix verbosity in future.
-                    strpos($_SERVER['HTTP_USER_AGENT'], $exclude[Exclude::CLIENTAGENT]) !== false
-                ) {
-                    return ($exclude[Exclude::ACTION]) ? true : false;
-                } else {
-                    // return configured action true for bypass, false for auth.
-                    return ($exclude[Exclude::ACTION]) ? true : false;
-                }
-            } // Else Continue
-        }
-        return false;
+
+        return self::GetExcludeAction($requestPath, $_SERVER['HTTP_USER_AGENT'] ?? false);
     }
 
     /**
-     * Validate object $excluded is excluded and get the configured action
-     * @param string $excluded String describing the object to be validated
-     * @param string $agent    Optional, the userAgent to be validated
-     * @return bool  Configured action, or false
-     * @since        1.1.4
+     * Validate object $excluded is excluded and get the configured action.
+     *
+     * @param string      $excluded String describing the URI path to be validated
+     * @param string|bool $agent    Optional User-Agent string to be validated
+     * @return bool                 Configured action (true to bypass SAML auth, false to enforce)
+     * @since                       1.1.4
      */
-    public static function GetExcludeAction(string $excluded, $agent = false): bool    //NOSONAR - complexity by design
+    public static function GetExcludeAction(string $excluded, $agent = false): bool
     {
-        // Get all the excluded objects from the database
         $excludes = Exclude::getExcludes();
-        // Process configured excluded URIs and agents.
         foreach ($excludes as $exclude) {
-            if (strpos($excluded, $exclude[Exclude::EXCLUDEPATH]) !== false) {
-                // Do we need to validate client agent?
-                if ($agent  && strpos($agent, $exclude[Exclude::CLIENTAGENT]) !== false) { //NOSONAR - additional 'if branch' by design
-                    return ($exclude[Exclude::ACTION]) ? true : false;
-                } else {
-                    // return configured action true for bypass, false for auth.
-                    return ($exclude[Exclude::ACTION]) ? true : false;
+            $excludePath = (string)($exclude[Exclude::EXCLUDEPATH] ?? '');
+            if ($excludePath !== '' && str_contains($excluded, $excludePath)) {
+                if (!empty($exclude[Exclude::CLIENTAGENT])) {
+                    if (is_string($agent) && $agent !== '' && str_contains($agent, (string)$exclude[Exclude::CLIENTAGENT])) {
+                        return (bool)$exclude[Exclude::ACTION];
+                    }
+                    continue;
                 }
-            } // Else Continue
+                return (bool)$exclude[Exclude::ACTION];
+            }
         }
         return false;
     }
@@ -320,9 +304,11 @@ class Exclude extends ExcludeCompat
                     $requestPath = '';
                 }
                 if (
-                    strpos($requestPath, 'acs.php') !== false         ||         // do not process acs
-                    strpos($requestPath, 'common.tabs.php') !== false ||         // do not process common.tabs
-                    strpos($requestPath, 'dashboard.php') !== false   ||         // do not process dashboard
+                    str_contains($requestPath, SamlSsoController::ACS_ROUTE)  ||
+                    str_contains($requestPath, SamlSsoController::SCIM_ROUTE) ||
+                    strpos($requestPath, 'acs.php') !== false                ||
+                    strpos($requestPath, 'common.tabs.php') !== false        ||
+                    strpos($requestPath, 'dashboard.php') !== false          ||
                     Exclude::ProcessExcludes()
                 ) {
                     return $_SERVER['REQUEST_URI'];
@@ -372,73 +358,71 @@ class Exclude extends ExcludeCompat
                 PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=COMPRESSED;
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
             Session::addMessageAfterRedirect("🆗 Installed: $table.");
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass Cron.php', 'backport configuration', '1', '', '/front/cron.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
 
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass Inventory.php', '', '1', '', 'front/inventory.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
+            $defaultExcludes = [
+                ['Bypass Cron.php', 'backport configuration', '1', '', '/front/cron.php'],
+                ['Bypass Inventory.php', '', '1', '', 'front/inventory.php'],
+                ['Bypass ldap_mass_sync.php', '', '1', '', 'ldap_mass_sync.php'],
+                ['Bypass apirest.php', '', '1', '', 'apirest.php'],
+                ['Bypass all fusioninventory files', '', '1', '', '/fusioninventory/'],
+                // https://codeberg.org/QuinQuies/glpisaml/issues/36
+                ['Bypass dashboard.php', '', '1', '', 'dashboard.php'],
+            ];
 
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass ldap_mass_sync.php', '', '1', '', 'ldap_mass_sync.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
-
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass apirest.php', '', '1', '', 'apirest.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
-
-            // insert default excludes;
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass all fusioninventory files', '', '1', '', '/fusioninventory/');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
-
-
-            // insert default excludes;
-            // https://codeberg.org/QuinQuies/glpisaml/issues/36
-            $query = <<<SQL
-                INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
-                VALUES('Bypass dashboard.php', '', '1', '', 'dashboard.php');
-            SQL;
-            $DB->doQuery($query) or die($DB->error());
+            foreach ($defaultExcludes as [$name, $comment, $action, $agent, $path]) {
+                $insertSql = sprintf(
+                    "INSERT INTO `%s` (name, comment, action, ClientAgent, ExcludePath) VALUES ('%s', '%s', '%s', '%s', '%s');",
+                    $table,
+                    $name,
+                    $comment,
+                    $action,
+                    $agent,
+                    $path
+                );
+                if (!$DB->doQuery($insertSql)) {
+                    throw new \RuntimeException($DB->error());
+                }
+            }
+        } else {
+            $migration->migrationOneTable($table);
         }
 
         // Version 1.2.3 add exclude for GLPI11
         // https://github.com/DonutsNL/samlsso/issues/32
-        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/ajax/webhook.php']]) or die($DB->error());
-        if (!$result->numrows() > 0) {
+        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/ajax/webhook.php']]);
+        if (!$result) {
+            throw new \RuntimeException($DB->error());
+        }
+        if ($result->numrows() === 0) {
             $query = <<<SQL
                 INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
                 VALUES('Bypass webhook.php', '', '1', '', '/ajax/webhook.php');
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
         }
 
         // https://github.com/DonutsNL/samlsso/issues/36
-        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/api.php']]) or die($DB->error());
-        if (!$result->numrows() > 0) {
+        $result = $DB->request(['FROM' => Exclude::getTable(), 'WHERE' => [Exclude::EXCLUDEPATH => '/api.php']]);
+        if (!$result) {
+            throw new \RuntimeException($DB->error());
+        }
+        if ($result->numrows() === 0) {
             $query = <<<SQL
                 INSERT INTO `$table`(name, comment, action, ClientAgent, ExcludePath)
                 VALUES('Bypass api.php', '', '1', '', '/api.php');
             SQL;
-            $DB->doQuery($query) or die($DB->error());
+            if (!$DB->doQuery($query)) {
+                throw new \RuntimeException($DB->error());
+            }
         }
+
+        $migration->migrationOneTable($table);
 
         Session::addMessageAfterRedirect("🆗 Inserted default excludes.");
     }

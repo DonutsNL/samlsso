@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -57,6 +57,9 @@ namespace {
      */
     if (!class_exists('CronTask')) {
         class CronTask {
+            public const STATE_WAITING = 1;
+            public const MODE_EXTERNAL = 2;
+
             /** @var array Task fields. */
             public array $fields = [];
             /** @var int Task volume processed. */
@@ -69,6 +72,18 @@ namespace {
              */
             public function setVolume(int $volume): void {
                 $this->volume = $volume;
+            }
+
+            public static function getTable(): string {
+                return 'glpi_crontasks';
+            }
+
+            public function getFromDBbyName(string $itemtype, string $name): bool {
+                return false;
+            }
+
+            public static function register(string $itemtype, string $name, int $frequency, array $options = []): bool {
+                return true;
             }
         }
     }
@@ -99,6 +114,10 @@ namespace GlpiPlugin\Samlsso\Tests {
             $task->fields['param'] = 30;
 
             $this->db->deletedRows = [];
+            // Mock the count query to return 5 rows
+            $this->db->setResponse(Loginstate::getTable(), [
+                ['cnt' => 5]
+            ]);
 
             $result = CronTask::cronCleanSessionSAML($task);
 
@@ -106,7 +125,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("cronCleanSessionSAML returned unexpected status: " . var_export($result, true));
             }
 
-            if ($task->volume !== 0) {
+            if ($task->volume !== 5) {
                 throw new \Exception("cronCleanSessionSAML set unexpected volume: " . $task->volume);
             }
 
@@ -130,11 +149,60 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             
             $qExpr = $expr[1];
-            if (!str_contains((string)$qExpr, 'INTERVAL 30 DAY')) {
-                throw new \Exception("Unexpected QueryExpression in delete clause: " . var_export($qExpr, true));
+            if (!is_string($qExpr) || !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $qExpr)) {
+                throw new \Exception("Expected PHP clock cutoff timestamp (Y-m-d H:i:s) in delete clause, got: " . var_export($qExpr, true));
+            }
+            $expectedCutoff = time() - (30 * 86400);
+            $actualCutoff = strtotime($qExpr);
+            if ($actualCutoff === false || abs($actualCutoff - $expectedCutoff) > 5) {
+                throw new \Exception("Expected 30-day PHP cutoff near " . date('Y-m-d H:i:s', $expectedCutoff) . ", got: $qExpr");
             }
 
             echo "✅ CronTask: session cleanup with positive retention\n";
+        }
+
+        /**
+         * Test that SAML session cleanup clamps retention periods under 1 day to 8 hours.
+         *
+         * @throws \Exception
+         */
+        public function testCronSessionCleanupClamping(): void {
+            $task = new \CronTask();
+            $task->fields['param'] = 0.5; // less than 1 day
+
+            $this->db->deletedRows = [];
+            $this->db->setResponse(Loginstate::getTable(), [
+                ['cnt' => 3]
+            ]);
+
+            $result = CronTask::cronCleanSessionSAML($task);
+
+            if ($result !== 1) {
+                throw new \Exception("cronCleanSessionSAML returned unexpected status: " . var_export($result, true));
+            }
+
+            if ($task->volume !== 3) {
+                throw new \Exception("cronCleanSessionSAML set unexpected volume: " . $task->volume);
+            }
+
+            if (count($this->db->deletedRows) !== 1) {
+                throw new \Exception("Expected 1 delete operation, got: " . count($this->db->deletedRows));
+            }
+
+            $deleted = $this->db->deletedRows[0];
+            $where = $deleted['where'];
+            $expr = $where[Loginstate::LAST_ACTIVITY];
+            $qExpr = $expr[1];
+            if (!is_string($qExpr) || !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $qExpr)) {
+                throw new \Exception("Expected 8-hour PHP clock cutoff timestamp for < 1 day param. Got: " . var_export($qExpr, true));
+            }
+            $expectedCutoff = time() - (8 * 3600);
+            $actualCutoff = strtotime($qExpr);
+            if ($actualCutoff === false || abs($actualCutoff - $expectedCutoff) > 5) {
+                throw new \Exception("Expected 8-hour PHP cutoff near " . date('Y-m-d H:i:s', $expectedCutoff) . ", got: $qExpr");
+            }
+
+            echo "✅ CronTask: session cleanup clamped to 8 hours for < 1 day retention\n";
         }
 
         /**
@@ -186,23 +254,15 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that cronCleanSessionSAML correctly processes inactivity timeouts
-         * using the correct LoginState constant fields.
+         * Test that cronCleanSessionSAML does not forcefully time out active GLPI
+         * sessions (delegated to GLPI core) and only purges expired retention rows.
          */
-        public function testCronCleanSessionInactivityTimeout(): void {
+        public function testCronCleanSessionDoesNotMutateActiveSessions(): void {
             $task = new \CronTask();
             $task->fields['param'] = 30;
 
             $this->db->updatedRows = [];
-
-            // Mock active identity providers in Config table response
-            $this->db->setResponse(\GlpiPlugin\Samlsso\Config::getTable(), [
-                [
-                    'id' => 2,
-                    'inactivity_timeout' => 15,
-                    'is_deleted' => 0
-                ]
-            ]);
+            $this->db->deletedRows = [];
 
             $result = CronTask::cronCleanSessionSAML($task);
 
@@ -210,37 +270,53 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("cronCleanSessionSAML returned unexpected status: " . $result);
             }
 
-            // Assert that the database update query was performed
-            if (empty($this->db->updatedRows)) {
-                throw new \Exception("Expected update operation to transition inactive sessions, but none occurred.");
+            if (!empty($this->db->updatedRows)) {
+                throw new \Exception("cronCleanSessionSAML should not mutate active session phases; session inactivity is managed natively by GLPI.");
             }
 
-            $updateCall = $this->db->updatedRows[0];
-            if ($updateCall['table'] !== Loginstate::getTable()) {
-                throw new \Exception("Unexpected updated table: " . $updateCall['table']);
+            echo "✅ CronTask: active session inactivity delegated to GLPI core verified\n";
+        }
+
+        /**
+         * Test that CronTask::install correctly cleans up duplicates and legacy itemtype records.
+         */
+        public function testCronTaskInstallationDeduplication(): void {
+            $cronTable = \CronTask::getTable();
+            
+            // Mock a database response with 1 legacy task and 2 actual task entries (duplicates)
+            $this->db->setResponse($cronTable, [
+                ['id' => 10, 'name' => 'cleanSessionSAML', 'itemtype' => 'GlpiPlugin\\Glpisaml\\CronTask'],
+                ['id' => 11, 'name' => 'cleanSessionSAML', 'itemtype' => 'GlpiPlugin\\Samlsso\\CronTask'],
+                ['id' => 12, 'name' => 'cleanSessionSAML', 'itemtype' => 'GlpiPlugin\\Samlsso\\CronTask']
+            ]);
+
+            $this->db->deletedRows = [];
+            $this->db->updatedRows = [];
+
+            $migration = new class extends \Migration {
+                public function __construct() {}
+            };
+
+            // Run install
+            CronTask::install($migration);
+
+            // We expect ID 11 to be kept, ID 10 and 12 to be deleted
+            $deletedIds = [];
+            foreach ($this->db->deletedRows as $deleted) {
+                if ($deleted['table'] === $cronTable) {
+                    $deletedIds[] = $deleted['where']['id'];
+                }
             }
 
-            // Verify that constants are used in the query rather than hardcoded wrong field names
-            $data = $updateCall['data'];
-            $where = $updateCall['where'];
-
-            if (!isset($data[Loginstate::PHASE]) || $data[Loginstate::PHASE] !== Loginstate::PHASE_TIMED_OUT) {
-                throw new \Exception("Unexpected update payload: " . var_export($data, true));
+            if (!in_array(10, $deletedIds, true) || !in_array(12, $deletedIds, true)) {
+                throw new \Exception("Expected duplicate/legacy CronTasks ID 10 and 12 to be deleted. Deleted: " . var_export($deletedIds, true));
             }
 
-            if (!isset($where[Loginstate::IDP_ID]) || $where[Loginstate::IDP_ID] !== 2) {
-                throw new \Exception("Unexpected IDP_ID in where clause: " . var_export($where, true));
+            if (in_array(11, $deletedIds, true)) {
+                throw new \Exception("Actual kept CronTask ID 11 was incorrectly deleted.");
             }
 
-            if (!isset($where[Loginstate::PHASE]) || $where[Loginstate::PHASE] !== Loginstate::PHASE_GLPI_AUTH) {
-                throw new \Exception("Unexpected PHASE in where clause: " . var_export($where, true));
-            }
-
-            if (!isset($where[Loginstate::LAST_ACTIVITY])) {
-                throw new \Exception("Missing LAST_ACTIVITY in where clause: " . var_export($where, true));
-            }
-
-            echo "✅ CronTask: inactivity timeout update using LoginState constants verified\n";
+            echo "✅ CronTask: duplicates and legacy records successfully cleaned up during install/upgrade\n";
         }
     }
 }
@@ -252,9 +328,11 @@ namespace {
     $test = new GlpiPlugin\Samlsso\Tests\CronTaskTest();
     try {
         $test->testCronSessionCleanupPositive();
+        $test->testCronSessionCleanupClamping();
         $test->testCronSessionCleanupZero();
         $test->testCronInfo();
-        $test->testCronCleanSessionInactivityTimeout();
+        $test->testCronCleanSessionDoesNotMutateActiveSessions();
+        $test->testCronTaskInstallationDeduplication();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

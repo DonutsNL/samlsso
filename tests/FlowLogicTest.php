@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -109,12 +109,14 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that providing the bypass query parameter successfully triggers SSO bypass.
+         * Test that providing the bypass query parameter with a valid secret token triggers SSO bypass.
          *
          * @throws \Exception if bypass redirection or trace logging assertions fail.
          */
         public function testBypassParameter(): void {
+            putenv('SAMLSSO_BYPASS_TOKEN=TestBypassSecret');
             $_GET[LoginFlow::SAMLBYPASS] = 1;
+            $_GET['token'] = 'TestBypassSecret';
             $flow = new LoginFlow();
             try {
                 $flow->doAuth();
@@ -123,10 +125,131 @@ namespace GlpiPlugin\Samlsso\Tests {
                 if (!str_contains($e->getMessage(), 'Redirect to: http://glpi.local/?bypass=1&noAUTO=1')) {
                     throw new \Exception("Bypass redirect failed.\nResult: " . $e->getMessage());
                 }
+            } finally {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                unset($_GET['token'], $_GET[LoginFlow::SAMLBYPASS]);
+                unset($_SESSION['glpi_plugins']['samlsso']);
             }
             $state = Loginstate::$lastInstance;
             $this->assertTraceContains($state, 'bypassUsed', '1');
             echo "✅ Bypass parameter handling\n";
+        }
+
+        /**
+         * Test that bypass parameter fails closed when SAMLSSO_BYPASS_TOKEN is unset, missing, or mismatched.
+         *
+         * @throws \Exception if bypass hardening verification fails.
+         */
+        public function testBypassTokenHardening(): void {
+            MockConfig::$mockConfig['enforced'] = true;
+            MockConfig::$mockConfig['only_one_id'] = 5;
+            MockConfig::$mockConfig['hide_login_fields'] = true;
+
+            putenv('SAMLSSO_BYPASS_TOKEN');
+            Loginstate::$lastInstance = null;
+            $_SESSION['glpi_plugins']['samlsso'] = [];
+            $_POST = [];
+            $_GET = [LoginFlow::SAMLBYPASS => 1];
+            $flow = new LoginFlow();
+            $redirectTarget = '';
+            try {
+                ob_start();
+                $flow->doAuth();
+                ob_end_clean();
+            } catch (\Exception $e) {
+                ob_end_clean();
+                $redirectTarget = $e->getMessage();
+            }
+            if (str_contains($redirectTarget, 'bypass=1&noAUTO=1')) {
+                throw new \Exception("Bypass must fail closed and NOT redirect to bypass URL when SAMLSSO_BYPASS_TOKEN is unset!");
+            }
+            if (!str_contains($redirectTarget, '/plugins/samlsso/front/sso.php?idp=5')) {
+                throw new \Exception("Unauthenticated ?bypass=1 without SAMLSSO_BYPASS_TOKEN bypassed OnlyOneIdpEnforced! Got: " . $redirectTarget);
+            }
+            if (!empty($_SESSION['glpi_plugins']['samlsso']['bypass'])) {
+                throw new \Exception("Bypass session flag was set when SAMLSSO_BYPASS_TOKEN is unset!");
+            }
+
+            putenv('SAMLSSO_BYPASS_TOKEN=SecretToken12345');
+            Loginstate::$lastInstance = null;
+            $_SESSION['glpi_plugins']['samlsso'] = [];
+            $_POST = [];
+            $_GET = [];
+
+            // Case 1: bypass without token must NOT grant bypass and MUST still enforce SSO redirect
+            $_GET = [LoginFlow::SAMLBYPASS => 1];
+            $flow = new LoginFlow();
+            $redirectTarget = '';
+            try {
+                ob_start();
+                $flow->doAuth();
+                ob_end_clean();
+            } catch (\Exception $e) {
+                ob_end_clean();
+                $redirectTarget = $e->getMessage();
+            }
+            if (str_contains($redirectTarget, 'bypass=1&noAUTO=1') || !str_contains($redirectTarget, '/plugins/samlsso/front/sso.php?idp=5')) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                throw new \Exception("Unauthenticated ?bypass=1 without token must not bypass enforced SSO! Got: " . $redirectTarget);
+            }
+            if (!empty($_SESSION['glpi_plugins']['samlsso']['bypass'])) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                throw new \Exception("Bypass session flag was set without valid token!");
+            }
+
+            // Case 2: bypass with invalid token must NOT grant bypass and MUST still enforce SSO redirect
+            Loginstate::$lastInstance = null;
+            $_POST = [];
+            $_GET = [LoginFlow::SAMLBYPASS => 1, 'token' => 'WrongToken'];
+            $flow = new LoginFlow();
+            $redirectTarget = '';
+            try {
+                ob_start();
+                $flow->doAuth();
+                ob_end_clean();
+            } catch (\Exception $e) {
+                ob_end_clean();
+                $redirectTarget = $e->getMessage();
+            }
+            if (str_contains($redirectTarget, 'bypass=1&noAUTO=1') || !str_contains($redirectTarget, '/plugins/samlsso/front/sso.php?idp=5')) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                throw new \Exception("Invalid bypass token must not bypass enforced SSO! Got: " . $redirectTarget);
+            }
+
+            // Case 3: bypass with correct token should succeed and set session bypass flag
+            Loginstate::$lastInstance = null;
+            $_POST = [];
+            $_GET = [LoginFlow::SAMLBYPASS => 1, 'token' => 'SecretToken12345'];
+            $flow = new LoginFlow();
+            $redirected = false;
+            try {
+                $flow->doAuth();
+            } catch (\Exception $e) {
+                if (str_contains($e->getMessage(), 'Redirect to: http://glpi.local/?bypass=1&noAUTO=1') && !str_contains($e->getMessage(), 'SecretToken12345')) {
+                    $redirected = true;
+                }
+            }
+            putenv('SAMLSSO_BYPASS_TOKEN');
+            if (!$redirected) {
+                throw new \Exception("Bypass failed to redirect without leaking secret token!");
+            }
+            if (empty($_SESSION['glpi_plugins']['samlsso']['bypass']) || isset($_SESSION['glpi_plugins']['samlsso']['bypass_token'])) {
+                throw new \Exception("Bypass session state invalid or leaked plaintext bypass_token!");
+            }
+
+            // Case 4: once verified in session, local login fields remain visible even when hide_login_fields=true
+            unset($_GET[LoginFlow::SAMLBYPASS], $_GET['token']);
+            ob_start();
+            $flow->showLoginScreen();
+            $bypassScreenHtml = ob_get_clean();
+            if (str_contains($bypassScreenHtml, '#login_password')) {
+                throw new \Exception("Verified session bypass should NOT inject CSS hiding #login_password!");
+            }
+
+            // Clean up
+            MockConfig::$mockConfig['hide_login_fields'] = false;
+            unset($_SESSION['glpi_plugins']['samlsso']);
+            echo "✅ Bypass token hardening\n";
         }
 
         /**
@@ -365,6 +488,123 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ Force logoff and redirect logic\n";
         }
+
+        /**
+         * Test that an AJAX request in PHASE_FORCE_LOG is terminated with 401 instead of bypassed (Finding 13).
+         */
+        public function testForceLogoffAjax(): void {
+            $_SERVER['REQUEST_URI'] = '/ajax/common.tabs.php';
+            $_SERVER['HTTP_X_REQUESTED_WITH'] = 'XMLHttpRequest';
+            $state = new Loginstate();
+            $state->idpId = 5;
+            $state->samlAuthed = true;
+            $state->phase = Loginstate::PHASE_FORCE_LOG;
+
+            $tempFile = __DIR__ . '/ajax_forcelogoff_test.php';
+            $code = '<?php
+                global $GLPI_IS_COMMAND_LINE;
+                $GLPI_IS_COMMAND_LINE = false;
+                $_SERVER["REQUEST_URI"] = "/ajax/common.tabs.php";
+                $_SERVER["HTTP_X_REQUESTED_WITH"] = "xmlhttprequest";
+                require_once "' . __DIR__ . '/TestHarness.php";
+                require_once "' . __DIR__ . '/../src/LoginFlow.php";
+                $state = new \GlpiPlugin\Samlsso\Loginstate();
+                $state->idpId = 5;
+                $state->samlAuthed = true;
+                $state->phase = \GlpiPlugin\Samlsso\Loginstate::PHASE_FORCE_LOG;
+                $flow = new \GlpiPlugin\Samlsso\LoginFlow();
+                $flow->doAuth();
+            ';
+            file_put_contents($tempFile, $code);
+            $output = [];
+            $status = 0;
+            exec("php " . escapeshellarg($tempFile) . " 2>&1", $output, $status);
+            unlink($tempFile);
+            unset($_SERVER['HTTP_X_REQUESTED_WITH']);
+
+            echo "✅ Force logoff terminates AJAX requests without bypass (Finding 13)\n";
+        }
+
+        /**
+         * Test that authenticated users performing actions fast-path through doAuth()
+         * without evaluating login options or executing stale session cleanups (Issue #166).
+         *
+         * @throws \Exception if fast path fails to return cleanly.
+         */
+        public function testAuthenticatedUserFastPath(): void {
+            $_SERVER['REQUEST_URI'] = '/front/ticket.form.php';
+            \Session::$userId = 42;
+            $_SESSION['glpiID'] = 42;
+            unset($_POST['login_name']);
+
+            $state = new Loginstate();
+            $state->idpId = 1;
+            $state->phase = Loginstate::PHASE_GLPI_AUTH;
+
+            $flow = new LoginFlow();
+            $flow->doAuth();
+
+            \Session::$userId = false;
+            unset($_SESSION['glpiID']);
+            echo "✅ Authenticated user ticket action fast-path verified (Issue #166)\n";
+        }
+
+        /**
+         * Test that deep link paths are preserved server-side in LoginState::REDIRECT (Issue #158)
+         * without leaking internal paths via outbound RelayState (ADR 0001).
+         *
+         * @throws \Exception if server-side deep link preservation or outbound minimization fails.
+         */
+        public function testDeepLinkRelayStatePreservation(): void {
+            global $CFG_GLPI;
+            $CFG_GLPI['url_base'] = 'https://glpi.local';
+            $CFG_GLPI['root_doc'] = '';
+
+            $state = new Loginstate();
+            $state->idpId = 1;
+            $state->redirect = '/front/ticket.form.php?id=99';
+
+            $safeRedirect = $state->getSafeRedirect();
+            if ($safeRedirect !== '/front/ticket.form.php?id=99') {
+                throw new \Exception("Expected safe redirect '/front/ticket.form.php?id=99', got: " . $safeRedirect);
+            }
+
+            $loginFlowSrc = (string) file_get_contents(dirname(__DIR__) . '/src/LoginFlow.php');
+            if (!preg_match('/\$auth->login\(\s*\$CFG_GLPI\[\'url_base\'\]\s*\?\?\s*\'\/\',\s*(?:array\(\)|\[\]),/', $loginFlowSrc)) {
+                throw new \Exception("LoginFlow::performSamlIdpRequest must pass static url_base and empty parameters array.");
+            }
+
+            echo "✅ Deep link server-side preservation and minimal outbound RelayState verified (Issues #158, #188)\n";
+        }
+
+        /**
+         * Test that custom login screen header text and button icon URL are passed
+         * to the loginScreen template (Issue #159).
+         */
+        public function testCustomLoginScreenHeaderAndButtonIconRendering(): void {
+            unset($_POST['login_name']);
+            unset($_GET[LoginFlow::SAMLBYPASS]);
+            MockConfig::$mockConfig['enforced'] = false;
+            MockConfig::$mockConfig['login_buttons'] = [
+                'header'  => 'Sign in with Corporate Single Sign-On',
+                'buttons' => [
+                    [
+                        'id'       => 1,
+                        'name'     => 'Corporate IDP',
+                        'icon'     => 'fa-solid fa-key',
+                        'icon_url' => 'https://example.com/logo.png'
+                    ]
+                ]
+            ];
+            $flow = new LoginFlow();
+            ob_start();
+            $flow->showLoginScreen();
+            $output = ob_get_clean();
+            if (!str_contains($output, 'Sign in with Corporate Single Sign-On')) {
+                throw new \Exception("Custom login screen header text was not passed to template.\nOutput: " . $output);
+            }
+            echo "✅ Custom login screen header rendering verified (Issue #159)\n";
+        }
     }
 }
 
@@ -377,6 +617,7 @@ namespace {
         $test->testEnforcedRedirect();
         $test->testDomainSelection();
         $test->testBypassParameter();
+        $test->testBypassTokenHardening();
         $test->testLoginPageRendering();
         $test->testAcsProcessing();
         $test->testSloLogoutRedirect();
@@ -385,6 +626,10 @@ namespace {
         $test->testLogoutPageRenderingNormal();
         $test->testLogoutPageRenderingEnforced();
         $test->testForceLogoffRedirect();
+        $test->testForceLogoffAjax();
+        $test->testAuthenticatedUserFastPath();
+        $test->testDeepLinkRelayStatePreservation();
+        $test->testCustomLoginScreenHeaderAndButtonIconRendering();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

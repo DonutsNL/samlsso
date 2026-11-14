@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -309,6 +309,7 @@ namespace OneLogin\Saml2 {
         class Utils
         {
             public static ?\Throwable $mockThrow = null;
+            public static bool $proxyVarsEnabled = false;
             public function __construct() {
                 if (self::$mockThrow !== null) {
                     throw self::$mockThrow;
@@ -319,6 +320,7 @@ namespace OneLogin\Saml2 {
                 if (self::$mockThrow !== null) {
                     throw self::$mockThrow;
                 }
+                self::$proxyVarsEnabled = $enabled;
             }
         }
     }
@@ -408,6 +410,77 @@ namespace GlpiPlugin\Samlsso\LoginFlow {
     if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\MockLoginFlowUser', false)) {
         class MockLoginFlowUser
         {
+            public const USERID              = 'id';
+            public const NAME                = 'name';
+            public const REALNAME            = 'realname';
+            public const FIRSTNAME           = 'firstname';
+            public const EMAIL               = '_useremails';
+            public const MOBILE              = 'mobile';
+            public const PHONE               = 'phone';
+            public const PHONE2              = 'phone2';
+            public const REGISTRATION_NUMBER = 'registration_number';
+            public const COMMENT             = 'comment';
+            public const PASSWORD            = 'password';
+            public const PASSWORDN           = 'password2';
+            public const DELETED             = 'is_deleted';
+            public const ACTIVE              = 'is_active';
+            public const RULEOUTPUT          = 'output';
+            public const USERSID             = 'users_id';
+            public const GROUPID             = 'groups_id';
+            public const GROUP_DEFAULT       = 'specific_groups_id';
+            public const IS_DYNAMIC          = 'is_dynamic';
+            public const PROFILESID          = 'profiles_id';
+            public const PROFILE_DEFAULT     = '_profiles_id_default';
+            public const PROFILE_RECURSIVE   = 'is_recursive';
+            public const ENTITY_ID           = 'entities_id';
+            public const ENTITY_DEFAULT      = '_entities_id_default';
+            public const AUTHTYPE              = 'authtype';
+            public const AUTHTYPE_LOCAL        = 1;
+            public const AUTHS_ID              = 'auths_id';
+            public const AUTHS_ID_OFFSET       = 1000000;
+            public const USER_DN               = 'user_dn';
+            public const USER_DN_HASH          = 'user_dn_hash';
+            public const SYNC_FIELD            = 'sync_field';
+            public const IS_DELETED_LDAP       = 'is_deleted_ldap';
+            public const PASSWORD_MD5          = 'password_md5';
+            public const API_TOKEN             = 'api_token';
+            public const PERSONAL_TOKEN        = 'personal_token';
+            public const PASSWORD_FORGET_TOKEN = 'password_forget_token';
+            public const COOKIE_TOKEN          = 'cookie_token';
+            public const EXTAUTH               = '_extauth';
+            public const DATE_MOD              = 'date_mod';
+            public const TIMEZONE              = 'timezone';
+            public const LOCATIONS_ID          = 'locations_id';
+            public const USERCATEGORIES_ID     = 'usercategories_id';
+            public const USERTITLES_ID         = 'usertitles_id';
+            public const LANGUAGE              = 'language';
+            public const SYNCDATE              = 'date_sync';
+            public const RULE_FIELDS_KEY       = '_saml_rule_fields';
+            public const SAMLGROUPS            = 'samlClaimedGroups';
+            public const SAMLJOBTITLE          = 'samlClaimedJobTitle';
+            public const SAMLCOUNTRY           = 'country';
+            public const SAMLCITY              = 'city';
+            public const SAMLSTREET            = 'street';
+            public const SCIM_DEPARTMENT       = 'scimDepartment';
+            public const SCIM_ORGANIZATION     = 'scimOrganization';
+            public const SCIM_DIVISION         = 'scimDivision';
+            public const SCIM_COST_CENTER      = 'scimCostCenter';
+            public const SCIM_EMPLOYEE_NUMBER  = 'scimEmployeeNumber';
+
+            /**
+             * Maps an IdP ID into the isolated glpi_users.auths_id namespace (1,000,000 + $idpId).
+             *
+             * @param int $idpId Active samlSSO IdP ID (> 0).
+             * @return int Namespaced auths_id value.
+             */
+            public static function toAuthsId(int $idpId): int
+            {
+                if ($idpId <= 0) {
+                    throw new \InvalidArgumentException('samlSSO IdP configuration ID must be strictly positive.');
+                }
+                return self::AUTHS_ID_OFFSET + $idpId;
+            }
+
             /**
              * Mocks searching for a user in the database by field.
              *
@@ -495,6 +568,8 @@ namespace GlpiPlugin\Samlsso\Config {
             public const NAME            = 'name';
             public const CONF_DOMAIN     = 'conf_domain';
             public const CONF_ICON       = 'conf_icon';
+            public const CONF_ICON_URL   = 'conf_icon_url';
+            public const LOGIN_HEADER_TEXT = 'login_header_text';
             public const ENFORCE_SSO     = 'enforce_sso';
             public const PROXIED         = 'proxied';
             public const STRICT          = 'strict';
@@ -502,6 +577,7 @@ namespace GlpiPlugin\Samlsso\Config {
             public const USER_JIT        = 'user_jit';
             public const SP_CERTIFICATE  = 'sp_certificate';
             public const SP_KEY          = 'sp_private_key';
+            public const SP_KEY_SOURCE   = 'sp_private_key_source';
             public const SP_NAME_FORMAT  = 'sp_nameid_format';
             public const IDP_ENTITY_ID   = 'idp_entity_id';
             public const IDP_SSO_URL     = 'idp_single_sign_on_service';
@@ -511,6 +587,7 @@ namespace GlpiPlugin\Samlsso\Config {
             public const AUTHN_COMPARE   = 'requested_authn_context_comparison';
             public const ENCRYPT_NAMEID  = 'security_nameidencrypted';
             public const SIGN_AUTHN      = 'security_authnrequestssigned';
+            public const FORCE_AUTHN     = 'force_authn';
             public const SIGN_SLO_REQ    = 'security_logoutrequestsigned';
             public const SIGN_SLO_RES    = 'security_logoutresponsesigned';
             public const COMPRESS_REQ    = 'compress_requests';
@@ -523,6 +600,7 @@ namespace GlpiPlugin\Samlsso\Config {
             public const IS_DELETED      = 'is_deleted';
             public const CREATE_DATE     = 'date_creation';
             public const MOD_DATE        = 'date_mod';
+            public const SAML_XML_STRUCTURE = 'saml_xml_structure';
             public const SYNC_ON_LOGIN   = 'sync_on_login';
             public const REQUEST_TIMEOUT = 'request_timeout';
             public const INACTIVITY_TIMEOUT = 'inactivity_timeout';
@@ -531,6 +609,12 @@ namespace GlpiPlugin\Samlsso\Config {
             public const SECURITY_WANTASSERTIONSENCRYPTED = 'security_wantassertionsencrypted';
             public const SECURITY_SIGNMETADATA = 'security_signmetadata';
             public const SECURITY_WANTNAMEID = 'security_wantnameid';
+            public const SCIM_ENABLED        = 'scim_enabled';
+            public const SCIM_TOKEN_HASH     = 'scim_token_hash';
+            public const SCIM_TOKEN_SOURCE   = 'scim_token_source';
+            public const SCIM_ALLOWED_IPS    = 'scim_allowed_ips';
+            public const SCIM_DEPROVISION    = 'scim_deprovision';
+            public const SCIM_GROUP_POLICY   = 'scim_group_policy';
 
             /** @var array Mocks configuration field storage. */
             public static array $mockFields = [];
@@ -538,6 +622,12 @@ namespace GlpiPlugin\Samlsso\Config {
             private int $id = -1;
             /** @var ?\Throwable Static throwable mock trigger. */
             public static ?\Throwable $mockThrow = null;
+            /** @var bool Static validity mock flag. */
+            public static bool $mockIsValid = true;
+            /** @var bool Static active mock flag. */
+            public static bool $mockIsActive = true;
+            /** @var bool Static deleted mock flag. */
+            public static bool $mockIsDeleted = false;
 
             /**
              * ConfigEntity constructor.
@@ -559,6 +649,9 @@ namespace GlpiPlugin\Samlsso\Config {
              */
             public function getField(string $field): mixed
             {
+                if ($field === self::ID) {
+                    return self::$mockFields[$field] ?? $this->id;
+                }
                 return self::$mockFields[$field] ?? null;
             }
 
@@ -579,7 +672,7 @@ namespace GlpiPlugin\Samlsso\Config {
              */
             public function isValid(): bool
             {
-                return true;
+                return self::$mockIsValid;
             }
 
             /**
@@ -589,7 +682,17 @@ namespace GlpiPlugin\Samlsso\Config {
              */
             public function isActive(): bool
             {
-                return true;
+                return self::$mockIsActive && ((self::$mockFields[self::IS_ACTIVE] ?? 1) == 1);
+            }
+
+            /**
+             * Checks if configuration is marked as deleted.
+             *
+             * @return bool True if deleted.
+             */
+            public function isDeleted(): bool
+            {
+                return self::$mockIsDeleted || !empty(self::$mockFields[self::IS_DELETED]);
             }
 
             /**
@@ -742,6 +845,16 @@ namespace GlpiPlugin\Samlsso {
             }
 
             /**
+             * Check if any active IdP operates behind a reverse proxy.
+             *
+             * @return bool True if proxied active.
+             */
+            public static function isProxiedActive(): bool
+            {
+                return self::$mockConfig['proxied'] ?? false;
+            }
+
+            /**
              * Check if traditional login fields should be hidden.
              *
              * @return bool True if hidden.
@@ -759,7 +872,14 @@ namespace GlpiPlugin\Samlsso {
              */
             public static function getLoginButtons(int $limit = 12): array
             {
-                return self::$mockConfig['login_buttons'] ?? [];
+                if (isset(self::$mockConfig['login_buttons'])) {
+                    $val = self::$mockConfig['login_buttons'];
+                    if (is_array($val) && !empty($val) && isset($val[0]) && !isset($val['buttons'])) {
+                        return ['buttons' => $val];
+                    }
+                    return $val;
+                }
+                return [];
             }
 
             /**
@@ -801,6 +921,9 @@ namespace GlpiPlugin\Samlsso {
         if (!class_exists('GlpiPlugin\Samlsso\Exclude', false)) {
             class Exclude
             {
+                public const ID          = 'id';
+                public const EXCLUDEPATH = 'ExcludePath';
+
                 /**
                  * Mock checks if the request is excluded from SSO rules.
                  *
@@ -834,9 +957,6 @@ namespace GlpiPlugin\Samlsso {
             public const IDP_ID                     = 'idpId';
             public const LOGIN_DATETIME             = 'loginTime';
             public const LAST_ACTIVITY              = 'lastClickTime';
-            public const ENFORCE_LOGOFF             = 'enforceLogoff';
-            public const SAML_RESPONSE              = 'serverParams';
-            public const SAML_REQUEST               = 'requestParams';
             public const SAML_REQUEST_ID            = 'requestId';
             public const SAML_UNSOLICITED           = 'requesUnsol';
             public const SAML_RESPONSE_ID           = 'responseId';
@@ -853,9 +973,22 @@ namespace GlpiPlugin\Samlsso {
             public const PHASE_LOGOFF               = 8;
             public const PHASE_ERROR                = 9;
 
-            public static function expireStaleAcsRequests(): void {}
-            public static function expireStaleGlpiSessions(): void {}
-            public function updateLastActivity(): void {}
+            public static function expireStaleAcsRequests(bool $force = false): void {}
+            public static function expireStaleGlpiSessions(bool $force = false): void {}
+            public static function forceLogoffForUser(int $idpId, int $userId): int
+            {
+                global $DB;
+                if ($idpId <= 0 || $userId <= 0 || !is_object($DB) || !method_exists($DB, 'update')) {
+                    return 0;
+                }
+                $DB->update(self::getTable(), [self::PHASE => self::PHASE_FORCE_LOG], [
+                    self::IDP_ID  => $idpId,
+                    self::USER_ID => $userId,
+                    self::PHASE   => self::PHASE_GLPI_AUTH,
+                ]);
+                return 1;
+            }
+            public function updateLastActivity(int $throttleSeconds = 60): void {}
 
             /**
              * Gets database table name.
@@ -986,13 +1119,26 @@ namespace GlpiPlugin\Samlsso {
             }
 
             /**
+             * Mocks refreshing login datetime on new SAML request.
+             *
+             * @return bool True.
+             */
+            public function refreshLoginDateTime(): bool
+            {
+                return true;
+            }
+
+            /**
              * Store redirect URL.
              *
              * @param string $redirect Target URL.
              * @return bool True if updated.
              */
-            public function setRedirect(string $redirect = ''): bool
+            public function setRedirect(?string $redirect = null): bool
             {
+                if ($redirect !== null) {
+                    $this->redirect = $redirect;
+                }
                 return true;
             }
 
@@ -1049,6 +1195,31 @@ namespace GlpiPlugin\Samlsso {
             public function isSamlAuthed(): bool
             {
                 return $this->samlAuthed;
+            }
+
+            /** @var bool Active unsolicited status. */
+            public bool $unsolicited = false;
+
+            /**
+             * Sets the unsolicited status.
+             *
+             * @param bool $unsolicited Unsolicited flag.
+             * @return bool True.
+             */
+            public function setUnsolicited(bool $unsolicited = true): bool
+            {
+                $this->unsolicited = $unsolicited;
+                return true;
+            }
+
+            /**
+             * Checks if unsolicited.
+             *
+             * @return bool Unsolicited status.
+             */
+            public function isUnsolicited(): bool
+            {
+                return $this->unsolicited;
             }
 
             /**
@@ -1126,13 +1297,23 @@ namespace GlpiPlugin\Samlsso {
             }
 
             /**
+             * Mocks retrieving redirect URL.
+             *
+             * @return string Redirect URL.
+             */
+            public function getRedirect(): string
+            {
+                return $this->redirect ?? '';
+            }
+
+            /**
              * Mocks retrieving safe redirect URL.
              *
              * @return string Redirect URL.
              */
             public function getSafeRedirect(): string
             {
-                return '';
+                return $this->redirect ?? '';
             }
         }
     }
@@ -1224,7 +1405,29 @@ namespace GlpiPlugin\Samlsso\Tests {
         public function request(array $params): object
         {
             $table = $params['FROM'] ?? '';
-            $data = $this->responses[$table] ?? [];
+            if (array_key_exists($table, $this->responses)) {
+                $data = $this->responses[$table];
+                if (isset($params['WHERE']) && is_array($params['WHERE'])) {
+                    $data = array_values(array_filter($data, function (array $row) use ($params): bool {
+                        return $this->matchesWhere($row, $params['WHERE']);
+                    }));
+                }
+            } elseif ($table === 'glpi_users' && \User::$mockObject !== null && is_array(\User::$mockObject->mockUserData)) {
+                $candidate = \User::$mockObject->mockUserData;
+                $data = (!isset($params['WHERE']) || !is_array($params['WHERE']) || $this->matchesWhere($candidate, $params['WHERE']))
+                    ? [$candidate]
+                    : [];
+            } elseif ($table === 'glpi_useremails' && \User::$mockObject !== null && is_array(\User::$mockObject->mockUserData) && !empty(\User::$mockObject->mockUserData['email'])) {
+                $emailRow = [
+                    'users_id' => (int)(\User::$mockObject->mockUserData['id'] ?? 0),
+                    'email'    => (string)\User::$mockObject->mockUserData['email'],
+                ];
+                $data = (!isset($params['WHERE']) || !is_array($params['WHERE']) || $this->matchesWhere($emailRow, $params['WHERE']))
+                    ? [$emailRow]
+                    : [];
+            } else {
+                $data = [];
+            }
             return new class($data) implements \Iterator, \Countable {
                 /** @var array Results storage. */
                 private array $data;
@@ -1302,6 +1505,99 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
+         * Checks whether a mock response table has been explicitly registered.
+         *
+         * @param string $table Table name.
+         * @return bool
+         */
+        public function hasResponse(string $table): bool
+        {
+            return array_key_exists($table, $this->responses);
+        }
+
+        /**
+         * Clears a previously registered mock response table.
+         *
+         * @param string $table Table name.
+         * @return void
+         */
+        public function clearResponse(string $table): void
+        {
+            unset($this->responses[$table]);
+        }
+
+        /**
+         * Evaluates a subset of GLPI DBmysqlIterator WHERE clauses against a mock row.
+         *
+         * @param array<string, mixed> $row
+         * @param array<int|string, mixed> $where
+         * @return bool
+         */
+        private function matchesWhere(array $row, array $where): bool
+        {
+            foreach ($where as $key => $val) {
+                if ($key === 'OR' && is_array($val)) {
+                    $any = false;
+                    foreach ($val as $orKey => $orVal) {
+                        $subWhere = is_int($orKey) && is_array($orVal) ? $orVal : [$orKey => $orVal];
+                        if ($this->matchesWhere($row, $subWhere)) {
+                            $any = true;
+                            break;
+                        }
+                    }
+                    if (!$any) {
+                        return false;
+                    }
+                    continue;
+                }
+                if (is_int($key) && is_array($val)) {
+                    if (!$this->matchesWhere($row, $val)) {
+                        return false;
+                    }
+                    continue;
+                }
+                $col = str_contains((string)$key, '.') ? substr((string)$key, strrpos((string)$key, '.') + 1) : (string)$key;
+                if (!array_key_exists($col, $row)) {
+                    continue;
+                }
+                if (is_array($val)) {
+                    if (array_key_exists('LIKE', $val)) {
+                        $pattern = '/^' . str_replace(['%', '_'], ['.*', '.'], preg_quote((string)$val['LIKE'], '/')) . '$/i';
+                        if (!preg_match($pattern, (string)$row[$col])) {
+                            return false;
+                        }
+                        continue;
+                    }
+                    if (array_key_exists('!=', $val)) {
+                        if ((string)$row[$col] === (string)$val['!=']) {
+                            return false;
+                        }
+                        continue;
+                    }
+                    $matchedIn = false;
+                    foreach ($val as $item) {
+                        if (strcasecmp((string)$row[$col], (string)$item) === 0) {
+                            $matchedIn = true;
+                            break;
+                        }
+                    }
+                    if (!$matchedIn) {
+                        return false;
+                    }
+                } elseif ($val === null) {
+                    if ($row[$col] !== null) {
+                        return false;
+                    }
+                } else {
+                    if (strcasecmp((string)$row[$col], (string)$val) !== 0) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        /**
          * Intercept records deletion queries.
          *
          * @param string $table Table name.
@@ -1348,6 +1644,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                         ['Field' => 'name', 'Type' => 'varchar(255)', 'Null' => 'YES'],
                         ['Field' => 'sp_certificate', 'Type' => 'text', 'Null' => 'YES'],
                         ['Field' => 'sp_private_key', 'Type' => 'text', 'Null' => 'YES'],
+                        ['Field' => 'sp_private_key_source', 'Type' => 'varchar(25)', 'Null' => 'NO'],
                         ['Field' => 'strict', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_wantmessagessigned', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_wantassertionssigned', 'Type' => 'tinyint', 'Null' => 'NO'],
@@ -1355,8 +1652,17 @@ namespace GlpiPlugin\Samlsso\Tests {
                         ['Field' => 'security_wantnameid', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_nameidencrypted', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_authnrequestssigned', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'force_authn', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'conf_icon_url', 'Type' => 'varchar(255)', 'Null' => 'YES'],
+                        ['Field' => 'login_header_text', 'Type' => 'varchar(255)', 'Null' => 'YES'],
                         ['Field' => 'security_logoutrequestsigned', 'Type' => 'tinyint', 'Null' => 'NO'],
                         ['Field' => 'security_logoutresponsesigned', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'scim_enabled', 'Type' => 'tinyint', 'Null' => 'NO'],
+                        ['Field' => 'scim_token_hash', 'Type' => 'varchar(128)', 'Null' => 'NO'],
+                        ['Field' => 'scim_token_source', 'Type' => 'varchar(16)', 'Null' => 'NO'],
+                        ['Field' => 'scim_allowed_ips', 'Type' => 'text', 'Null' => 'YES'],
+                        ['Field' => 'scim_deprovision', 'Type' => 'varchar(16)', 'Null' => 'NO'],
+                        ['Field' => 'scim_group_policy', 'Type' => 'varchar(24)', 'Null' => 'NO'],
                     ];
                     private int $index = 0;
                     public function fetch_assoc() {
@@ -1379,6 +1685,19 @@ namespace GlpiPlugin\Samlsso\Tests {
         public function tableExists(string $table): bool
         {
             return $this->mockTableExists;
+        }
+
+        /**
+         * Check if column exists in table.
+         *
+         * @param string $table Table name.
+         * @param string $field Field name.
+         * @param bool $use_cache
+         * @return bool Always returns true.
+         */
+        public function fieldExists(string $table, string $field, bool $use_cache = true): bool
+        {
+            return true;
         }
 
         /**
@@ -1457,6 +1776,18 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function getFromDBbyName(string $name, $instance): bool
         {
+            global $DB;
+            if ($DB instanceof MockDB && $DB->hasResponse('glpi_users')) {
+                $iter = $DB->request(['FROM' => 'glpi_users', 'WHERE' => ['name' => $name]]);
+                if (count($iter) > 1) {
+                    throw new \RuntimeException(sprintf('CommonDBTM::getFromDBByCrit TooManyResultsException for name=%s', $name));
+                }
+                if (count($iter) === 1) {
+                    $instance->fields = $iter->current();
+                    return true;
+                }
+                return false;
+            }
             if ($this->mockUserData && $this->mockUserData['name'] === $name) {
                 $instance->fields = $this->mockUserData;
                 return true;
@@ -1473,6 +1804,15 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function getFromDBbyEmail(string $email, $instance): bool
         {
+            global $DB;
+            if ($DB instanceof MockDB && $DB->hasResponse('glpi_useremails')) {
+                $iter = $DB->request(['FROM' => 'glpi_useremails', 'WHERE' => ['email' => $email]]);
+                if (count($iter) !== 1) {
+                    return false;
+                }
+                $emailRow = $iter->current();
+                return $this->getFromDB((int)($emailRow['users_id'] ?? 0), $instance);
+            }
             if ($this->mockUserData && $this->mockUserData['email'] === $email) {
                 $instance->fields = $this->mockUserData;
                 return true;
@@ -1489,6 +1829,18 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function getFromDB(int $id, $instance): bool
         {
+            global $DB;
+            if ($DB instanceof MockDB && $DB->hasResponse('glpi_users')) {
+                $iter = $DB->request(['FROM' => 'glpi_users', 'WHERE' => ['id' => $id]]);
+                if (count($iter) === 1) {
+                    $instance->fields = $iter->current();
+                    return true;
+                }
+            }
+            if ($this->mockUserData && ($this->mockUserData['id'] ?? null) === $id) {
+                $instance->fields = $this->mockUserData;
+                return true;
+            }
             if ($this->createdUserData && $this->createdUserData['id'] === $id) {
                 $instance->fields = $this->createdUserData;
                 return true;
@@ -1508,6 +1860,8 @@ namespace GlpiPlugin\Samlsso\Tests {
         public bool $mockUpdateCalled = false;
         /** @var array|null Captured update data. */
         public ?array $updatedUserData = null;
+        /** @var array|null Captured add data. */
+        public ?array $addedUserData = null;
 
         /**
          * Create a new user record.
@@ -1519,6 +1873,7 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function add(array $input, array $options = [], bool $history = true): int
         {
+            $this->addedUserData = $input;
             return $this->mockIdToReturn;
         }
 
@@ -1572,7 +1927,9 @@ namespace GlpiPlugin\Samlsso\Tests {
             $CFG_GLPI = ['url_base' => 'http://glpi.local'];
             $GLPI_IS_COMMAND_LINE = false;
 
-            Loginstate::$lastInstance = null;
+            if (property_exists(Loginstate::class, 'lastInstance')) {
+                Loginstate::$lastInstance = null;
+            }
         }
 
         /**

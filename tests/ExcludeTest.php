@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -135,6 +135,14 @@ namespace GlpiPlugin\Samlsso\Tests {
                     Exclude::DATE_MOD => '2026-05-22 00:00:00',
                     Exclude::CLIENTAGENT => 'AdminAgent',
                     Exclude::EXCLUDEPATH => '/admin/'
+                ],
+                [
+                    Exclude::NAME => 'Bypass Webhook Only for WebhookBot',
+                    Exclude::ACTION => 1,
+                    Exclude::DATE_CREATION => '2026-05-22 00:00:00',
+                    Exclude::DATE_MOD => '2026-05-22 00:00:00',
+                    Exclude::CLIENTAGENT => 'WebhookBot',
+                    Exclude::EXCLUDEPATH => '/custom/webhook.php'
                 ]
             ]);
 
@@ -153,11 +161,17 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
 
             /**
-             * 3. Client agent check where Agent doesn't match.
+             * 3. Client agent check where Agent doesn't match (including ACTION=1 rule).
              */
             $_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0';
             if (Exclude::GetExcludeAction('/admin/', $_SERVER['HTTP_USER_AGENT']) !== false) {
                 throw new \Exception("GetExcludeAction should have failed for /admin/ with unmatched User-Agent");
+            }
+            if (Exclude::GetExcludeAction('/custom/webhook.php', $_SERVER['HTTP_USER_AGENT']) !== false) {
+                throw new \Exception("GetExcludeAction should not bypass /custom/webhook.php when User-Agent does not match WebhookBot");
+            }
+            if (Exclude::GetExcludeAction('/custom/webhook.php', 'WebhookBot/1.0') !== true) {
+                throw new \Exception("GetExcludeAction should bypass /custom/webhook.php when User-Agent matches WebhookBot");
             }
 
             /**
@@ -173,6 +187,14 @@ namespace GlpiPlugin\Samlsso\Tests {
              */
             if (Exclude::GetExcludeAction('/front/home.php') !== false) {
                 throw new \Exception("GetExcludeAction should return false for unmatched path /front/home.php");
+            }
+
+            /**
+             * 6. Undefined HTTP_USER_AGENT does not throw TypeError under PHP 8.1+ (Issue #137).
+             */
+            unset($_SERVER['HTTP_USER_AGENT']);
+            if (Exclude::GetExcludeAction('/admin/') !== false) {
+                throw new \Exception("GetExcludeAction should return false for /admin/ without HTTP_USER_AGENT");
             }
 
             echo "✅ Exclude: Database configured exclusion rules\n";

@@ -51,9 +51,21 @@
             // Clear original title attributes to prevent duplicate native rendering
             $el.removeAttr('title').removeAttr('data-bs-original-title');
 
-            // Initialize Bootstrap Popover
+            // Initialize Bootstrap Popover with sanitizer enabled and table tags allowed for diagnostics
+            const defaultAllowList = (bootstrap.Tooltip && bootstrap.Tooltip.Default && bootstrap.Tooltip.Default.allowList)
+                ? bootstrap.Tooltip.Default.allowList
+                : {};
+            const popoverAllowList = Object.assign({}, defaultAllowList, {
+                table: ['class', 'style'],
+                thead: ['class', 'style'],
+                tbody: ['class', 'style'],
+                tr: ['class', 'style'],
+                th: ['class', 'style', 'scope', 'colspan', 'rowspan'],
+                td: ['class', 'style', 'colspan', 'rowspan']
+            });
             const popoverInstance = new bootstrap.Popover(el, {
-                sanitize: false,
+                sanitize: true,
+                allowList: popoverAllowList,
                 trigger: 'manual',
                 customClass: customClass,
                 html: html,
@@ -189,6 +201,31 @@
         if ($.fn.select2) {
             $('#preset_selector').select2();
         }
+
+        $(document).on('change', '#preset_selector', function() {
+            applyPreset($(this).val());
+        });
+
+        $(document).on('change', '#claim_mapping_tbody .target-type-select', function() {
+            updateGlpiFields(this);
+        });
+
+        $(document).on('input', '#claim_mapping_tbody .saml-claim-input', function() {
+            checkObserved(this);
+        });
+
+        $(document).on('click', '#claim_mapping_tbody .js-select-claim', function(e) {
+            e.preventDefault();
+            selectClaim(this, this.getAttribute('data-claim') || '');
+        });
+
+        $(document).on('click', '#claim_mapping_tbody .js-delete-claim-row', function() {
+            deleteRow(this);
+        });
+
+        $(document).on('click', '#btn-add-claim-row', function() {
+            addRow('', '', '', '', 0);
+        });
         
         function toggleFooterVisibility(tabId) {
             if (tabId === '#claim_mapping' || tabId === '#logging') {
@@ -269,73 +306,75 @@
 
         // Delay scanning and popover manager initialization slightly to run after GLPI core has loaded
         setTimeout(function() {
+            /**
+             * Processes validation and notification helper elements underneath form fields.
+             *
+             * Converts simple single-line text messages into clean popover tooltips on the label
+             * while preserving rich diagnostic tables (such as validateProxyEnvironment and
+             * validateTimezoneEnvironment) fully visible inline in the form.
+             *
+             * @param {jQuery} $textEl Form text helper element
+             * @param {string} type 'error' | 'warning' | 'info'
+             */
+            function processNotificationHelper($textEl, type) {
+                var $row = $textEl.closest('.form-field.row');
+                if (!$row.length) return;
+
+                var isTable = $textEl.find('table').length > 0;
+                var rowClass = 'form-field-' + (type === 'info' ? 'info' : (type === 'warning' ? 'warning' : 'error')) + '-row';
+                $row.addClass(rowClass);
+
+                var iconClass, popoverType, defaultTitle, iconColorClass;
+                if (type === 'error') {
+                    iconClass = 'fas fa-exclamation-triangle';
+                    iconColorClass = 'text-danger';
+                    popoverType = 'error';
+                    defaultTitle = 'Error';
+                } else if (type === 'warning') {
+                    iconClass = 'fas fa-exclamation-triangle';
+                    iconColorClass = 'text-warning';
+                    popoverType = 'warning';
+                    defaultTitle = 'Warning';
+                } else {
+                    iconClass = 'fas fa-info-circle';
+                    iconColorClass = 'text-info';
+                    popoverType = 'success';
+                    defaultTitle = 'Info';
+                }
+
+                var $iconsSpan = alignLabelIcons($row);
+                if ($iconsSpan && !$iconsSpan.find('.' + iconClass.split(' ').join('.') + '.' + iconColorClass).length) {
+                    var popoverContent = isTable ? $textEl.html().trim() : $textEl.text().trim();
+
+                    if (popoverContent) {
+                        var customClass = 'samlsso-popover-' + popoverType;
+                        if (isTable) {
+                            customClass += ' samlsso-popover-table';
+                        }
+                        var $iconSpan = $('<span class="' + iconColorClass + ' ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-bs-custom-class="' + customClass + '" data-samlsso-type="' + popoverType + '"><i class="' + iconClass + '"></i></span>');
+                        $iconSpan.attr('data-bs-content', popoverContent);
+                        $iconSpan.attr('title', defaultTitle);
+                        $iconsSpan.prepend($iconSpan);
+                        SamlSsoPopoverManager.init($iconSpan[0]);
+                    }
+                }
+
+                $textEl.addClass('samlsso-diagnostic-table-container').hide();
+            }
+
             // Scan and highlight all fields containing errors across all tabs (only matching true red errors)
             $('.form-text[style*="color:red"], .form-text[style*="color: red"]').each(function() {
-                var $errorText = $(this);
-                var $row = $errorText.closest('.form-field.row');
-                if ($row.length) {
-                    // Apply red background styling class
-                    $row.addClass('form-field-error-row');
-                    
-                    // Add error icon next to the label if it's not already there
-                    var $iconsSpan = alignLabelIcons($row);
-                    if ($iconsSpan && !$iconsSpan.find('.fa-exclamation-triangle.text-danger').length) {
-                        var $warnSpan = $('<span class="text-danger ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-samlsso-type="error"><i class="fas fa-exclamation-triangle"></i></span>');
-                        $warnSpan.attr('data-bs-content', $errorText.html() || $errorText.text());
-                        $warnSpan.attr('title', 'Error');
-                        $iconsSpan.prepend($warnSpan);
-                        SamlSsoPopoverManager.init($warnSpan[0]);
-                    }
-                    
-                    // Hide the raw error text
-                    $errorText.hide();
-                }
+                processNotificationHelper($(this), 'error');
             });
 
-            // Process warning helper texts (orange/yellow) and convert them to tooltips + warning row background
+            // Process warning helper texts (orange/yellow)
             $('.form-text[style*="color:rgb(180, 120, 8)"], .form-text[style*="color: rgb(180, 120, 8)"], .form-text[style*="color:rgb(180, 140, 8)"], .form-text[style*="color: rgb(180, 140, 8)"]').each(function() {
-                var $warnText = $(this);
-                var $row = $warnText.closest('.form-field.row');
-                if ($row.length) {
-                    // Apply warning row class
-                    $row.addClass('form-field-warning-row');
-                    
-                    // Add warning icon next to the label
-                    var $iconsSpan = alignLabelIcons($row);
-                    if ($iconsSpan && !$iconsSpan.find('.fa-exclamation-triangle.text-warning').length) {
-                        var $warnSpan = $('<span class="text-warning ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-samlsso-type="warning"><i class="fas fa-exclamation-triangle"></i></span>');
-                        $warnSpan.attr('data-bs-content', $warnText.html() || $warnText.text());
-                        $warnSpan.attr('title', 'Warning');
-                        $iconsSpan.prepend($warnSpan);
-                        SamlSsoPopoverManager.init($warnSpan[0]);
-                    }
-                    
-                    // Hide the raw warning text
-                    $warnText.hide();
-                }
+                processNotificationHelper($(this), 'warning');
             });
 
             // Clean up and style green informational success text elements
             $('.form-text[style*="color:rgb(3, 126, 26)"], .form-text[style*="color:rgb(71, 180, 8)"]').each(function() {
-                var $infoText = $(this);
-                var $row = $infoText.closest('.form-field.row');
-                if ($row.length) {
-                    // Apply info background class
-                    $row.addClass('form-field-info-row');
-                    
-                    // Add info icon next to the label
-                    var $iconsSpan = alignLabelIcons($row);
-                    if ($iconsSpan && !$iconsSpan.find('.fa-info-circle.text-info').length) {
-                        var $infoSpan = $('<span class="text-info ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-samlsso-type="success"><i class="fas fa-info-circle"></i></span>');
-                        $infoSpan.attr('data-bs-content', $infoText.html() || $infoText.text());
-                        $infoSpan.attr('title', 'Info');
-                        $iconsSpan.prepend($infoSpan);
-                        SamlSsoPopoverManager.init($infoSpan[0]);
-                    }
-                    
-                    // Hide the raw info text
-                    $infoText.hide();
-                }
+                processNotificationHelper($(this), 'info');
             });
 
             // Convert Security tab warning icons/tooltips to match General tab warning styles
@@ -348,7 +387,7 @@
                 if (!tooltipText && iconId) {
                     var $contentDiv = $('#content' + iconId);
                     if ($contentDiv.length) {
-                        tooltipText = $contentDiv.text() || $contentDiv.html();
+                        tooltipText = ($contentDiv.find('table').length > 0 || $contentDiv.is('table')) ? $contentDiv.html() : ($contentDiv.text() || $contentDiv.html());
                         $contentDiv.remove(); // Remove stray tooltip content div
                     }
                 }
@@ -363,7 +402,9 @@
                     // Add warning yellow triangle indicator to the label
                     var $iconsSpan = alignLabelIcons($row);
                     if ($iconsSpan && !$iconsSpan.find('.fa-exclamation-triangle.text-warning').length) {
-                        var $tipSpan = $('<span class="text-warning ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-samlsso-type="warning"><i class="fas fa-exclamation-triangle"></i></span>');
+                        var hasTable = tooltipText.indexOf('<table') !== -1;
+                        var customClass = 'samlsso-popover-warning' + (hasTable ? ' samlsso-popover-table' : '');
+                        var $tipSpan = $('<span class="text-warning ms-1" style="cursor: pointer;" data-samlsso-toggle="popover" data-bs-placement="top" data-bs-html="true" data-bs-custom-class="' + customClass + '" data-samlsso-type="warning"><i class="fas fa-exclamation-triangle"></i></span>');
                         $tipSpan.attr('data-bs-content', tooltipText.replace('⚠️', '').trim());
                         $tipSpan.attr('title', 'Warning');
                         $iconsSpan.prepend($tipSpan);
@@ -518,6 +559,15 @@
 
     let rowCounter = 0;
 
+    function escapeAttr(val) {
+        return String(val ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
     function addRow(targetType = '', glpiField = '', samlClaim = '', defaultValue = '', isRequired = 0) {
         const tbody = document.getElementById('claim_mapping_tbody');
         const index = rowCounter++;
@@ -531,7 +581,9 @@
         if (targetType) {
             fields.forEach(field => {
                 const selected = field === glpiField ? 'selected' : '';
-                glpiOptions += `<option value="${field}" ${selected}>${field.charAt(0).toUpperCase() + field.slice(1)}</option>`;
+                const safeField = escapeAttr(field);
+                const safeLabel = escapeAttr(field.charAt(0).toUpperCase() + field.slice(1));
+                glpiOptions += `<option value="${safeField}" ${selected}>${safeLabel}</option>`;
             });
         }
 
@@ -540,11 +592,15 @@
         const isSystemRequired = targetType === 'user_field' && (glpiField === 'username' || glpiField === 'email');
         const disabledAttr = isSystemRequired ? 'disabled' : '';
         const checkedAttr = (isSystemRequired || isRequired) ? 'checked' : '';
+        const safeTargetType = escapeAttr(targetType);
+        const safeGlpiField = escapeAttr(glpiField);
+        const safeSamlClaim = escapeAttr(isUsernameLocked ? 'NameId' : samlClaim);
+        const safeDefaultValue = escapeAttr(defaultValue);
         
         const hiddenInputs = `
             ${isSystemRequired ? `
-                <input type="hidden" name="claim_map[${index}][target_type]" value="${targetType}">
-                <input type="hidden" name="claim_map[${index}][glpi_field]" value="${glpiField}">
+                <input type="hidden" name="claim_map[${index}][target_type]" value="${safeTargetType}">
+                <input type="hidden" name="claim_map[${index}][glpi_field]" value="${safeGlpiField}">
                 <input type="hidden" name="claim_map[${index}][is_required]" value="1">
             ` : ''}
             ${isUsernameLocked ? `
@@ -553,7 +609,7 @@
         `;
         
         const deleteButton = isSystemRequired ? '' : `
-            <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteRow(this)">
+            <button type="button" class="btn btn-outline-danger btn-sm js-delete-claim-row">
                 <i class="fas fa-trash"></i> Delete
             </button>
         `;
@@ -565,7 +621,8 @@
                 <ul class="dropdown-menu dropdown-menu-end" style="max-height: 200px; overflow-y: auto;">
             `;
             observedClaims.forEach(claim => {
-                dropdownHtml += `<li><a class="dropdown-item" href="#" onclick="selectClaim(this, '${claim}'); return false;">${claim}</a></li>`;
+                const safeClaim = escapeAttr(claim);
+                dropdownHtml += `<li><a class="dropdown-item js-select-claim" href="#" data-claim="${safeClaim}">${safeClaim}</a></li>`;
             });
             dropdownHtml += `</ul>`;
         }
@@ -573,7 +630,7 @@
         tr.innerHTML = `
             <td>
                 ${hiddenInputs}
-                <select name="claim_map[${index}][target_type]" class="form-select target-type-select" onchange="updateGlpiFields(this)" ${disabledAttr}>
+                <select name="claim_map[${index}][target_type]" class="form-select target-type-select" ${disabledAttr}>
                     <option value="" ${targetType === '' ? 'selected' : ''}>-- Select Target Type --</option>
                     <option value="user_field" ${targetType === 'user_field' ? 'selected' : ''}>User Field</option>
                     <option value="rule_field" ${targetType === 'rule_field' ? 'selected' : ''}>Rule Field</option>
@@ -586,12 +643,12 @@
             </td>
             <td>
                 <div class="input-group">
-                    <input type="text" name="claim_map[${index}][saml_claim]" value="${isUsernameLocked ? 'NameId' : samlClaim}" class="form-control saml-claim-input" oninput="checkObserved(this)" ${isUsernameLocked ? 'disabled' : 'list="observed_claims_list"'}>
+                    <input type="text" name="claim_map[${index}][saml_claim]" value="${safeSamlClaim}" class="form-control saml-claim-input" ${isUsernameLocked ? 'disabled' : 'list="observed_claims_list"'}>
                     ${dropdownHtml}
                 </div>
             </td>
             <td>
-                <input type="text" name="claim_map[${index}][default_value]" value="${defaultValue}" class="form-control">
+                <input type="text" name="claim_map[${index}][default_value]" value="${safeDefaultValue}" class="form-control">
             </td>
             <td class="text-center">
                 <input type="checkbox" name="claim_map[${index}][is_required]" value="1" class="form-check-input" ${checkedAttr} ${disabledAttr}>
@@ -691,7 +748,7 @@
             </li>
             <li class="nav-item" role="presentation">
                 <a class="nav-link" 
-                   id="general-tab" 
+                   id="transit-tab" 
                    data-bs-toggle="tab" 
                    href="#transit" 
                    data-bs-target="#transit" 
@@ -746,6 +803,17 @@
             </li>
             <li class="nav-item" role="presentation">
                 <a class="nav-link"
+                   id="scim-tab"
+                   data-bs-toggle="tab"
+                   href="#scim"
+                   data-bs-target="#scim"
+                   type="button"
+                   role="tab"
+                   aria-controls="scim"
+                   aria-selected="false"><b>{{ __('SCIM', plugin) }} {{ scim_warning|default('') }}</b> <span class="badge bg-secondary-lt text-muted ms-1">{{ __('Beta', plugin) }}</span></a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link"
                    id="logging-tab" 
                    data-bs-toggle="tab" 
                    href="#logging" 
@@ -763,21 +831,22 @@
             {% include '@samlsso/configForm/idp.html.twig' %}
             {% include '@samlsso/configForm/security.html.twig' %}
             {% include '@samlsso/configForm/claim_mapping.html.twig' %}
+            {% include '@samlsso/configForm/scim.html.twig' %}
             {% include '@samlsso/configForm/logging.html.twig' %}
         </div>
     </div>
     <div class="card itil-footer" style="margin-top:10px;">
         <div class="form-buttons col-lg d-flex ms-auto ms-lg-0 flex-row-reverse p-1 ">
             <div class="m-1">
-                <button class="btn btn-primary " type="submit" name="update" title="{{ __('Save', plugin) }}">
+                <button class="btn btn-primary " type="submit" name="update" title="{{ __('Save') }}">
                     <i class="far fa-save"></i>
-                    <span class="d-none d-xl-block">{{ __("Save", plugin) }}</span>
+                    <span class="d-none d-xl-block">{{ __("Save") }}</span>
                     </button>
             </div>
             <div class="m-1">
-                <button class="btn btn-ghost-danger" type="submit" name="delete" title="" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-original-title="{{ __('Put in trashbin', plugin) }}">
+                <button class="btn btn-ghost-danger" type="submit" name="delete" title="" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-original-title="{{ __('Put in trashbin') }}">
                     <i class="ti ti-trash"></i>
-                    <span class="d-none d-xl-block">{{ __("Delete", plugin) }}</span>
+                    <span class="d-none d-xl-block">{{ __("Delete") }}</span>
                     </button>
             </div>
             {% if inputfields.debug.value == true %}
@@ -791,7 +860,9 @@
 
 <!-- Standalone form for Force Logoff & Disable to prevent nested form submissions -->
 <form id="samlsso-forcelogoff-form" action="{{ glpi_rootdoc }}" method="POST" style="display:none;">
+    {% if csrf_token %}
     <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+    {% endif %}
     <input type="hidden" name="action" value="forcelogoff">
     <input type="hidden" name="state_id" id="samlsso-forcelogoff-state-id" value="">
     <input type="hidden" name="id" id="samlsso-forcelogoff-config-id" value="">

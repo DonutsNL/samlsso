@@ -33,7 +33,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Denis Ollier
  *  @copyright  Copyright (c) 2025 by Denis Ollier
  *  @license    GPLv3+
@@ -49,12 +49,10 @@ use CommonDBTM;
 // https://glpi-developer-documentation.readthedocs.io/en/master/devapi/crontasks.html
 use CronTask as glpiCronTask;
 use Migration;
-use QueryExpression;
 use GlpiPlugin\Samlsso\LoginState;
 
 class CronTask extends CommonDBTM
 {
-    /**
     /**
      * Give cron information
      * @param $name : automatic action's name
@@ -81,54 +79,61 @@ class CronTask extends CommonDBTM
     {
         global $DB;
 
-        $days = $task->fields['param'];
+        $days = (float)$task->fields['param'];
         $cron_status = 0;
         $volume = 0;
 
-        // 1. Process inactivity timeout for active sessions
-        try {
-            $configsTable = Config::getTable();
-            $configs = $DB->request([
-                'FROM'  => $configsTable,
-                'WHERE' => [
-                    'inactivity_timeout' => ['>', 0],
-                    'is_deleted' => 0
-                ]
-            ]);
-
-            foreach ($configs as $cfg) {
-                $idpId = (int)$cfg['id'];
-                $timeoutMinutes = (int)$cfg['inactivity_timeout'];
-
-                $DB->update(
-                    LoginState::getTable(),
-                    [
-                        LoginState::PHASE => LoginState::PHASE_TIMED_OUT
-                    ],
-                    [
-                        LoginState::IDP_ID => $idpId,
-                        LoginState::PHASE  => LoginState::PHASE_GLPI_AUTH,
-                        LoginState::LAST_ACTIVITY => ['<', new QueryExpression('NOW() - INTERVAL ' . $timeoutMinutes . ' MINUTE')]
-                    ]
-                );
-            }
-        } catch (\Throwable $e) {
-            // Keep going to clean up old sessions
-        }
-
-        // 2. Cleanup sessions older than retention period (days)
+        // Cleanup sessions older than retention period (days) using PHP runtime clock authority (ADR 0002)
         if ($days > 0) {
-            $result = $DB->delete(
-                LoginState::getTable(),
-                [LoginState::LAST_ACTIVITY => ['<', new QueryExpression('NOW() - INTERVAL ' . $days . ' DAY')]]
-            );
+            if ($days < 1) {
+                // Silently default to 1 working day (8 hours)
+                $cutoff = date('Y-m-d H:i:s', time() - (8 * 3600));
+            } else {
+                $cutoff = date('Y-m-d H:i:s', time() - ((int)$days * 86400));
+            }
+            $delete_where = [
+                LoginState::LAST_ACTIVITY => ['<', $cutoff],
+            ];
 
-            if ($result) {
-                $cron_status = 1;
+            // Retrieve count of rows before deletion
+            try {
+                $countIterator = $DB->request([
+                    'SELECT' => 'COUNT(*) AS cnt',
+                    'FROM'   => LoginState::getTable(),
+                    'WHERE'  => $delete_where
+                ]);
+                foreach ($countIterator as $row) {
+                    $volume = (int)$row['cnt'];
+                }
+            } catch (\Throwable $e) {
+                $volume = 0;
+            }
+
+            if ($volume > 0) {
+                $result = $DB->delete(LoginState::getTable(), $delete_where);
+                if ($result) {
+                    $cron_status = 1;
+                } else {
+                    $volume = 0;
+                }
             }
         }
 
+        /** @var \CronTask $task */
         $task->setVolume($volume);
+
+        // File logging
+        \Toolbox::logInFile(
+            PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS,
+            sprintf("SAML session cleanup: Purged %d rows.\n", $volume)
+        );
+
+        // If manual run, display toast/popup
+        if (!isCommandLine()) {
+            \Session::addMessageAfterRedirect(
+                sprintf(__("SAML session cleanup completed. Purged %d rows.", PLUGIN_NAME), $volume)
+            );
+        }
 
         return $cron_status;
     }
@@ -152,12 +157,59 @@ class CronTask extends CommonDBTM
      */
     public static function install(Migration $migration): void
     {
-        $cron = new glpiCronTask();
+        global $DB;
+        $cronTable = glpiCronTask::getTable();
         $class = get_called_class();
+        $legacyClass = 'GlpiPlugin\\Glpisaml\\CronTask';
+
+        $tasksToDeduplicate = ["cleanSessionSAML", "updateGeoIP"];
+        foreach ($tasksToDeduplicate as $taskName) {
+            $iterator = $DB->request([
+                'FROM'  => $cronTable,
+                'WHERE' => [
+                    'name'     => $taskName,
+                    'itemtype' => [$class, $legacyClass]
+                ],
+                'ORDER' => 'id ASC'
+            ]);
+
+            $existing = [];
+            foreach ($iterator as $row) {
+                $existing[] = $row;
+            }
+
+            if (count($existing) > 0) {
+                $keptId = null;
+                // Prefer keeping the one matching actual class name
+                foreach ($existing as $row) {
+                    if ($row['itemtype'] === $class) {
+                        $keptId = (int)$row['id'];
+                        break;
+                    }
+                }
+
+                // If none matches the actual class, migrate the first legacy one
+                if ($keptId === null && !empty($existing)) {
+                    $first = $existing[0];
+                    $keptId = (int)$first['id'];
+                    $DB->update($cronTable, ['itemtype' => $class], ['id' => $keptId]);
+                }
+
+                // Delete duplicates
+                foreach ($existing as $row) {
+                    $rowId = (int)$row['id'];
+                    if ($rowId !== $keptId) {
+                        $DB->delete($cronTable, ['id' => $rowId]);
+                    }
+                }
+            }
+        }
+
+        $cron = new glpiCronTask();
         $task = "cleanSessionSAML";
 
         if (!$cron->getFromDBbyName($class, $task)) {
-            glpiCronTask::Register($class, $task, DAY_TIMESTAMP, [
+            glpiCronTask::register($class, $task, DAY_TIMESTAMP, [
                 'state' => glpiCronTask::STATE_WAITING,
                 'mode'  => glpiCronTask::MODE_EXTERNAL,
                 'param' => 30,
@@ -166,7 +218,7 @@ class CronTask extends CommonDBTM
 
         $task2 = "updateGeoIP";
         if (!$cron->getFromDBbyName($class, $task2)) {
-            glpiCronTask::Register($class, $task2, 30 * DAY_TIMESTAMP, [
+            glpiCronTask::register($class, $task2, 30 * DAY_TIMESTAMP, [
                 'state' => glpiCronTask::STATE_WAITING,
                 'mode'  => glpiCronTask::MODE_EXTERNAL,
                 'param' => 0,

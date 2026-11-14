@@ -1,37 +1,33 @@
-<!-- implemented in Loginflow->showLoginScreen(void): string -->
-{% if showbuttons == true %}
+<!-- implemented in LoginFlow->showLoginScreen(): void -->
+{% if showbuttons is defined and showbuttons == true %}
 <div class="plugin_glpisaml_login">
     <div class="card-header" id="saml_header">
         <h2>{{ header }}</h2>
     </div>
-    <div class='row align-items-start' id="saml_buttons" style="max-width: 300px; margin-top:40px;">
+    <div class="row align-items-start" id="saml_buttons" style="max-width: 300px; margin-top:40px;">
         {% for button in buttons %}
         <div class="col-sm-6">
-            <button action="submit" name="{{ postfield }}" value="{{ button.id|abs }}" class="btn btn-light" style="width:125px; margin-bottom:30px;"> 
-                <div class="" style="cursor:pointer; margin:10px 0px 5px 0px;">
-                    <div class="d-flex flex-column">
-                        <i class="{{ button.icon|striptags }} fa-5x" ></i>
+            <button type="submit" name="{{ postfield }}" value="{{ button.id|abs }}" class="btn btn-light" style="width:125px; margin-bottom:30px;">
+                <div style="cursor:pointer; margin:10px 0px 5px 0px;">
+                    <div class="d-flex flex-column align-items-center">
+                        {% if button.icon_url is defined and button.icon_url %}
+                            <img src="{{ button.icon_url|striptags }}" alt="{{ button.name|striptags }}" style="max-height: 80px; max-width: 80px; object-fit: contain; margin-bottom: 10px;" />
+                        {% else %}
+                            <i class="{{ button.icon|striptags }} fa-5x"></i>
+                        {% endif %}
                         <span><b>{{ button.name|striptags }}</b></span>
                     </div>
                 </div>
             </button>
         </div>
-        <!-- This section should never be reached -->
-        {% else %}
-            <div><p>{{ noconfig }}</p>
         {% endfor %}
-        </div>
     </div>
 </div>
 {% endif %}
-<!-- Add CSS to hide certain login buttons
-     Will be used as configurable option in 
-     version 1.2.0
-{% if enforced == true %}
+{% if enforced is defined and enforced == true %}
 <style>
-    .mb-4:has(#login_password){ display:none; }
-    .mb-2:has(#login_remember){ display:none; }
-    .mb-3:has(.select2){ display:none; }
+    .card-body div.mb-4:has(#login_password), .mb-4:has(#login_password) { display: none; }
+    .card-body div.mb-2:has(#login_remember), .mb-2:has(#login_remember) { display: none; }
+    .card-body div.mb-3:has([id^="dropdown_auth"]), .mb-3:has(.select2) { display: none; }
 </style>
 {% endif %}
--->

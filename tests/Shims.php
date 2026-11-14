@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -85,6 +85,17 @@ namespace {
         require_once '/var/www/glpi-dev_quinquies_nl/vendor/autoload.php';
     }
 
+    spl_autoload_register(function ($class) {
+        $prefix = 'GlpiPlugin\\Samlsso\\';
+        if (str_starts_with($class, $prefix)) {
+            $relativeClass = substr($class, strlen($prefix));
+            $file = dirname(__DIR__) . '/src/' . str_replace('\\', '/', $relativeClass) . '.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+    });
+
     /**
      * Define essential GLPI constants if not already defined.
      * These constants simulate the environment properties of a running GLPI instance.
@@ -93,16 +104,25 @@ namespace {
         define('PLUGIN_NAME', 'samlsso');
     }
     if (!defined('GLPI_VERSION')) {
-        define('GLPI_VERSION', '10.0.12');
+        define('GLPI_VERSION', '12.0.0');
     }
     if (!defined('GLPI_ROOT')) {
         define('GLPI_ROOT', '/var/www/glpi-dev_quinquies_nl');
+    }
+    if (!defined('GLPI_SYSTEM_CRON')) {
+        define('GLPI_SYSTEM_CRON', -1);
+    }
+    if (!defined('READ')) {
+        define('READ', 1);
+    }
+    if (!defined('UPDATE')) {
+        define('UPDATE', 2);
     }
     if (!defined('PLUGIN_SAMLSSO_LOGEVENTS')) {
         define('PLUGIN_SAMLSSO_LOGEVENTS', '_events.log');
     }
     if (!defined('PLUGIN_SAMLSSO_VERSION')) {
-        define('PLUGIN_SAMLSSO_VERSION', '1.3.2');
+        define('PLUGIN_SAMLSSO_VERSION', '1.4.0');
     }
     if (!defined('PLUGIN_SAMLSSO_SRCDIR')) {
         define('PLUGIN_SAMLSSO_SRCDIR', dirname(__DIR__) . '/src');
@@ -124,23 +144,31 @@ namespace {
             'GlpiPlugin\\Samlsso\\LoginState',
             'GlpiPlugin\\Samlsso\\ClaimMap',
             'GlpiPlugin\\Samlsso\\ObservedClaim',
+            'GlpiPlugin\\Samlsso\\ScimLink',
             'GlpiPlugin\\Samlsso\\CronTask',
         ]);
     }
 
     /**
-     * Shim for the plugin web-directory helper declared in setup.php.
+     * Shim for samlsso_webdir function to supply absolute or relative web base URL in tests.
      *
-     * setup.php is not loaded by the unit tests, but production code
-     * (LoginFlow) calls samlsso_plugin_web_dir(). Provide the same contract
-     * here: the web path of the plugin WITHOUT a trailing slash, consistent
-     * with the PLUGIN_SAMLSSO_WEBDIR constant shimmed above.
+     * @param bool $relative Whether to return relative web path.
+     * @return string Base URL of the plugin, with a trailing slash.
+     */
+    if (!function_exists('samlsso_webdir')) {
+        function samlsso_webdir(bool $relative = false): string {
+            return PLUGIN_SAMLSSO_WEBDIR;
+        }
+    }
+
+    /**
+     * Shim for the relative plugin web-directory helper declared in setup.php.
      *
      * @return string Web path without trailing slash, e.g. "/plugins/samlsso".
      */
     if (!function_exists('samlsso_plugin_web_dir')) {
         function samlsso_plugin_web_dir(): string {
-            return rtrim(PLUGIN_SAMLSSO_WEBDIR, '/');
+            return rtrim(samlsso_webdir(true), '/');
         }
     }
 
@@ -216,16 +244,8 @@ namespace {
      */
     if (!class_exists('Plugin', false)) {
         class Plugin {
-            /**
-             * Returns the web directory path for a plugin.
-             *
-             * @param string $plugin Plugin name.
-             * @param bool $full Whether to return absolute or relative path.
-             * @return string The web directory path.
-             */
-            public static function getWebDir(string $plugin, bool $full = false): string {
-                return "/plugins/$plugin";
-            }
+            /** @var array Mock fields */
+            public array $fields = ['id' => 1];
 
             /**
              * Checks if a plugin is loaded.
@@ -234,6 +254,27 @@ namespace {
              * @return bool True if loaded.
              */
             public static function isPluginLoaded(string $plugin): bool {
+                return true;
+            }
+
+            public function isInstalled(string $plugin): bool {
+                return true;
+            }
+
+            public function isActivated(string $plugin): bool {
+                return true;
+            }
+
+            public static function registerClass(string $class, array $options = []): bool {
+                return true;
+            }
+
+            public function unactivate(int $id): bool {
+                return true;
+            }
+
+            public function getFromDBByCrit(array $crit): bool {
+                $this->fields['id'] = 1;
                 return true;
             }
         }
@@ -245,6 +286,9 @@ namespace {
      */
     if (!class_exists('Session', false)) {
         class Session {
+            /** @var array<int, string> Recorded messages added via addMessageAfterRedirect. */
+            public static array $messages = [];
+
             /**
              * Mocks adding a message after a redirect.
              *
@@ -254,6 +298,7 @@ namespace {
              * @return bool Always returns true.
              */
             public static function addMessageAfterRedirect(string $msg, bool $show = true, int $level = 0): bool { 
+                self::$messages[] = $msg;
                 return true; 
             }
 
@@ -273,6 +318,15 @@ namespace {
              */
             public static function getPluralNumber(): int { 
                 return 2; 
+            }
+
+            /**
+             * Mocks if impersonation is active.
+             *
+             * @return bool
+             */
+            public static function isImpersonateActive(): bool {
+                return isset($_SESSION['impersonator_id']);
             }
 
             /**
@@ -303,7 +357,111 @@ namespace {
              * Mocks Session getLoginUserID.
              */
             public static function getLoginUserID($force_human = true) {
-                return self::$userId;
+                return self::$userId !== false ? self::$userId : ($_SESSION['glpiID'] ?? false);
+            }
+
+            /** @var bool Configurable permission result for haveRight() in tests. */
+            public static bool $mockHaveRight = true;
+
+            /**
+             * Mocks Session::haveRight().
+             *
+             * @param string $module Right module name.
+             * @param int    $right  Right bitmask.
+             * @return bool
+             */
+            public static function haveRight(string $module, int $right): bool {
+                return self::$mockHaveRight;
+            }
+        }
+    }
+
+    /**
+     * Shim for GLPI's Auth class.
+     */
+    if (!class_exists('Auth', false)) {
+        class Auth
+        {
+            public const NOT_YET_AUTHENTICATED = 0;
+            public const NOT_YET_AUTHENTIFIED = 0;
+            public const DB_GLPI = 1;
+            public const MAIL = 2;
+            public const LDAP = 3;
+            public const EXTERNAL = 4;
+            public const CAS = 5;
+            public const X509 = 6;
+
+            /**
+             * Validates login format aligned with GLPI Core Auth::isValidLogin().
+             *
+             * @param string|null $login Candidate login string.
+             * @return bool
+             */
+            public static function isValidLogin(?string $login): bool
+            {
+                return $login !== null && preg_match("/^[[:alnum:]'@.\\-_ ]+$/iu", $login) === 1;
+            }
+        }
+    }
+
+    /**
+     * Shim for GLPI's GLPIKey class.
+     */
+    if (!class_exists('GLPIKey', false)) {
+        class GLPIKey
+        {
+            public static ?string $mockRawKey = null;
+
+            public function get(): ?string
+            {
+                if (self::$mockRawKey === null) {
+                    self::$mockRawKey = random_bytes(32);
+                }
+                return self::$mockRawKey;
+            }
+
+            public function encrypt(string $string, ?string $key = null): string
+            {
+                if (empty($string)) {
+                    return '';
+                }
+                return 'GLPICRYPT:' . base64_encode($string);
+            }
+
+            public function decrypt(?string $string, ?string $key = null): ?string
+            {
+                if (empty($string)) {
+                    return $string;
+                }
+                if (str_starts_with($string, 'GLPICRYPT:')) {
+                    return base64_decode(substr($string, 10));
+                }
+                return $string;
+            }
+        }
+    }
+
+    /**
+     * Shim for GLPI's Log history recorder.
+     */
+    if (!class_exists('Log', false)) {
+        class Log
+        {
+            public const HISTORY_LOG_SIMPLE_MESSAGE = 12;
+
+            /** @var array<int, array<string, mixed>> */
+            public static array $entries = [];
+
+            public static function history($items_id, $itemtype, $changes, $itemtype_link = '', $linked_action = 0): bool
+            {
+                self::$entries[] = [
+                    'items_id'      => (int)$items_id,
+                    'itemtype'      => (string)$itemtype,
+                    'changes'       => $changes,
+                    'itemtype_link' => $itemtype_link,
+                    'linked_action' => (int)$linked_action,
+                ];
+                return true;
             }
         }
     }
@@ -440,7 +598,7 @@ namespace {
              * @param string|null $classname Class name to resolve.
              * @return string Resolves the table name based on GLPI conventions.
              */
-            public static function getTable(?string $classname = null): string {
+            public static function getTable($classname = null) {
                 $class = $classname ?? static::class;
                 $parts = explode('\\', strtolower($class));
                 if (count($parts) >= 3 && $parts[0] === 'glpiplugin') {
@@ -457,18 +615,63 @@ namespace {
              * @param int|float|string $nb Pluralization count.
              * @return string Type name.
              */
-            public static function getTypeName($nb = 0): string {
+            public static function getTypeName($nb = 0) {
                 return 'CommonDBTM';
             }
 
             /**
-             * Mock loading object from DB by ID.
+             * Mocks CommonDBTM::canUpdate() delegating to Session::haveRight().
              *
-             * @param int $id Object ID.
-             * @return bool Always returns true.
+             * @return bool
              */
+            public static function canUpdate() {
+                return Session::haveRight('config', UPDATE);
+            }
+
+            public function getFromDBByCrit(array $crit): bool {
+                return false;
+            }
+
+            public function find($condition = [], $order = [], $limit = null)
+            {
+                global $DB;
+                $criteria = [
+                    'FROM' => static::getTable(),
+                ];
+                if (!empty($condition)) {
+                    $criteria['WHERE'] = $condition;
+                }
+                if (!empty($order)) {
+                    $criteria['ORDERBY'] = is_array($order) ? $order : [$order];
+                }
+                if ($limit !== null) {
+                    $criteria['LIMIT'] = $limit;
+                }
+                $results = [];
+                $iterator = $DB->request($criteria);
+                if ($iterator) {
+                    foreach ($iterator as $row) {
+                        $id = $row['id'] ?? count($results) + 1;
+                        $results[$id] = $row;
+                    }
+                }
+                return $results;
+            }
+
+            public static int $getFromDBCallCount = 0;
+
             public function getFromDB(int $id): bool { 
-                return true; 
+                self::$getFromDBCallCount++;
+                global $DB;
+                $iterator = $DB->request([
+                    'FROM' => static::getTable(),
+                    'WHERE' => ['id' => $id]
+                ]);
+                if (count($iterator) > 0) {
+                    $this->fields = $iterator->current();
+                    return true;
+                }
+                return false; 
             }
 
             /**
@@ -479,7 +682,10 @@ namespace {
              * @param array $options Additional options.
              * @return bool Always returns true.
              */
+            public static int $updateCallCount = 0;
+
             public function update(array $input, bool $history = true, array $options = []): bool { 
+                self::$updateCallCount++;
                 return true; 
             }
 
@@ -662,6 +868,10 @@ namespace {
     if (!class_exists('Group_User', false)) {
         class Group_User extends CommonDBTM {
             public static array $added = [];
+            public static array $mockMemberships = [];
+            public static function isUserInGroup($users_id, $groups_id): bool {
+                return in_array([$users_id, $groups_id], self::$mockMemberships, true);
+            }
             public function add(array $input, array $options = [], bool $history = true): int {
                 self::$added[] = $input;
                 return 1;
@@ -675,18 +885,27 @@ namespace {
     if (!class_exists('Profile_User', false)) {
         class Profile_User extends CommonDBTM {
             public static array $added = [];
+            public static array $deleted = [];
+            public static array $userProfiles = [];
             /**
              * Get profile links for a user.
              *
              * @param int $id User ID.
              * @return array Mock profile list.
              */
-            public static function getForUser(int $id): array { 
-                return [1 => ['profiles_id' => 1]]; 
+            public static function getForUser(int $id): array {
+                if (isset(self::$userProfiles[$id])) {
+                    return self::$userProfiles[$id];
+                }
+                return [1 => ['profiles_id' => 1, 'entities_id' => 0]];
             }
             public function add(array $input, array $options = [], bool $history = true): int {
                 self::$added[] = $input;
                 return 1;
+            }
+            public function delete(array $input, bool $force = false): bool {
+                self::$deleted[] = $input;
+                return parent::delete($input, $force);
             }
         }
     }
@@ -802,6 +1021,20 @@ namespace {
                 return true; 
             }
 
+            public function changeField(string $table, string $field, string $new_field, string $type, array $options = []): bool { 
+                return true; 
+            }
+
+            public function migrationOneTable(string $table): void {}
+
+            public function addKey(string $table, array $fields, string $keyname, string $keytype = ''): bool { 
+                return true; 
+            }
+
+            public function dropKey(string $table, string $name): bool { 
+                return true; 
+            }
+
             /**
              * Mock displaying a CLI migration message.
              *
@@ -846,25 +1079,9 @@ namespace {
             }
         }
     }
-}
 
-namespace Glpi\Toolbox {
-    /**
-     * Shim for GLPI's Sanitizer class.
-     * Mocks the request parameter sanitization process.
-     */
-    if (!class_exists('Glpi\Toolbox\Sanitizer', false)) {
-        class Sanitizer {
-            /**
-             * Simulates filtering input variables.
-             *
-             * @param array $input Input parameters.
-             * @return array Sanitized input parameters.
-             */
-            public static function sanitize(array $input): array { 
-                return $input; 
-            }
-        }
+    if (!class_exists('Glpi\DBAL\QueryExpression', false)) {
+        class_alias('QueryExpression', 'Glpi\DBAL\QueryExpression');
     }
 }
 
@@ -875,6 +1092,171 @@ namespace OneLogin\Saml2 {
             public const NAMEID_UNSPECIFIED = 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified';
             public const NAMEID_TRANSIENT = 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient';
             public const NAMEID_PERSISTENT = 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent';
+        }
+    }
+}
+
+namespace Symfony\Component\Console\Input {
+    if (!interface_exists('Symfony\Component\Console\Input\InputInterface')) {
+        interface InputInterface {
+            public function getOption(string $name): mixed;
+        }
+    }
+    if (!class_exists('Symfony\Component\Console\Input\InputOption')) {
+        class InputOption {
+            public const VALUE_NONE = 1;
+            public const VALUE_REQUIRED = 2;
+            public const VALUE_OPTIONAL = 4;
+        }
+    }
+    if (!class_exists('Symfony\Component\Console\Input\ArrayInput')) {
+        class ArrayInput implements InputInterface {
+            /** @var array<string, mixed> */
+            private array $options = [];
+
+            /**
+             * @param array<string, mixed> $parameters
+             * @param mixed $definition
+             */
+            public function __construct(array $parameters = [], mixed $definition = null) {
+                foreach ($parameters as $key => $val) {
+                    $normalized = ltrim((string)$key, '-');
+                    $this->options[$normalized] = $val;
+                }
+            }
+
+            public function getOption(string $name): mixed {
+                return $this->options[$name] ?? null;
+            }
+        }
+    }
+}
+
+namespace Symfony\Component\Console\Output {
+    if (!interface_exists('Symfony\Component\Console\Output\OutputInterface')) {
+        interface OutputInterface {
+            public function write(string|iterable $messages, bool $newline = false, int $options = 0): void;
+        }
+    }
+    if (!interface_exists('Symfony\Component\Console\Output\ConsoleOutputInterface')) {
+        interface ConsoleOutputInterface extends OutputInterface {
+            public function getErrorOutput(): OutputInterface;
+        }
+    }
+    if (!class_exists('Symfony\Component\Console\Output\BufferedOutput')) {
+        class BufferedOutput implements OutputInterface {
+            private string $buffer = '';
+
+            public function write(string|iterable $messages, bool $newline = false, int $options = 0): void {
+                if (is_iterable($messages)) {
+                    foreach ($messages as $m) {
+                        $this->buffer .= (string)$m;
+                    }
+                } else {
+                    $this->buffer .= (string)$messages;
+                }
+                if ($newline) {
+                    $this->buffer .= "\n";
+                }
+            }
+
+            public function fetch(): string {
+                $content = $this->buffer;
+                $this->buffer = '';
+                return $content;
+            }
+        }
+    }
+}
+
+namespace Symfony\Component\Console\Command {
+    if (!class_exists('Symfony\Component\Console\Command\Command')) {
+        class Command {
+            public const SUCCESS = 0;
+            public const FAILURE = 1;
+            public const INVALID = 2;
+
+            private string $commandName = '';
+            private string $description = '';
+            private string $helpText = '';
+            /** @var array<string, array<string, mixed>> */
+            private array $registeredOptions = [];
+
+            public function __construct(?string $name = null) {
+                if ($name !== null) {
+                    $this->commandName = $name;
+                }
+                $this->configure();
+            }
+
+            protected function configure() {}
+
+            public function setName(string $name): static {
+                $this->commandName = $name;
+                return $this;
+            }
+
+            public function getName(): ?string {
+                return $this->commandName;
+            }
+
+            public function setDescription(string $description): static {
+                $this->description = $description;
+                return $this;
+            }
+
+            public function getDescription(): string {
+                return $this->description;
+            }
+
+            public function setHelp(string $help): static {
+                $this->helpText = $help;
+                return $this;
+            }
+
+            public function getHelp(): string {
+                return $this->helpText;
+            }
+
+            public function addOption(
+                string $name,
+                string|array|null $shortcut = null,
+                ?int $mode = null,
+                string $description = '',
+                mixed $default = null
+            ): static {
+                $this->registeredOptions[$name] = [
+                    'shortcut'    => $shortcut,
+                    'mode'        => $mode,
+                    'description' => $description,
+                    'default'     => $default,
+                ];
+                return $this;
+            }
+
+            protected function execute(
+                \Symfony\Component\Console\Input\InputInterface $input,
+                \Symfony\Component\Console\Output\OutputInterface $output
+            ): int {
+                return self::SUCCESS;
+            }
+
+            public function run(
+                \Symfony\Component\Console\Input\InputInterface $input,
+                \Symfony\Component\Console\Output\OutputInterface $output
+            ): int {
+                return $this->execute($input, $output);
+            }
+        }
+    }
+}
+
+namespace Glpi\Console {
+    if (!class_exists('Glpi\Console\AbstractCommand')) {
+        abstract class AbstractCommand extends \Symfony\Component\Console\Command\Command {
+            protected function configure() {
+                parent::configure();
+            }
         }
     }
 }

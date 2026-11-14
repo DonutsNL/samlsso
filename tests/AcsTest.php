@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -571,6 +571,48 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
+         * Test that IdP-initiated (unsolicited) SAML responses without an InResponseTo
+         * attribute or without a registered state-machine RequestID create a state for
+         * the session and redirect the browser back to the IdP to re-authenticate.
+         */
+        public function testIdpInitiatedUnsolicitedLogin(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 5
+            ]);
+            \OneLogin\Saml2\Response::$mockId = 'UNSOLICITED_RESPONSE_ID_777';
+            \OneLogin\Saml2\Response::$mockInResponseTo = '';
+            \OneLogin\Saml2\Response::$mockValid = true;
+
+            $state = new Loginstate();
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
+
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have redirected unsolicited assertion back to IdP for state-machine re-authentication.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'Redirect to: /plugins/samlsso/front/sso.php?idp=5')) {
+                    throw new \Exception("Unsolicited re-auth redirect failed with: " . $e->getMessage());
+                }
+            }
+
+            $activeState = \GlpiPlugin\Samlsso\LoginFlow::$activeState;
+            if ($activeState === null || !$activeState->isUnsolicited()) {
+                throw new \Exception("Unsolicited response did not flag LoginState as unsolicited.");
+            }
+            if ($activeState->getPhase() !== Loginstate::PHASE_SAML_ACS) {
+                throw new \Exception("Unsolicited re-auth redirect did not transition state to PHASE_SAML_ACS (2).");
+            }
+            if ($activeState->getSamlRequestId() !== 'ONELOGIN_12345') {
+                throw new \Exception("Unsolicited re-auth redirect did not register a new SAML RequestID.");
+            }
+
+            echo "✅ ACS: unsolicited response redirected to IdP for state-machine re-authentication\n";
+        }
+
+        /**
          * Test that a validation failure sets the state phase to PHASE_ERROR (9).
          */
         public function testPhaseErrorTransitionOnFailure(): void {
@@ -610,6 +652,271 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ ACS: phase transitions to PHASE_ERROR (9) and logs trace on failure\n";
         }
+
+        /**
+         * Test inactive IdP is rejected by Acs::init().
+         */
+        public function testInactiveIdpRejected(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 5
+            ]);
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsActive = false;
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because IdP is inactive.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'inactive, deleted, or invalid')) {
+                    throw new \Exception("Unexpected failure message on inactive IdP: " . $e->getMessage());
+                }
+            } finally {
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsActive = true;
+            }
+            echo "✅ ACS: inactive IdP configuration rejected\n";
+        }
+
+        /**
+         * Test deleted IdP is rejected by Acs::init().
+         */
+        public function testDeletedIdpRejected(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 5
+            ]);
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsDeleted = true;
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because IdP is deleted.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'inactive, deleted, or invalid')) {
+                    throw new \Exception("Unexpected failure message on deleted IdP: " . $e->getMessage());
+                }
+            } finally {
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsDeleted = false;
+            }
+            echo "✅ ACS: deleted IdP configuration rejected\n";
+        }
+
+        /**
+         * Test invalid ConfigEntity is rejected by Acs::init().
+         */
+        public function testInvalidConfigEntityRejected(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 5
+            ]);
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsValid = false;
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because ConfigEntity is invalid.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'inactive, deleted, or invalid')) {
+                    throw new \Exception("Unexpected failure message on invalid ConfigEntity: " . $e->getMessage());
+                }
+            } finally {
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsValid = true;
+            }
+            echo "✅ ACS: invalid IdP configuration rejected\n";
+        }
+
+        /**
+         * Test state IdP ID mismatch is rejected by Acs::assertSaml().
+         */
+        public function testStateIdpMismatchRejected(): void {
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId' => 2
+            ]);
+
+            Response::$mockId = 'UNIQUE_RESPONSE_ID_MISMATCH';
+            Response::$mockInResponseTo = 'REQ_ID_IDP_1';
+
+            // Set up a mock state belonging to IdP 1
+            $state = new \GlpiPlugin\Samlsso\Loginstate('REQ_ID_IDP_1');
+            $state->setIdpId(1);
+            $state->setPhase(Loginstate::PHASE_SAML_ACS);
+            $state->setRequestId('REQ_ID_IDP_1');
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
+
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because session state IdP does not match route IdP.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'does not match the ACS route IdP ID')) {
+                    throw new \Exception("Unexpected failure message on IdP mismatch: " . $e->getMessage());
+                }
+            }
+            echo "✅ ACS: state IdP ID mismatch rejected\n";
+        }
+
+        /**
+         * Test that ACS endpoint rejects HTTP GET requests and queries with SAMLResponse in URL parameters.
+         */
+        public function testAcsRejectsGetRequest(): void {
+            // GET request with SAMLResponse in query string
+            $request = Request::create('/plugins/samlsso/front/acs.php?SAMLResponse=TEST&idpId=1', 'GET');
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have failed because GET request is not allowed.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'did not contain the required samlResponse POST body')) {
+                    throw new \Exception("Unexpected failure message on GET request check: " . $e->getMessage());
+                }
+            }
+            echo "✅ ACS: GET requests and query-parameter responses rejected\n";
+        }
+
+        /**
+         * Test that custom or mismatched RelayState values on a solicited response are
+         * safely ignored (neither triggering CSRF errors nor overriding server-side redirect).
+         */
+        public function testCustomIdpRelayStateIsIgnoredAndPermitted(): void {
+            Response::$mockId = 'UNIQUE_RESPONSE_ID_RELAYSTATE_1';
+            Response::$mockInResponseTo = 'REQ_ID_RELAYSTATE_1';
+
+            $state = new \GlpiPlugin\Samlsso\Loginstate('REQ_ID_RELAYSTATE_1');
+            $state->setIdpId(5);
+            $state->setPhase(Loginstate::PHASE_SAML_ACS);
+            $state->setRequestId('REQ_ID_RELAYSTATE_1');
+            $state->setRedirect('/front/ticket.form.php?id=42');
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
+
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'RelayState'   => 'https://evil.example/or-entra-custom-return',
+                'idpId'        => 5
+            ]);
+
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            $acs->init($request);
+
+            if (!empty(TestableAcs::$lastError)) {
+                throw new \Exception("Custom IdP RelayState unexpectedly failed ACS: " . print_r(TestableAcs::$lastError, true));
+            }
+            if ($state->getSafeRedirect() !== '/front/ticket.form.php?id=42') {
+                throw new \Exception("RelayState illegally altered server-side redirect: " . $state->getSafeRedirect());
+            }
+
+            echo "✅ ACS: arbitrary IdP RelayState safely ignored without FlowTokenMismatch\n";
+        }
+
+        /**
+         * Test that enabling ConfigEntity::PROXIED triggers Utils::setProxyVars(true)
+         * when ACS receives an HTTPS-terminated reverse-proxy request, and leaves it off when disabled (#189).
+         */
+        public function testProxiedEnablesProxyVarsOnAcs(): void {
+            Response::$mockId = 'UNIQUE_RESPONSE_ID_PROXIED_1';
+            Response::$mockInResponseTo = 'REQ_ID_PROXIED_1';
+
+            $state = new \GlpiPlugin\Samlsso\Loginstate('REQ_ID_PROXIED_1');
+            $state->setIdpId(5);
+            $state->setPhase(Loginstate::PHASE_SAML_ACS);
+            $state->setRequestId('REQ_ID_PROXIED_1');
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
+
+            $_SERVER['HTTPS'] = 'off';
+            $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
+
+            try {
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::PROXIED] = false;
+                \OneLogin\Saml2\Utils::$proxyVarsEnabled = false;
+
+                $reqDisabled = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                    'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                    'idpId'        => 5
+                ]);
+                $acsDisabled = new TestableAcs();
+                TestableAcs::$lastError = [];
+                $acsDisabled->init($reqDisabled);
+                if (\OneLogin\Saml2\Utils::$proxyVarsEnabled !== false) {
+                    throw new \Exception("Expected Utils::setProxyVars(true) NOT to be called when PROXIED=false.");
+                }
+
+                $state2 = new \GlpiPlugin\Samlsso\Loginstate('REQ_ID_PROXIED_2');
+                $state2->setIdpId(5);
+                $state2->setPhase(Loginstate::PHASE_SAML_ACS);
+                $state2->setRequestId('REQ_ID_PROXIED_2');
+                \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state2;
+                Response::$mockId = 'UNIQUE_RESPONSE_ID_PROXIED_2';
+                Response::$mockInResponseTo = 'REQ_ID_PROXIED_2';
+
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::PROXIED] = true;
+                \OneLogin\Saml2\Utils::$proxyVarsEnabled = false;
+
+                $reqEnabled = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                    'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                    'idpId'        => 5
+                ]);
+                $acsEnabled = new TestableAcs();
+                TestableAcs::$lastError = [];
+                $acsEnabled->init($reqEnabled);
+                if (!empty(TestableAcs::$lastError)) {
+                    throw new \Exception("Proxied ACS unexpectedly failed: " . print_r(TestableAcs::$lastError, true));
+                }
+                if (\OneLogin\Saml2\Utils::$proxyVarsEnabled !== true) {
+                    throw new \Exception("Expected Utils::setProxyVars(true) to be called when PROXIED=true.");
+                }
+            } finally {
+                unset($_SERVER['HTTPS'], $_SERVER['HTTP_X_FORWARDED_PROTO']);
+                \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields = [];
+                \OneLogin\Saml2\Utils::$proxyVarsEnabled = false;
+            }
+
+            echo "✅ ACS: PROXIED toggle enables Utils::setProxyVars(true) behind TLS proxy (Issue #189)\n";
+        }
+
+        /**
+         * Test that a SAMLResponse violating request_timeout (PHASE_TIMED_OUT) is rejected
+         * with a clear error message and redirects the user to /index.php?noAuto=1 (Issue #192).
+         */
+        public function testRequestTimeoutRedirectsToLoginWithNoAuto(): void {
+            global $CFG_GLPI;
+            $CFG_GLPI['url_base'] = 'https://glpi.local';
+            \Session::$messages = [];
+
+            Response::$mockId = 'UNIQUE_RESPONSE_ID_TIMEOUT_1';
+            Response::$mockInResponseTo = 'REQ_ID_TIMEOUT_1';
+            Response::$mockValid = true;
+
+            $state = new \GlpiPlugin\Samlsso\Loginstate('REQ_ID_TIMEOUT_1');
+            $state->setIdpId(5);
+            $state->setRequestId('REQ_ID_TIMEOUT_1');
+            $state->setPhase(Loginstate::PHASE_TIMED_OUT);
+            \GlpiPlugin\Samlsso\Loginstate::$lastInstance = $state;
+
+            $request = Request::create('/plugins/samlsso/front/acs.php', 'POST', [
+                'SAMLResponse' => 'MOCK_SAML_RESPONSE_ASSERTION',
+                'idpId'        => 5
+            ]);
+
+            $acs = new TestableAcs();
+            TestableAcs::$lastError = [];
+            try {
+                $acs->init($request);
+                throw new \Exception("Acs should have rejected timed-out SAML response and redirected.");
+            } catch (\Exception $e) {
+                if (!str_contains($e->getMessage(), 'Redirect to: https://glpi.local/index.php?noAuto=1')) {
+                    throw new \Exception("Expected redirect to /index.php?noAuto=1 on request timeout, got: " . $e->getMessage());
+                }
+            }
+
+            if (empty(\Session::$messages) || !str_contains(\Session::$messages[0], 'Your SAML authentication request timed out')) {
+                throw new \Exception("Expected timeout error message in Session::\$messages, got: " . var_export(\Session::$messages, true));
+            }
+
+            echo "✅ ACS: timed-out SAMLResponse rejected with error message and redirected to /index.php?noAuto=1 (Issue #192)\n";
+        }
     }
 }
 
@@ -630,8 +937,12 @@ namespace {
             \OneLogin\Saml2\Response::$mockValid = true;
             \OneLogin\Saml2\Settings::$mockThrow = null;
             \OneLogin\Saml2\Utils::$mockThrow = null;
+            \OneLogin\Saml2\Utils::$proxyVarsEnabled = false;
             \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockThrow = null;
             \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields = [];
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsValid = true;
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsActive = true;
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockIsDeleted = false;
 
             $test->$name();
         };
@@ -641,6 +952,9 @@ namespace {
         $runTest('testMalformedResponseAssertion');
         $runTest('testMissingResponseOrIdpId');
         $runTest('testConfigEntityThrows');
+        $runTest('testInactiveIdpRejected');
+        $runTest('testDeletedIdpRejected');
+        $runTest('testInvalidConfigEntityRejected');
         $runTest('testProxyVarsThrows');
         $runTest('testSettingsInitializationThrows');
         $runTest('testResponseProcessingThrows');
@@ -649,7 +963,13 @@ namespace {
         $runTest('testSetSamlResponseIdThrows');
         $runTest('testPhaseMismatchAfterRegistration');
         $runTest('testSetPhaseThrows');
+        $runTest('testStateIdpMismatchRejected');
+        $runTest('testAcsRejectsGetRequest');
+        $runTest('testCustomIdpRelayStateIsIgnoredAndPermitted');
+        $runTest('testProxiedEnablesProxyVarsOnAcs');
+        $runTest('testRequestTimeoutRedirectsToLoginWithNoAuto');
         $runTest('testPhaseErrorTransitionOnFailure');
+        $runTest('testIdpInitiatedUnsolicitedLogin');
         $runTest('testSuccessfulAcsLogin');
         $test = null;
     } catch (\Exception $e) {

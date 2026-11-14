@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -104,7 +104,16 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function testExistingUserByName(): void {
             $userData = $this->getFullUserData('john.doe', 'john.doe@example.com');
-            \User::$mockObject->mockUserData = ['id' => 123, 'name' => 'john.doe', 'email' => 'john.doe@example.com', 'is_deleted' => 0, 'is_active' => 1];
+            \User::$mockObject->mockUserData = [
+                'id'         => 123,
+                'name'       => 'john.doe',
+                'email'      => 'john.doe@example.com',
+                'authtype'   => 4,
+                'auths_id'   => SamlUser::toAuthsId(5),
+                'is_deleted' => 0,
+                'is_active'  => 1
+            ];
+            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
             $configEntity = new ConfigEntity(5);
             $samlUser = new SamlUser();
             $glpiUser = $samlUser->getOrCreateUser($userData, $configEntity);
@@ -132,6 +141,10 @@ namespace GlpiPlugin\Samlsso\Tests {
             if (!isset($glpiUser->fields['id']) || $glpiUser->fields['id'] !== 999) {
                 throw new \Exception("JIT User creation failed.");
             }
+            $lastAddedInput = \User::$mockObject->addedUserData ?? [];
+            if ((int)($lastAddedInput['auths_id'] ?? 0) !== SamlUser::toAuthsId(5)) {
+                throw new \Exception("Expected JIT User::add() auths_id=" . SamlUser::toAuthsId(5) . ", got " . ($lastAddedInput['auths_id'] ?? 'null'));
+            }
             echo "✅ JIT User creation and Rule engine invocation\n";
         }
 
@@ -141,26 +154,31 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @throws \Exception if the JIT process does not trigger a PrintFatalLoginError exception.
          */
         public function testJitDisabledRespectsIdpConfig(): void {
-            $userData = $this->getFullUserData('new.user', 'new.user@example.com');
-            \User::$mockObject->mockUserData = null;
-            
-            // Setup ConfigEntity with JIT disabled and valid ID
-            MockConfigEntity::$mockFields[ConfigEntity::USER_JIT] = 0;
-            MockConfigEntity::$mockFields[ConfigEntity::NAME] = 'Disabled JIT IDP';
-            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
-
-            $configEntity = new ConfigEntity(5);
-            $samlUser = new SamlUser();
-
+            \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = true;
             try {
-                $samlUser->getOrCreateUser($userData, $configEntity);
-                throw new \Exception("Expected PrintFatalLoginError due to disabled JIT, but method completed.");
-            } catch (\Exception $e) {
-                if (str_contains($e->getMessage(), 'is disabled for: Disabled JIT IDP')) {
-                    echo "✅ JIT disabled respects IDP config\n";
-                } else {
-                    throw $e;
+                $userData = $this->getFullUserData('new.user', 'new.user@example.com');
+                \User::$mockObject->mockUserData = null;
+                
+                // Setup ConfigEntity with JIT disabled and valid ID
+                MockConfigEntity::$mockFields[ConfigEntity::USER_JIT] = 0;
+                MockConfigEntity::$mockFields[ConfigEntity::NAME] = 'Disabled JIT IDP';
+                MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+
+                $configEntity = new ConfigEntity(5);
+                $samlUser = new SamlUser();
+
+                try {
+                    $samlUser->getOrCreateUser($userData, $configEntity);
+                    throw new \Exception("Expected PrintFatalLoginError due to disabled JIT, but method completed.");
+                } catch (\Exception $e) {
+                    if (str_contains($e->getMessage(), 'is disabled for: Disabled JIT IDP')) {
+                        echo "✅ JIT disabled respects IDP config\n";
+                    } else {
+                        throw $e;
+                    }
                 }
+            } finally {
+                \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = false;
             }
         }
 
@@ -175,14 +193,9 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             $actionKeys = array_keys($actions);
 
-            $reflector = new \ReflectionMethod(SamlUser::class, 'updateUserRights');
+            $reflector = new \ReflectionClass(SamlUser::class);
             $fileName = $reflector->getFileName();
-            $startLine = $reflector->getStartLine() - 1;
-            $endLine = $reflector->getEndLine();
-            $length = $endLine - $startLine;
-
-            $source = file($fileName);
-            $methodSource = implode('', array_slice($source, $startLine, $length));
+            $classSource = file_get_contents($fileName);
 
             $mapping = [
                 'entities_id'          => 'User::ENTITY_ID',
@@ -202,8 +215,8 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             foreach ($actionKeys as $key) {
                 $searchString = $mapping[$key] ?? $key;
-                if (!str_contains($methodSource, $searchString)) {
-                    throw new \Exception("Rule action key '{$key}' does not have a corresponding handler in User::updateUserRights.");
+                if (!str_contains($classSource, $searchString)) {
+                    throw new \Exception("Rule action key '{$key}' does not have a corresponding handler in User class.");
                 }
             }
 
@@ -254,13 +267,16 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function testSyncOnLogin(): void {
             $samlUser = new SamlUser();
-            $configEntity = new ConfigEntity();
+            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+            $configEntity = new ConfigEntity(5);
             
             // Setup mock existing user fields
             \User::$mockObject->mockUserData = [
                 'id'         => 999,
                 'name'       => 'existing_user',
                 'email'      => 'existing@example.com',
+                'authtype'   => 4,
+                'auths_id'   => SamlUser::toAuthsId(5),
                 'is_deleted' => 0,
                 'is_active'  => 1
             ];
@@ -296,7 +312,8 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function testSyncOnLoginTraceLogging(): void {
             $samlUser = new SamlUser();
-            $configEntity = new ConfigEntity();
+            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+            $configEntity = new ConfigEntity(5);
             
             \User::$mockObject->mockUserData = [
                 'id'         => 999,
@@ -306,6 +323,8 @@ namespace GlpiPlugin\Samlsso\Tests {
                 'mobile'     => '12345',
                 'phone'      => '67890',
                 'email'      => 'existing@example.com',
+                'authtype'   => 4,
+                'auths_id'   => SamlUser::toAuthsId(5),
                 'is_deleted' => 0,
                 'is_active'  => 1
             ];
@@ -351,12 +370,15 @@ namespace GlpiPlugin\Samlsso\Tests {
          */
         public function testSyncOnLoginCaseInsensitiveEmail(): void {
             $samlUser = new SamlUser();
-            $configEntity = new ConfigEntity();
+            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+            $configEntity = new ConfigEntity(5);
             
             \User::$mockObject->mockUserData = [
                 'id'         => 999,
                 'name'       => 'existing_user',
                 'email'      => 'existing@example.com',
+                'authtype'   => 4,
+                'auths_id'   => SamlUser::toAuthsId(5),
                 'is_deleted' => 0,
                 'is_active'  => 1
             ];
@@ -389,6 +411,577 @@ namespace GlpiPlugin\Samlsso\Tests {
             
             echo "✅ Case-insensitive user email comparison on sync_on_login verified\n";
         }
+
+        /**
+         * Test that synchronization on login does not overwrite existing GLPI user
+         * attributes when SAML claims are absent (evaluating to false/null) (Issue #146).
+         */
+        public function testSyncOnLoginDoesNotOverwriteWithEmptyClaims(): void {
+            $samlUser = new SamlUser();
+            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+            $configEntity = new ConfigEntity(5);
+
+            \User::$mockObject->mockUserData = [
+                'id'         => 999,
+                'name'       => 'existing_user',
+                'email'      => 'existing@example.com',
+                'mobile'     => '+31612345678',
+                'phone'      => '+31201234567',
+                'authtype'   => 4,
+                'auths_id'   => SamlUser::toAuthsId(5),
+                'is_deleted' => 0,
+                'is_active'  => 1
+            ];
+
+            MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+
+            $this->db->setResponse('glpi_useremails', [
+                ['email' => 'existing@example.com']
+            ]);
+
+            // Incoming SAML assertion has realname, but mobile and phone claims are absent (false/null)
+            $userFields = [
+                SamlUser::NAME          => 'existing_user',
+                SamlUser::REALNAME      => 'NewRealName',
+                SamlUser::FIRSTNAME     => 'NewFirstName',
+                SamlUser::MOBILE        => false,
+                SamlUser::PHONE         => null,
+                SamlUser::EMAIL         => ['existing@example.com'],
+            ];
+
+            \User::$mockObject->mockUpdateCalled = false;
+            \User::$mockObject->updatedUserData = null;
+
+            $samlUser->getOrCreateUser($userFields, $configEntity);
+
+            if (!\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("User update was not called when valid fields changed.");
+            }
+
+            $updatePayload = \User::$mockObject->updatedUserData ?? [];
+            if (array_key_exists(SamlUser::MOBILE, $updatePayload)) {
+                throw new \Exception("Empty/false SAML claim 'mobile' was included in update payload, overwriting existing user data.");
+            }
+            if (array_key_exists(SamlUser::PHONE, $updatePayload)) {
+                throw new \Exception("Empty/null SAML claim 'phone' was included in update payload, overwriting existing user data.");
+            }
+            if (!isset($updatePayload[SamlUser::REALNAME]) || $updatePayload[SamlUser::REALNAME] !== 'NewRealName') {
+                throw new \Exception("Valid SAML claim 'realname' was not updated.");
+            }
+
+            echo "✅ sync_on_login does not overwrite attributes with empty/false claims (Issue #146)\n";
+        }
+
+        /**
+         * Test that multiple JIT rules assigning different profiles are additive
+         * and do not delete previously assigned profiles (Issue #153).
+         */
+        public function testAdditiveProfileAssignments(): void {
+            $samlUser = new SamlUser();
+            \Profile_User::$added = [];
+            \Profile_User::$deleted = [];
+
+            /* Rule 1 assigns profile 5 */
+            $params1 = [
+                SamlUser::RULEOUTPUT => [
+                    SamlUser::USERSID    => 101,
+                    SamlUser::PROFILESID => 5,
+                    SamlUser::ENTITY_ID  => 1
+                ]
+            ];
+            $samlUser->updateUserRights($params1);
+
+            /* Rule 2 assigns profile 8 */
+            $params2 = [
+                SamlUser::RULEOUTPUT => [
+                    SamlUser::USERSID    => 101,
+                    SamlUser::PROFILESID => 8,
+                    SamlUser::ENTITY_ID  => 1
+                ]
+            ];
+            $samlUser->updateUserRights($params2);
+
+            if (count(\Profile_User::$added) < 2) {
+                throw new \Exception("Expected at least 2 profile assignments, found " . count(\Profile_User::$added));
+            }
+
+            /* Verify that profile 5 was NOT deleted by Rule 2 */
+            foreach (\Profile_User::$deleted as $del) {
+                if (isset($del['profiles_id']) && (int)$del['profiles_id'] === 5) {
+                    throw new \Exception("Profile 5 was incorrectly deleted when assigning profile 8 (non-additive).");
+                }
+            }
+
+            echo "✅ JIT multi-profile assignments are additive across rules (Issue #153)\n";
+        }
+
+        /**
+         * Test JIT rule assigning profile and entity via _profiles_id_default and
+         * _entities_id_default, defaulting recursive to 0, and cleaning up initial
+         * Root entity profile authorization (Issue #156).
+         */
+        public function testProfileAndEntityAssignmentDefaultsAndRootCleanup(): void {
+            $samlUser = new SamlUser();
+            \Profile_User::$added = [];
+            \Profile_User::$deleted = [];
+
+            /* Emulate existing initial user profile in Root entity (0) */
+            \Profile_User::$userProfiles[202] = [
+                1 => ['id' => 1, 'profiles_id' => 9, 'entities_id' => 0]
+            ];
+
+            $params = [
+                SamlUser::RULEOUTPUT => [
+                    SamlUser::USERSID         => 202,
+                    SamlUser::PROFILE_DEFAULT => 9,
+                    SamlUser::ENTITY_DEFAULT  => 27
+                ]
+            ];
+
+            $samlUser->updateUserRights($params);
+
+            /* 1. Verify profile 9 assigned to entity 27 with is_recursive = 0 */
+            $foundTarget = false;
+            foreach (\Profile_User::$added as $entry) {
+                if (
+                    (int)($entry[SamlUser::PROFILESID] ?? 0) === 9 &&
+                    (int)($entry[SamlUser::ENTITY_ID] ?? 0) === 27 &&
+                    (int)($entry[SamlUser::PROFILE_RECURSIVE] ?? 1) === 0
+                ) {
+                    $foundTarget = true;
+                    break;
+                }
+            }
+            if (!$foundTarget) {
+                throw new \Exception("Profile 9 with entity 27 and is_recursive=0 was not added via Profile_User.");
+            }
+
+            /* 2. Verify root profile authorization (id => 1) was deleted */
+            $deletedRoot = false;
+            foreach (\Profile_User::$deleted as $del) {
+                if (isset($del['id']) && (int)$del['id'] === 1) {
+                    $deletedRoot = true;
+                    break;
+                }
+            }
+            if (!$deletedRoot) {
+                throw new \Exception("Initial Root entity profile authorization was not cleaned up when assigning non-root entity.");
+            }
+
+            echo "✅ Profile/Entity assignment with defaults and Root cleanup verified (Issue #156)\n";
+        }
+
+        /**
+         * Test that identical user defaults do not trigger failure or unnecessary update
+         * when database fields already match current settings (Issue #148).
+         */
+        public function testIdempotentUserDefaultsNoLogWarning(): void {
+            $samlUser = new SamlUser();
+
+            \User::$mockObject->mockUserData = [
+                'id'          => 303,
+                'name'        => 'existing_jit_user',
+                'entities_id' => 0,
+                'profiles_id' => 3,
+                'is_active'   => 1
+            ];
+
+            \User::$mockObject->mockUpdateCalled = false;
+
+            $params = [
+                SamlUser::RULEOUTPUT => [
+                    SamlUser::USERSID         => 303,
+                    SamlUser::PROFILE_DEFAULT => 3,
+                    SamlUser::ENTITY_DEFAULT  => 0,
+                    'is_active'               => 1
+                ]
+            ];
+
+            $samlUser->updateUserRights($params);
+
+            /* Since fields already matched in DB, mock update should not be invoked needlessly */
+            if (\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("User update was unnecessarily called when DB fields already match current settings.");
+            }
+
+            echo "✅ Idempotent user defaults update does not fail or warn needlessly (Issue #148)\n";
+        }
+
+        /**
+         * Test that attempting to link or log in to a local GLPI account (authtype = Auth::DB_GLPI)
+         * or the local super-admin 'glpi' is blocked with a fatal login error.
+         */
+        public function testLocalAccountLinkingBlocked(): void {
+            \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = true;
+            try {
+                $userData = $this->getFullUserData('local_admin', 'local_admin@example.com');
+                \User::$mockObject->mockUserData = [
+                    'id'        => 501,
+                    'name'      => 'local_admin',
+                    'email'     => 'local_admin@example.com',
+                    'authtype'  => 1,
+                    'is_deleted' => 0,
+                    'is_active' => 1
+                ];
+
+                $configEntity = new ConfigEntity(5);
+                $samlUser = new SamlUser();
+
+                try {
+                    $samlUser->getOrCreateUser($userData, $configEntity);
+                    throw new \Exception("Expected fatal login error when linking local GLPI account, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'uses local GLPI authentication and cannot be linked')) {
+                        throw $e;
+                    }
+                }
+
+                // Also test 'glpi' username block even if authtype is not explicitly 1
+                $glpiData = $this->getFullUserData('glpi', 'glpi@example.com');
+                \User::$mockObject->mockUserData = [
+                    'id'        => 1,
+                    'name'      => 'glpi',
+                    'email'     => 'glpi@example.com',
+                    'authtype'  => 0,
+                    'is_deleted' => 0,
+                    'is_active' => 1
+                ];
+                try {
+                    $samlUser->getOrCreateUser($glpiData, $configEntity);
+                    throw new \Exception("Expected fatal login error when linking glpi super-admin account, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'uses local GLPI authentication and cannot be linked')) {
+                        throw $e;
+                    }
+                }
+
+                // Also test cross-IdP account binding rejection (auths_id mismatch)
+                $otherIdpData = $this->getFullUserData('idp2_user', 'idp2_user@example.com');
+                \User::$mockObject->mockUserData = [
+                    'id'        => 505,
+                    'name'      => 'idp2_user',
+                    'email'     => 'idp2_user@example.com',
+                    'authtype'  => 4,
+                    'auths_id'  => SamlUser::toAuthsId(9),
+                    'is_deleted' => 0,
+                    'is_active' => 1
+                ];
+                MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+                try {
+                    $samlUser->getOrCreateUser($otherIdpData, $configEntity);
+                    throw new \Exception("Expected fatal login error when account is bound to another IdP (auths_id=9 vs idpId=5).");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'bound to a different authentication source')) {
+                        throw $e;
+                    }
+                }
+
+                echo "✅ Local GLPI and cross-IdP account linking blocked\n";
+            } finally {
+                \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = false;
+            }
+        }
+
+        /**
+         * Test that syncUserFieldsOnLogin strips protected fields (authtype, password, comment, user_dn, etc.)
+         * and never passes them to User::update().
+         */
+        public function testSyncUserFieldsProtectsSensitiveFields(): void {
+            $samlUser = new SamlUser();
+
+            \User::$mockObject->mockUserData = [
+                'id'        => 502,
+                'name'      => 'sso_user',
+                'email'     => 'sso_user@example.com',
+                'authtype'  => 4,
+                'is_deleted' => 0,
+                'is_active' => 1
+            ];
+
+            \User::$mockObject->mockUpdateCalled = false;
+            \User::$mockObject->updatedUserData = null;
+
+            // Enable SYNC_ON_LOGIN
+            MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+
+            $configEntity = new ConfigEntity(5);
+
+            $maliciousClaims = [
+                SamlUser::NAME       => 'sso_user',
+                SamlUser::REALNAME   => 'Updated Realname',
+                SamlUser::FIRSTNAME  => 'Updated Firstname',
+                SamlUser::AUTHTYPE   => 1,
+                SamlUser::PASSWORD   => 'hacked_password',
+                SamlUser::PASSWORDN  => 'hacked_password',
+                SamlUser::COMMENT    => 'malicious comment overwrite',
+                'user_dn'            => 'cn=malicious,dc=example,dc=com',
+                'auths_id'           => 99,
+                'api_token'          => 'malicious_token',
+                'personal_token'     => 'malicious_personal_token'
+            ];
+
+            $glpiUser = new \User();
+            $glpiUser->fields = \User::$mockObject->mockUserData;
+
+            $method = new \ReflectionMethod(SamlUser::class, 'syncUserFieldsOnLogin');
+            $method->setAccessible(true);
+            $method->invoke($samlUser, $glpiUser, $maliciousClaims, null);
+
+            if (!\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("Expected User::update to be called during syncUserFieldsOnLogin.");
+            }
+
+            $updated = \User::$mockObject->updatedUserData;
+            $forbiddenKeys = ['authtype', 'password', 'password2', 'comment', 'user_dn', 'auths_id', 'api_token', 'personal_token'];
+            foreach ($forbiddenKeys as $forbidden) {
+                if (isset($updated[$forbidden])) {
+                    throw new \Exception("Forbidden field '$forbidden' was present in User::update() payload!");
+                }
+            }
+
+            if (($updated[SamlUser::REALNAME] ?? '') !== 'Updated Realname') {
+                throw new \Exception("Legitimate field 'realname' was not updated properly.");
+            }
+
+            echo "✅ Protected fields stripped during syncUserFieldsOnLogin\n";
+        }
+
+        /**
+         * Test Issue #197: registration_number changes are tracked and synthetic rule keys are stripped
+         * from User::update() (and do not trigger redundant DB writes when only synthetic keys exist).
+         */
+        public function testSyncUserFieldsRegistrationNumberAndSyntheticStripping(): void {
+            $samlUser = new SamlUser();
+            MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+            MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+
+            $this->db->setResponse('glpi_useremails', [
+                ['email' => 'emp@example.com']
+            ]);
+
+            $glpiUser = new \User();
+            $glpiUser->fields = [
+                'id'                  => 600,
+                'name'                => 'emp_user',
+                'registration_number' => 'EMP-001',
+                'authtype'            => 4,
+                'auths_id'            => 5,
+                'is_deleted'          => 0,
+                'is_active'           => 1,
+            ];
+
+            // 1. Only synthetic rule keys + existing email -> must NOT invoke User::update()
+            \User::$mockObject->mockUpdateCalled = false;
+            \User::$mockObject->updatedUserData = null;
+
+            $onlySyntheticClaims = [
+                SamlUser::EMAIL        => ['emp@example.com'],
+                SamlUser::SAMLGROUPS   => ['Admins', 'Users'],
+                SamlUser::SAMLJOBTITLE => 'Engineer',
+                SamlUser::SAMLCOUNTRY  => 'NL',
+                SamlUser::SAMLCITY     => 'Utrecht',
+                SamlUser::SAMLSTREET   => 'Oudegracht 10',
+                '_saml_rule_fields'    => ['department' => 'IT'],
+            ];
+
+            $method = new \ReflectionMethod(SamlUser::class, 'syncUserFieldsOnLogin');
+            $method->setAccessible(true);
+            $method->invoke($samlUser, $glpiUser, $onlySyntheticClaims, null);
+
+            if (\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("User::update() should NOT be called when only synthetic rule keys and unchanged email are present!");
+            }
+
+            // 2. registration_number changed + synthetic rule keys -> updates registration_number, strips synthetic keys, logs trace
+            $state = new class extends \GlpiPlugin\Samlsso\LoginState {
+                public array $traces = [];
+                public function __construct() {}
+                public function addLoginFlowTrace(array $condition): bool {
+                    $this->traces = array_merge($this->traces, $condition);
+                    return true;
+                }
+            };
+
+            $regUpdateClaims = array_merge($onlySyntheticClaims, [
+                SamlUser::REGISTRATION_NUMBER => 'EMP-999',
+            ]);
+
+            $method->invoke($samlUser, $glpiUser, $regUpdateClaims, $state);
+
+            if (!\User::$mockObject->mockUpdateCalled) {
+                throw new \Exception("Expected User::update() to be called when registration_number changed.");
+            }
+            $updated = \User::$mockObject->updatedUserData ?? [];
+            if (($updated[SamlUser::REGISTRATION_NUMBER] ?? '') !== 'EMP-999') {
+                throw new \Exception("Expected registration_number 'EMP-999' in update payload.");
+            }
+            foreach (['_saml_rule_fields', SamlUser::SAMLGROUPS, SamlUser::SAMLJOBTITLE, SamlUser::SAMLCOUNTRY, SamlUser::SAMLCITY, SamlUser::SAMLSTREET] as $syntheticKey) {
+                if (array_key_exists($syntheticKey, $updated)) {
+                    throw new \Exception("Synthetic rule key '$syntheticKey' leaked into User::update() payload!");
+                }
+            }
+            if (!str_contains($state->traces['syncUpdatedFields'] ?? '', "registration_number: 'EMP-001' => 'EMP-999'")) {
+                throw new \Exception("registration_number diff missing from syncUpdatedFields trace: " . ($state->traces['syncUpdatedFields'] ?? ''));
+            }
+
+            echo "✅ registration_number diff tracking and synthetic rule-key stripping verified (Issue #197)\n";
+        }
+
+        /**
+         * Test Issue #189: scoped candidate resolution via $DB->request() resolves the exact
+         * (Auth::EXTERNAL, $idpId) user without triggering CommonDBTM::TooManyResultsException
+         * when multiple external rows share a name/email, while still failing closed on any
+         * local DB_GLPI / 'glpi' collision or foreign-only (e.g. Auth::LDAP) match.
+         */
+        public function testScopedMultiIdpCandidateResolutionAndLocalCollisionBlock(): void {
+            \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = true;
+            try {
+                $samlUser = new SamlUser();
+                MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+                MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 0;
+                $configEntity = new ConfigEntity(5);
+
+                /**
+                 * Case 0: Invalid $idpId <= 0 MUST fail closed immediately.
+                 */
+                MockConfigEntity::$mockFields[ConfigEntity::ID] = 0;
+                $zeroConfigEntity = new ConfigEntity(0);
+                try {
+                    $samlUser->getOrCreateUser($this->getFullUserData('jdoe', 'jdoe@example.com'), $zeroConfigEntity);
+                    throw new \Exception("Expected invalid idpId <= 0 to fail closed, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'configuration is invalid or disabled')) {
+                        throw $e;
+                    }
+                }
+                MockConfigEntity::$mockFields[ConfigEntity::ID] = 5;
+
+                /**
+                 * Case 1: Two SAML IdPs (1000001 and 1000005) both have 'jdoe'.
+                 * Must resolve id=702 cleanly without calling getFromDBbyName() (which throws TooManyResultsException).
+                 */
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 701, 'name' => 'jdoe', 'authtype' => 4, 'auths_id' => SamlUser::toAuthsId(1), 'is_deleted' => 0, 'is_active' => 1],
+                    ['id' => 702, 'name' => 'jdoe', 'authtype' => 4, 'auths_id' => SamlUser::toAuthsId(5), 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                $resolved = $samlUser->getOrCreateUser($this->getFullUserData('jdoe', 'jdoe@example.com'), $configEntity);
+                if ((int)($resolved->fields['id'] ?? 0) !== 702) {
+                    throw new \Exception("Expected scoped IdP #5 user id=702, got " . ($resolved->fields['id'] ?? 'null'));
+                }
+
+                /**
+                 * Case 2: Email-based linking across duplicate emails resolves IdP #5 user id=704
+                 * when sync_on_login=1, even when glpi_useremails has > 1 row (where User::getFromDBbyEmail returns false).
+                 */
+                MockConfigEntity::$mockFields[ConfigEntity::SYNC_ON_LOGIN] = 1;
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 703, 'name' => 'alice.idp1', 'authtype' => 4, 'auths_id' => SamlUser::toAuthsId(1), 'is_deleted' => 0, 'is_active' => 1],
+                    ['id' => 704, 'name' => 'alice.idp5', 'authtype' => 4, 'auths_id' => SamlUser::toAuthsId(5), 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                $this->db->setResponse('glpi_useremails', [
+                    ['users_id' => 703, 'email' => 'alice@example.com'],
+                    ['users_id' => 704, 'email' => 'alice@example.com'],
+                ]);
+                $resolvedByEmail = $samlUser->getOrCreateUser($this->getFullUserData('alice.upn@example.com', 'alice@example.com'), $configEntity);
+                if ((int)($resolvedByEmail->fields['id'] ?? 0) !== 704) {
+                    throw new \Exception("Expected scoped email-linked user id=704, got " . ($resolvedByEmail->fields['id'] ?? 'null'));
+                }
+
+                /**
+                 * Case 3: Local DB_GLPI (authtype=1) coexisting with external row MUST still fail closed immediately.
+                 */
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 705, 'name' => 'shared_admin', 'authtype' => 1, 'auths_id' => 0, 'is_deleted' => 0, 'is_active' => 1],
+                    ['id' => 706, 'name' => 'shared_admin', 'authtype' => 4, 'auths_id' => SamlUser::toAuthsId(5), 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                try {
+                    $samlUser->getOrCreateUser($this->getFullUserData('shared_admin', 'shared_admin@example.com'), $configEntity);
+                    throw new \Exception("Expected local DB_GLPI collision to fail closed, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'uses local GLPI authentication')) {
+                        throw $e;
+                    }
+                }
+
+                /**
+                 * Case 4: Foreign-only Auth::LDAP (authtype=3) and authtype=0 (NOT_YET_AUTHENTIFIED) fail closed.
+                 */
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 707, 'name' => 'ldap_only', 'authtype' => 3, 'auths_id' => 2, 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                $this->db->setResponse('glpi_useremails', [
+                    ['users_id' => 707, 'email' => 'ldap_only@example.com'],
+                ]);
+                try {
+                    $samlUser->getOrCreateUser($this->getFullUserData('ldap_only', 'ldap_only@example.com'), $configEntity);
+                    throw new \Exception("Expected foreign Auth::LDAP match to fail closed, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'bound to a different authentication source')) {
+                        throw $e;
+                    }
+                }
+
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 708, 'name' => 'unauth_row', 'authtype' => 0, 'auths_id' => 0, 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                $this->db->clearResponse('glpi_useremails');
+                try {
+                    $samlUser->getOrCreateUser($this->getFullUserData('unauth_row', 'unauth_row@example.com'), $configEntity);
+                    throw new \Exception("Expected authtype=0 match to fail closed, but login succeeded.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'bound to a different authentication source')) {
+                        throw $e;
+                    }
+                }
+
+                /**
+                 * Case 5: One-time adoption of unbound (Auth::EXTERNAL, 0) and legacy (Auth::EXTERNAL, 5, empty user_dn)
+                 * rows immediately stamps glpi_users.auths_id = 1000005; non-empty user_dn is rejected.
+                 */
+                $this->db->updatedRows = [];
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 709, 'name' => 'unbound_ext', 'authtype' => 4, 'auths_id' => 0, 'user_dn' => '', 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                $adoptedUnbound = $samlUser->getOrCreateUser($this->getFullUserData('unbound_ext', 'unbound@example.com'), $configEntity);
+                if ((int)($adoptedUnbound->fields['id'] ?? 0) !== 709 || (int)($adoptedUnbound->fields['auths_id'] ?? 0) !== SamlUser::toAuthsId(5)) {
+                    throw new \Exception("Expected one-time adoption of unbound external row id=709 with auths_id=1000005.");
+                }
+                if (empty($this->db->updatedRows) || (int)($this->db->updatedRows[0]['data']['auths_id'] ?? 0) !== SamlUser::toAuthsId(5)) {
+                    throw new \Exception("Expected immediate DB update stamping auths_id=1000005 on unbound row.");
+                }
+
+                $this->db->updatedRows = [];
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 710, 'name' => 'legacy_saml', 'authtype' => 4, 'auths_id' => 5, 'user_dn' => null, 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                $adoptedLegacy = $samlUser->getOrCreateUser($this->getFullUserData('legacy_saml', 'legacy@example.com'), $configEntity);
+                if ((int)($adoptedLegacy->fields['id'] ?? 0) !== 710 || (int)($adoptedLegacy->fields['auths_id'] ?? 0) !== SamlUser::toAuthsId(5)) {
+                    throw new \Exception("Expected one-time adoption of legacy row id=710 with auths_id=1000005.");
+                }
+                if (empty($this->db->updatedRows) || (int)($this->db->updatedRows[0]['data']['auths_id'] ?? 0) !== SamlUser::toAuthsId(5)) {
+                    throw new \Exception("Expected immediate DB update stamping auths_id=1000005 on legacy row.");
+                }
+
+                $this->db->setResponse('glpi_users', [
+                    ['id' => 711, 'name' => 'ext_with_dn', 'authtype' => 4, 'auths_id' => 5, 'user_dn' => 'CN=ExternalCAS,DC=corp,DC=local', 'is_deleted' => 0, 'is_active' => 1],
+                ]);
+                try {
+                    $samlUser->getOrCreateUser($this->getFullUserData('ext_with_dn', 'ext_dn@example.com'), $configEntity);
+                    throw new \Exception("Expected (Auth::EXTERNAL, 5) row with non-empty user_dn to fail closed.");
+                } catch (\Exception $e) {
+                    if (!str_contains($e->getMessage(), 'bound to a different authentication source')) {
+                        throw $e;
+                    }
+                }
+
+                echo "✅ Scoped multi-IdP candidate resolution, one-time adoption & fail-closed guards verified (Issue #189)\n";
+            } finally {
+                $this->db->clearResponse('glpi_users');
+                $this->db->clearResponse('glpi_useremails');
+                \GlpiPlugin\Samlsso\LoginFlow::$throwOnError = false;
+            }
+        }
     }
 }
 
@@ -406,6 +999,14 @@ namespace {
         $test->testSyncOnLogin();
         $test->testSyncOnLoginTraceLogging();
         $test->testSyncOnLoginCaseInsensitiveEmail();
+        $test->testSyncOnLoginDoesNotOverwriteWithEmptyClaims();
+        $test->testAdditiveProfileAssignments();
+        $test->testProfileAndEntityAssignmentDefaultsAndRootCleanup();
+        $test->testIdempotentUserDefaultsNoLogWarning();
+        $test->testLocalAccountLinkingBlocked();
+        $test->testSyncUserFieldsProtectsSensitiveFields();
+        $test->testSyncUserFieldsRegistrationNumberAndSyntheticStripping();
+        $test->testScopedMultiIdpCandidateResolutionAndLocalCollisionBlock();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

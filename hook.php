@@ -33,7 +33,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -61,7 +61,9 @@ use GlpiPlugin\Samlsso\LoginFlow\User;
  */
 include_once __DIR__ . '/vendor/autoload.php';
 
-// METHODS
+/**
+ * Hook implementations and lifecycle callback methods.
+ */
 
 /**
  * This function is hooked by rule engine if an user import rule matches configured criteria.
@@ -74,7 +76,7 @@ include_once __DIR__ . '/vendor/autoload.php';
  * @see - call - src\LoginFlow\User.php->getOrCreateUser();
  * @see - impl - src\LoginFlow\User.php->updateUserRights();
  */
-function updateUser(array $params): void
+function plugin_samlsso_updateUser(array $params): void
 {
     /**
      * The GLPI rule engine fires all registered rule collections without
@@ -160,7 +162,7 @@ function plugin_samlsso_install(): bool                                         
     $version   = plugin_version_samlsso();
     $migration = new Migration($version['version']);
 
-    Session::addMessageAfterRedirect(__('🆗 Installing version:' . PLUGIN_SAMLSSO_VERSION, PLUGIN_NAME));
+    Session::addMessageAfterRedirect(sprintf(__('🆗 Installing version: %s', PLUGIN_NAME), PLUGIN_SAMLSSO_VERSION));
 
     /**
      * Warn if PHP memory_limit is below 512 MB. The OneLogin SAML library
@@ -220,6 +222,26 @@ function plugin_samlsso_install(): bool                                         
         (new \Glpi\Cache\CacheManager())->resetAllCaches();
     }
 
+    /**
+     * Run the sanity check after database migrations and cache reset.
+     */
+    $checkResult = \GlpiPlugin\Samlsso\Utility\SanityChecker::check();
+    if (!$checkResult['status']) {
+        foreach ($checkResult['messages'] as $msg) {
+            if (str_contains($msg, '❌')) {
+                Session::addMessageAfterRedirect($msg, false, ERROR);
+            }
+        }
+        /**
+         * Deactivate the plugin immediately to ensure it remains disabled.
+         */
+        $pluginObj = new \Plugin();
+        if (method_exists($pluginObj, 'unactivate') && $pluginObj->getFromDBByCrit(['directory' => 'samlsso'])) {
+            $pluginObj->unactivate((int)$pluginObj->fields['id']);
+        }
+        return false;
+    }
+
     return true;
 }
 
@@ -246,6 +268,8 @@ function plugin_samlsso_install(): bool                                         
  */
 function plugin_samlsso_uninstall(): bool                                         // NOSONAR - Default GLPI naming
 {
+    global $DB;
+
     /**
      * Initialise the GLPI Migration object scoped to the current plugin version.
      * Passed to each class's uninstall() method so backup and drop operations
@@ -264,6 +288,33 @@ function plugin_samlsso_uninstall(): bool                                       
             $class::uninstall($migration);
         }
     }
+
+    /**
+     * Clean up SAML JIT rules from GLPI core rule tables to prevent dangling rule references.
+     */
+    try {
+        $ruleSubType = RuleSaml::class;
+        $rules = $DB->request([
+            'SELECT' => ['id'],
+            'FROM'   => 'glpi_rules',
+            'WHERE'  => ['sub_type' => $ruleSubType]
+        ]);
+        $ruleIds = [];
+        if ($rules) {
+            foreach ($rules as $r) {
+                $ruleIds[] = (int)$r['id'];
+            }
+        }
+
+        if (!empty($ruleIds)) {
+            $DB->delete('glpi_rulecriterias', ['rules_id' => $ruleIds]);
+            $DB->delete('glpi_ruleactions', ['rules_id' => $ruleIds]);
+            $DB->delete('glpi_rules', ['id' => $ruleIds]);
+        }
+    } catch (\Throwable $e) {
+        // Core rule tables may not exist in mock/test environments
+    }
+
     return true;
 }
 

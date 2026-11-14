@@ -52,19 +52,15 @@
                         ) }}
                     </div>
 
-                    <!-- Inactivity Timeout -->
+                    <!-- Inactivity Timeout (Read-Only GLPI Session Lifetime) -->
                     <div class="mb-3">
-                        {% set error_helper %}
-                            {% if inputfields.inactivity_timeout.errors == true %}
-                                <div id="textHelper" class="form-text" style="color:{% if '⚠️' in inputfields.inactivity_timeout.errors %}rgb(180, 120, 8){% elseif '✅' in inputfields.inactivity_timeout.errors %}rgb(71, 180, 8){% else %}red{% endif %};">{{ inputfields.inactivity_timeout.errors|raw }}</div>
-                            {% endif %}
-                        {% endset %}
                         {{ fields.textField(
                             inputfields.inactivity_timeout.field,
                             inputfields.inactivity_timeout.value,
                             inputfields.inactivity_timeout.formtitle,
                             {
-                                'add_field_html': error_helper|raw,
+                                'readonly': true,
+                                'disabled': true,
                                 'type': 'number',
                                 helper: inputfields.inactivity_timeout.formexplain,
                             }
@@ -271,6 +267,24 @@
                             {
                                 'add_field_html': error_helper|raw,
                                 helper: inputfields.security_authnrequestssigned.formexplain,
+                            }) 
+                        }}
+                    </div>
+
+                    <!-- force_authn -->
+                    <div class="mb-3">
+                        {% set error_helper %}
+                            {% if inputfields.force_authn.errors == true %}
+                                <div id="textHelper" class="form-text" style="color:{% if '⚠️' in inputfields.force_authn.errors %}rgb(180, 120, 8){% else %}red{% endif %};">{{ inputfields.force_authn.errors }}</div>
+                            {% endif %}
+                        {% endset %}
+                        {{ fields.sliderField(
+                            inputfields.force_authn.field,
+                            inputfields.force_authn.value,
+                            inputfields.force_authn.formtitle,
+                            {
+                                'add_field_html': error_helper|raw,
+                                helper: inputfields.force_authn.formexplain,
                             }) 
                         }}
                     </div>

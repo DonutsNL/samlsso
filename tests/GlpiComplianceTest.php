@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -92,7 +92,7 @@ namespace GlpiPlugin\Samlsso\Tests {
 
                             if ($type === T_INLINE_HTML) {
                                 // Match short tags in inline HTML context (e.g. if short_open_tag is disabled in php.ini)
-                                $pattern = '<' . '\?' . '(?!php|xml)';
+                                $pattern = '<\?(?!php|xml)';
                                 if (preg_match('/' . $pattern . '/i', $text)) {
                                     $errors[] = "$filePath: Line $line - Prohibited short tag '<?' found. Always use '<?php'.\n  Documentation: https://glpi-developer-documentation.readthedocs.io/en/master/coding-standards/index.html";
                                     break;
@@ -168,83 +168,8 @@ namespace GlpiPlugin\Samlsso\Tests {
             $basePath = realpath(__DIR__ . '/..');
             $errors = [];
 
-            $directoryIterator = new \RecursiveDirectoryIterator($basePath);
-            $iterator = new \RecursiveIteratorIterator($directoryIterator);
-
-            foreach ($iterator as $file) {
-                if ($file->isFile() && $file->getExtension() === 'php') {
-                    $filePath = $file->getRealPath();
-                    // Skip vendor files and tests directory (test files don't need translation domains)
-                    if ($filePath === false || str_contains($filePath, '/vendor/') || str_contains($filePath, '/tests/')) {
-                        continue;
-                    }
-
-                    // Skip User.php since all its missing translation domains are false positives (logging and database comments)
-                    if (basename($filePath) === 'User.php') {
-                        continue;
-                    }
-
-                    $content = file_get_contents($filePath);
-                    if ($content === false) {
-                        continue;
-                    }
-
-                    $tokens = token_get_all($content);
-                    $count = count($tokens);
-
-                    for ($i = 0; $i < $count; $i++) {
-                        $token = $tokens[$i];
-                        if (is_array($token) && $token[0] === T_STRING) {
-                            $funcName = $token[1];
-                            if (in_array($funcName, ['__', '_n', '_x', '_sx'])) {
-                                $line = $token[2];
-                                
-                                // Find opening parenthesis
-                                $j = $i + 1;
-                                while ($j < $count && is_array($tokens[$j]) && 
-                                       ($tokens[$j][0] === T_WHITESPACE || $tokens[$j][0] === T_COMMENT || $tokens[$j][0] === T_DOC_COMMENT)) {
-                                    $j++;
-                                }
-                                
-                                if ($j < $count && $tokens[$j] === '(') {
-                                    $commas = 0;
-                                    $depth = 1;
-                                    $k = $j + 1;
-                                    
-                                    while ($k < $count && $depth > 0) {
-                                        $t = $tokens[$k];
-                                        if ($t === '(') {
-                                            $depth++;
-                                        } elseif ($t === ')') {
-                                            $depth--;
-                                        } elseif ($t === ',' && $depth === 1) {
-                                            $commas++;
-                                        }
-                                        $k++;
-                                    }
-                                    
-                                    $numArgs = $commas + 1;
-                                    $isViolating = false;
-
-                                    if ($funcName === '__' && $numArgs < 2) {
-                                        $isViolating = true;
-                                    } elseif (in_array($funcName, ['_x', '_sx']) && $numArgs < 3) {
-                                        $isViolating = true;
-                                    } elseif ($funcName === '_n' && $numArgs < 4) {
-                                        // Allow core translation _n calls with 3 arguments in RuleSaml.php
-                                        if (basename($filePath) !== 'RuleSaml.php') {
-                                            $isViolating = true;
-                                        }
-                                    }
-
-                                    if ($isViolating) {
-                                        $errors[] = "$filePath: Line $line - Translation helper $funcName() is missing the plugin text domain as its last argument.\n  Documentation: https://glpi-developer-documentation.readthedocs.io/en/master/plugins/translation.html";
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            foreach ($this->getPluginPhpFiles($basePath) as $filePath) {
+                $errors = array_merge($errors, $this->collectTranslationDomainErrors($filePath));
             }
 
             if (!empty($errors)) {
@@ -265,40 +190,8 @@ namespace GlpiPlugin\Samlsso\Tests {
             $basePath = realpath(__DIR__ . '/..');
             $errors = [];
 
-            $directoryIterator = new \RecursiveDirectoryIterator($basePath);
-            $iterator = new \RecursiveIteratorIterator($directoryIterator);
-
-            foreach ($iterator as $file) {
-                if ($file->isFile() && $file->getExtension() === 'php') {
-                    $filePath = $file->getRealPath();
-                    // Skip vendor files and tests directory
-                    if ($filePath === false || str_contains($filePath, '/vendor/') || str_contains($filePath, '/tests/')) {
-                        continue;
-                    }
-
-                    $content = file_get_contents($filePath);
-                    if ($content === false) {
-                        continue;
-                    }
-
-                    $tokens = token_get_all($content);
-                    $lines = explode("\n", $content);
-                    foreach ($tokens as $token) {
-                        if (is_array($token) && $token[0] === T_EXIT) {
-                            $line = $token[2];
-                            $lineContent = $lines[$line - 1] ?? '';
-                            // Allow 'or die($DB->error())' legacy patterns in migrations/setup
-                            if (str_contains($lineContent, 'or die($DB->error())') || str_contains($lineContent, 'or die ($DB->error())')) {
-                                continue;
-                            }
-                            // Allow exit in LoginFlow.php as it manages the terminal redirection and error rendering endpoints
-                            if (basename($filePath) === 'LoginFlow.php' && (trim($lineContent) === 'exit;' || trim($lineContent) === 'exit();')) {
-                                continue;
-                            }
-                            $errors[] = "$filePath: Line $line - Prohibited use of die() or exit(). Throw exceptions or return clean responses instead.\n  Documentation: https://glpi-developer-documentation.readthedocs.io/en/master/coding-standards/index.html";
-                        }
-                    }
-                }
+            foreach ($this->getPluginPhpFiles($basePath) as $filePath) {
+                $errors = array_merge($errors, $this->collectDieOrExitErrors($filePath));
             }
 
             if (!empty($errors)) {
@@ -306,6 +199,129 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
 
             echo "✅ Validated error handling: Codebase contains no die() or exit() statements.\n";
+        }
+
+        /**
+         * Collect all plugin PHP source files excluding vendor/ and tests/.
+         *
+         * @param string $basePath Plugin root directory.
+         * @return array List of absolute PHP file paths.
+         */
+        private function getPluginPhpFiles(string $basePath): array {
+            $files = [];
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($basePath));
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+                $filePath = $file->getRealPath();
+                if ($filePath !== false && !str_contains($filePath, '/vendor/') && !str_contains($filePath, '/tests/')) {
+                    $files[] = $filePath;
+                }
+            }
+
+            return $files;
+        }
+
+        /**
+         * Scan one PHP file for GLPI translation helper calls missing the plugin text domain argument.
+         *
+         * @param string $filePath Absolute PHP file path.
+         * @return array List of compliance error strings.
+         */
+        private function collectTranslationDomainErrors(string $filePath): array {
+            $content = file_get_contents($filePath);
+            if ($content === false) {
+                return [];
+            }
+
+            $errors = [];
+            $tokens = token_get_all($content);
+            $count = count($tokens);
+            $minArgs = ['__' => 2, '_x' => 3, '_sx' => 3, '_n' => 4];
+
+            for ($i = 0; $i < $count; $i++) {
+                $token = $tokens[$i];
+                if (!is_array($token) || $token[0] !== T_STRING || !isset($minArgs[$token[1]])) {
+                    continue;
+                }
+
+                $funcName = $token[1];
+                $numArgs = $this->countCallArguments($tokens, $i);
+                if ($numArgs === null) {
+                    continue;
+                }
+
+                $requiredArgs = ($funcName === '_n' && basename($filePath) === 'RuleSaml.php') ? 3 : $minArgs[$funcName];
+                if ($numArgs < $requiredArgs) {
+                    $errors[] = "$filePath: Line {$token[2]} - Translation helper $funcName() is missing the plugin text domain as its last argument.\n  Documentation: https://glpi-developer-documentation.readthedocs.io/en/master/plugins/translation.html";
+                }
+            }
+
+            return $errors;
+        }
+
+        /**
+         * Count top-level comma-separated arguments for the function call starting at token $funcIndex.
+         *
+         * @param array $tokens Token stream.
+         * @param int $funcIndex Token index of the function identifier.
+         * @return int|null Argument count, or null if not followed by an invocation parenthesis.
+         */
+        private function countCallArguments(array $tokens, int $funcIndex): ?int {
+            $count = count($tokens);
+            $trivia = [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT];
+            $j = $funcIndex + 1;
+            while ($j < $count && is_array($tokens[$j]) && in_array($tokens[$j][0], $trivia, true)) {
+                $j++;
+            }
+            if ($j >= $count || $tokens[$j] !== '(') {
+                return null;
+            }
+
+            $commas = 0;
+            $depth = 1;
+            for ($k = $j + 1; $k < $count && $depth > 0; $k++) {
+                if ($tokens[$k] === '(') {
+                    $depth++;
+                } elseif ($tokens[$k] === ')') {
+                    $depth--;
+                } elseif ($tokens[$k] === ',' && $depth === 1) {
+                    $commas++;
+                }
+            }
+
+            return $commas + 1;
+        }
+
+        /**
+         * Scan one PHP file for prohibited die() or exit() statements.
+         *
+         * @param string $filePath Absolute PHP file path.
+         * @return array List of compliance error strings.
+         */
+        private function collectDieOrExitErrors(string $filePath): array {
+            $content = file_get_contents($filePath);
+            if ($content === false) {
+                return [];
+            }
+
+            $errors = [];
+            $lines = explode("\n", $content);
+            foreach (token_get_all($content) as $token) {
+                if (!is_array($token) || $token[0] !== T_EXIT) {
+                    continue;
+                }
+                $line = $token[2];
+                $lineContent = trim($lines[$line - 1] ?? '');
+                if (basename($filePath) === 'LoginFlow.php' && ($lineContent === 'exit;' || $lineContent === 'exit();')) {
+                    continue;
+                }
+                $errors[] = "$filePath: Line $line - Prohibited use of die() or exit(). Throw exceptions or return clean responses instead.\n  Documentation: https://glpi-developer-documentation.readthedocs.io/en/master/coding-standards/index.html";
+            }
+
+            return $errors;
         }
     }
 }

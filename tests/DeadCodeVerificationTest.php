@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -222,59 +222,83 @@ namespace GlpiPlugin\Samlsso\Tests {
         private function parseDeclarations(string $srcPath): array
         {
             $declarations = [];
-            $directoryIterator = new \RecursiveDirectoryIterator($srcPath);
-            $iterator = new \RecursiveIteratorIterator($directoryIterator);
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($srcPath));
 
             foreach ($iterator as $file) {
-                if ($file->isFile() && $file->getExtension() === 'php') {
-                    $filePath = $file->getRealPath();
-                    if ($filePath === false) {
-                        continue;
-                    }
-
-                    $content = file_get_contents($filePath);
-                    if ($content === false) {
-                        continue;
-                    }
-
-                    $tokens = token_get_all($content);
-                    $classes = [];
-                    $methods = [];
-                    $count = count($tokens);
-
-                    for ($i = 0; $i < $count; $i++) {
-                        if (is_array($tokens[$i])) {
-                            $tokenType = $tokens[$i][0];
-                            if ($tokenType === T_CLASS || $tokenType === T_INTERFACE || $tokenType === T_TRAIT) {
-                                /* Skip whitespace and find class name */
-                                $j = $i + 1;
-                                while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
-                                    $j++;
-                                }
-                                if ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_STRING) {
-                                    $classes[] = $tokens[$j][1];
-                                }
-                            } elseif ($tokenType === T_FUNCTION) {
-                                /* Skip whitespace and find function name */
-                                $j = $i + 1;
-                                while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
-                                    $j++;
-                                }
-                                if ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_STRING) {
-                                    $methods[] = $tokens[$j][1];
-                                }
-                            }
-                        }
-                    }
-
-                    $declarations[$filePath] = [
-                        'classes' => array_unique($classes),
-                        'methods' => array_unique($methods),
-                    ];
+                if (!$file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+                $filePath = $file->getRealPath();
+                $parsed = $filePath !== false ? $this->extractFileDeclarations($filePath) : null;
+                if ($parsed !== null) {
+                    $declarations[$filePath] = $parsed;
                 }
             }
 
             return $declarations;
+        }
+
+        /**
+         * Extract declared class/interface/trait and function names from a single PHP file.
+         *
+         * @param string $filePath Absolute path to PHP file.
+         * @return array|null Associative array with 'classes' and 'methods' keys, or null if unreadable.
+         */
+        private function extractFileDeclarations(string $filePath): ?array
+        {
+            $content = file_get_contents($filePath);
+            if ($content === false) {
+                return null;
+            }
+
+            $tokens = token_get_all($content);
+            $classes = [];
+            $methods = [];
+            $classTypes = [T_CLASS, T_INTERFACE, T_TRAIT];
+            $count = count($tokens);
+
+            for ($i = 0; $i < $count; $i++) {
+                if (!is_array($tokens[$i])) {
+                    continue;
+                }
+                $tokenType = $tokens[$i][0];
+                if (in_array($tokenType, $classTypes, true)) {
+                    $name = $this->findNextIdentifier($tokens, $i);
+                    if ($name !== null) {
+                        $classes[] = $name;
+                    }
+                } elseif ($tokenType === T_FUNCTION) {
+                    $name = $this->findNextIdentifier($tokens, $i);
+                    if ($name !== null) {
+                        $methods[] = $name;
+                    }
+                }
+            }
+
+            return [
+                'classes' => array_unique($classes),
+                'methods' => array_unique($methods),
+            ];
+        }
+
+        /**
+         * Return the identifier token string immediately following whitespace after a declaration keyword.
+         *
+         * @param array $tokens Token stream.
+         * @param int $index Keyword token index.
+         * @return string|null Identifier name or null if none found (e.g. anonymous class or closure).
+         */
+        private function findNextIdentifier(array $tokens, int $index): ?string
+        {
+            $count = count($tokens);
+            $j = $index + 1;
+            while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
+                $j++;
+            }
+
+            return ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_STRING)
+                ? $tokens[$j][1]
+                : null;
         }
 
         /**

@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -87,7 +87,6 @@ namespace GlpiPlugin\Samlsso\Tests {
                     LoginState::LOGIN_DATETIME => '2026-05-30 14:30:00',
                     LoginState::LAST_ACTIVITY => '2026-05-30 14:31:00',
                     LoginState::LOCATION => 'https://glpi.local/index.php',
-                    LoginState::ENFORCE_LOGOFF => 0,
                     LoginState::LOGIN_FLOW_TRACE => serialize([]),
                     LoginState::PHASE => LoginState::PHASE_GLPI_AUTH
                 ]
@@ -164,7 +163,6 @@ namespace GlpiPlugin\Samlsso\Tests {
                     LoginState::LOGIN_DATETIME => $staleTime,
                     LoginState::LAST_ACTIVITY => $staleTime,
                     LoginState::LOCATION => 'https://glpi.local/index.php',
-                    LoginState::ENFORCE_LOGOFF => 0,
                     LoginState::SAML_REQUEST_ID => 'req_123',
                     LoginState::SAML_RESPONSE_ID => '',
                     LoginState::SAML_UNSOLICITED => 0,
@@ -184,6 +182,14 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             if ($loginState->getPhase() !== LoginState::PHASE_TIMED_OUT) {
                 throw new \Exception("Request awaiting ACS that is older than the timeout limit did not transition to PHASE_TIMED_OUT. Got: " . $loginState->getPhase());
+            }
+
+            $safeState = $loginState->getSafeStateForLogging(true);
+            $trace = !empty($safeState[LoginState::LOGIN_FLOW_TRACE])
+                ? unserialize((string)$safeState[LoginState::LOGIN_FLOW_TRACE], ['allowed_classes' => false])
+                : [];
+            if (!is_array($trace) || empty($trace['staleTimeout'])) {
+                throw new \Exception("Expected staleTimeout trace entry when request exceeds request_timeout.");
             }
 
             echo "✅ LoginState: request timeout fallback verification\n";
@@ -215,7 +221,6 @@ namespace GlpiPlugin\Samlsso\Tests {
                     LoginState::LOGIN_DATETIME => $now,
                     LoginState::LAST_ACTIVITY => $now,
                     LoginState::LOCATION => 'https://glpi.local/index.php',
-                    LoginState::ENFORCE_LOGOFF => 0,
                     LoginState::SAML_REQUEST_ID => '',
                     LoginState::SAML_RESPONSE_ID => '',
                     LoginState::SAML_UNSOLICITED => 0,
@@ -278,16 +283,25 @@ namespace GlpiPlugin\Samlsso\Tests {
         }
 
         /**
-         * Test that inactivity timeout correctly transitions the phase to PHASE_TIMED_OUT
-         * and evalGlpiAuth does not overwrite it when the session is still active in PHP.
+         * Test that an authenticated PHASE_GLPI_AUTH session is not timed out by
+         * the plugin (session inactivity is governed natively by GLPI core), while
+         * createInitialState() initializes LOGIN_DATETIME using PHP's clock.
          */
-        public function testLoginStateInactivityTimeoutNoOverwrite(): void {
+        public function testLoginStateInactivityDelegatedToGlpiAndInitialDateTime(): void {
             global $DB;
             $db = new MockDB();
             $DB = $db;
 
+            // 1. Verify createInitialState initializes LOGIN_DATETIME immediately
+            $freshState = new LoginState();
+            $initialLoginTime = $freshState->getLoginDateTime();
+            if (empty($initialLoginTime) || abs(time() - (int)strtotime($initialLoginTime)) > 5) {
+                throw new \Exception("Expected createInitialState() to initialize LOGIN_DATETIME to current PHP time, got: " . var_export($initialLoginTime, true));
+            }
+
+            // 2. Verify PHASE_GLPI_AUTH session remains PHASE_GLPI_AUTH while PHP session is valid
             $table = LoginState::getTable();
-            $staleTime = gmdate('Y-m-d H:i:s', time() - 1200); // 20 mins ago
+            $staleTime = date('Y-m-d H:i:s', time() - 1200);
 
             $db->setResponse($table, [
                 [
@@ -301,7 +315,6 @@ namespace GlpiPlugin\Samlsso\Tests {
                     LoginState::LOGIN_DATETIME => $staleTime,
                     LoginState::LAST_ACTIVITY => $staleTime,
                     LoginState::LOCATION => 'https://glpi.local/index.php',
-                    LoginState::ENFORCE_LOGOFF => 0,
                     LoginState::SAML_REQUEST_ID => '',
                     LoginState::SAML_RESPONSE_ID => '',
                     LoginState::SAML_UNSOLICITED => 0,
@@ -313,25 +326,476 @@ namespace GlpiPlugin\Samlsso\Tests {
                 ]
             ]);
 
-            // Set up $_SESSION variables so the session appears active
             $_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR] = 'test_user';
             $_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR] = session_id();
 
-            // Mock ConfigEntity inactivity timeout response
-            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields[\GlpiPlugin\Samlsso\Config\MockConfigEntity::INACTIVITY_TIMEOUT] = 15;
+            $loginState = new LoginState();
+
+            if ($loginState->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
+                throw new \Exception("Authenticated GLPI session should remain PHASE_GLPI_AUTH while PHP session is active. Got phase: " . $loginState->getPhase());
+            }
+
+            unset($_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR]);
+            unset($_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR]);
+            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields = [];
+
+            echo "✅ LoginState: initial loginTime clock and native GLPI session lifetime delegation verified\n";
+        }
+
+        /**
+         * Test that LoginState does not overwrite the user credentials when impersonation is active.
+         */
+        public function testLoginStateImpersonationNoOverwrite(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+
+            // Mock database response with original admin credentials
+            $db->setResponse($table, [
+                [
+                    LoginState::STATE_ID => 1,
+                    LoginState::IDP_ID => 2,
+                    LoginState::USER_NAME => 'admin_user',
+                    LoginState::USER_ID => 2,
+                    LoginState::SESSION_ID => session_id(),
+                    LoginState::SESSION_NAME => session_name(),
+                    LoginState::GLPI_AUTHED => 1,
+                    LoginState::SAML_AUTHED => 1,
+                    LoginState::LOGIN_DATETIME => date('Y-m-d H:i:s'),
+                    LoginState::LAST_ACTIVITY => date('Y-m-d H:i:s'),
+                    LoginState::LOCATION => 'https://glpi.local/index.php',
+                    LoginState::SAML_REQUEST_ID => '',
+                    LoginState::SAML_RESPONSE_ID => '',
+                    LoginState::SAML_UNSOLICITED => 0,
+                    LoginState::LOGIN_FLOW_TRACE => serialize([]),
+                    LoginState::PHASE => LoginState::PHASE_GLPI_AUTH,
+                    LoginState::REDIRECT => '',
+                    LoginState::CLIENT_IP => '127.0.0.1',
+                    LoginState::CLIENT_COUNTRY => 'US',
+                ]
+            ]);
+
+            // Set up $_SESSION variables to mimic an impersonated user
+            $_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR] = 'impersonated_user';
+            $_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR] = session_id();
+            $_SESSION['glpiID'] = 15; // Target impersonated user ID
+            $_SESSION['impersonator_id'] = 2; // Original admin user ID (activates impersonation)
 
             $loginState = new LoginState();
 
-            if ($loginState->getPhase() !== LoginState::PHASE_TIMED_OUT) {
-                throw new \Exception("Inactivity timeout did not transition phase to PHASE_TIMED_OUT, or evalGlpiAuth incorrectly overwrote it. Got phase: " . $loginState->getPhase());
+            // After initialization, USER_ID and USER_NAME must NOT have been updated to the impersonated user
+            if ($loginState->getUserId() !== 2) {
+                throw new \Exception("Impersonation check failed: USER_ID was overwritten. Got: " . $loginState->getUserId());
             }
 
             // Clean up
             unset($_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR]);
             unset($_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR]);
-            \GlpiPlugin\Samlsso\Config\MockConfigEntity::$mockFields = [];
+            unset($_SESSION['glpiID']);
+            unset($_SESSION['impersonator_id']);
 
-            echo "✅ LoginState: inactivity timeout transitions to TIMED_OUT and is not overwritten\n";
+            echo "✅ LoginState: impersonation check prevents overwriting user ID and name\n";
+        }
+
+        /**
+         * Test that initiating a new SAML request (or transitioning to PHASE_SAML_ACS)
+         * refreshes LOGIN_DATETIME, preventing false timeout errors on re-login (Issue #162).
+         */
+        public function testLoginStateRefreshLoginDateTimeOnNewRequest(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+
+            // Set up a session that was first seen 2 hours ago (7200s stale)
+            $twoHoursAgo = date('Y-m-d H:i:s', time() - 7200);
+
+            $db->setResponse($table, [
+                [
+                    LoginState::STATE_ID => 42,
+                    LoginState::IDP_ID => 1,
+                    LoginState::USER_NAME => 'relogin_user',
+                    LoginState::SESSION_ID => session_id(),
+                    LoginState::SESSION_NAME => 'sid',
+                    LoginState::GLPI_AUTHED => 0,
+                    LoginState::SAML_AUTHED => 0,
+                    LoginState::LOGIN_DATETIME => $twoHoursAgo,
+                    LoginState::LAST_ACTIVITY => $twoHoursAgo,
+                    LoginState::LOCATION => 'https://glpi.local/index.php',
+                    LoginState::SAML_REQUEST_ID => '',
+                    LoginState::SAML_RESPONSE_ID => '',
+                    LoginState::SAML_UNSOLICITED => 0,
+                    LoginState::LOGIN_FLOW_TRACE => serialize([]),
+                    LoginState::PHASE => LoginState::PHASE_INITIAL,
+                    LoginState::REDIRECT => '',
+                    LoginState::CLIENT_IP => '127.0.0.1',
+                    LoginState::CLIENT_COUNTRY => 'US',
+                ]
+            ]);
+
+            $loginState = new LoginState();
+
+            // Verify initial state had the stale 2-hour-old loginTime
+            if ($loginState->getLoginDateTime() !== $twoHoursAgo) {
+                throw new \Exception("Initial state did not load expected stale login time.");
+            }
+
+            // Simulate starting a new SAML request via setRequestId and setPhase(PHASE_SAML_ACS)
+            $loginState->setRequestId('ONELOGIN_fresh_request_123');
+            $loginState->setPhase(LoginState::PHASE_SAML_ACS);
+
+            // Verify that LOGIN_DATETIME has been refreshed close to current timestamp
+            $refreshedTime = strtotime($loginState->getLoginDateTime());
+            if (abs(time() - $refreshedTime) > 5) {
+                throw new \Exception("LOGIN_DATETIME was not refreshed to current time upon starting new SAML request.");
+            }
+
+            // Verify that phase is PHASE_SAML_ACS and NOT falsely marked as PHASE_TIMED_OUT
+            if ($loginState->getPhase() !== LoginState::PHASE_SAML_ACS) {
+                throw new \Exception("LoginState phase was corrupted or timed out unexpectedly. Got: " . $loginState->getPhase());
+            }
+
+            echo "✅ LoginState: LOGIN_DATETIME refresh on new SAML request verified (Issue #162)\n";
+        }
+
+        /**
+         * Test that updateLastActivity throttles database updates within the throttle window (Issue #166).
+         *
+         * @throws \Exception if throttling fails to suppress redundant updates or fails to update when forced.
+         */
+        public function testUpdateLastActivityThrottling(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+            $recentTime = date('Y-m-d H:i:s', time() - 10);
+
+            $db->setResponse($table, [
+                [
+                    LoginState::STATE_ID          => 1,
+                    LoginState::IDP_ID            => 2,
+                    LoginState::USER_NAME         => 'test_user',
+                    LoginState::SESSION_ID        => session_id(),
+                    LoginState::SESSION_NAME      => 'sid',
+                    LoginState::GLPI_AUTHED       => 1,
+                    LoginState::SAML_AUTHED       => 1,
+                    LoginState::LOGIN_DATETIME    => $recentTime,
+                    LoginState::LAST_ACTIVITY     => $recentTime,
+                    LoginState::LOCATION          => 'https://glpi.local/index.php',
+                    LoginState::SAML_REQUEST_ID   => '',
+                    LoginState::SAML_RESPONSE_ID  => '',
+                    LoginState::SAML_UNSOLICITED  => 0,
+                    LoginState::LOGIN_FLOW_TRACE  => serialize([]),
+                    LoginState::PHASE             => LoginState::PHASE_GLPI_AUTH,
+                    LoginState::REDIRECT          => '',
+                    LoginState::CLIENT_IP         => '127.0.0.1',
+                    LoginState::CLIENT_COUNTRY    => 'US',
+                ]
+            ]);
+
+            $_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR] = 'test_user';
+            $_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR] = session_id();
+
+            $loginState = new LoginState();
+
+            \CommonDBTM::$updateCallCount = 0;
+
+            /**
+             * Calling updateLastActivity within the 60s throttle window should NOT update DB.
+             */
+            $loginState->updateLastActivity(60);
+            if (\CommonDBTM::$updateCallCount !== 0) {
+                throw new \Exception("updateLastActivity should have throttled DB write within 60s window.");
+            }
+
+            /**
+             * Calling with throttleSeconds = 0 should force DB update.
+             */
+            $loginState->updateLastActivity(0);
+            if (\CommonDBTM::$updateCallCount !== 1) {
+                throw new \Exception("updateLastActivity with throttleSeconds = 0 should have executed DB update.");
+            }
+
+            echo "✅ LoginState: updateLastActivity throttling verified (Issue #166)\n";
+        }
+
+        /**
+         * Test that expireStaleAcsRequests throttles executions (Issues #151, #166).
+         *
+         * @throws \Exception if throttling logic behaves unexpectedly.
+         */
+        public function testExpireStaleCleanupsThrottling(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            LoginState::resetCleanupThrottle();
+
+            LoginState::expireStaleAcsRequests();
+            LoginState::expireStaleAcsRequests();
+
+            echo "✅ LoginState: expireStaleAcsRequests periodic throttling verified (Issues #151, #166)\n";
+        }
+
+        /**
+         * Test deep linking preservation, RelayState handling, and open redirect protection (Issue #158).
+         *
+         * @throws \Exception if deep link preservation or open redirect validation fails.
+         */
+        public function testRedirectDeepLinkingAndValidation(): void
+        {
+            global $CFG_GLPI;
+            $CFG_GLPI['url_base'] = 'https://glpi.local';
+            $CFG_GLPI['root_doc'] = '';
+
+            $stateData = [
+                LoginState::STATE_ID          => 1,
+                LoginState::IDP_ID            => 2,
+                LoginState::USER_NAME         => 'test_user',
+                LoginState::SESSION_ID        => session_id(),
+                LoginState::SESSION_NAME      => 'sid',
+                LoginState::GLPI_AUTHED       => 0,
+                LoginState::SAML_AUTHED       => 0,
+                LoginState::LOGIN_DATETIME    => date('Y-m-d H:i:s'),
+                LoginState::LAST_ACTIVITY     => date('Y-m-d H:i:s'),
+                LoginState::LOCATION          => 'https://glpi.local/index.php',
+                LoginState::SAML_REQUEST_ID   => '',
+                LoginState::SAML_RESPONSE_ID  => '',
+                LoginState::SAML_UNSOLICITED  => 0,
+                LoginState::LOGIN_FLOW_TRACE  => serialize([]),
+                LoginState::PHASE             => LoginState::PHASE_INITIAL,
+                LoginState::REDIRECT          => '',
+                LoginState::CLIENT_IP         => '127.0.0.1',
+                LoginState::CLIENT_COUNTRY    => 'US',
+            ];
+
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+            $db->setResponse($table, [$stateData]);
+
+            $_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR] = 'test_user';
+            $_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR] = session_id();
+
+            /**
+             * 1. Deep link capture from REQUEST_URI.
+             */
+            $_SERVER['REQUEST_URI'] = '/front/ticket.form.php?id=123';
+            unset($_GET[LoginState::REDIRECT]);
+            unset($_POST['RelayState']);
+
+            $loginState = new LoginState();
+            $loginState->setRedirect();
+
+            if ($loginState->getRedirect() !== '/front/ticket.form.php?id=123') {
+                throw new \Exception("Expected deep link '/front/ticket.form.php?id=123', got: " . $loginState->getRedirect());
+            }
+            if ($loginState->getSafeRedirect() !== '/front/ticket.form.php?id=123') {
+                throw new \Exception("Expected safe redirect '/front/ticket.form.php?id=123', got: " . $loginState->getSafeRedirect());
+            }
+
+            /**
+             * 2. GLPI internal token via GET redirect.
+             */
+            $_GET[LoginState::REDIRECT] = 'ticket_2_Ticket$main';
+            $loginState->setRedirect();
+            if ($loginState->getSafeRedirect() !== 'ticket_2_Ticket$main') {
+                throw new \Exception("Expected GLPI token 'ticket_2_Ticket\$main', got: " . $loginState->getSafeRedirect());
+            }
+            unset($_GET[LoginState::REDIRECT]);
+
+            /**
+             * 3. Local absolute URL normalized to relative.
+             */
+            $loginState->setRedirect('https://glpi.local/front/faq.php');
+            if ($loginState->getSafeRedirect() !== '/front/faq.php') {
+                throw new \Exception("Expected normalized local path '/front/faq.php', got: " . $loginState->getSafeRedirect());
+            }
+
+            /**
+             * 4. Open redirect attack vectors blocked.
+             */
+            $loginState->setRedirect('https://evil.attacker.com/malicious');
+            if ($loginState->getSafeRedirect() !== '') {
+                throw new \Exception("Open redirect URL was not blocked: " . $loginState->getSafeRedirect());
+            }
+
+            $loginState->setRedirect('//evil.attacker.com/malicious');
+            if ($loginState->getSafeRedirect() !== '') {
+                throw new \Exception("Protocol-relative URL was not blocked: " . $loginState->getSafeRedirect());
+            }
+
+            /**
+             * 5. Excluded non-deep-link paths should not be preserved.
+             */
+            $_SERVER['REQUEST_URI'] = '/index.php';
+            $db->setResponse($table, [$stateData]);
+            $loginState2 = new LoginState();
+            $loginState2->setRedirect();
+            if ($loginState2->getRedirect() !== '') {
+                throw new \Exception("Index path was incorrectly preserved as redirect: " . $loginState2->getRedirect());
+            }
+
+            /**
+             * 6. Static assets must not overwrite a captured deep link.
+             */
+            $_SERVER['REQUEST_URI'] = '/front/ticket.form.php?id=123';
+            $db->setResponse($table, [$stateData]);
+            $loginState3 = new LoginState();
+            $loginState3->setRedirect();
+
+            $_SERVER['REQUEST_URI'] = '/var/lib/glpi/plugins/news/js/news.js?v=f22165add49ef7b74dc816f0f9b88d54fe8753f8';
+            $loginState3->setRedirect();
+            $_GET[LoginState::REDIRECT] = '%2Fplugins%2Fnews%2Fjs%2Fnews.js%3Fv%3D1';
+            $loginState3->setRedirect();
+            unset($_GET[LoginState::REDIRECT]);
+            $loginState3->setRedirect('/css/glpi.min.CSS');
+
+            if ($loginState3->getSafeRedirect() !== '/front/ticket.form.php?id=123') {
+                throw new \Exception("Static asset overwrote deep link, got: " . $loginState3->getRedirect());
+            }
+
+            echo "✅ LoginState: deep link preservation and open redirect validation verified (Issue #158)\n";
+        }
+
+        /**
+         * Test that static asset detection matches assets only and getSafeRedirect drops stored assets.
+         */
+        public function testStaticAssetRedirectDetection(): void {
+            $assets = [
+                '/var/lib/glpi/plugins/news/js/news.js?v=f22165add49ef7b74dc816f0f9b88d54fe8753f8',
+                '%2Fplugins%2Fnews%2Fjs%2Fnews.js%3Fv%3D1',
+                '/css/glpi.min.CSS',
+                '/pics/logos/logo.png',
+                '/lib/fonts/tabler-icons.woff2',
+            ];
+            foreach ($assets as $asset) {
+                if (!LoginState::isStaticAssetRedirect($asset)) {
+                    throw new \Exception("Expected static asset redirect to be detected: " . $asset);
+                }
+            }
+
+            $pages = ['/front/ticket.form.php?id=42', 'ticket_2_Ticket$main', '/front/central.php', ''];
+            foreach ($pages as $page) {
+                if (LoginState::isStaticAssetRedirect($page)) {
+                    throw new \Exception("Page redirect was incorrectly detected as static asset: " . $page);
+                }
+            }
+
+            // A previously stored asset redirect must not be returned by getSafeRedirect.
+            global $DB;
+            $DB = new MockDB();
+            $loginState = new LoginState();
+            $refObj = new \ReflectionObject($loginState);
+            $refProp = $refObj->getProperty('state');
+            $refProp->setAccessible(true);
+            $state = $refProp->getValue($loginState);
+            $state[LoginState::REDIRECT] = $assets[0];
+            $refProp->setValue($loginState, $state);
+            if ($loginState->getSafeRedirect() !== '') {
+                throw new \Exception("getSafeRedirect returned a static asset: " . $loginState->getSafeRedirect());
+            }
+
+            echo "✅ LoginState: static asset redirects are ignored as post login target\n";
+        }
+
+        /**
+         * Test that a stateless ACS lookup by InResponseTo on an already-authenticated
+         * session (PHASE_GLPI_AUTH or responseId already recorded) does not downgrade
+         * the active session to PHASE_INITIAL or overwrite the user's username.
+         */
+        public function testStatelessReplayDoesNotMutateAuthenticatedSession(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+            $now = gmdate('Y-m-d H:i:s');
+            $db->setResponse($table, [
+                [
+                    LoginState::STATE_ID => 42,
+                    LoginState::USER_ID => 7,
+                    LoginState::IDP_ID => 1,
+                    LoginState::USER_NAME => 'legit_user',
+                    LoginState::SESSION_ID => 'legit_session_id',
+                    LoginState::SESSION_NAME => 'glpi_sid',
+                    LoginState::GLPI_AUTHED => 1,
+                    LoginState::SAML_AUTHED => 1,
+                    LoginState::LOGIN_DATETIME => $now,
+                    LoginState::LAST_ACTIVITY => $now,
+                    LoginState::LOCATION => 'https://glpi.local/front/central.php',
+                    LoginState::SAML_REQUEST_ID => 'ONELOGIN_processed_req',
+                    LoginState::SAML_RESPONSE_ID => 'RESP_processed_1',
+                    LoginState::SAML_UNSOLICITED => 0,
+                    LoginState::LOGIN_FLOW_TRACE => serialize([]),
+                    LoginState::PHASE => LoginState::PHASE_GLPI_AUTH,
+                    LoginState::REDIRECT => '',
+                    LoginState::CLIENT_IP => '10.0.0.5',
+                    LoginState::CLIENT_COUNTRY => 'NL',
+                ]
+            ]);
+
+            unset($_SESSION[LoginState::SESSION_GLPI_NAME_ACCESSOR]);
+            unset($_SESSION[LoginState::SESSION_VALID_ID_ACCESSOR]);
+            $_SERVER['REMOTE_ADDR'] = '198.51.100.99';
+
+            $replayedState = new LoginState('ONELOGIN_processed_req');
+
+            if ($replayedState->getPhase() !== LoginState::PHASE_GLPI_AUTH) {
+                throw new \Exception("Stateless replay lookup downgraded PHASE_GLPI_AUTH session to phase: " . $replayedState->getPhase());
+            }
+            if (!empty($db->updatedRows)) {
+                throw new \Exception("Stateless replay lookup should not update already-authenticated DB row.");
+            }
+
+            echo "✅ LoginState: stateless replay lookup does not mutate active authenticated session\n";
+        }
+
+        /**
+         * Test that duplicate matching rows in glpi_plugin_samlsso_loginstates
+         * throw LoginStateException rather than silently passing via operator precedence (#190).
+         */
+        public function testDuplicateStatesThrowException(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+            $row = [
+                LoginState::STATE_ID => 10,
+                LoginState::SESSION_ID => session_id(),
+                LoginState::SAML_REQUEST_ID => 'ONELOGIN_dup_req',
+                LoginState::PHASE => LoginState::PHASE_INITIAL,
+            ];
+            $db->setResponse($table, [$row, array_merge($row, [LoginState::STATE_ID => 11])]);
+
+            $threwSessionLookup = false;
+            try {
+                new LoginState();
+            } catch (\GlpiPlugin\Samlsso\Exception\LoginStateException $e) {
+                $threwSessionLookup = str_contains($e->getMessage(), 'Found duplicated states');
+            }
+            if (!$threwSessionLookup) {
+                throw new \Exception("Expected LoginStateException on duplicate session rows.");
+            }
+
+            $threwInResponseToLookup = false;
+            try {
+                new LoginState('ONELOGIN_dup_req');
+            } catch (\GlpiPlugin\Samlsso\Exception\LoginStateException $e) {
+                $threwInResponseToLookup = str_contains($e->getMessage(), 'Found duplicated states');
+            }
+            if (!$threwInResponseToLookup) {
+                throw new \Exception("Expected LoginStateException on duplicate InResponseTo rows.");
+            }
+
+            echo "✅ LoginState: duplicate matching state rows throw LoginStateException (Issue #190)\n";
         }
     }
 }
@@ -344,7 +808,15 @@ namespace {
         $test->testLoginStateRequestTimeout();
         $test->testLoginStateSessionExpiry();
         $test->testLoginStateLocationFallback();
-        $test->testLoginStateInactivityTimeoutNoOverwrite();
+        $test->testLoginStateInactivityDelegatedToGlpiAndInitialDateTime();
+        $test->testLoginStateImpersonationNoOverwrite();
+        $test->testLoginStateRefreshLoginDateTimeOnNewRequest();
+        $test->testUpdateLastActivityThrottling();
+        $test->testExpireStaleCleanupsThrottling();
+        $test->testRedirectDeepLinkingAndValidation();
+        $test->testStaticAssetRedirectDetection();
+        $test->testStatelessReplayDoesNotMutateAuthenticatedSession();
+        $test->testDuplicateStatesThrowException();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

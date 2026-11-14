@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.3.2
+ *  @version    1.4.0
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -77,90 +77,90 @@ namespace GlpiPlugin\Samlsso\Tests {
          * @throws \Exception if capturing schema fails or if mismatched types are found.
          */
         public function testSchemaVsConstants(): void {
-            global $DB;
-            
+            $dbFields = $this->captureInstalledConfigColumns();
+            $constants = (new \ReflectionClass(ConfigEntity::class))->getConstants();
+            $metaConstants = (new \ReflectionClass(ConfigItem::class))->getConstants();
+
+            foreach ($constants as $name => $field) {
+                if ($name === 'class' || !is_string($field) || array_key_exists($name, $metaConstants)) {
+                    continue;
+                }
+                if (!isset($dbFields[$field])) {
+                    throw new \Exception("ConfigEntity constant '$name' refers to field '$field' which is NOT in the captured database schema.");
+                }
+                $this->assertFieldTypeMatchesSchema($field, $dbFields[$field]);
+            }
+
+            echo "✅ Deep Schema Integrity: Constants, Environmental Mocks, and Datatypes validated\n";
+        }
+
+        /**
+         * Run Config::install() against a mock schema environment and parse column definitions.
+         *
+         * @return array Map of column name => uppercase SQL type keyword.
+         * @throws \Exception when captured CREATE TABLE SQL is missing expected options or columns.
+         */
+        private function captureInstalledConfigColumns(): array {
             $customCharset = 'test_charset_' . uniqid();
             $customCollation = 'test_collation_' . uniqid();
             $customSign = 'UNSIGNED_TEST';
-            
+
             DBConnection::$defaultCharset = $customCharset;
             DBConnection::$defaultCollation = $customCollation;
             DBConnection::$defaultPrimaryKeySignOption = $customSign;
-            
+
             $this->db->mockTableExists = false;
-            $migration = new Migration('1.0.0');
-            
-            Config::install($migration);
-            
+            Config::install(new Migration('1.0.0'));
             $sql = $this->db->lastQuery;
-            
+
             if (empty($sql) || !str_contains($sql, 'CREATE TABLE')) {
-                throw new \Exception("Failed to capture CREATE TABLE statement.");
+                throw new \Exception('Failed to capture CREATE TABLE statement.');
             }
-
-            if (!str_contains($sql, $customCharset)) {
-                throw new \Exception("SQL missing custom charset: $customCharset");
+            if (!str_contains($sql, $customCharset) || !str_contains($sql, $customCollation) || !str_contains($sql, $customSign)) {
+                throw new \Exception('SQL missing custom charset, collation, or PK sign option.');
             }
-            if (!str_contains($sql, $customCollation)) {
-                throw new \Exception("SQL missing custom collation: $customCollation");
-            }
-            if (!str_contains($sql, $customSign)) {
-                throw new \Exception("SQL missing custom PK sign: $customSign");
-            }
-
             if (!preg_match('/\((.*)\)/s', $sql, $matches)) {
-                throw new \Exception("Could not parse fields from SQL.");
+                throw new \Exception('Could not parse fields from SQL.');
             }
-            
-            $fieldsBlock = $matches[1];
-            preg_match_all('/`(\w+)`?\s+([A-Za-z]+)/', $fieldsBlock, $fieldMatches);
-            
+
+            preg_match_all('/`(\w+)`?\s+([A-Za-z]+)/', $matches[1], $fieldMatches);
             $dbFields = [];
             for ($i = 0; $i < count($fieldMatches[1]); $i++) {
                 $dbFields[$fieldMatches[1][$i]] = strtoupper($fieldMatches[2][$i]);
             }
 
-            $reflection = new \ReflectionClass(ConfigEntity::class);
-            $constants = $reflection->getConstants();
-            $itemReflection = new \ReflectionClass(ConfigItem::class);
-            $metaConstants = $itemReflection->getConstants();
+            return $dbFields;
+        }
 
-            foreach ($constants as $name => $field) {
-                if ($name === 'class' || !is_string($field)) {
-                    continue;
-                }
-                if (array_key_exists($name, $metaConstants)) {
-                    continue;
-                }
-                
-                if (!isset($dbFields[$field])) {
-                    throw new \Exception("ConfigEntity constant '$name' refers to field '$field' which is NOT in the captured database schema.");
-                }
+        /**
+         * Verify that a ConfigEntity constant column maps to the expected SQL data type.
+         *
+         * @param string $field Column name.
+         * @param string $actualType Uppercase SQL type name.
+         * @return void
+         * @throws \Exception on column type mismatch.
+         */
+        private function assertFieldTypeMatchesSchema(string $field, string $actualType): void {
+            $textFields = ['sp_certificate', 'sp_private_key', 'idp_certificate', 'requested_authn_context', 'comment', 'scim_allowed_ips'];
+            if ($field === 'id' && $actualType !== 'INT') {
+                throw new \Exception("Field 'id' should be INT, found $actualType");
+            }
+            if (str_starts_with($field, 'date_') && $actualType !== 'TIMESTAMP') {
+                throw new \Exception("Field '$field' should be TIMESTAMP, found $actualType");
+            }
+            if (in_array($field, $textFields, true) && $actualType !== 'TEXT') {
+                throw new \Exception("Field '$field' should be TEXT, found $actualType");
+            }
+            if (!in_array($actualType, ['TINYINT', 'INT', 'VARCHAR', 'TEXT', 'TIMESTAMP'], true)) {
+                return;
+            }
 
-                $actualType = $dbFields[$field];
-                
-                if ($field === 'id') {
-                    if ($actualType !== 'INT') {
-                        throw new \Exception("Field 'id' should be INT, found $actualType");
-                    }
-                } elseif (str_starts_with($field, 'date_')) {
-                    if ($actualType !== 'TIMESTAMP') {
-                        throw new \Exception("Field '$field' should be TIMESTAMP, found $actualType");
-                    }
-                } elseif (in_array($field, ['sp_certificate', 'sp_private_key', 'idp_certificate', 'requested_authn_context', 'comment'])) {
-                    if ($actualType !== 'TEXT') {
-                        throw new \Exception("Field '$field' should be TEXT, found $actualType");
-                    }
-                } elseif (in_array($actualType, ['TINYINT', 'INT', 'VARCHAR', 'TEXT', 'TIMESTAMP'])) {
-                    $boolPrefixes = ['enforce_', 'proxied', 'strict', 'debug', 'user_jit', 'security_', 'compress_', 'validate_', 'lowercase_', 'is_'];
-                    foreach ($boolPrefixes as $prefix) {
-                        if (str_starts_with($field, $prefix) && $actualType !== 'TINYINT') {
-                            throw new \Exception("Flag field '$field' should be TINYINT, found $actualType");
-                        }
-                    }
+            $boolPrefixes = ['enforce_', 'proxied', 'strict', 'debug', 'user_jit', 'security_', 'compress_', 'validate_', 'lowercase_', 'is_', 'force_', 'scim_enabled'];
+            foreach ($boolPrefixes as $prefix) {
+                if (str_starts_with($field, $prefix) && $actualType !== 'TINYINT') {
+                    throw new \Exception("Flag field '$field' should be TINYINT, found $actualType");
                 }
             }
-            echo "✅ Deep Schema Integrity: Constants, Environmental Mocks, and Datatypes validated\n";
         }
 
         /**
@@ -330,6 +330,818 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Inbound Security Auto-Disable when strict mode disabled verified\n";
         }
+
+        /**
+         * Test that SP private key sources (db, file, env) are loaded and validated correctly.
+         */
+        public function testSpPrivateKeySources(): void {
+            // Generate matching cert and private key
+            $res = \openssl_pkey_new([
+                "private_key_bits" => 2048,
+                "private_key_type" => OPENSSL_KEYTYPE_RSA,
+            ]);
+            $dn = ["countryName" => "NL", "organizationName" => "Test", "commonName" => "localhost"];
+            $csr = \openssl_csr_new($dn, $res);
+            $certRes = \openssl_csr_sign($csr, null, $res, 365);
+            \openssl_x509_export($certRes, $certStr);
+            \openssl_pkey_export($res, $privateKeyStr);
+
+            $basePostData = [
+                ConfigEntity::ID                 => '1',
+                ConfigEntity::NAME               => 'Test IDP',
+                ConfigEntity::CONF_DOMAIN        => 'example.com',
+                ConfigEntity::IS_ACTIVE          => '1',
+                ConfigEntity::IS_DELETED         => '0',
+                ConfigEntity::STRICT             => '1',
+                ConfigEntity::DEBUG              => '0',
+                ConfigEntity::SP_CERTIFICATE     => $certStr,
+                ConfigEntity::IDP_ENTITY_ID      => 'http://idp.example.com',
+                ConfigEntity::IDP_SSO_URL        => 'http://idp.example.com/sso',
+                ConfigEntity::IDP_SLO_URL        => 'http://idp.example.com/slo',
+                ConfigEntity::IDP_CERTIFICATE    => $certStr,
+                ConfigEntity::REQUEST_TIMEOUT    => '15',
+                ConfigEntity::INACTIVITY_TIMEOUT => '0',
+                ConfigEntity::ENFORCE_SSO        => '1',
+                ConfigEntity::PROXIED            => '0',
+                ConfigEntity::USER_JIT           => '1',
+                ConfigEntity::SYNC_ON_LOGIN      => '0',
+                ConfigEntity::ENCRYPT_NAMEID     => '0',
+                ConfigEntity::SIGN_AUTHN         => '0',
+                ConfigEntity::SIGN_SLO_REQ       => '0',
+                ConfigEntity::SIGN_SLO_RES       => '0',
+                ConfigEntity::COMPRESS_REQ       => '1',
+                ConfigEntity::COMPRESS_RES       => '1',
+                ConfigEntity::XML_VALIDATION     => '1',
+                ConfigEntity::DEST_VALIDATION    => '1',
+                ConfigEntity::LOWERCASE_URL      => '0',
+                ConfigEntity::SECURITY_WANTMESSAGESSIGNED => '0',
+                ConfigEntity::SECURITY_WANTASSERTIONSSIGNED => '0',
+                ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED => '0',
+                ConfigEntity::SECURITY_SIGNMETADATA => '0',
+                ConfigEntity::SECURITY_WANTNAMEID => '0',
+                ConfigEntity::SP_NAME_FORMAT => 'unspecified',
+                ConfigEntity::AUTHN_CONTEXT => 'none',
+                ConfigEntity::AUTHN_COMPARE => 'exact',
+            ];
+
+            // 1. Test legacy 'db' source
+            ConfigEntity::clearCache();
+            $postDataDb = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'db',
+                ConfigEntity::SP_KEY        => $privateKeyStr,
+            ]);
+            $entityDb = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataDb]);
+            $entityDb->getFields();
+            if (!$entityDb->isValid()) {
+                throw new \Exception("Legacy 'db' source failed validation.");
+            }
+            $phpSamlConfigDb = $entityDb->getPhpSamlConfig();
+            if ($phpSamlConfigDb['sp']['privateKey'] !== $privateKeyStr) {
+                throw new \Exception("Failed to read private key from DB source.");
+            }
+
+            // 2. Test 'env' source
+            // 2a. Valid env var
+            putenv("TEST_SAMLSSO_SP_KEY=" . $privateKeyStr);
+            ConfigEntity::clearCache();
+            $postDataEnv = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'env',
+                ConfigEntity::SP_KEY        => 'TEST_SAMLSSO_SP_KEY',
+            ]);
+            $entityEnv = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataEnv]);
+            $fieldsEnv = $entityEnv->getFields();
+            if (!$entityEnv->isValid()) {
+                $err = $fieldsEnv[ConfigEntity::SP_KEY][ConfigItem::ERRORS] ?? 'unknown';
+                throw new \Exception("Valid 'env' source failed validation. Error: " . $err);
+            }
+            $phpSamlConfigEnv = $entityEnv->getPhpSamlConfig();
+            if ($phpSamlConfigEnv['sp']['privateKey'] !== $privateKeyStr) {
+                throw new \Exception("Failed to read private key from Env source.");
+            }
+            // 2b. Invalid/missing env var
+            ConfigEntity::clearCache();
+            $postDataEnvInvalid = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'env',
+                ConfigEntity::SP_KEY        => 'NON_EXISTENT_ENV_VAR_123',
+            ]);
+            $entityEnvInvalid = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataEnvInvalid]);
+            $entityEnvInvalid->getFields();
+            if ($entityEnvInvalid->isValid()) {
+                throw new \Exception("Invalid 'env' source should have failed validation.");
+            }
+
+            // 3. Test 'file' source
+            // 3a. Valid file path outside GLPI_ROOT
+            $outsidePath = sys_get_temp_dir() . '/saml_test_key.key';
+            file_put_contents($outsidePath, $privateKeyStr);
+            ConfigEntity::clearCache();
+            $postDataFile = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'file',
+                ConfigEntity::SP_KEY        => $outsidePath,
+            ]);
+            $entityFile = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataFile]);
+            $entityFile->getFields();
+            $isValid = $entityFile->isValid();
+            @unlink($outsidePath);
+            if (!$isValid) {
+                throw new \Exception("Valid 'file' source outside docroot failed validation.");
+            }
+
+            // 3b. Invalid path inside GLPI_ROOT
+            $insidePath = GLPI_ROOT . '/plugins/samlsso/tests/saml_test_key.key';
+            file_put_contents($insidePath, $privateKeyStr);
+            ConfigEntity::clearCache();
+            $postDataFileInside = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'file',
+                ConfigEntity::SP_KEY        => $insidePath,
+            ]);
+            $entityFileInside = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataFileInside]);
+            $entityFileInside->getFields();
+            $isValidInside = $entityFileInside->isValid();
+            @unlink($insidePath);
+            if ($isValidInside) {
+                throw new \Exception("File path inside GLPI_ROOT should have failed docroot validation.");
+            }
+
+            /**
+             * 4. Test 'define' source (Issue #142)
+             */
+            if (!defined('GLPI_SAML_TEST_SP_PRIVATE_KEY')) {
+                define('GLPI_SAML_TEST_SP_PRIVATE_KEY', $privateKeyStr);
+            }
+            ConfigEntity::clearCache();
+            $postDataDefine = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'define',
+                ConfigEntity::SP_KEY        => 'GLPI_SAML_TEST_SP_PRIVATE_KEY',
+            ]);
+            $entityDefine = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataDefine]);
+            $entityDefine->getFields();
+            if (!$entityDefine->isValid()) {
+                throw new \Exception("Valid 'define' source failed validation.");
+            }
+            $phpSamlConfigDefine = $entityDefine->getPhpSamlConfig();
+            if ($phpSamlConfigDefine['sp']['privateKey'] !== $privateKeyStr) {
+                throw new \Exception("Failed to read private key from Define source.");
+            }
+
+            /**
+             * 4b. Invalid/missing define constant
+             */
+            ConfigEntity::clearCache();
+            $postDataDefineInvalid = array_merge($basePostData, [
+                ConfigEntity::SP_KEY_SOURCE => 'define',
+                ConfigEntity::SP_KEY        => 'NON_EXISTENT_DEFINE_CONST_123',
+            ]);
+            $entityDefineInvalid = new ConfigEntity(-1, ['template' => 'post', 'postData' => $postDataDefineInvalid]);
+            $entityDefineInvalid->getFields();
+            if ($entityDefineInvalid->isValid()) {
+                throw new \Exception("Invalid 'define' source should have failed validation.");
+            }
+
+            echo "✅ Config: SP private key source (db, file, env, define) loading and docroot validation verified\n";
+        }
+
+        /**
+         * Test that force_authn configuration option is mapped and propagated correctly.
+         *
+         * @throws \Exception if force_authn behavior is incorrect.
+         */
+        public function testForceAuthnConfig(): void {
+            if (ConfigEntity::FORCE_AUTHN !== 'force_authn') {
+                throw new \Exception("ConfigEntity::FORCE_AUTHN should be 'force_authn'");
+            }
+
+            $entity = new ConfigEntity();
+            $fields = $entity->getFields();
+            if (!array_key_exists(ConfigEntity::FORCE_AUTHN, $fields)) {
+                throw new \Exception("force_authn not present in ConfigEntity getFields()");
+            }
+
+            $reflectionMethod = new \ReflectionMethod(ConfigItem::class, 'force_authn');
+            $reflectionMethod->setAccessible(true);
+
+            $res = $reflectionMethod->invoke($entity, 1);
+            if (empty($res[ConfigItem::VALUE])) {
+                throw new \Exception("force_authn validator did not handle 1 as active value");
+            }
+
+            $resOff = $reflectionMethod->invoke($entity, 0);
+            if (!empty($resOff[ConfigItem::VALUE])) {
+                throw new \Exception("force_authn validator did not handle 0 as inactive value");
+            }
+
+            echo "✅ Config: force_authn configuration mapping and validation verified (Issue #130)\n";
+        }
+
+        /**
+         * Test that custom button icon URL and login screen header text are correctly
+         * configured, validated, and retrievable via ConfigEntity (Issue #159).
+         */
+        public function testCustomLoginScreenHeaderAndButtonIcon(): void {
+            if (ConfigEntity::CONF_ICON_URL !== 'conf_icon_url') {
+                throw new \Exception("ConfigEntity::CONF_ICON_URL should be 'conf_icon_url'");
+            }
+            if (ConfigEntity::LOGIN_HEADER_TEXT !== 'login_header_text') {
+                throw new \Exception("ConfigEntity::LOGIN_HEADER_TEXT should be 'login_header_text'");
+            }
+
+            $entity = new ConfigEntity();
+            $fields = $entity->getFields();
+            if (!array_key_exists(ConfigEntity::CONF_ICON_URL, $fields)) {
+                throw new \Exception("conf_icon_url not present in ConfigEntity getFields()");
+            }
+            if (!array_key_exists(ConfigEntity::LOGIN_HEADER_TEXT, $fields)) {
+                throw new \Exception("login_header_text not present in ConfigEntity getFields()");
+            }
+
+            $iconUrlRefl = new \ReflectionMethod(ConfigItem::class, 'conf_icon_url');
+            $iconUrlRefl->setAccessible(true);
+            $resIcon = $iconUrlRefl->invoke($entity, 'https://example.com/logo.png');
+            if ($resIcon[ConfigItem::VALUE] !== 'https://example.com/logo.png') {
+                throw new \Exception("conf_icon_url validator did not store value");
+            }
+
+            $headerRefl = new \ReflectionMethod(ConfigItem::class, 'login_header_text');
+            $headerRefl->setAccessible(true);
+            $resHeader = $headerRefl->invoke($entity, 'Sign in with Corporate SSO');
+            if ($resHeader[ConfigItem::VALUE] !== 'Sign in with Corporate SSO') {
+                throw new \Exception("login_header_text validator did not store value");
+            }
+
+            echo "✅ Config: custom login screen header and icon URL verified (Issue #159)\n";
+        }
+
+        /**
+         * Test that sp_private_key is excluded from rawSearchOptions(),
+         * included in getUndisclosedFields(), and encrypted with GLPIKey.
+         */
+        public function testSpPrivateKeySecurity(): void
+        {
+            $config = new Config();
+            $options = $config->rawSearchOptions();
+            foreach ($options as $opt) {
+                if (($opt['field'] ?? '') === ConfigEntity::SP_KEY) {
+                    throw new \Exception("sp_private_key must NOT be exposed in rawSearchOptions()");
+                }
+            }
+
+            if (!in_array(ConfigEntity::SP_KEY, Config::getUndisclosedFields())) {
+                throw new \Exception("sp_private_key must be registered in getUndisclosedFields()");
+            }
+
+            // Test GLPIKey encryption / decryption helpers in ConfigEntity
+            $pemKey = "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQD\n-----END PRIVATE KEY-----";
+            $encrypted = ConfigEntity::encryptPrivateKey($pemKey);
+            if ($encrypted === $pemKey) {
+                throw new \Exception("encryptPrivateKey did not encrypt the PEM key");
+            }
+            $decrypted = ConfigEntity::decryptPrivateKey($encrypted);
+            if ($decrypted !== $pemKey) {
+                throw new \Exception("decryptPrivateKey did not return original PEM key");
+            }
+
+            echo "✅ Config: SP private key excluded from search options, marked undisclosed, and encrypted\n";
+        }
+
+        /**
+         * Test that forcelogoff requires POST method and rejects GET requests (CSRF protection).
+         */
+        public function testForceLogoffCsrfProtection(): void {
+            $configForm = new \GlpiPlugin\Samlsso\Config\ConfigForm();
+
+            // GET request with forcelogoff action
+            $requestGet = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php?action=forcelogoff&state_id=999',
+                'GET'
+            );
+            $response = $configForm->invokeForm($requestGet);
+            if (!($response instanceof \Symfony\Component\HttpFoundation\RedirectResponse)) {
+                throw new \Exception("Expected RedirectResponse when forcelogoff is invoked via GET");
+            }
+
+            echo "✅ ConfigForm: forcelogoff GET request rejected (CSRF protection)\n";
+        }
+
+        /**
+         * Test that inactivity_timeout exposes GLPI core session lifetime (session.gc_maxlifetime)
+         * as a read-only informational field with explanation of its origin.
+         *
+         * @return void
+         * @throws \Exception If field value, explanation, or template readonly attributes are missing.
+         */
+        public function testInactivityTimeoutSessionCeilingValidation(): void {
+            $configEntity = new \GlpiPlugin\Samlsso\Config\ConfigEntity();
+            $method = new \ReflectionMethod($configEntity, 'inactivity_timeout');
+            $method->setAccessible(true);
+
+            $originalLifetime = ini_get('session.gc_maxlifetime');
+            try {
+                // Set core session lifetime to 3600 seconds (60 minutes)
+                ini_set('session.gc_maxlifetime', '3600');
+
+                $res = $method->invoke($configEntity, 0);
+                if ($res[\GlpiPlugin\Samlsso\Config\ConfigItem::EVAL] !== \GlpiPlugin\Samlsso\Config\ConfigItem::VALID) {
+                    throw new \Exception("Expected read-only GLPI session timeout field to be valid");
+                }
+                if ($res[\GlpiPlugin\Samlsso\Config\ConfigItem::VALUE] !== '60') {
+                    throw new \Exception("Expected VALUE to reflect active GLPI session.gc_maxlifetime (60 minutes), got: " . $res[\GlpiPlugin\Samlsso\Config\ConfigItem::VALUE]);
+                }
+                if ($res[\GlpiPlugin\Samlsso\Config\ConfigItem::ERRORS] !== false) {
+                    throw new \Exception("Expected ERRORS to be false on informational GLPI session timeout field");
+                }
+                if (!str_contains((string)$res[\GlpiPlugin\Samlsso\Config\ConfigItem::FORMEXPLAIN], 'session.gc_maxlifetime')) {
+                    throw new \Exception("Expected formexplain to explain that the timeout originates from session.gc_maxlifetime");
+                }
+
+                $securityTpl = file_get_contents(__DIR__ . '/../templates/configForm/security.html.twig');
+                if (!str_contains($securityTpl, "'readonly': true") || !str_contains($securityTpl, "'disabled': true")) {
+                    throw new \Exception("Expected inactivity_timeout field in security.html.twig to be readonly and disabled");
+                }
+            } finally {
+                if ($originalLifetime !== false) {
+                    ini_set('session.gc_maxlifetime', (string)$originalLifetime);
+                }
+            }
+
+            echo "✅ Config: read-only GLPI session timeout visibility and explanation verified\n";
+        }
+
+        /**
+         * Test that provider.html.twig template defines dynamic input fields for alternative
+         * private key sources (file, env, define) and disables raw PEM textarea (Issue #182).
+         *
+         * @return void
+         * @throws \Exception If template elements or switching logic are missing.
+         */
+        public function testSpPrivateKeyTemplateInputs(): void {
+            $templatePath = __DIR__ . '/../templates/configForm/provider.html.twig';
+            if (!file_exists($templatePath)) {
+                throw new \Exception("provider.html.twig template not found at $templatePath");
+            }
+            $content = file_get_contents($templatePath);
+
+            // Verify reference container and text field
+            if (!str_contains($content, 'id="sp_private_key_ref_container"')) {
+                throw new \Exception("Missing #sp_private_key_ref_container in provider.html.twig (Issue #182)");
+            }
+            if (!str_contains($content, "'id': 'sp_private_key_ref'")) {
+                throw new \Exception("Missing sp_private_key_ref text input in provider.html.twig (Issue #182)");
+            }
+
+            // Verify raw PEM textarea container
+            if (!str_contains($content, 'id="sp_private_key_raw_container"')) {
+                throw new \Exception("Missing #sp_private_key_raw_container in provider.html.twig (Issue #182)");
+            }
+            if (!str_contains($content, "'id': 'sp_private_key_raw'")) {
+                throw new \Exception("Missing sp_private_key_raw textarea input in provider.html.twig (Issue #182)");
+            }
+
+            // Verify client-side dynamic switching logic
+            if (!str_contains($content, "updateKeySourceUI") || !str_contains($content, "select[name=\"sp_private_key_source\"]")) {
+                throw new \Exception("Missing updateKeySourceUI change listener in provider.html.twig (Issue #182)");
+            }
+
+            echo "✅ Config: dynamic SP private key source input switching in provider.html.twig verified (Issue #182)\n";
+        }
+
+        /**
+         * Test dynamic self-signed SP certificate generation method and endpoint guards (Issue #183, #184).
+         *
+         * @return void
+         * @throws \Exception If certificate generation, modulus validation, or endpoint security checks fail.
+         */
+        public function testGenerateCertMethodAndEndpoint(): void {
+            if (!extension_loaded('openssl') || !function_exists('openssl_pkey_new')) {
+                echo "⚠️ Skipping testGenerateCertMethodAndEndpoint: OpenSSL not available\n";
+                return;
+            }
+
+            // 1. Test ConfigEntity::generateSelfSignedCertificate() with RSA (2048 and 3072 bits)
+            $pairRsa = ConfigEntity::generateSelfSignedCertificate('saml-test.example.com', 365, 'RSA', 2048, 'prime256v1', 'sha256');
+            if ($pairRsa === false || !is_array($pairRsa)) {
+                throw new \Exception("ConfigEntity::generateSelfSignedCertificate returned false for RSA 2048");
+            }
+            if (empty($pairRsa['certificate']) || !str_contains($pairRsa['certificate'], '-----BEGIN CERTIFICATE-----')) {
+                throw new \Exception("Generated RSA certificate is missing or invalid PEM structure");
+            }
+            if (empty($pairRsa['private_key']) || !str_contains($pairRsa['private_key'], '-----BEGIN PRIVATE KEY-----')) {
+                throw new \Exception("Generated RSA private key is missing or invalid PEM structure");
+            }
+
+            // Parse generated certificate
+            $parsedCert = openssl_x509_parse($pairRsa['certificate']);
+            if (!$parsedCert || empty($parsedCert['subject']['CN'])) {
+                throw new \Exception("Failed to parse generated X.509 certificate");
+            }
+            if ($parsedCert['subject']['CN'] !== 'saml-test.example.com') {
+                throw new \Exception("Expected CN 'saml-test.example.com', got '{$parsedCert['subject']['CN']}'");
+            }
+
+            // Validate key pair modulus match via ConfigEntity reflection
+            $configEntity = new ConfigEntity();
+            $method = new \ReflectionMethod($configEntity, 'validateCertKeyPairModulus');
+            $method->setAccessible(true);
+            $modulusMatches = $method->invoke($configEntity, $pairRsa['certificate'], $pairRsa['private_key']);
+            if (!$modulusMatches) {
+                throw new \Exception("Generated RSA certificate and private key modulus do not match");
+            }
+
+            // Test EC generation (prime256v1)
+            $pairEc = ConfigEntity::generateSelfSignedCertificate('saml-ec.example.com', 730, 'EC', 2048, 'prime256v1', 'sha384');
+            if ($pairEc === false || !is_array($pairEc)) {
+                throw new \Exception("ConfigEntity::generateSelfSignedCertificate returned false for EC prime256v1");
+            }
+            $modulusMatchesEc = $method->invoke($configEntity, $pairEc['certificate'], $pairEc['private_key']);
+            if (!$modulusMatchesEc) {
+                throw new \Exception("Generated EC certificate and private key do not match");
+            }
+
+            // Test strict security rejection of weak key lengths (< 2048 bits for RSA)
+            $pairWeak = ConfigEntity::generateSelfSignedCertificate('weak-key.example.com', 365, 'RSA', 1024);
+            if ($pairWeak !== false) {
+                throw new \Exception("ConfigEntity::generateSelfSignedCertificate must strictly reject RSA key lengths < 2048 bits");
+            }
+
+            // 2. Test template UI modal elements in provider.html.twig
+            $templatePath = __DIR__ . '/../templates/configForm/provider.html.twig';
+            $tplContent = file_get_contents($templatePath);
+            if (!str_contains($tplContent, 'id="samlsso-cert-generator-modal"')) {
+                throw new \Exception("Missing #samlsso-cert-generator-modal in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_cn"')) {
+                throw new \Exception("Missing #cert_gen_cn in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_type"')) {
+                throw new \Exception("Missing #cert_gen_type in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_key_bits"')) {
+                throw new \Exception("Missing #cert_gen_key_bits in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_curve"')) {
+                throw new \Exception("Missing #cert_gen_curve in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_valid_years"')) {
+                throw new \Exception("Missing #cert_gen_valid_years in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="cert_gen_digest"')) {
+                throw new \Exception("Missing #cert_gen_digest in provider.html.twig (Issue #184)");
+            }
+            if (!str_contains($tplContent, 'id="btn-confirm-generate-cert"')) {
+                throw new \Exception("Missing #btn-confirm-generate-cert button in provider.html.twig (Issue #184)");
+            }
+
+            // 3. Test ConfigForm endpoint guards: GET request must be rejected with 405 Method Not Allowed
+            $configForm = new \GlpiPlugin\Samlsso\Config\ConfigForm();
+            $requestGet = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php?action=generate_cert',
+                'GET'
+            );
+            $response = $configForm->invokeForm($requestGet);
+            if ($response->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_METHOD_NOT_ALLOWED) {
+                throw new \Exception("Expected HTTP 405 Method Not Allowed for GET generate_cert request, got " . $response->getStatusCode());
+            }
+
+            echo "✅ Config: dynamic configurable SP certificate generation modal, parameters, and security bounds verified (Issues #183, #184)\n";
+        }
+
+        /**
+         * Verifies configuration form tab warning allocations and evaluation accuracy (Issue #185).
+         *
+         * Ensures timeout fields (request_timeout, inactivity_timeout) are mapped to the
+         * Security tab rather than the General tab, ensures all fields in tab templates
+         * are accounted for, verifies Transit tab navigation anchor uses #transit-tab, and
+         * validates that green timezone alignment success notices do not trigger false warnings.
+         *
+         * @throws \Exception If tab mappings or warning evaluations are misaligned.
+         */
+        public function testTabWarningsFieldAlignment(): void {
+            $configForm = new \GlpiPlugin\Samlsso\Config\ConfigForm();
+
+            $baseFields = [
+                ConfigEntity::NAME => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::CONF_DOMAIN => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::CONF_ICON => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::CONF_ICON_URL => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::LOGIN_HEADER_TEXT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::COMMENT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IS_ACTIVE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::DEBUG => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::COMPRESS_REQ => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::COMPRESS_RES => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::PROXIED => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::XML_VALIDATION => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::DEST_VALIDATION => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::LOWERCASE_URL => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SP_CERTIFICATE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SP_KEY_SOURCE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SP_KEY => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SP_NAME_FORMAT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IDP_ENTITY_ID => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IDP_SSO_URL => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IDP_SLO_URL => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::IDP_CERTIFICATE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::AUTHN_CONTEXT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::AUTHN_COMPARE => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::ENFORCE_SSO => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::REQUEST_TIMEOUT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::INACTIVITY_TIMEOUT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::STRICT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::USER_JIT => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SYNC_ON_LOGIN => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::ENCRYPT_NAMEID => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SIGN_AUTHN => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::FORCE_AUTHN => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SIGN_SLO_REQ => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SIGN_SLO_RES => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_WANTMESSAGESSIGNED => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_WANTASSERTIONSSIGNED => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_SIGNMETADATA => ['eval' => ConfigItem::VALID, 'errors' => ''],
+                ConfigEntity::SECURITY_WANTNAMEID => ['eval' => ConfigItem::VALID, 'errors' => ''],
+            ];
+
+            $warnings = $configForm->getTabWarnings($baseFields);
+            if ($warnings['general_warning'] !== '' || $warnings['security_warning'] !== '' ||
+                $warnings['transit_warning'] !== '' || $warnings['provider_warning'] !== '' ||
+                $warnings['idp_warning'] !== '') {
+                throw new \Exception("Expected no warnings when all fields are valid, got: " . json_encode($warnings));
+            }
+
+            $fieldsWithTzMismatch = $baseFields;
+            $fieldsWithTzMismatch[ConfigEntity::REQUEST_TIMEOUT]['errors'] = '⚠️ Timezone Mismatch: PHP and Database connection clocks differ by 1 hours (3600 seconds).';
+            $warningsTz = $configForm->getTabWarnings($fieldsWithTzMismatch);
+            if ($warningsTz['general_warning'] !== '') {
+                throw new \Exception("General tab should NOT display warning indicator when request_timeout has timezone mismatch (Issue #185)");
+            }
+            if ($warningsTz['security_warning'] !== '⚠️') {
+                throw new \Exception("Security tab MUST display warning indicator when request_timeout has timezone mismatch (Issue #185)");
+            }
+
+            $fieldsWithInactivityWarn = $baseFields;
+            $fieldsWithInactivityWarn[ConfigEntity::INACTIVITY_TIMEOUT]['errors'] = '⚠️ Inactivity timeout (120 min) exceeds GLPI session lifetime (24 min).';
+            $warningsInact = $configForm->getTabWarnings($fieldsWithInactivityWarn);
+            if ($warningsInact['general_warning'] !== '') {
+                throw new \Exception("General tab should NOT display warning indicator when inactivity_timeout has warning (Issue #185)");
+            }
+            if ($warningsInact['security_warning'] !== '⚠️') {
+                throw new \Exception("Security tab MUST display warning indicator when inactivity_timeout has warning (Issue #185)");
+            }
+
+            $fieldsWithAlignedNotice = $baseFields;
+            $fieldsWithAlignedNotice[ConfigEntity::REQUEST_TIMEOUT]['errors'] = '<table class="table"><tr><td>✅</td></tr></table><div class="mt-2 text-success">✅ Timezone Alignment: PHP and Database connection clocks are synchronized. (Shown because Debug mode is enabled)</div>';
+            $fieldsWithAlignedNotice[ConfigEntity::REQUEST_TIMEOUT]['eval'] = ConfigItem::VALID;
+            $warningsAligned = $configForm->getTabWarnings($fieldsWithAlignedNotice);
+            if ($warningsAligned['general_warning'] !== '' || $warningsAligned['security_warning'] !== '') {
+                throw new \Exception("Synchronized timezone alignment notice should NOT trigger warning badge on General or Security tabs (Issue #185)");
+            }
+
+            $fieldsWithGeneralError = $baseFields;
+            $fieldsWithGeneralError[ConfigEntity::CONF_ICON_URL]['errors'] = 'Invalid URL format';
+            $fieldsWithGeneralError[ConfigEntity::CONF_ICON_URL]['eval'] = ConfigItem::INVALID;
+            $warningsGeneral = $configForm->getTabWarnings($fieldsWithGeneralError);
+            if ($warningsGeneral['general_warning'] !== '⚠️') {
+                throw new \Exception("General tab MUST display warning indicator when conf_icon_url is invalid (Issue #185)");
+            }
+
+            $fieldsWithForceAuthnError = $baseFields;
+            $fieldsWithForceAuthnError[ConfigEntity::FORCE_AUTHN]['errors'] = 'Invalid value';
+            $fieldsWithForceAuthnError[ConfigEntity::FORCE_AUTHN]['eval'] = ConfigItem::INVALID;
+            $warningsForceAuthn = $configForm->getTabWarnings($fieldsWithForceAuthnError);
+            if ($warningsForceAuthn['security_warning'] !== '⚠️') {
+                throw new \Exception("Security tab MUST display warning indicator when force_authn is invalid (Issue #185)");
+            }
+
+            $cfgFormTpl = file_get_contents(__DIR__ . '/../templates/configForm.html.twig');
+            if (str_contains($cfgFormTpl, 'id="general-tab"') && substr_count($cfgFormTpl, 'id="general-tab"') > 1) {
+                throw new \Exception("Duplicate id=\"general-tab\" found in configForm.html.twig; transit tab should use id=\"transit-tab\"");
+            }
+            if (!str_contains($cfgFormTpl, 'id="transit-tab"')) {
+                throw new \Exception("Missing id=\"transit-tab\" in configForm.html.twig");
+            }
+
+            echo "✅ ConfigForm: tab warning field allocations and timezone evaluation verified (Issue #185)\n";
+        }
+
+        /**
+         * Verifies diagnostic table preservation inside popovers and hidden form containers (Issues #186, #187).
+         *
+         * Ensures diagnostic tables generated by validateProxyEnvironment and validateTimezoneEnvironment
+         * are preserved as structured HTML inside label hover popovers (with sanitize: false and data-bs-html="true")
+         * rather than being flattened into plain text, and ensures inline diagnostic table containers remain
+         * cleanly hidden on the form page.
+         *
+         * @throws \Exception If diagnostic table popover guards or styles are missing.
+         */
+        public function testDiagnosticTableIntegrityAndPopoverPreservation(): void {
+            $cfgTpl = file_get_contents(__DIR__ . '/../templates/configForm.html.twig');
+            if (!str_contains($cfgTpl, 'processNotificationHelper')) {
+                throw new \Exception("Missing processNotificationHelper in configForm.html.twig (Issue #186)");
+            }
+            if (!str_contains($cfgTpl, "find('table').length > 0")) {
+                throw new \Exception("Missing table guard in notification helper processing in configForm.html.twig (Issue #186)");
+            }
+            if (!str_contains($cfgTpl, 'sanitize: true') || !str_contains($cfgTpl, 'allowList: popoverAllowList') || str_contains($cfgTpl, 'sanitize: false')) {
+                throw new \Exception("SamlSsoPopoverManager must configure sanitize: true with popoverAllowList and never use sanitize: false (Issues #180, #187)");
+            }
+            if (!str_contains($cfgTpl, "isTable ? \$textEl.html().trim() : \$textEl.text().trim()")) {
+                throw new \Exception("Notification helper must pass HTML content to popover for tables (Issue #187)");
+            }
+            if (!str_contains($cfgTpl, 'samlsso-popover-table')) {
+                throw new \Exception("Missing samlsso-popover-table class attachment for table popovers (Issue #187)");
+            }
+            if (!str_contains($cfgTpl, '$textEl.addClass(\'samlsso-diagnostic-table-container\').hide()')) {
+                throw new \Exception("Diagnostic table container must be hidden from form page (Issue #187)");
+            }
+
+            $css = file_get_contents(__DIR__ . '/../public/css/samlSSO.css');
+            if (!str_contains($css, '.samlsso-diagnostic-table-container')) {
+                throw new \Exception("Missing .samlsso-diagnostic-table-container in public/css/samlSSO.css (Issue #186)");
+            }
+            if (!str_contains($css, 'display: none !important')) {
+                throw new \Exception("Diagnostic table container must have display: none !important in public/css/samlSSO.css (Issue #187)");
+            }
+            if (!str_contains($css, '.popover.samlsso-popover-table') || !str_contains($css, '.popover:has(table)')) {
+                throw new \Exception("Missing table popover styling in public/css/samlSSO.css (Issue #187)");
+            }
+
+            $entity = new ConfigEntity();
+            $fields = $entity->getFields();
+
+            $proxiedMethod = new \ReflectionMethod($entity, 'validateProxyEnvironment');
+            $proxiedMethod->setAccessible(true);
+            $proxyResult = $proxiedMethod->invoke($entity);
+
+            if (!isset($proxyResult['htmlTable']) || !str_contains($proxyResult['htmlTable'], '<table class="table')) {
+                throw new \Exception("validateProxyEnvironment must output structured HTML table (Issue #186)");
+            }
+            if (!str_contains($proxyResult['htmlTable'], 'Condition / Parameter') ||
+                !str_contains($proxyResult['htmlTable'], 'Expected') ||
+                !str_contains($proxyResult['htmlTable'], 'Detected') ||
+                !str_contains($proxyResult['htmlTable'], 'Status')) {
+                throw new \Exception("validateProxyEnvironment table missing required standard columns (Issue #186)");
+            }
+
+            $tzMethod = new \ReflectionMethod($entity, 'validateTimezoneEnvironment');
+            $tzMethod->setAccessible(true);
+            $tzResult = $tzMethod->invoke($entity);
+            if (!isset($tzResult['htmlTable'])) {
+                throw new \Exception("validateTimezoneEnvironment must return array with htmlTable key (Issue #186)");
+            }
+
+            echo "✅ Config: diagnostic table popover rendering and form cleanliness verified (Issues #186, #187)\n";
+        }
+
+        /**
+         * Verifies RequestedAuthnContext builder, strict boolean regex anchoring, and nullable URL validator safety (Issue #195).
+         */
+        public function testAuthnContextBuilderAndValidatorPrecision(): void {
+            $getAuthn = new \ReflectionMethod(ConfigEntity::class, 'getAuthn');
+            $getAuthn->setAccessible(true);
+
+            if ($getAuthn->invoke(null, 'none') !== false || $getAuthn->invoke(null, '') !== false) {
+                throw new \Exception("ConfigEntity::getAuthn('none') must return false.");
+            }
+
+            $contexts = $getAuthn->invoke(null, 'PasswordProtectedTransport:X509');
+            $expected = [
+                'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport',
+                'urn:oasis:names:tc:SAML:2.0:ac:classes:X509',
+            ];
+            if ($contexts !== $expected) {
+                throw new \Exception("ConfigEntity::getAuthn('PasswordProtectedTransport:X509') returned unexpected result: " . var_export($contexts, true));
+            }
+
+            $entity = new ConfigEntity();
+            $ssoCheck = new \ReflectionMethod($entity, 'idp_single_sign_on_service');
+            $ssoCheck->setAccessible(true);
+            $ssoRes = $ssoCheck->invoke($entity, null);
+            if ($ssoRes[ConfigItem::EVAL] !== ConfigItem::INVALID) {
+                throw new \Exception("Nullable idp_single_sign_on_service(null) should return INVALID without throwing TypeError.");
+            }
+
+            $sloCheck = new \ReflectionMethod($entity, 'idp_single_logout_service');
+            $sloCheck->setAccessible(true);
+            $sloRes = $sloCheck->invoke($entity, null);
+            if ($sloRes[ConfigItem::EVAL] !== ConfigItem::VALID) {
+                throw new \Exception("Nullable idp_single_logout_service(null) should return VALID without throwing TypeError.");
+            }
+
+            $boolCheck = new \ReflectionMethod($entity, 'handleAsBool');
+            $boolCheck->setAccessible(true);
+            if ($boolCheck->invoke($entity, '10', 'test_flag')[ConfigItem::EVAL] !== ConfigItem::INVALID) {
+                throw new \Exception("handleAsBool('10') must fail validation (anchored regex ^[01]$).");
+            }
+            if ($boolCheck->invoke($entity, '1', 'test_flag')[ConfigItem::EVAL] !== ConfigItem::VALID) {
+                throw new \Exception("handleAsBool('1') must pass validation.");
+            }
+
+            echo "✅ Config: RequestedAuthnContext builder, nullable URL validators, and anchored boolean regex verified (Issue #195)\n";
+        }
+
+        /**
+         * Verifies SCIM Bearer token generation endpoint guards, SHA-256 storage, and SCIM tab UI hygiene (Issue #199).
+         *
+         * @throws \Exception If SCIM token generation or template security assertions fail.
+         */
+        public function testScimTokenGenerationAndUiIntegrity(): void {
+            $configForm = new \GlpiPlugin\Samlsso\Config\ConfigForm();
+
+            /**
+             * 1. Reject GET method with 405 Method Not Allowed.
+             */
+            $reqGet = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php?action=generate_scim_token',
+                'GET'
+            );
+            $resGet = $configForm->invokeForm($reqGet);
+            if ($resGet->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_METHOD_NOT_ALLOWED) {
+                throw new \Exception('Expected HTTP 405 for GET generate_scim_token, got ' . $resGet->getStatusCode());
+            }
+
+            /**
+             * 2. Reject POST without config UPDATE permission with 403 Forbidden.
+             */
+            \Session::$mockHaveRight = false;
+            $reqNoPerm = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php',
+                'POST',
+                ['action' => 'generate_scim_token', 'id' => 7]
+            );
+            $resNoPerm = $configForm->invokeForm($reqNoPerm);
+            \Session::$mockHaveRight = true;
+            if ($resNoPerm->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_FORBIDDEN) {
+                throw new \Exception('Expected HTTP 403 when lacking UPDATE right, got ' . $resNoPerm->getStatusCode());
+            }
+
+            /**
+             * 3. Reject unsaved IdP (id = -1) with 400 Bad Request.
+             */
+            $reqUnsaved = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php',
+                'POST',
+                ['action' => 'generate_scim_token', 'id' => -1]
+            );
+            $resUnsaved = $configForm->invokeForm($reqUnsaved);
+            if ($resUnsaved->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_BAD_REQUEST) {
+                throw new \Exception('Expected HTTP 400 for unsaved IdP id=-1, got ' . $resUnsaved->getStatusCode());
+            }
+
+            /**
+             * 4. Valid saved IdP generates 256-bit token, sets no-store, and stores only SHA-256 hex digest.
+             */
+            $this->db->updatedRows = [];
+            $this->db->setResponse('glpi_plugin_samlsso_configs', [
+                ['id' => 7, 'is_deleted' => 0, 'is_active' => 1],
+            ]);
+            $reqValid = \Symfony\Component\HttpFoundation\Request::create(
+                '/plugins/samlsso/front/configform.php',
+                'POST',
+                ['action' => 'generate_scim_token', 'id' => 7]
+            );
+            $resValid = $configForm->invokeForm($reqValid);
+            if ($resValid->getStatusCode() !== \Symfony\Component\HttpFoundation\Response::HTTP_OK) {
+                throw new \Exception('Expected HTTP 200 for valid SCIM token generation, got ' . $resValid->getStatusCode());
+            }
+            if (!str_contains((string)$resValid->headers->get('Cache-Control'), 'no-store')) {
+                throw new \Exception('SCIM token generation response must set Cache-Control: no-store.');
+            }
+            $payload = json_decode((string)$resValid->getContent(), true);
+            $plainToken = (string)($payload['token'] ?? '');
+            if (!str_starts_with($plainToken, 'scim_') || strlen($plainToken) < 69) {
+                throw new \Exception('Generated SCIM plaintext token missing scim_ prefix or sufficient entropy.');
+            }
+            $expectedHash = hash('sha256', $plainToken);
+            $lastUpdate = end($this->db->updatedRows);
+            if (
+                !is_array($lastUpdate) ||
+                ($lastUpdate['data'][ConfigEntity::SCIM_TOKEN_HASH] ?? '') !== $expectedHash ||
+                ($lastUpdate['data'][ConfigEntity::SCIM_TOKEN_SOURCE] ?? '') !== 'db'
+            ) {
+                throw new \Exception('Database update did not persist exact SHA-256 digest and db source.');
+            }
+
+            /**
+             * 5. Verify SCIM tab Beta badge and scim.html.twig DOM/storage security rules.
+             */
+            $mainTpl = (string)file_get_contents(__DIR__ . '/../templates/configForm.html.twig');
+            $scimTpl = (string)file_get_contents(__DIR__ . '/../templates/configForm/scim.html.twig');
+            if (!str_contains($mainTpl, 'id="scim-tab"') || !str_contains($mainTpl, "@samlsso/configForm/scim.html.twig") || !str_contains($mainTpl, "__('Beta', plugin)")) {
+                throw new \Exception('configForm.html.twig missing #scim-tab, Beta badge, or scim.html.twig include.');
+            }
+            if (
+                !str_contains($scimTpl, 'https://github.com/DonutsNL/samlsso/wiki/Configure-SCIM-Provisioning') ||
+                !str_contains($scimTpl, 'rel="noopener noreferrer"')
+            ) {
+                throw new \Exception('scim.html.twig missing Configure-SCIM-Provisioning wiki link or rel="noopener noreferrer".');
+            }
+            foreach (['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'localStorage', 'sessionStorage', 'alert(', 'confirm(', 'prompt('] as $forbiddenJs) {
+                if (str_contains($scimTpl, $forbiddenJs)) {
+                    throw new \Exception("scim.html.twig contains forbidden frontend pattern: $forbiddenJs");
+                }
+            }
+
+            echo "✅ Config: SCIM Bearer token generation endpoint, SHA-256 storage, and Beta UI tab verified (Issue #199)\n";
+        }
     }
 }
 
@@ -344,6 +1156,18 @@ namespace {
         $test->testDeadConfigDetection();
         $test->testMultiIdpEnforceAutoDisable();
         $test->testStrictDisabledAutoDisableInboundSecurity();
+        $test->testSpPrivateKeySources();
+        $test->testForceAuthnConfig();
+        $test->testCustomLoginScreenHeaderAndButtonIcon();
+        $test->testSpPrivateKeySecurity();
+        $test->testForceLogoffCsrfProtection();
+        $test->testInactivityTimeoutSessionCeilingValidation();
+        $test->testSpPrivateKeyTemplateInputs();
+        $test->testGenerateCertMethodAndEndpoint();
+        $test->testTabWarningsFieldAlignment();
+        $test->testDiagnosticTableIntegrityAndPopoverPreservation();
+        $test->testAuthnContextBuilderAndValidatorPrecision();
+        $test->testScimTokenGenerationAndUiIntegrity();
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);
