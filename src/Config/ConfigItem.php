@@ -1039,73 +1039,111 @@ class ConfigItem    //NOSONAR
      */
     private function validateProxyEnvironment(): array
     {
+        $ctx = $this->collectProxyEnvironmentContext();
+        if ($ctx['isValid']) {
+            return ['isValid' => true, 'htmlTable' => ''];
+        }
+
+        return ['isValid' => false, 'htmlTable' => $this->buildProxyDiagnosticTable($ctx)];
+    }
+
+    /**
+     * Collect normalized proxy header values, HTTPS state, and cookie security flags.
+     *
+     * @return array Associative proxy diagnostic context array.
+     */
+    private function collectProxyEnvironmentContext(): array
+    {
         $xff = !empty($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : '';
         $xfp = !empty($_SERVER['HTTP_X_FORWARDED_PROTO']) ? $_SERVER['HTTP_X_FORWARDED_PROTO'] : '';
         $xfh = !empty($_SERVER['HTTP_X_FORWARDED_HOST']) ? $_SERVER['HTTP_X_FORWARDED_HOST'] : '';
-        
-        $isHttps = (
-            (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] == 1)) ||
-            (strtolower($xfp) === 'https')
-        );
-        
-        $cookieSecureEnabled = (bool)ini_get('session.cookie_secure');
-        $cookieConflict = ($cookieSecureEnabled && !$isHttps);
-        $cookieSecurityMissing = ($isHttps && !$cookieSecureEnabled);
-        
-        $hasXForwarded = !empty($xff) || !empty($xfh) || !empty($xfp);
-        
-        if ($hasXForwarded && $isHttps && !$cookieConflict && !$cookieSecurityMissing) {
-            return ['isValid' => true, 'htmlTable' => ''];
-        }
-        
-        $cookieSecure = $cookieSecureEnabled ? __('Active (Secure)', PLUGIN_NAME) : __('Inactive', PLUGIN_NAME);
-        
-        $statusXff = !empty($xff) ? '✅' : '❌';
-        $statusXfp = (strtolower($xfp) === 'https') ? '✅' : '❌';
-        $statusXfh = !empty($xfh) ? '✅' : '❌';
-        $statusHttps = $isHttps ? '✅' : '❌';
-        $statusCookie = ($cookieConflict || $cookieSecurityMissing) ? '❌' : '✅';
-        
-        $detectedHttpsStr = $isHttps ? 'HTTPS' : 'HTTP';
-        
+
+        $isHttps = (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] == 1))
+            || strtolower($xfp) === 'https';
+
+        $cookieSecureEnabled   = (bool) ini_get('session.cookie_secure');
+        $cookieConflict        = $cookieSecureEnabled && !$isHttps;
+        $cookieSecurityMissing = $isHttps && !$cookieSecureEnabled;
+        $hasXForwarded         = !empty($xff) || !empty($xfh) || !empty($xfp);
+
+        return [
+            'xff'                   => $xff,
+            'xfp'                   => $xfp,
+            'xfh'                   => $xfh,
+            'isHttps'               => $isHttps,
+            'cookieSecureEnabled'   => $cookieSecureEnabled,
+            'cookieConflict'        => $cookieConflict,
+            'cookieSecurityMissing' => $cookieSecurityMissing,
+            'isValid'               => $hasXForwarded && $isHttps && !$cookieConflict && !$cookieSecurityMissing,
+        ];
+    }
+
+    /**
+     * Render the diagnostic HTML table and warning banners for proxy/cookie checks.
+     *
+     * @param array $ctx Context array produced by collectProxyEnvironmentContext().
+     * @return string Sanitized diagnostic HTML table string.
+     */
+    private function buildProxyDiagnosticTable(array $ctx): string
+    {
+        $cookieSecure  = $ctx['cookieSecureEnabled'] ? __('Active (Secure)', PLUGIN_NAME) : __('Inactive', PLUGIN_NAME);
+        $statusCookie  = ($ctx['cookieConflict'] || $ctx['cookieSecurityMissing']) ? '❌' : '✅';
+        $expectedCookie = $ctx['isHttps'] ? __('Active (Secure)', PLUGIN_NAME) : __('Any', PLUGIN_NAME);
+
         $table = '<table class="table table-bordered table-sm text-start mt-2" style="font-size: 0.8rem; min-width: 320px; margin-bottom: 0;">';
         $table .= '<thead><tr class="table-light"><th>' . __('Condition / Parameter', PLUGIN_NAME) . '</th><th>' . __('Expected', PLUGIN_NAME) . '</th><th>' . __('Detected', PLUGIN_NAME) . '</th><th>' . __('Status', PLUGIN_NAME) . '</th></tr></thead>';
         $table .= '<tbody>';
-        
-        // session.cookie_secure check
-        $expectedCookie = $isHttps ? __('Active (Secure)', PLUGIN_NAME) : __('Any', PLUGIN_NAME);
         $table .= '<tr><td>session.cookie_secure</td><td>' . $expectedCookie . '</td><td>' . $cookieSecure . '</td><td>' . $statusCookie . '</td></tr>';
-        
-        // Proxy headers (HTML escaped to prevent header injection/XSS)
-        $safeXff = htmlspecialchars($xff, ENT_QUOTES, 'UTF-8');
-        $safeXfp = htmlspecialchars($xfp, ENT_QUOTES, 'UTF-8');
-        $safeXfh = htmlspecialchars($xfh, ENT_QUOTES, 'UTF-8');
-        $detectedXff = !empty($xff) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $safeXff) : __('Not Detected', PLUGIN_NAME);
-        $detectedXfp = !empty($xfp) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $safeXfp) : __('Not Detected', PLUGIN_NAME);
-        $detectedXfh = !empty($xfh) ? sprintf(__('Detected (%s)', PLUGIN_NAME), $safeXfh) : __('Not Detected', PLUGIN_NAME);
-        
-        $linkXff = '<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For" target="_blank" rel="noopener noreferrer">X-Forwarded-For</a>';
-        $linkXfp = '<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto" target="_blank" rel="noopener noreferrer">X-Forwarded-Proto</a>';
-        $linkXfh = '<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Host" target="_blank" rel="noopener noreferrer">X-Forwarded-Host</a>';
-        
-        $table .= '<tr><td>' . $linkXff . '</td><td>' . __('Present', PLUGIN_NAME) . '</td><td>' . $detectedXff . '</td><td>' . $statusXff . '</td></tr>';
-        $table .= '<tr><td>' . $linkXfp . '</td><td>https</td><td>' . $detectedXfp . '</td><td>' . $statusXfp . '</td></tr>';
-        $table .= '<tr><td>' . $linkXfh . '</td><td>' . __('Present', PLUGIN_NAME) . '</td><td>' . $detectedXfh . '</td><td>' . $statusXfh . '</td></tr>';
-        
-        // HTTPS Context
-        $expectedHttps = $cookieSecureEnabled ? __('HTTPS (Secure)', PLUGIN_NAME) : __('HTTP or HTTPS', PLUGIN_NAME);
-        $table .= '<tr><td>HTTPS Context (PHP)</td><td>' . $expectedHttps . '</td><td>' . $detectedHttpsStr . '</td><td>' . $statusHttps . '</td></tr>';
+        $table .= $this->buildProxyHeaderRow('https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For', 'X-Forwarded-For', __('Present', PLUGIN_NAME), $ctx['xff'], !empty($ctx['xff']));
+        $table .= $this->buildProxyHeaderRow('https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto', 'X-Forwarded-Proto', 'https', $ctx['xfp'], strtolower($ctx['xfp']) === 'https');
+        $table .= $this->buildProxyHeaderRow('https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Host', 'X-Forwarded-Host', __('Present', PLUGIN_NAME), $ctx['xfh'], !empty($ctx['xfh']));
+
+        $expectedHttps = $ctx['cookieSecureEnabled'] ? __('HTTPS (Secure)', PLUGIN_NAME) : __('HTTP or HTTPS', PLUGIN_NAME);
+        $detectedHttps = $ctx['isHttps'] ? 'HTTPS' : 'HTTP';
+        $statusHttps   = $ctx['isHttps'] ? '✅' : '❌';
+        $table .= '<tr><td>HTTPS Context (PHP)</td><td>' . $expectedHttps . '</td><td>' . $detectedHttps . '</td><td>' . $statusHttps . '</td></tr>';
         $table .= '</tbody></table>';
-        
-        if ($cookieConflict) {
-            $table .= '<div class="mt-2 text-danger" style="font-size: 0.75rem; font-weight: 600;">' . __('⚠️ Conflict: Secure cookie is enabled but PHP is running in a non-secure HTTP context. Cookies will be rejected by the browser!', PLUGIN_NAME) . '</div>';
+
+        return $table . $this->buildProxyDiagnosticFooter($ctx);
+    }
+
+    /**
+     * Format a single escaped proxy header diagnostic table row.
+     *
+     * @param string $docUrl Reference URL for the HTTP header.
+     * @param string $headerName Display header name.
+     * @param string $expectedLabel Expected state label.
+     * @param string $rawValue Raw header value.
+     * @param bool $passed Whether the header meets expectations.
+     * @return string HTML table row markup.
+     */
+    private function buildProxyHeaderRow(string $docUrl, string $headerName, string $expectedLabel, string $rawValue, bool $passed): string
+    {
+        $link = '<a href="' . $docUrl . '" target="_blank" rel="noopener noreferrer">' . $headerName . '</a>';
+        $detected = !empty($rawValue)
+            ? sprintf(__('Detected (%s)', PLUGIN_NAME), htmlspecialchars($rawValue, ENT_QUOTES, 'UTF-8'))
+            : __('Not Detected', PLUGIN_NAME);
+        $status = $passed ? '✅' : '❌';
+
+        return '<tr><td>' . $link . '</td><td>' . $expectedLabel . '</td><td>' . $detected . '</td><td>' . $status . '</td></tr>';
+    }
+
+    /**
+     * Build conflict/security warning notices appended below the proxy diagnostic table.
+     *
+     * @param array $ctx Context array produced by collectProxyEnvironmentContext().
+     * @return string HTML warning blocks.
+     */
+    private function buildProxyDiagnosticFooter(array $ctx): string
+    {
+        $footer = '';
+        if ($ctx['cookieConflict']) {
+            $footer .= '<div class="mt-2 text-danger" style="font-size: 0.75rem; font-weight: 600;">' . __('⚠️ Conflict: Secure cookie is enabled but PHP is running in a non-secure HTTP context. Cookies will be rejected by the browser!', PLUGIN_NAME) . '</div>';
         }
-        if ($cookieSecurityMissing) {
-            $table .= '<div class="mt-2 text-warning" style="font-size: 0.75rem; font-weight: 600;">' . __('⚠️ Security Warning: HTTPS is detected but session.cookie_secure is disabled. Cookies are not protected!', PLUGIN_NAME) . '</div>';
+        if ($ctx['cookieSecurityMissing']) {
+            $footer .= '<div class="mt-2 text-warning" style="font-size: 0.75rem; font-weight: 600;">' . __('⚠️ Security Warning: HTTPS is detected but session.cookie_secure is disabled. Cookies are not protected!', PLUGIN_NAME) . '</div>';
         }
-        $table .= '<div class="mt-2 text-muted" style="font-size: 0.75rem;">' . __('Unsatisfied conditions might break the authentication flow in proxied or containerized environments depending on your setup and naming schemes.', PLUGIN_NAME) . '</div>';
-        
-        return ['isValid' => false, 'htmlTable' => $table];
+        return $footer . '<div class="mt-2 text-muted" style="font-size: 0.75rem;">' . __('Unsatisfied conditions might break the authentication flow in proxied or containerized environments depending on your setup and naming schemes.', PLUGIN_NAME) . '</div>';
     }
 
     /**
