@@ -756,6 +756,47 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ LoginState: stateless replay lookup does not mutate active authenticated session\n";
         }
+
+        /**
+         * Test that duplicate matching rows in glpi_plugin_samlsso_loginstates
+         * throw LoginStateException rather than silently passing via operator precedence (#190).
+         */
+        public function testDuplicateStatesThrowException(): void {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+            $row = [
+                LoginState::STATE_ID => 10,
+                LoginState::SESSION_ID => session_id(),
+                LoginState::SAML_REQUEST_ID => 'ONELOGIN_dup_req',
+                LoginState::PHASE => LoginState::PHASE_INITIAL,
+            ];
+            $db->setResponse($table, [$row, array_merge($row, [LoginState::STATE_ID => 11])]);
+
+            $threwSessionLookup = false;
+            try {
+                new LoginState();
+            } catch (\GlpiPlugin\Samlsso\Exception\LoginStateException $e) {
+                $threwSessionLookup = str_contains($e->getMessage(), 'Found duplicated states');
+            }
+            if (!$threwSessionLookup) {
+                throw new \Exception("Expected LoginStateException on duplicate session rows.");
+            }
+
+            $threwInResponseToLookup = false;
+            try {
+                new LoginState('ONELOGIN_dup_req');
+            } catch (\GlpiPlugin\Samlsso\Exception\LoginStateException $e) {
+                $threwInResponseToLookup = str_contains($e->getMessage(), 'Found duplicated states');
+            }
+            if (!$threwInResponseToLookup) {
+                throw new \Exception("Expected LoginStateException on duplicate InResponseTo rows.");
+            }
+
+            echo "✅ LoginState: duplicate matching state rows throw LoginStateException (Issue #190)\n";
+        }
     }
 }
 
@@ -775,6 +816,7 @@ namespace {
         $test->testRedirectDeepLinkingAndValidation();
         $test->testStaticAssetRedirectDetection();
         $test->testStatelessReplayDoesNotMutateAuthenticatedSession();
+        $test->testDuplicateStatesThrowException();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
