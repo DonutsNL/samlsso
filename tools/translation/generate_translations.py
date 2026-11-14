@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
+import http.client
 import os
 import sys
 import re
 import subprocess
-import urllib.request
 import urllib.parse
 import json
 import time
+
+from po_utils import normalize_entry_newlines, parse_po, write_po
 
 LANGUAGES_CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), 'languages.json'))
 OVERRIDES_CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), 'overrides.json'))
@@ -99,104 +101,33 @@ def translate_api(text, target_lang, source_lang="en"):
         return text
         
     protected, placeholders, term_placeholders = protect_placeholders(text_to_translate)
-    url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={source_lang}&tl={target_lang}&dt=t&q={urllib.parse.quote(protected)}"
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    query_path = f"/translate_a/single?client=gtx&sl={source_lang}&tl={target_lang}&dt=t&q={urllib.parse.quote(protected)}"
+    conn = None
     try:
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            translated = "".join([part[0] for part in data[0] if part[0]])
-            restored = restore_placeholders(translated, placeholders, term_placeholders)
-            return leading_icon + restored
+        conn = http.client.HTTPSConnection('translate.googleapis.com', timeout=15)
+        conn.request('GET', query_path, headers={'User-Agent': 'Mozilla/5.0'})
+        response = conn.getresponse()
+        if response.status != 200:
+            raise RuntimeError(f"HTTP {response.status} {response.reason}")
+        data = json.loads(response.read().decode('utf-8'))
+        translated = "".join([part[0] for part in data[0] if part[0]])
+        restored = restore_placeholders(translated, placeholders, term_placeholders)
+        return leading_icon + restored
     except Exception as e:
         print(f"Error calling translation API for language '{target_lang}': {e}", flush=True)
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
-def parse_po(file_path):
-    entries = []
-    current_entry = {
-        'comments': [],
-        'msgid': [],
-        'msgstr': []
-    }
-    state = None
-    
-    with open(file_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line_str = line.strip()
-            if line.startswith('#'):
-                if state:
-                    entries.append(current_entry)
-                    current_entry = {'comments': [], 'msgid': [], 'msgstr': []}
-                    state = None
-                current_entry['comments'].append(line.rstrip('\r\n'))
-            elif line.startswith('msgid'):
-                if state == 'msgstr':
-                    entries.append(current_entry)
-                    current_entry = {'comments': [], 'msgid': [], 'msgstr': []}
-                state = 'msgid'
-                match = re.match(r'^msgid\s+"(.*)"$', line.rstrip('\r\n'))
-                if match:
-                    current_entry['msgid'].append(match.group(1))
-                else:
-                    current_entry['msgid'].append("")
-            elif line.startswith('msgstr'):
-                state = 'msgstr'
-                match = re.match(r'^msgstr\s+"(.*)"$', line.rstrip('\r\n'))
-                if match:
-                    current_entry['msgstr'].append(match.group(1))
-                else:
-                    current_entry['msgstr'].append("")
-            elif line.startswith('"'):
-                match = re.match(r'^"(.*)"$', line.rstrip('\r\n'))
-                if match:
-                    val = match.group(1)
-                    if state == 'msgid':
-                        current_entry['msgid'].append(val)
-                    elif state == 'msgstr':
-                        current_entry['msgstr'].append(val)
-            elif not line_str:
-                if state:
-                    entries.append(current_entry)
-                    current_entry = {'comments': [], 'msgid': [], 'msgstr': []}
-                    state = None
-        if state or current_entry['comments']:
-            entries.append(current_entry)
-            
-    return entries
 
 def unescape_str(s):
     return s.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"').replace('\\\\', '\\')
 
+
 def escape_str(s):
     return s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\t', '\\t')
 
-def write_po(file_path, entries):
-    with open(file_path, 'w', encoding='utf-8') as f:
-        for i, entry in enumerate(entries):
-            for comment in entry['comments']:
-                f.write(comment + '\n')
-            
-            if entry['msgid'] or entry['msgstr']:
-                if len(entry['msgid']) == 1:
-                    f.write(f'msgid "{entry["msgid"][0]}"\n')
-                elif len(entry['msgid']) > 1:
-                    f.write('msgid ""\n')
-                    for part in entry['msgid']:
-                        f.write(f'"{part}"\n')
-                else:
-                    f.write('msgid ""\n')
-                    
-                if len(entry['msgstr']) == 1:
-                    f.write(f'msgstr "{entry["msgstr"][0]}"\n')
-                elif len(entry['msgstr']) > 1:
-                    f.write('msgstr ""\n')
-                    for part in entry['msgstr']:
-                        f.write(f'"{part}"\n')
-                else:
-                    f.write('msgstr ""\n')
-                
-            if i < len(entries) - 1:
-                f.write('\n')
 
 def run_command(args, description):
     print(f"Running: {description}...", flush=True)
@@ -206,122 +137,114 @@ def run_command(args, description):
         sys.exit(res.returncode)
     print(f"Success: {description}.", flush=True)
 
+
+def _sync_po_with_pot(pot_file, po_path, po_file, locale):
+    if not os.path.exists(po_path):
+        run_command(
+            ['msginit', '-i', pot_file, '-o', po_path, '-l', locale, '--no-translator'],
+            f"Initializing empty PO file for {locale}"
+        )
+    else:
+        run_command(
+            ['msgmerge', '--update', po_path, pot_file],
+            f"Merging POT into {po_file}"
+        )
+
+    backup_path = po_path + '~'
+    if os.path.exists(backup_path):
+        os.remove(backup_path)
+
+
+def _strip_fuzzy_flag(comments):
+    new_comments = []
+    for comment in comments:
+        if re.match(r'^#,\s*fuzzy', comment.strip()):
+            cleaned = re.sub(r'fuzzy,?\s*', '', comment).strip()
+            if cleaned and cleaned not in ('#,', '#'):
+                new_comments.append(cleaned)
+        else:
+            new_comments.append(comment)
+    return new_comments
+
+
+def _resolve_entry_translation(raw_text, msgstr_joined, starts_with_icon, locale, target_lang, overrides):
+    for lang_key in (locale, target_lang):
+        if lang_key in overrides and raw_text in overrides[lang_key]:
+            translated_raw = overrides[lang_key][raw_text]
+            print(f"[{locale}] Override used: \"{raw_text.strip()}\" -> \"{translated_raw.strip()}\"", flush=True)
+            return translated_raw
+
+    if target_lang == 'en':
+        return raw_text
+
+    if msgstr_joined and not starts_with_icon:
+        return unescape_str(msgstr_joined)
+
+    return translate_api(raw_text, target_lang)
+
+
+def _process_locale(locale, locales_dir, pot_file, overrides):
+    po_file = f"{locale}.po"
+    po_path = os.path.join(locales_dir, po_file)
+    target_lang = locale.split('_')[0]
+
+    _sync_po_with_pot(pot_file, po_path, po_file, locale)
+
+    print(f"Translating {po_file} (target language: '{target_lang}')...", flush=True)
+    entries = parse_po(po_path)
+    icon_prefixes = ('⚠️', '🔒', '⭕', '🆗', '🤔')
+
+    count = 0
+    for entry in entries:
+        msgid_joined = "".join(entry['msgid'])
+        msgstr_joined = "".join(entry['msgstr'])
+        is_fuzzy = any(re.match(r'^#,\s*fuzzy', c.strip()) for c in entry['comments'])
+        starts_with_icon = any(msgid_joined.startswith(icon) for icon in icon_prefixes)
+
+        if not msgid_joined or (msgstr_joined and not is_fuzzy and not starts_with_icon):
+            normalize_entry_newlines(entry)
+            continue
+
+        raw_text = unescape_str(msgid_joined)
+        translated_raw = _resolve_entry_translation(
+            raw_text, msgstr_joined, starts_with_icon, locale, target_lang, overrides
+        )
+        if translated_raw:
+            escaped = escape_str(translated_raw)
+            if is_fuzzy:
+                entry['comments'] = _strip_fuzzy_flag(entry['comments'])
+            if [escaped] != entry['msgstr'] or is_fuzzy:
+                entry['msgstr'] = [escaped]
+                count += 1
+                print(f"[{locale}] [{count}] Translated/Unfuzzied: \"{raw_text.strip()}\" -> \"{translated_raw.strip()}\"", flush=True)
+                if target_lang != 'en' and not msgstr_joined:
+                    time.sleep(0.05)
+
+        normalize_entry_newlines(entry)
+
+    print(f"[{locale}] Finished translation. Updated {count} entries.", flush=True)
+    write_po(po_path, entries)
+
+    mo_file = f"{locale}.mo"
+    mo_path = os.path.join(locales_dir, mo_file)
+    run_command(['msgfmt', po_path, '-o', mo_path], f"Compiling {po_file} to {mo_file}")
+
+
 def main():
     plugin_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     os.chdir(plugin_dir)
-    
-    # 1. Load configuration
+
     languages = load_languages_config()
     overrides = load_overrides_config()
     print(f"Loaded target languages: {languages}", flush=True)
-    
-    # 2. Regenerate POT file
+
     run_command(['./tools/generatePot.sh'], "Generating POT file (samlSSO.pot)")
-    
+
     locales_dir = 'locales'
     pot_file = os.path.join(locales_dir, 'samlSSO.pot')
-    
-    # 3. Process each configured language
     for locale in languages:
-        po_file = f"{locale}.po"
-        po_path = os.path.join(locales_dir, po_file)
-        target_lang = locale.split('_')[0]
-        
-        # Initialize or merge PO file
-        if not os.path.exists(po_path):
-            run_command(
-                ['msginit', '-i', pot_file, '-o', po_path, '-l', locale, '--no-translator'],
-                f"Initializing empty PO file for {locale}"
-            )
-        else:
-            run_command(
-                ['msgmerge', '--update', po_path, pot_file],
-                f"Merging POT into {po_file}"
-            )
-            
-        # Clean up gettext backup file if created
-        backup_path = po_path + '~'
-        if os.path.exists(backup_path):
-            os.remove(backup_path)
-            
-        # Translate entries
-        print(f"Translating {po_file} (target language: '{target_lang}')...", flush=True)
-        entries = parse_po(po_path)
-        
-        count = 0
-        for entry in entries:
-            msgid_joined = "".join(entry['msgid'])
-            msgstr_joined = "".join(entry['msgstr'])
-            
-            is_fuzzy = any(re.match(r'^#,\s*fuzzy', comment.strip()) for comment in entry['comments'])
-            starts_with_icon = any(msgid_joined.startswith(icon) for icon in ['⚠️', '🔒', '⭕', '🆗', '🤔'])
-            
-            if msgid_joined and (not msgstr_joined or is_fuzzy or starts_with_icon):
-                raw_text = unescape_str(msgid_joined)
-                
-                # Check for overrides first
-                override_text = None
-                for lang_key in [locale, target_lang]:
-                    if lang_key in overrides and raw_text in overrides[lang_key]:
-                        override_text = overrides[lang_key][raw_text]
-                        break
-                
-                if override_text is not None:
-                    translated_raw = override_text
-                    print(f"[{locale}] Override used: \"{raw_text.strip()}\" -> \"{translated_raw.strip()}\"", flush=True)
-                else:
-                    if target_lang == 'en':
-                        translated_raw = raw_text
-                    else:
-                        # If it's already translated (but was fuzzy), keep it or re-translate it if empty
-                        if msgstr_joined and not starts_with_icon:
-                            translated_raw = unescape_str(msgstr_joined)
-                        else:
-                            translated_raw = translate_api(raw_text, target_lang)
-                
-                if translated_raw:
-                    escaped = escape_str(translated_raw)
-                    if is_fuzzy:
-                        new_comments = []
-                        for comment in entry['comments']:
-                            if re.match(r'^#,\s*fuzzy', comment.strip()):
-                                cleaned = re.sub(r'fuzzy,?\s*', '', comment).strip()
-                                if cleaned and cleaned != '#,' and cleaned != '#':
-                                    new_comments.append(cleaned)
-                            else:
-                                new_comments.append(comment)
-                        entry['comments'] = new_comments
-                    
-                    if [escaped] != entry['msgstr'] or is_fuzzy:
-                        entry['msgstr'] = [escaped]
-                        count += 1
-                        print(f"[{locale}] [{count}] Translated/Unfuzzied: \"{raw_text.strip()}\" -> \"{translated_raw.strip()}\"", flush=True)
-                        if target_lang != 'en' and not msgstr_joined:
-                            time.sleep(0.05)
-                        
-        # Fix trailing newline mismatches for all entries
-        for entry in entries:
-            msgid_joined = "".join(entry['msgid'])
-            msgstr_joined = "".join(entry['msgstr'])
-            if msgid_joined != "":
-                if msgid_joined.endswith('\\n') and not msgstr_joined.endswith('\\n'):
-                    if entry['msgstr']:
-                        entry['msgstr'][-1] = entry['msgstr'][-1] + '\\n'
-                    else:
-                        entry['msgstr'] = ['\\n']
-                elif not msgid_joined.endswith('\\n') and msgstr_joined.endswith('\\n'):
-                    if entry['msgstr'] and entry['msgstr'][-1].endswith('\\n'):
-                        entry['msgstr'][-1] = entry['msgstr'][-1][:-2]
+        _process_locale(locale, locales_dir, pot_file, overrides)
 
-        print(f"[{locale}] Finished translation. Updated {count} entries.", flush=True)
-        write_po(po_path, entries)
-
-
-        # 4. Compile PO file to MO file
-        mo_file = f"{locale}.mo"
-        mo_path = os.path.join(locales_dir, mo_file)
-        run_command(['msgfmt', po_path, '-o', mo_path], f"Compiling {po_file} to {mo_file}")
-        
     print("All translation and compilation processes completed successfully!", flush=True)
 
 if __name__ == '__main__':
