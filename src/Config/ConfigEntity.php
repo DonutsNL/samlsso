@@ -459,177 +459,249 @@ class ConfigEntity extends ConfigItem
      */
     private function validateAdvancedConfig(array $fields): array
     {
-        $disable = false;
-        if (isset($fields[self::SP_CERTIFICATE]) && isset($fields[self::SP_KEY])) {
-            $spCert = $fields[self::SP_CERTIFICATE][ConfigItem::VALUE] ?? '';
-            $spKeySource = $fields[self::SP_KEY_SOURCE][ConfigItem::VALUE] ?? 'db';
-            $spKeyInput = $fields[self::SP_KEY][ConfigItem::VALUE] ?? '';
-
-            if (empty($spCert) || empty($spKeyInput)) {
-                $disable = true;
-            } else {
-                $resolvedKey = '';
-                if ($spKeySource === 'file') {
-                    $realGLPIRoot = realpath(GLPI_ROOT);
-                    $realPath = realpath($spKeyInput);
-                    if ($realPath === false || $realGLPIRoot === false || str_starts_with($realPath, $realGLPIRoot)) {
-                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ Private key file path must be located outside the GLPI root directory (docroot) for security.', PLUGIN_NAME);
-                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
-                        $this->isValid = false;
-                        $disable = true;
-                    } elseif (!is_readable($realPath) || !is_file($realPath)) {
-                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ Private key file does not exist or is not readable.', PLUGIN_NAME);
-                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
-                        $this->isValid = false;
-                        $disable = true;
-                    } else {
-                        $resolvedKey = file_get_contents($realPath) ?: '';
-                    }
-                } elseif ($spKeySource === 'env') {
-                    $envVal = getenv($spKeyInput);
-                    if ($envVal === false || empty($envVal)) {
-                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ Environment variable is not defined or is empty.', PLUGIN_NAME);
-                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
-                        $this->isValid = false;
-                        $disable = true;
-                    } else {
-                        $resolvedKey = (string)$envVal;
-                    }
-                } elseif ($spKeySource === 'define') {
-                    if (!defined($spKeyInput) || empty(constant($spKeyInput))) {
-                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ PHP constant (define) is not defined or is empty.', PLUGIN_NAME);
-                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
-                        $this->isValid = false;
-                        $disable = true;
-                    } else {
-                        $resolvedKey = (string)constant($spKeyInput);
-                    }
-                } else {
-                    $resolvedKey = self::decryptPrivateKey($spKeyInput);
-                }
-
-                if (!$disable) {
-                    if (!$this->validateCertKeyPairModulus($spCert, $resolvedKey)) {
-                        $fields[self::SP_KEY][ConfigItem::ERRORS] = __('⚠️ SP private key does not seem to match provided SP certificates modulus.', PLUGIN_NAME);
-                        $fields[self::SP_KEY][ConfigItem::EVAL] = ConfigItem::INVALID;
-                        $this->isValid = false;
-                        $disable = true;
-                    }
-                }
-            }
-        }
-        if ($disable) {
-            $errormsg = __('⚠️ Will be defaulted to "No" because the provided SP certificate does not look valid!', PLUGIN_NAME);
-            // Strict cannot be enabled without valid certificate!
-            if (isset($fields[ConfigEntity::ENCRYPT_NAMEID]) && $fields[ConfigEntity::ENCRYPT_NAMEID][ConfigItem::VALUE]) {
-                $fields[ConfigEntity::ENCRYPT_NAMEID][ConfigItem::VALUE] = false;
-                $fields[ConfigEntity::ENCRYPT_NAMEID][ConfigItem::ERRORS] = $errormsg;
-            }
-            // Strict cannot be enabled without valid certificate!
-            if (isset($fields[ConfigEntity::SIGN_AUTHN]) && $fields[ConfigEntity::SIGN_AUTHN][ConfigItem::VALUE]) {
-                $fields[ConfigEntity::SIGN_AUTHN][ConfigItem::VALUE] = false;
-                $fields[ConfigEntity::SIGN_AUTHN][ConfigItem::ERRORS] = $errormsg;
-            }
-            // Strict cannot be enabled without valid certificate!
-            if (isset($fields[ConfigEntity::SIGN_SLO_REQ]) && $fields[ConfigEntity::SIGN_SLO_REQ][ConfigItem::VALUE]) {
-                $fields[ConfigEntity::SIGN_SLO_REQ][ConfigItem::VALUE] = false;
-                $fields[ConfigEntity::SIGN_SLO_REQ][ConfigItem::ERRORS] = $errormsg;
-            }
-            // Strict cannot be enabled without valid certificate!
-            if (isset($fields[ConfigEntity::SIGN_SLO_RES]) && $fields[ConfigEntity::SIGN_SLO_RES][ConfigItem::VALUE]) {
-                $fields[ConfigEntity::SIGN_SLO_RES][ConfigItem::VALUE] = false;
-                $fields[ConfigEntity::SIGN_SLO_RES][ConfigItem::ERRORS] = $errormsg;
-            }
+        if ($this->validateSpCertificateKeyPair($fields)) {
+            $this->disableCertDependentOptions($fields);
         }
 
-        /**
-         * Disable inbound security options if strict mode is disabled
-         * and attach a warning message explaining they are not enforced.
-         */
-        if (isset($fields[ConfigEntity::STRICT])) {
-            $strict = (bool)($fields[ConfigEntity::STRICT][ConfigItem::VALUE] ?? false);
-            if (!$strict) {
-                $strictWarning = __('⚠️ These fields are only enforced when strict mode is enabled. Your environment is at risk without strict mode.', PLUGIN_NAME);
-                $inboundFields = [
-                    ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
-                    ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
-                    ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
-                    ConfigEntity::SECURITY_WANTNAMEID
-                ];
-                foreach ($inboundFields as $secField) {
-                    if (isset($fields[$secField])) {
-                        $fields[$secField][ConfigItem::VALUE] = false;
-                        $fields[$secField][ConfigItem::ERRORS] = $strictWarning;
-                    }
-                }
-            }
-        }
-
-        // Enforce option check for multiple active IDPs.
-        // If there are more than one active and configured IDPs, we automatically disable the enforce option
-        // and display a warning inline in the form.
-        global $DB;
-        $isActive = (int)($fields[ConfigEntity::IS_ACTIVE][ConfigItem::VALUE] ?? 0);
-        $isDeleted = (int)($fields[ConfigEntity::IS_DELETED][ConfigItem::VALUE] ?? 0);
-
-        if ($isActive === 1 && $isDeleted === 0) {
-            $id = $fields[ConfigEntity::ID][ConfigItem::VALUE] ?? null;
-            $where = [
-                ConfigEntity::IS_ACTIVE  => 1,
-                ConfigEntity::IS_DELETED => 0
-            ];
-            if ($id !== null && is_numeric($id) && $id > 0) {
-                $where['NOT'] = [ConfigEntity::ID => (int)$id];
-            }
-
-            $otherActiveCount = count(iterator_to_array($DB->request([
-                'FROM'  => SamlConfig::getTable(),
-                'WHERE' => $where
-            ])));
-
-            if ($otherActiveCount > 0) {
-                $fields[ConfigEntity::ENFORCE_SSO][ConfigItem::VALUE] = 0;
-                $fields[ConfigEntity::ENFORCE_SSO][ConfigItem::ERRORS] = __('⚠️ IDPs cannot be enforced if more than one is present in the IDP list.', PLUGIN_NAME);
-            }
-        }
-
-        if (isset($fields[self::SCIM_ENABLED])) {
-            $scimEnabled = (bool)($fields[self::SCIM_ENABLED][ConfigItem::VALUE] ?? false);
-            $scimSource  = (string)($fields[self::SCIM_TOKEN_SOURCE][ConfigItem::VALUE] ?? 'db');
-            $scimHash    = trim((string)($fields[self::SCIM_TOKEN_HASH][ConfigItem::VALUE] ?? ''));
-
-            if ($scimSource === 'db' && $scimHash !== '' && preg_match('/^[a-fA-F0-9]{64}$/', $scimHash) !== 1) {
-                $fields[self::SCIM_TOKEN_HASH][ConfigItem::VALUE] = '';
-                $scimHash = '';
-            }
-
-            if ($scimEnabled) {
-                if ($scimSource === 'db' && $scimHash === '') {
-                    $fields[self::SCIM_ENABLED][ConfigItem::ERRORS] = __('⚠️ SCIM provisioning is enabled without a generated Bearer token. Requests will fail closed until a token is generated.', PLUGIN_NAME);
-                } elseif ($scimSource === 'env') {
-                    if ($scimHash === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]{0,127}$/', $scimHash) !== 1) {
-                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = __('⭕ Valid environment variable name is required when SCIM token source is set to Environment Variable.', PLUGIN_NAME);
-                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::EVAL] = ConfigItem::INVALID;
-                        $this->isValid = false;
-                    } else {
-                        $envToken = getenv($scimHash);
-                        if ($envToken === false || strlen((string)$envToken) < 32) {
-                            $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = __('⚠️ Configured SCIM environment variable is undefined or shorter than 32 characters.', PLUGIN_NAME);
-                        }
-                    }
-                } elseif ($scimSource === 'define') {
-                    if ($scimHash === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]{0,127}$/', $scimHash) !== 1) {
-                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = __('⭕ Valid PHP constant name is required when SCIM token source is set to PHP Constant.', PLUGIN_NAME);
-                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::EVAL] = ConfigItem::INVALID;
-                        $this->isValid = false;
-                    } elseif (!defined($scimHash) || strlen((string)constant($scimHash)) < 32) {
-                        $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = __('⚠️ Configured SCIM PHP constant is undefined or shorter than 32 characters.', PLUGIN_NAME);
-                    }
-                }
-            }
-        }
+        $this->enforceStrictModeInboundGuards($fields);
+        $this->enforceSingleActiveIdpLimit($fields);
+        $this->validateScimTokenConfig($fields);
 
         return $fields;
+    }
+
+    /**
+     * Validate SP certificate presence and private key source resolution/modulus match.
+     *
+     * @param array $fields Normalized config fields array (mutated on validation errors).
+     * @return bool True when signing/encryption features must be disabled due to missing or invalid credentials.
+     */
+    private function validateSpCertificateKeyPair(array &$fields): bool
+    {
+        if (!isset($fields[self::SP_CERTIFICATE], $fields[self::SP_KEY])) {
+            return false;
+        }
+
+        $spCert      = $fields[self::SP_CERTIFICATE][ConfigItem::VALUE] ?? '';
+        $spKeySource = $fields[self::SP_KEY_SOURCE][ConfigItem::VALUE] ?? 'db';
+        $spKeyInput  = $fields[self::SP_KEY][ConfigItem::VALUE] ?? '';
+        if (empty($spCert) || empty($spKeyInput)) {
+            return true;
+        }
+
+        $error = null;
+        $resolvedKey = $this->resolveSpPrivateKeyMaterial((string) $spKeySource, (string) $spKeyInput, $error);
+        if ($error === null && !$this->validateCertKeyPairModulus($spCert, (string) $resolvedKey)) {
+            $error = __('⚠️ SP private key does not seem to match provided SP certificates modulus.', PLUGIN_NAME);
+        }
+
+        if ($error !== null) {
+            $fields[self::SP_KEY][ConfigItem::ERRORS] = $error;
+            $fields[self::SP_KEY][ConfigItem::EVAL]   = ConfigItem::INVALID;
+            $this->isValid = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve raw SP private key PEM content from the configured source without storing secrets blindly.
+     *
+     * @param string $spKeySource Source selector ('db', 'file', 'env', 'define').
+     * @param string $spKeyInput Field input value (path, variable name, constant name, or DB ciphertext).
+     * @param string|null $error Populated with a translated error string on failure.
+     * @return string|null Private key PEM string or null on resolution failure.
+     */
+    private function resolveSpPrivateKeyMaterial(string $spKeySource, string $spKeyInput, ?string &$error): ?string
+    {
+        if ($spKeySource === 'file') {
+            $realGLPIRoot = realpath(GLPI_ROOT);
+            $realPath = realpath($spKeyInput);
+            if ($realPath === false || $realGLPIRoot === false || str_starts_with($realPath, $realGLPIRoot)) {
+                $error = __('⚠️ Private key file path must be located outside the GLPI root directory (docroot) for security.', PLUGIN_NAME);
+                return null;
+            }
+            if (!is_readable($realPath) || !is_file($realPath)) {
+                $error = __('⚠️ Private key file does not exist or is not readable.', PLUGIN_NAME);
+                return null;
+            }
+            return file_get_contents($realPath) ?: '';
+        }
+
+        if ($spKeySource === 'env') {
+            $envVal = getenv($spKeyInput);
+            if ($envVal === false || empty($envVal)) {
+                $error = __('⚠️ Environment variable is not defined or is empty.', PLUGIN_NAME);
+                return null;
+            }
+            return (string) $envVal;
+        }
+
+        if ($spKeySource === 'define') {
+            if (!defined($spKeyInput) || empty(constant($spKeyInput))) {
+                $error = __('⚠️ PHP constant (define) is not defined or is empty.', PLUGIN_NAME);
+                return null;
+            }
+            return (string) constant($spKeyInput);
+        }
+
+        return self::decryptPrivateKey($spKeyInput);
+    }
+
+    /**
+     * Disable outbound signing/encryption flags when a valid SP keypair is unavailable.
+     *
+     * @param array $fields Normalized config fields array.
+     * @return void
+     */
+    private function disableCertDependentOptions(array &$fields): void
+    {
+        $errormsg = __('⚠️ Will be defaulted to "No" because the provided SP certificate does not look valid!', PLUGIN_NAME);
+        $certDependentFields = [
+            ConfigEntity::ENCRYPT_NAMEID,
+            ConfigEntity::SIGN_AUTHN,
+            ConfigEntity::SIGN_SLO_REQ,
+            ConfigEntity::SIGN_SLO_RES,
+        ];
+        foreach ($certDependentFields as $depField) {
+            if (isset($fields[$depField]) && $fields[$depField][ConfigItem::VALUE]) {
+                $fields[$depField][ConfigItem::VALUE]  = false;
+                $fields[$depField][ConfigItem::ERRORS] = $errormsg;
+            }
+        }
+    }
+
+    /**
+     * Force inbound SAML security checkboxes off with a risk warning when strict mode is disabled.
+     *
+     * @param array $fields Normalized config fields array.
+     * @return void
+     */
+    private function enforceStrictModeInboundGuards(array &$fields): void
+    {
+        if (!isset($fields[ConfigEntity::STRICT]) || (bool) ($fields[ConfigEntity::STRICT][ConfigItem::VALUE] ?? false)) {
+            return;
+        }
+
+        $strictWarning = __('⚠️ These fields are only enforced when strict mode is enabled. Your environment is at risk without strict mode.', PLUGIN_NAME);
+        $inboundFields = [
+            ConfigEntity::SECURITY_WANTMESSAGESSIGNED,
+            ConfigEntity::SECURITY_WANTASSERTIONSSIGNED,
+            ConfigEntity::SECURITY_WANTASSERTIONSENCRYPTED,
+            ConfigEntity::SECURITY_WANTNAMEID,
+        ];
+        foreach ($inboundFields as $secField) {
+            if (isset($fields[$secField])) {
+                $fields[$secField][ConfigItem::VALUE]  = false;
+                $fields[$secField][ConfigItem::ERRORS] = $strictWarning;
+            }
+        }
+    }
+
+    /**
+     * Disable ENFORCE_SSO when another active, non-deleted IdP configuration already exists.
+     *
+     * @param array $fields Normalized config fields array.
+     * @return void
+     */
+    private function enforceSingleActiveIdpLimit(array &$fields): void
+    {
+        global $DB;
+
+        $isActive  = (int) ($fields[ConfigEntity::IS_ACTIVE][ConfigItem::VALUE] ?? 0);
+        $isDeleted = (int) ($fields[ConfigEntity::IS_DELETED][ConfigItem::VALUE] ?? 0);
+        if ($isActive !== 1 || $isDeleted !== 0) {
+            return;
+        }
+
+        $id = $fields[ConfigEntity::ID][ConfigItem::VALUE] ?? null;
+        $where = [
+            ConfigEntity::IS_ACTIVE  => 1,
+            ConfigEntity::IS_DELETED => 0,
+        ];
+        if ($id !== null && is_numeric($id) && $id > 0) {
+            $where['NOT'] = [ConfigEntity::ID => (int) $id];
+        }
+
+        $otherActiveCount = count(iterator_to_array($DB->request([
+            'FROM'  => SamlConfig::getTable(),
+            'WHERE' => $where,
+        ])));
+        if ($otherActiveCount > 0) {
+            $fields[ConfigEntity::ENFORCE_SSO][ConfigItem::VALUE]  = 0;
+            $fields[ConfigEntity::ENFORCE_SSO][ConfigItem::ERRORS] = __('⚠️ IDPs cannot be enforced if more than one is present in the IDP list.', PLUGIN_NAME);
+        }
+    }
+
+    /**
+     * Validate SCIM Bearer token configuration across db, env, and define sources.
+     *
+     * @param array $fields Normalized config fields array.
+     * @return void
+     */
+    private function validateScimTokenConfig(array &$fields): void
+    {
+        if (!isset($fields[self::SCIM_ENABLED])) {
+            return;
+        }
+
+        $scimEnabled = (bool) ($fields[self::SCIM_ENABLED][ConfigItem::VALUE] ?? false);
+        $scimSource  = (string) ($fields[self::SCIM_TOKEN_SOURCE][ConfigItem::VALUE] ?? 'db');
+        $scimHash    = trim((string) ($fields[self::SCIM_TOKEN_HASH][ConfigItem::VALUE] ?? ''));
+
+        if ($scimSource === 'db' && $scimHash !== '' && preg_match('/^[a-fA-F0-9]{64}$/', $scimHash) !== 1) {
+            $fields[self::SCIM_TOKEN_HASH][ConfigItem::VALUE] = '';
+            $scimHash = '';
+        }
+
+        if (!$scimEnabled) {
+            return;
+        }
+
+        if ($scimSource === 'db' && $scimHash === '') {
+            $fields[self::SCIM_ENABLED][ConfigItem::ERRORS] = __('⚠️ SCIM provisioning is enabled without a generated Bearer token. Requests will fail closed until a token is generated.', PLUGIN_NAME);
+            return;
+        }
+
+        if ($scimSource === 'env' || $scimSource === 'define') {
+            $this->validateExternalScimTokenReference($fields, $scimSource, $scimHash);
+        }
+    }
+
+    /**
+     * Validate env or PHP constant identifier syntax and minimum token length for SCIM auth.
+     *
+     * @param array $fields Normalized config fields array.
+     * @param string $scimSource 'env' or 'define'.
+     * @param string $scimHash Variable or constant identifier name.
+     * @return void
+     */
+    private function validateExternalScimTokenReference(array &$fields, string $scimSource, string $scimHash): void
+    {
+        $meta = [
+            'env' => [
+                'invalid'  => __('⭕ Valid environment variable name is required when SCIM token source is set to Environment Variable.', PLUGIN_NAME),
+                'short'    => __('⚠️ Configured SCIM environment variable is undefined or shorter than 32 characters.', PLUGIN_NAME),
+                'resolved' => $scimHash !== '' ? getenv($scimHash) : false,
+            ],
+            'define' => [
+                'invalid'  => __('⭕ Valid PHP constant name is required when SCIM token source is set to PHP Constant.', PLUGIN_NAME),
+                'short'    => __('⚠️ Configured SCIM PHP constant is undefined or shorter than 32 characters.', PLUGIN_NAME),
+                'resolved' => ($scimHash !== '' && defined($scimHash)) ? constant($scimHash) : false,
+            ],
+        ][$scimSource];
+
+        if ($scimHash === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]{0,127}$/', $scimHash) !== 1) {
+            $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = $meta['invalid'];
+            $fields[self::SCIM_TOKEN_HASH][ConfigItem::EVAL]   = ConfigItem::INVALID;
+            $this->isValid = false;
+            return;
+        }
+
+        if ($meta['resolved'] === false || strlen((string) $meta['resolved']) < 32) {
+            $fields[self::SCIM_TOKEN_HASH][ConfigItem::ERRORS] = $meta['short'];
+        }
     }
 
 

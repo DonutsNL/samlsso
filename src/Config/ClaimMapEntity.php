@@ -358,31 +358,10 @@ class ClaimMapEntity extends ClaimMapItem
         $glpiField    = $mapping[ClaimMap::GLPI_FIELD] ?? '';
         $samlClaim    = $mapping[ClaimMap::SAML_CLAIM] ?? '';
         $defaultValue = $mapping[ClaimMap::DEFAULT_VALUE] ?? '';
-        $isRequired   = $mapping[ClaimMap::IS_REQUIRED] ?? 0;
+        $isRequired   = $this->trackRequiredUserFields($index, (string) $targetType, (string) $glpiField, $samlClaim, $mapping[ClaimMap::IS_REQUIRED] ?? 0, $hasUsername, $hasEmail);
 
-        if ($targetType === self::TARGET_TYPE_USER_FIELD) {
-            if ($glpiField === self::FIELD_USERNAME) {
-                if ($samlClaim === null || trim((string)$samlClaim) === '') {
-                    $this->isValid = false;
-                    $this->errors['mapping_' . $index] = __('SAML Claim key cannot be empty for Username mapping.', PLUGIN_NAME);
-                }
-                $hasUsername = true;
-                $isRequired = 1;
-            }
-            if ($glpiField === self::FIELD_EMAIL) {
-                if ($samlClaim === null || trim((string)$samlClaim) === '') {
-                    $this->isValid = false;
-                    $this->errors['mapping_' . $index] = __('SAML Claim key cannot be empty for Email mapping.', PLUGIN_NAME);
-                }
-                $hasEmail = true;
-                $isRequired = 1;
-            }
-        }
-
-        if ($samlClaim === null || trim((string)$samlClaim) === '') {
-            if ($glpiField !== self::FIELD_USERNAME && $glpiField !== self::FIELD_EMAIL) {
-                return;
-            }
+        if ($this->shouldSkipEmptyOptionalClaim($samlClaim, (string) $glpiField)) {
+            return;
         }
 
         $targetTypeVal = $this->validateTargetType($targetType);
@@ -391,38 +370,104 @@ class ClaimMapEntity extends ClaimMapItem
         $defaultVal    = $this->validateDefaultValue($defaultValue);
         $requiredVal   = $this->validateIsRequired($isRequired);
 
-        if (!$targetTypeVal['valid'] || !$fieldVal['valid'] || !$claimVal['valid'] || !$defaultVal['valid']) {
+        $rowError = $this->collectMappingRowErrors([$targetTypeVal, $fieldVal, $claimVal, $defaultVal]);
+        if ($rowError !== '') {
             $this->isValid = false;
-            $rowError = '';
-            if (!$targetTypeVal['valid']) {
-                $rowError .= $targetTypeVal['error'] . '; ';
-            }
-            if (!$fieldVal['valid']) {
-                $rowError .= $fieldVal['error'] . '; ';
-            }
-            if (!$claimVal['valid']) {
-                $rowError .= $claimVal['error'] . '; ';
-            }
-            if (!$defaultVal['valid']) {
-                $rowError .= $defaultVal['error'] . '; ';
-            }
-            $this->errors['mapping_' . $index] = rtrim($rowError, '; ');
+            $this->errors['mapping_' . $index] = $rowError;
+            return;
+        }
+
+        $uniqueKey = $targetTypeVal['value'] . ':' . $fieldVal['value'];
+        if (isset($seen[$uniqueKey])) {
+            $this->isValid = false;
+            $this->errors['mapping_' . $index] = sprintf(__('Duplicate mapping for %s: %s', PLUGIN_NAME), $targetTypeVal['value'], $fieldVal['value']);
+            return;
+        }
+
+        $seen[$uniqueKey] = true;
+        $validatedMappings[] = [
+            ClaimMap::TARGET_TYPE   => $targetTypeVal['value'],
+            ClaimMap::GLPI_FIELD    => $fieldVal['value'],
+            ClaimMap::SAML_CLAIM    => $claimVal['value'],
+            ClaimMap::DEFAULT_VALUE => $defaultVal['value'],
+            ClaimMap::IS_REQUIRED   => $requiredVal['value'],
+        ];
+    }
+
+    /**
+     * Track required Username/Email user-field mappings and flag empty claims on them.
+     *
+     * @param int $index Row index in submitted claim mappings.
+     * @param string $targetType Target mapping type.
+     * @param string $glpiField Target GLPI field key.
+     * @param mixed $samlClaim Submitted SAML claim key.
+     * @param mixed $isRequired Existing required flag value.
+     * @param bool $hasUsername Output flag tracking Username presence.
+     * @param bool $hasEmail Output flag tracking Email presence.
+     * @return mixed Effective required flag value (forced 1 for mandatory fields).
+     */
+    private function trackRequiredUserFields(
+        int $index,
+        string $targetType,
+        string $glpiField,
+        $samlClaim,
+        $isRequired,
+        bool &$hasUsername,
+        bool &$hasEmail
+    ) {
+        if ($targetType !== self::TARGET_TYPE_USER_FIELD) {
+            return $isRequired;
+        }
+
+        $requiredMessages = [
+            self::FIELD_USERNAME => __('SAML Claim key cannot be empty for Username mapping.', PLUGIN_NAME),
+            self::FIELD_EMAIL    => __('SAML Claim key cannot be empty for Email mapping.', PLUGIN_NAME),
+        ];
+        if (!isset($requiredMessages[$glpiField])) {
+            return $isRequired;
+        }
+
+        if ($samlClaim === null || trim((string) $samlClaim) === '') {
+            $this->isValid = false;
+            $this->errors['mapping_' . $index] = $requiredMessages[$glpiField];
+        }
+        if ($glpiField === self::FIELD_USERNAME) {
+            $hasUsername = true;
         } else {
-            $uniqueKey = $targetTypeVal['value'] . ':' . $fieldVal['value'];
-            if (isset($seen[$uniqueKey])) {
-                $this->isValid = false;
-                $this->errors['mapping_' . $index] = sprintf(__('Duplicate mapping for %s: %s', PLUGIN_NAME), $targetTypeVal['value'], $fieldVal['value']);
-            } else {
-                $seen[$uniqueKey] = true;
-                $validatedMappings[] = [
-                    ClaimMap::TARGET_TYPE   => $targetTypeVal['value'],
-                    ClaimMap::GLPI_FIELD    => $fieldVal['value'],
-                    ClaimMap::SAML_CLAIM    => $claimVal['value'],
-                    ClaimMap::DEFAULT_VALUE => $defaultVal['value'],
-                    ClaimMap::IS_REQUIRED   => $requiredVal['value']
-                ];
+            $hasEmail = true;
+        }
+
+        return 1;
+    }
+
+    /**
+     * Check whether an optional claim row has an empty SAML claim and should be skipped.
+     *
+     * @param mixed $samlClaim Submitted SAML claim key.
+     * @param string $glpiField Target GLPI field key.
+     * @return bool True when row is optional and blank.
+     */
+    private function shouldSkipEmptyOptionalClaim($samlClaim, string $glpiField): bool
+    {
+        $isEmptyClaim = $samlClaim === null || trim((string) $samlClaim) === '';
+        return $isEmptyClaim && $glpiField !== self::FIELD_USERNAME && $glpiField !== self::FIELD_EMAIL;
+    }
+
+    /**
+     * Join individual field validation errors for a mapping row.
+     *
+     * @param array $results List of validator result arrays containing 'valid' and 'error'.
+     * @return string Semicolon-delimited error string, or empty string when all valid.
+     */
+    private function collectMappingRowErrors(array $results): string
+    {
+        $errors = [];
+        foreach ($results as $result) {
+            if (!$result['valid']) {
+                $errors[] = $result['error'];
             }
         }
+        return implode('; ', $errors);
     }
 
     /**
