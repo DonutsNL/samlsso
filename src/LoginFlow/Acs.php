@@ -308,92 +308,141 @@ class Acs extends LoginFlow
      */
     public function assertSaml(): void
     {
-        /**
-         * Perform validation by phpSaml library against the registered state-machine RequestID.
-         * Unsolicited responses without a registered RequestID are never accepted directly.
-         */
-        try {
-            $expectedRequestId = $this->state->getSamlRequestId();
-            if ($expectedRequestId === '' || !$this->samlResponse->isValid($expectedRequestId)) {
-                $errorStr = $this->samlResponse->getError(false) ?: '';
-                $suggestion = '';
-                if ($errorStr !== '') {
-                    if (stripos($errorStr, 'not encrypted') !== false) {
-                        $suggestion = __(" (Suggestion: check 'Want Assertions Encrypted' under Inbound Security in the Security tab)", PLUGIN_NAME);
-                    } elseif (stripos($errorStr, 'not signed') !== false && stripos($errorStr, 'Message') !== false) {
-                        $suggestion = __(" (Suggestion: check 'Want Messages Signed' under Inbound Security in the Security tab)", PLUGIN_NAME);
-                    } elseif (stripos($errorStr, 'not signed') !== false && stripos($errorStr, 'assertion') !== false) {
-                        $suggestion = __(" (Suggestion: check 'Want Assertions Signed' under Inbound Security in the Security tab)", PLUGIN_NAME);
-                    } elseif (stripos($errorStr, 'not signed') !== false && stripos($errorStr, 'NameID') !== false) {
-                        $suggestion = __(" (Suggestion: check 'Want NameID Signed' under Inbound Security in the Security tab)", PLUGIN_NAME);
-                    } elseif (stripos($errorStr, 'Signature validation failed') !== false || stripos($errorStr, 'signature') !== false) {
-                        $suggestion = __(" (Suggestion: verify the Identity Provider Certificates configuration)", PLUGIN_NAME);
-                    } elseif (stripos($errorStr, 'InResponseTo') !== false) {
-                        $suggestion = __(" (Suggestion: check proxy settings or ensure request timeout has not expired)", PLUGIN_NAME);
-                    }
-                }
-                $this->printError(
-                    __("Validation of the samlResponse document failed", PLUGIN_NAME),
-                    __('Samlsso->acs->assertSaml->SamlResponse::isValid', PLUGIN_NAME),
-                    $errorStr . $suggestion
-                );
-            }
-
-            /**
-             * Enforce that any SubjectConfirmationData element inside the assertion explicitly
-             * binds InResponseTo to the expected state-machine RequestID, preventing an attacker
-             * from wrapping an unsolicited signed Assertion inside an unsigned Response.
-             */
-            $xmlDoc = $this->samlResponse->getXMLDocument();
-            if ($xmlDoc instanceof \DOMDocument) {
-                $xpath = new \DOMXPath($xmlDoc);
-                $xpath->registerNamespace('saml', 'urn:oasis:names:tc:SAML:2.0:assertion');
-                $scdNodes = $xpath->query('//saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData');
-                if ($scdNodes !== false && $scdNodes->length > 0) {
-                    foreach ($scdNodes as $scdNode) {
-                        if ($scdNode instanceof \DOMElement) {
-                            $scdInResponseTo = (string)$scdNode->getAttribute('InResponseTo');
-                            if ($scdInResponseTo === '' || !hash_equals($expectedRequestId, $scdInResponseTo)) {
-                                $this->printError(
-                                    __("Validation of the samlResponse document failed", PLUGIN_NAME),
-                                    __('Samlsso->acs->assertSaml->SubjectConfirmationData::InResponseTo', PLUGIN_NAME),
-                                    'The SubjectConfirmationData InResponseTo attribute is missing or does not match the expected RequestID.'
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Throwable $e) {
-            $errorMsg = $e->getMessage() ?: '';
-            $suggestion = '';
-            if ($errorMsg !== '') {
-                if (stripos($errorMsg, 'Signature validation failed') !== false || stripos($errorMsg, 'signature') !== false) {
-                    $suggestion = __(" (Suggestion: verify the Identity Provider Certificates configuration)", PLUGIN_NAME);
-                }
-            }
-            $this->printError(
-                __("Validation of the samlResponse document failed with a critical error", PLUGIN_NAME),
-                __('Samlsso->acs->assertSaml->SamlResponse::isValid', PLUGIN_NAME),
-                $errorMsg . $suggestion
-            );
-        }
+        $this->validateSamlDocumentEnvelope();
 
         if ($this->state->getPhase() == LoginState::PHASE_TIMED_OUT) {
             $this->handleRequestTimeout();
         }
 
-        // Prevent replay attacks, check if response_id is already used
-        // The response_id is unique and should only be processed once.
-        // This is checked by comparing the response_id from the incoming
-        // samlResponse with the response_id stored in the loginState. 
-        // If the response_id is already set in the loginState, it means that
-        // the samlResponse has already been processed and we are facing a replay attack.
-        // We also check if the state is in the correct phase and that the response_id is not empty.
+        $this->assertUniqueSamlResponseAndClaim();
+
+        if ($this->state->getPhase() != LoginState::PHASE_SAML_ACS) {
+            $this->rejectPhaseMismatchAfterClaim();
+        }
+
+        try {
+            $this->state->setPhase(LoginState::PHASE_SAML_AUTH);
+        } catch (Throwable $e) {
+            $this->printError(
+                __('An error occured while trying to update the login phase to LoginState::PHASE_SAML_AUTH into the LoginState database. Review the saml log for more details', PLUGIN_NAME),
+                __('LoginState', PLUGIN_NAME),
+                "The following error was reported: $e"
+            );
+        }
+
+        $this->performGlpiLogin($this->samlResponse, $this->state);
+    }
+
+    /**
+     * Validate the SAMLResponse signature, envelope, and SubjectConfirmationData/@InResponseTo binding.
+     *
+     * @return void
+     */
+    private function validateSamlDocumentEnvelope(): void
+    {
+        try {
+            $expectedRequestId = $this->state->getSamlRequestId();
+            if ($expectedRequestId === '' || !$this->samlResponse->isValid($expectedRequestId)) {
+                $errorStr = $this->samlResponse->getError(false) ?: '';
+                $this->printError(
+                    __('Validation of the samlResponse document failed', PLUGIN_NAME),
+                    __('Samlsso->acs->assertSaml->SamlResponse::isValid', PLUGIN_NAME),
+                    $errorStr . $this->buildSamlValidationSuggestion($errorStr)
+                );
+            }
+
+            $this->validateSubjectConfirmationInResponseTo($expectedRequestId);
+        } catch (Throwable $e) {
+            $errorMsg = $e->getMessage() ?: '';
+            $this->printError(
+                __('Validation of the samlResponse document failed with a critical error', PLUGIN_NAME),
+                __('Samlsso->acs->assertSaml->SamlResponse::isValid', PLUGIN_NAME),
+                $errorMsg . $this->buildSamlValidationSuggestion($errorMsg)
+            );
+        }
+    }
+
+    /**
+     * Enforce SubjectConfirmationData/@InResponseTo matching on assertion nodes when present.
+     *
+     * @param string $expectedRequestId Registered outbound AuthnRequest ID.
+     * @return void
+     */
+    private function validateSubjectConfirmationInResponseTo(string $expectedRequestId): void
+    {
+        $xmlDoc = $this->samlResponse->getXMLDocument();
+        if (!($xmlDoc instanceof \DOMDocument)) {
+            return;
+        }
+
+        $xpath = new \DOMXPath($xmlDoc);
+        $xpath->registerNamespace('saml', 'urn:oasis:names:tc:SAML:2.0:assertion');
+        $scdNodes = $xpath->query('//saml:Assertion/saml:Subject/saml:SubjectConfirmation/saml:SubjectConfirmationData');
+        if ($scdNodes === false || $scdNodes->length === 0) {
+            return;
+        }
+
+        foreach ($scdNodes as $scdNode) {
+            if ($scdNode instanceof \DOMElement) {
+                $scdInResponseTo = (string) $scdNode->getAttribute('InResponseTo');
+                if ($scdInResponseTo === '' || !hash_equals($expectedRequestId, $scdInResponseTo)) {
+                    $this->printError(
+                        __('Validation of the samlResponse document failed', PLUGIN_NAME),
+                        __('Samlsso->acs->assertSaml->SubjectConfirmationData::InResponseTo', PLUGIN_NAME),
+                        'The SubjectConfirmationData InResponseTo attribute is missing or does not match the expected RequestID.'
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Map common php-saml validation error messages to actionable administrator suggestions.
+     *
+     * @param string $errorMessage Underlying php-saml or exception message.
+     * @return string Translated suggestion suffix or empty string.
+     */
+    private function buildSamlValidationSuggestion(string $errorMessage): string
+    {
+        if ($errorMessage === '') {
+            return '';
+        }
+        if (stripos($errorMessage, 'not encrypted') !== false) {
+            return __(" (Suggestion: check 'Want Assertions Encrypted' under Inbound Security in the Security tab)", PLUGIN_NAME);
+        }
+        if (stripos($errorMessage, 'not signed') !== false) {
+            if (stripos($errorMessage, 'Message') !== false) {
+                return __(" (Suggestion: check 'Want Messages Signed' under Inbound Security in the Security tab)", PLUGIN_NAME);
+            }
+            if (stripos($errorMessage, 'assertion') !== false) {
+                return __(" (Suggestion: check 'Want Assertions Signed' under Inbound Security in the Security tab)", PLUGIN_NAME);
+            }
+            if (stripos($errorMessage, 'NameID') !== false) {
+                return __(" (Suggestion: check 'Want NameID Signed' under Inbound Security in the Security tab)", PLUGIN_NAME);
+            }
+        }
+        if (stripos($errorMessage, 'Signature validation failed') !== false || stripos($errorMessage, 'signature') !== false) {
+            return __(' (Suggestion: verify the Identity Provider Certificates configuration)', PLUGIN_NAME);
+        }
+        if (stripos($errorMessage, 'InResponseTo') !== false) {
+            return __(' (Suggestion: check proxy settings or ensure request timeout has not expired)', PLUGIN_NAME);
+        }
+
+        return '';
+    }
+
+    /**
+     * Verify ResponseID/AssertionID uniqueness for replay protection and claim it atomically.
+     *
+     * @return void
+     */
+    private function assertUniqueSamlResponseAndClaim(): void
+    {
         $currentResponseId = $this->samlResponse->getId();
         $currentAssertionId = method_exists($this->samlResponse, 'getAssertionId')
-            ? (string)$this->samlResponse->getAssertionId()
+            ? (string) $this->samlResponse->getAssertionId()
             : '';
+
         if (
             empty($currentResponseId) ||
             $this->state->getPhase() != LoginState::PHASE_SAML_ACS ||
@@ -401,74 +450,84 @@ class Acs extends LoginFlow
             !$this->state->checkResponseIdUnique($currentResponseId) ||
             ($currentAssertionId !== '' && !$this->state->checkResponseIdUnique($currentAssertionId))
         ) {
-            $this->printError(
-                sprintf(
-                    __('It looks like this samlResponse has already been used to authenticate a different user. Maybe an error occurred and you pressed F5 and accidently resend the samlResponse that is already registered as processed. For security reasons we can not allow processed samlResponses to be processed again. Please login again to generate a new samlResponse. Sorry for any inconvenience. If the problem presists, then please contact your administrator. See: %s for more information', PLUGIN_NAME),
-                    'https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php'
-                ),
-                __('Samlsso->acs->assertSaml->LoginState::checkResponseIdUnique', PLUGIN_NAME),
-                Acs::EXTENDED_HEADER .
-                    "samlResponse with registered ID was replayed in acs.php. Possibly the user pressed F5 when encountering a different error or the response was send successively to the acs\n\n" .
-                    Acs::SERVER_OBJ . $this->getSafeServerContext() . "\n\n" .
-                    Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
-                    Acs::RESPONSE_OBJ . ($this->debug
-                        ? (string) $this->samlResponse->getXMLDocument()->saveXML()
-                        : ConfigEntity::anonymizeXml((string) $this->samlResponse->getXMLDocument()->saveXML())) . "\n\n" .
-                    Acs::EXTENDED_FOOTER . "\n"
-            );
-        } else {
-            // The response is unique, register it in the database
-            // to prevent future replays of this document.
-            try {
-                if (!$this->state->setSamlResponseId($currentResponseId)) {
-                    throw new \RuntimeException('Failed to claim SAML response ID for current login state.');
-                }
-
-                // Capture raw SAML response XML, anonymize it, and save its structure
-                $xml = $this->samlResponse->getXMLDocument()->saveXML();
-                $anonymizedXml = ConfigEntity::anonymizeXml($xml);
-                $this->configEntity->updateXmlStructure($anonymizedXml);
-            } catch (Throwable $e) {
-                $this->printError(
-                    __("An error occured while trying to update the samlResponseId into the LoginState database. Review the saml log for more details", PLUGIN_NAME),
-                    __('Samlsso->acs->assertSaml->LoginState::setSamlResponseId', PLUGIN_NAME),
-                    "The following error was reported: $e"
-                );
-            }
+            $this->rejectReplayedSamlResponse();
+            return;
         }
 
-        if ($this->state->getPhase() != LoginState::PHASE_SAML_ACS) {
-            $this->printError(
-                sprintf(
-                    __('GLPI did not expect an assertion from this Idp. The most likely reason is a race condition causing an inconsistant loginState in the database or software bug. Please login again via the GLPI-interface. Sorry for the inconvenience. See: %s for more information', PLUGIN_NAME),
-                    'https://github.com/DonutsNL/samlsso/wiki/Unsollicited-%E2%80%90-IdP-initiated-login-flows'
-                ),
-                __('Samlsso->acs->assertSaml->PhaseMismatched', PLUGIN_NAME),
-                Acs::EXTENDED_HEADER .
-                    sprintf(
-                        __("Unexpected assertion triggered while session was in a different phase then expected (2). This error was triggered by external source with address:%s. Possible causes include race-conditions or parallel calls using the same samlResponse.\n", PLUGIN_NAME),
-                        (string)($_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN')
-                    ) .
-                    Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
-                    Acs::EXTENDED_FOOTER . "\n"
-            );
-        }
+        $this->claimSamlResponseId($currentResponseId);
+    }
 
-        // Update the state to SAML AUTH, again to prevent raceconditions or parallel calls using the same
-        // samlResponse to the acs.php. This first call should complete (if everything lines up).
+    /**
+     * Abort ACS processing when a SAMLResponse replay or invalid phase is detected.
+     *
+     * @return void
+     */
+    private function rejectReplayedSamlResponse(): void
+    {
+        $rawXml = (string) $this->samlResponse->getXMLDocument()->saveXML();
+        $responseXml = $this->debug ? $rawXml : ConfigEntity::anonymizeXml($rawXml);
+
+        $this->printError(
+            sprintf(
+                __('It looks like this samlResponse has already been used to authenticate a different user. Maybe an error occurred and you pressed F5 and accidently resend the samlResponse that is already registered as processed. For security reasons we can not allow processed samlResponses to be processed again. Please login again to generate a new samlResponse. Sorry for any inconvenience. If the problem presists, then please contact your administrator. See: %s for more information', PLUGIN_NAME),
+                'https://codeberg.org/QuinQuies/glpisaml/wiki/LoginState.php'
+            ),
+            __('Samlsso->acs->assertSaml->LoginState::checkResponseIdUnique', PLUGIN_NAME),
+            Acs::EXTENDED_HEADER .
+                "samlResponse with registered ID was replayed in acs.php. Possibly the user pressed F5 when encountering a different error or the response was send successively to the acs\n\n" .
+                Acs::SERVER_OBJ . $this->getSafeServerContext() . "\n\n" .
+                Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
+                Acs::RESPONSE_OBJ . $responseXml . "\n\n" .
+                Acs::EXTENDED_FOOTER . "\n"
+        );
+    }
+
+    /**
+     * Persist the claimed ResponseID and update the anonymized XML structure record.
+     *
+     * @param string $currentResponseId SAMLResponse ID attribute value.
+     * @return void
+     */
+    private function claimSamlResponseId(string $currentResponseId): void
+    {
         try {
-            $this->state->setPhase(LoginState::PHASE_SAML_AUTH);
+            if (!$this->state->setSamlResponseId($currentResponseId)) {
+                throw new \RuntimeException('Failed to claim SAML response ID for current login state.');
+            }
+
+            $xml = $this->samlResponse->getXMLDocument()->saveXML();
+            $anonymizedXml = ConfigEntity::anonymizeXml($xml);
+            $this->configEntity->updateXmlStructure($anonymizedXml);
         } catch (Throwable $e) {
-            $this->printError(__('An error occured while trying to update the login phase to LoginState::PHASE_SAML_AUTH into the LoginState database. Review the saml log for more details', PLUGIN_NAME), __('LoginState', PLUGIN_NAME), "The following error was reported: $e");
+            $this->printError(
+                __('An error occured while trying to update the samlResponseId into the LoginState database. Review the saml log for more details', PLUGIN_NAME),
+                __('Samlsso->acs->assertSaml->LoginState::setSamlResponseId', PLUGIN_NAME),
+                "The following error was reported: $e"
+            );
         }
+    }
 
-        // Perform validation check moved to top of method for security.
-
-        // Call the performGlpiLogin from the LoginFlow object
-        // We include the state because this session is still stateless (from GLPIs perspective).
-        // and we cant trust the current sessionId to align because initial cookies are tainted and
-        // prob not passed back to GLPI after the IDP redirect causing GLPI to reset the PHP sessionId.
-        $this->performGlpiLogin($this->samlResponse, $this->state);
+    /**
+     * Abort ACS processing when state phase transitioned concurrently after ResponseID registration.
+     *
+     * @return void
+     */
+    private function rejectPhaseMismatchAfterClaim(): void
+    {
+        $this->printError(
+            sprintf(
+                __('GLPI did not expect an assertion from this Idp. The most likely reason is a race condition causing an inconsistant loginState in the database or software bug. Please login again via the GLPI-interface. Sorry for the inconvenience. See: %s for more information', PLUGIN_NAME),
+                'https://github.com/DonutsNL/samlsso/wiki/Unsollicited-%E2%80%90-IdP-initiated-login-flows'
+            ),
+            __('Samlsso->acs->assertSaml->PhaseMismatched', PLUGIN_NAME),
+            Acs::EXTENDED_HEADER .
+                sprintf(
+                    __("Unexpected assertion triggered while session was in a different phase then expected (2). This error was triggered by external source with address:%s. Possible causes include race-conditions or parallel calls using the same samlResponse.\n", PLUGIN_NAME),
+                    (string) ($_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN')
+                ) .
+                Acs::STATE_OBJ . var_export($this->state->getSafeStateForLogging($this->debug), true) . "\n\n" .
+                Acs::EXTENDED_FOOTER . "\n"
+        );
     }
 
     /**
