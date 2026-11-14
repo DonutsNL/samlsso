@@ -60,6 +60,7 @@ use GlpiPlugin\Samlsso\Compat\ConfigCompat;
 use GlpiPlugin\Samlsso\Config\ConfigItem;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\Controller\SamlSsoController;
+use GlpiPlugin\Samlsso\LoginFlow\User as SamlUser;
 
 // Version-selected compatibility layer (GLPI 11 untyped / GLPI 12 typed core
 // properties). Must be required before the class below extends ConfigCompat.
@@ -723,22 +724,22 @@ class Config extends ConfigCompat
             if (!empty($legacyConfigIds) && $DB->tableExists('glpi_users') && method_exists($DB, 'update')) {
                 $externalAuthType = class_exists('\Auth') && defined('\Auth::EXTERNAL') ? (int)\Auth::EXTERNAL : 4;
                 $legacyUsers = $DB->request([
-                    'SELECT' => ['id', 'auths_id', 'user_dn'],
+                    'SELECT' => [SamlUser::USERID, 'auths_id', 'user_dn'],
                     'FROM'   => 'glpi_users',
                     'WHERE'  => [
-                        'authtype' => $externalAuthType,
-                        'auths_id' => array_values(array_unique($legacyConfigIds)),
+                        SamlUser::AUTHTYPE => $externalAuthType,
+                        'auths_id'         => array_values(array_unique($legacyConfigIds)),
                     ],
                 ]);
                 foreach ($legacyUsers as $legacyUser) {
-                    $uid = (int)($legacyUser['id'] ?? 0);
+                    $uid = (int)($legacyUser[SamlUser::USERID] ?? 0);
                     $oldAuthsId = (int)($legacyUser['auths_id'] ?? 0);
                     $userDn = trim((string)($legacyUser['user_dn'] ?? ''));
-                    if ($uid > 0 && $oldAuthsId > 0 && $oldAuthsId < \GlpiPlugin\Samlsso\LoginFlow\User::AUTHS_ID_OFFSET && $userDn === '') {
+                    if ($uid > 0 && $oldAuthsId > 0 && $oldAuthsId < SamlUser::AUTHS_ID_OFFSET && $userDn === '') {
                         $DB->update(
                             'glpi_users',
-                            ['auths_id' => \GlpiPlugin\Samlsso\LoginFlow\User::toAuthsId($oldAuthsId)],
-                            ['id' => $uid]
+                            ['auths_id' => SamlUser::toAuthsId($oldAuthsId)],
+                            [SamlUser::USERID => $uid]
                         );
                     }
                 }

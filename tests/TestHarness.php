@@ -410,7 +410,39 @@ namespace GlpiPlugin\Samlsso\LoginFlow {
     if (!class_exists('GlpiPlugin\Samlsso\LoginFlow\MockLoginFlowUser', false)) {
         class MockLoginFlowUser
         {
-            public const AUTHS_ID_OFFSET = 1000000;
+            public const USERID              = 'id';
+            public const NAME                = 'name';
+            public const REALNAME            = 'realname';
+            public const FIRSTNAME           = 'firstname';
+            public const EMAIL               = '_useremails';
+            public const MOBILE              = 'mobile';
+            public const PHONE               = 'phone';
+            public const PHONE2              = 'phone2';
+            public const REGISTRATION_NUMBER = 'registration_number';
+            public const COMMENT             = 'comment';
+            public const PASSWORD            = 'password';
+            public const PASSWORDN           = 'password2';
+            public const DELETED             = 'is_deleted';
+            public const ACTIVE              = 'is_active';
+            public const RULEOUTPUT          = 'output';
+            public const USERSID             = 'users_id';
+            public const GROUPID             = 'groups_id';
+            public const GROUP_DEFAULT       = 'specific_groups_id';
+            public const IS_DYNAMIC          = 'is_dynamic';
+            public const PROFILESID          = 'profiles_id';
+            public const PROFILE_DEFAULT     = '_profiles_id_default';
+            public const PROFILE_RECURSIVE   = 'is_recursive';
+            public const ENTITY_ID           = 'entities_id';
+            public const ENTITY_DEFAULT      = '_entities_id_default';
+            public const AUTHTYPE            = 'authtype';
+            public const AUTHTYPE_LOCAL      = 1;
+            public const AUTHS_ID_OFFSET     = 1000000;
+            public const SYNCDATE            = 'date_sync';
+            public const SAMLGROUPS          = 'samlClaimedGroups';
+            public const SAMLJOBTITLE        = 'samlClaimedJobTitle';
+            public const SAMLCOUNTRY         = 'country';
+            public const SAMLCITY            = 'city';
+            public const SAMLSTREET          = 'street';
 
             /**
              * Maps an IdP ID into the isolated glpi_users.auths_id namespace (1,000,000 + $idpId).

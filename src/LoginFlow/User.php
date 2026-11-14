@@ -326,12 +326,12 @@ class User
             if (!empty($lookupEmails)) {
                 $missingUserIds = [];
                 $emailRows = $DB->request([
-                    'SELECT' => ['users_id', 'email'],
+                    'SELECT' => [User::USERSID, 'email'],
                     'FROM'   => 'glpi_useremails',
                     'WHERE'  => ['email' => $lookupEmails],
                 ]);
                 foreach ($emailRows as $emailRow) {
-                    $uid = (int)($emailRow['users_id'] ?? 0);
+                    $uid = (int)($emailRow[User::USERSID] ?? 0);
                     if ($uid > 0 && !isset($candidates[$uid])) {
                         $missingUserIds[] = $uid;
                     }
@@ -552,11 +552,11 @@ class User
                 $matchInput[$field] = $val;
                 if ($field === 'jobtitle') {
                     $matchInput[User::SAMLJOBTITLE] = $val;
-                } elseif ($field === 'country') {
+                } elseif ($field === User::SAMLCOUNTRY) {
                     $matchInput[User::SAMLCOUNTRY] = $val;
-                } elseif ($field === 'city') {
+                } elseif ($field === User::SAMLCITY) {
                     $matchInput[User::SAMLCITY] = $val;
-                } elseif ($field === 'street') {
+                } elseif ($field === User::SAMLSTREET) {
                     $matchInput[User::SAMLSTREET] = $val;
                 }
             }
@@ -619,7 +619,7 @@ class User
             global $DB;
             $emailsFromDb = $DB->request([
                 'FROM'  => 'glpi_useremails',
-                'WHERE' => ['users_id' => (int)$user->fields[User::USERID]]
+                'WHERE' => [User::USERSID => (int)$user->fields[User::USERID]]
             ]);
             foreach ($emailsFromDb as $emailRow) {
                 if (isset($emailRow['email'])) {
@@ -857,8 +857,8 @@ class User
                         $pid = $profileUser->getForUser($update[User::USERSID]);
                         if ($pid) {
                             foreach ($pid as $key => $data) {
-                                if ((int)$data['profiles_id'] === (int)$rights[User::PROFILESID] && (int)$data['entities_id'] === 0) {
-                                    $profileUser->delete(['id' => $key]);
+                                if ((int)$data[User::PROFILESID] === (int)$rights[User::PROFILESID] && (int)$data[User::ENTITY_ID] === 0) {
+                                    $profileUser->delete([User::USERID => $key]);
                                 }
                             }
                         }
@@ -892,7 +892,7 @@ class User
             $defaultGroup !== null ||
             $defaultEntity !== null ||
             $defaultProfile !== null ||
-            isset($update['is_active'])          ||
+            isset($update[User::ACTIVE])         ||
             isset($update['timezone'])           ||
             isset($update['locations_id'])       ||
             isset($update['usercategories_id'])  ||
@@ -901,7 +901,7 @@ class User
         ) {
             /* Set the user Id. */
             $userDefaults = [];
-            $userDefaults['id'] = $update['users_id'];
+            $userDefaults[User::USERID] = $update[User::USERSID];
             /* Do we need to set a default group? */
             if ($defaultGroup !== null) {
                 $userDefaults[User::GROUPID] = (int)$defaultGroup;
@@ -910,7 +910,7 @@ class User
                     sprintf(
                         __('JIT found default groupID: %s for userId: %s', PLUGIN_NAME),
                         (string)$defaultGroup,
-                        (string)$update['users_id']
+                        (string)$update[User::USERSID]
                     ) . "\n"
                 );
             } else {
@@ -927,7 +927,7 @@ class User
                     sprintf(
                         __('JIT found default entityID: %s for userId: %s', PLUGIN_NAME),
                         (string)$defaultEntity,
-                        (string)$update['users_id']
+                        (string)$update[User::USERSID]
                     ) . "\n"
                 );
             } else {
@@ -944,7 +944,7 @@ class User
                     sprintf(
                         __('JIT found default profileID: %s for userId: %s', PLUGIN_NAME),
                         (string)$defaultProfile,
-                        (string)$update['users_id']
+                        (string)$update[User::USERSID]
                     ) . "\n"
                 );
             } else {
@@ -961,19 +961,19 @@ class User
                     sprintf(
                         __('JIT found timezone: %s for userId: %s', PLUGIN_NAME),
                         (string)$update['timezone'],
-                        (string)$update['users_id']
+                        (string)$update[User::USERSID]
                     ) . "\n"
                 );
             }
             /* Do we need to set active state? */
-            if (isset($update['is_active'])) {
-                $userDefaults['is_active'] = $update['is_active'];
+            if (isset($update[User::ACTIVE])) {
+                $userDefaults[User::ACTIVE] = $update[User::ACTIVE];
                 Toolbox::logInFile(
                     PLUGIN_NAME . PLUGIN_SAMLSSO_LOGEVENTS,
                     sprintf(
                         __('JIT found is_active: %s for userId: %s', PLUGIN_NAME),
-                        (string)$update['is_active'],
-                        (string)$update['users_id']
+                        (string)$update[User::ACTIVE],
+                        (string)$update[User::USERSID]
                     ) . "\n"
                 );
             }
@@ -985,7 +985,7 @@ class User
                     sprintf(
                         __('JIT found locations_id: %s for userId: %s', PLUGIN_NAME),
                         (string)$update['locations_id'],
-                        (string)$update['users_id']
+                        (string)$update[User::USERSID]
                     ) . "\n"
                 );
             }
@@ -997,7 +997,7 @@ class User
                     sprintf(
                         __('JIT found usercategories_id: %s for userId: %s', PLUGIN_NAME),
                         (string)$update['usercategories_id'],
-                        (string)$update['users_id']
+                        (string)$update[User::USERSID]
                     ) . "\n"
                 );
             }
@@ -1009,7 +1009,7 @@ class User
                     sprintf(
                         __('JIT found usertitles_id: %s for userId: %s', PLUGIN_NAME),
                         (string)$update['usertitles_id'],
-                        (string)$update['users_id']
+                        (string)$update[User::USERSID]
                     ) . "\n"
                 );
             }
@@ -1021,16 +1021,16 @@ class User
                     sprintf(
                         __('JIT found language: %s for userId: %s', PLUGIN_NAME),
                         (string)$update['language'],
-                        (string)$update['users_id']
+                        (string)$update[User::USERSID]
                     ) . "\n"
                 );
             }
             /* Update the user */
             $user = new glpiUser();
-            if ($user->getFromDB((int)$userDefaults['id'])) {
+            if ($user->getFromDB((int)$userDefaults[User::USERID])) {
                 $needsUpdate = false;
                 foreach ($userDefaults as $key => $val) {
-                    if ($key === 'id') {
+                    if ($key === User::USERID) {
                         continue;
                     }
                     if (!isset($user->fields[$key]) || (string)$user->fields[$key] !== (string)$val) {

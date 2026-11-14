@@ -62,6 +62,7 @@ use CommonDBTM;
 use DBConnection;
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
 use GlpiPlugin\Samlsso\Exception\LoginStateException;
+use GlpiPlugin\Samlsso\LoginFlow\User as SamlUser;
 
 /*
  * The goal of this object is to keep track of the login state in the database.
@@ -1042,31 +1043,31 @@ class LoginState extends CommonDBTM
                                 if (json_last_error() === JSON_ERROR_NONE && is_array($decodedJson)) {
                                     $isFormattedJson = true;
                                     $keyTranslations = [
-                                        'name'                 => 'user_field: username',
-                                        '_useremails'          => 'user_field: email',
-                                        'realname'             => 'user_field: realname',
-                                        'firstname'            => 'user_field: firstname',
-                                        'phone'                => 'user_field: phone',
-                                        'mobile'               => 'user_field: mobile',
-                                        'samlClaimedJobTitle'  => 'user_field: jobtitle',
-                                        'samlClaimedCountry'   => 'user_field: country',
-                                        'samlClaimedCity'      => 'user_field: city',
-                                        'samlClaimedStreet'    => 'user_field: street',
-                                        'samlClaimedGroups'    => 'rule_field: groups',
-                                        'groups'               => 'rule_field: groups',
-                                        'email'                => 'rule_field: email',
-                                        'jobtitle'             => 'rule_field: jobtitle',
-                                        'country'              => 'rule_field: country',
-                                        'city'                 => 'rule_field: city',
-                                        'street'               => 'rule_field: street',
-                                        'users_id'             => 'User ID',
-                                        '_rule_process'        => 'Rule Processed',
-                                        'specific_groups_id'   => 'Assigned Group ID',
-                                        'profiles_id'          => 'Assigned Profile ID',
-                                        'entities_id'          => 'Assigned Entity ID',
-                                        'is_recursive'         => 'Recursive Profile Assignment',
-                                        '_profiles_id_default' => 'Default Profile ID',
-                                        '_entities_id_default' => 'Default Entity ID',
+                                        SamlUser::NAME              => 'user_field: username',
+                                        SamlUser::EMAIL             => 'user_field: email',
+                                        SamlUser::REALNAME          => 'user_field: realname',
+                                        SamlUser::FIRSTNAME         => 'user_field: firstname',
+                                        SamlUser::PHONE             => 'user_field: phone',
+                                        SamlUser::MOBILE            => 'user_field: mobile',
+                                        SamlUser::SAMLJOBTITLE      => 'user_field: jobtitle',
+                                        'samlClaimedCountry'        => 'user_field: country',
+                                        'samlClaimedCity'           => 'user_field: city',
+                                        'samlClaimedStreet'         => 'user_field: street',
+                                        SamlUser::SAMLGROUPS        => 'rule_field: groups',
+                                        'groups'                    => 'rule_field: groups',
+                                        'email'                     => 'rule_field: email',
+                                        'jobtitle'                  => 'rule_field: jobtitle',
+                                        SamlUser::SAMLCOUNTRY       => 'rule_field: country',
+                                        SamlUser::SAMLCITY          => 'rule_field: city',
+                                        SamlUser::SAMLSTREET        => 'rule_field: street',
+                                        SamlUser::USERSID           => 'User ID',
+                                        '_rule_process'             => 'Rule Processed',
+                                        SamlUser::GROUP_DEFAULT     => 'Assigned Group ID',
+                                        SamlUser::PROFILESID        => 'Assigned Profile ID',
+                                        SamlUser::ENTITY_ID         => 'Assigned Entity ID',
+                                        SamlUser::PROFILE_RECURSIVE => 'Recursive Profile Assignment',
+                                        SamlUser::PROFILE_DEFAULT   => 'Default Profile ID',
+                                        SamlUser::ENTITY_DEFAULT    => 'Default Entity ID',
                                     ];
                                     $ruleFieldsList = ['department', 'company', 'employee_type', 'location', 'locale', 'manager'];
                                     foreach ($decodedJson as $jsonKey => $jsonVal) {
@@ -1111,7 +1112,7 @@ class LoginState extends CommonDBTM
                 if ($userId > 0) {
                     $user = new \User();
                     if ($user->getFromDB($userId)) {
-                        $row['isUserActive'] = (int)($user->fields['is_active'] ?? 0);
+                        $row['isUserActive'] = (int)($user->fields[SamlUser::ACTIVE] ?? 0);
                     }
                 }
 
@@ -1560,7 +1561,7 @@ class LoginState extends CommonDBTM
         $configs = $DB->request([
             'FROM'  => $configsTable,
             'WHERE' => [
-                'is_deleted' => 0
+                ConfigEntity::IS_DELETED => 0
             ]
         ]);
 

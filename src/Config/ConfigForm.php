@@ -54,6 +54,7 @@ use GlpiPlugin\Samlsso\Config;
 use GlpiPlugin\Samlsso\ClaimMap;
 use GlpiPlugin\Samlsso\ScimLink;
 use GlpiPlugin\Samlsso\LoginState;
+use GlpiPlugin\Samlsso\LoginFlow\User as SamlUser;
 use GlpiPlugin\Samlsso\Scim\ScimAuthenticator;
 use Glpi\Application\View\TemplateRenderer;
 use OneLogin\Saml2\Constants as Saml2Const;
@@ -483,7 +484,7 @@ class ConfigForm    //NOSONAR complexity by design.
                     if ($userId > 0) {
                         $user = new \User();
                         if ($user->getFromDB($userId)) {
-                            $user->update(['id' => $userId, 'is_active' => 0]);
+                            $user->update([SamlUser::USERID => $userId, SamlUser::ACTIVE => 0]);
                         }
                     }
                     $loginState->setPhase(LoginState::PHASE_FORCE_LOG);

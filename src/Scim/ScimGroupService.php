@@ -48,6 +48,7 @@ declare(strict_types=1);
 namespace GlpiPlugin\Samlsso\Scim;
 
 use GlpiPlugin\Samlsso\Config\ConfigEntity;
+use GlpiPlugin\Samlsso\LoginFlow\User as SamlUser;
 use GlpiPlugin\Samlsso\ScimLink;
 use Symfony\Component\HttpFoundation\Response;
 use Toolbox;
@@ -483,15 +484,15 @@ final class ScimGroupService
         $currentDynamicRowByUser = [];
         $guIter = $DB->request([
             'FROM'  => 'glpi_groups_users',
-            'WHERE' => ['groups_id' => $groupId],
+            'WHERE' => [SamlUser::GROUPID => $groupId],
         ]);
 
         foreach ($guIter as $guRow) {
-            $uid = (int) ($guRow['users_id'] ?? 0);
+            $uid = (int) ($guRow[SamlUser::USERSID] ?? 0);
             if ($uid <= 0) {
                 continue;
             }
-            if ((int) ($guRow['is_dynamic'] ?? 0) === 0) {
+            if ((int) ($guRow[SamlUser::IS_DYNAMIC] ?? 0) === 0) {
                 $manualUserIds[$uid] = true;
                 continue;
             }
@@ -509,9 +510,9 @@ final class ScimGroupService
         foreach ($currentDynamicRowByUser as $uid => $guRow) {
             if (!isset($desiredSet[$uid])) {
                 $DB->delete('glpi_groups_users', [
-                    'groups_id'  => $groupId,
-                    'users_id'   => $uid,
-                    'is_dynamic' => 1,
+                    SamlUser::GROUPID    => $groupId,
+                    SamlUser::USERSID    => $uid,
+                    SamlUser::IS_DYNAMIC => 1,
                 ]);
                 $affectedUserIds[$uid] = $uid;
             }
@@ -525,11 +526,11 @@ final class ScimGroupService
                 continue;
             }
             $DB->insert('glpi_groups_users', [
-                'users_id'        => $uid,
-                'groups_id'       => $groupId,
-                'is_dynamic'      => 1,
-                'is_manager'      => 0,
-                'is_userdelegate' => 0,
+                SamlUser::USERSID    => $uid,
+                SamlUser::GROUPID    => $groupId,
+                SamlUser::IS_DYNAMIC => 1,
+                'is_manager'         => 0,
+                'is_userdelegate'    => 0,
             ]);
             $affectedUserIds[$uid] = $uid;
         }
@@ -554,12 +555,12 @@ final class ScimGroupService
         $guIter = $DB->request([
             'FROM'  => 'glpi_groups_users',
             'WHERE' => [
-                'groups_id'  => $groupId,
-                'is_dynamic' => 1,
+                SamlUser::GROUPID    => $groupId,
+                SamlUser::IS_DYNAMIC => 1,
             ],
         ]);
         foreach ($guIter as $guRow) {
-            $uid = (int) ($guRow['users_id'] ?? 0);
+            $uid = (int) ($guRow[SamlUser::USERSID] ?? 0);
             if ($uid <= 0) {
                 continue;
             }
@@ -567,7 +568,7 @@ final class ScimGroupService
                 $userRow = $this->userService->requireIdpOwnedUserRow($idpId, $uid);
                 $members[$uid] = [
                     'value'   => (string) $uid,
-                    'display' => (string) ($userRow['name'] ?? ''),
+                    'display' => (string) ($userRow[SamlUser::NAME] ?? ''),
                 ];
             } catch (ScimException $e) {
                 continue;

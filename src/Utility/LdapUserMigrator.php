@@ -307,12 +307,12 @@ class LdapUserMigrator
 
         $userIter = $DB->request(['FROM' => 'glpi_users']);
         foreach ($userIter as $uRow) {
-            if (!is_array($uRow) || !isset($uRow['id'])) {
+            if (!is_array($uRow) || !isset($uRow[User::USERID])) {
                 continue;
             }
-            $uid = (int)$uRow['id'];
-            $unameLower = strtolower((string)($uRow['name'] ?? ''));
-            $uAuthtype = (int)($uRow['authtype'] ?? 0);
+            $uid = (int)$uRow[User::USERID];
+            $unameLower = strtolower((string)($uRow[User::NAME] ?? ''));
+            $uAuthtype = (int)($uRow[User::AUTHTYPE] ?? 0);
             $uAuthsId = (int)($uRow['auths_id'] ?? 0);
             $uUserDn = trim((string)($uRow['user_dn'] ?? ''));
 
@@ -332,7 +332,7 @@ class LdapUserMigrator
 
             $isEligibleCandidate = $uAuthtype === $ldapAuthType
                 && ($ldapId === -1 || $uAuthsId === $ldapId)
-                && (int)($uRow['is_deleted'] ?? 0) === 0
+                && (int)($uRow[User::DELETED] ?? 0) === 0
                 && ($opts['include_deleted_ldap'] || (int)($uRow['is_deleted_ldap'] ?? 0) === 0);
 
             if (!$isEligibleCandidate && $unameLower !== '') {
@@ -345,7 +345,7 @@ class LdapUserMigrator
         $userEmailsMap = [];
         $emailIter = $DB->request(['FROM' => 'glpi_useremails']);
         foreach ($emailIter as $eRow) {
-            $uid = (int)($eRow['users_id'] ?? 0);
+            $uid = (int)($eRow[User::USERSID] ?? 0);
             $email = trim((string)($eRow['email'] ?? ''));
             if ($uid <= 0 || $email === '') {
                 continue;
@@ -367,22 +367,22 @@ class LdapUserMigrator
         $planned = [];
         $skipped = [];
         foreach ($allUsers as $uid => $uRow) {
-            if ((int)($uRow['authtype'] ?? 0) !== $ldapAuthType) {
+            if ((int)($uRow[User::AUTHTYPE] ?? 0) !== $ldapAuthType) {
                 continue;
             }
             if ($ldapId !== -1 && (int)($uRow['auths_id'] ?? 0) !== $ldapId) {
                 continue;
             }
-            if ((int)($uRow['is_deleted'] ?? 0) === 1) {
-                $skipped[] = "ID {$uid} ({$uRow['name']}): skipped (user is in GLPI trashbin is_deleted=1).";
+            if ((int)($uRow[User::DELETED] ?? 0) === 1) {
+                $skipped[] = "ID {$uid} ({$uRow[User::NAME]}): skipped (user is in GLPI trashbin is_deleted=1).";
                 continue;
             }
             if (!$opts['include_deleted_ldap'] && (int)($uRow['is_deleted_ldap'] ?? 0) === 1) {
-                $skipped[] = "ID {$uid} ({$uRow['name']}): skipped (is_deleted_ldap=1 and --skip-deleted-ldap set).";
+                $skipped[] = "ID {$uid} ({$uRow[User::NAME]}): skipped (is_deleted_ldap=1 and --skip-deleted-ldap set).";
                 continue;
             }
 
-            $currentName = (string)($uRow['name'] ?? '');
+            $currentName = (string)($uRow[User::NAME] ?? '');
             $currentLower = strtolower($currentName);
             $targetName = $currentName;
             if ($loginFormat === 'email') {
@@ -460,14 +460,14 @@ class LdapUserMigrator
 
             $planned[$uid] = [
                 'before'      => [
-                    'name'            => $currentName,
-                    'authtype'        => (int)($uRow['authtype'] ?? $ldapAuthType),
+                    User::NAME        => $currentName,
+                    User::AUTHTYPE    => (int)($uRow[User::AUTHTYPE] ?? $ldapAuthType),
                     'auths_id'        => (int)($uRow['auths_id'] ?? 0),
                     'user_dn'         => $uRow['user_dn'] ?? null,
                     'user_dn_hash'    => $uRow['user_dn_hash'] ?? null,
                     'sync_field'      => $uRow['sync_field'] ?? null,
                     'is_deleted_ldap' => (int)($uRow['is_deleted_ldap'] ?? 0),
-                    'is_active'       => (int)($uRow['is_active'] ?? 1),
+                    User::ACTIVE      => (int)($uRow[User::ACTIVE] ?? 1),
                 ],
                 'target_name' => $targetName,
             ];
@@ -554,17 +554,17 @@ class LdapUserMigrator
             $DB->update(
                 'glpi_users',
                 [
-                    'name'            => $item['target_name'],
-                    'authtype'        => $externalAuthType,
+                    User::NAME        => $item['target_name'],
+                    User::AUTHTYPE    => $externalAuthType,
                     'auths_id'        => $targetAuthsId,
-                    'password'        => '',
+                    User::PASSWORD    => '',
                     'user_dn'         => null,
                     'user_dn_hash'    => null,
                     'sync_field'      => null,
                     'is_deleted_ldap' => 0,
                     'date_mod'        => $now,
                 ],
-                ['id' => (int)$uid]
+                [User::USERID => (int)$uid]
             );
 
             if (class_exists('\Log') && method_exists('\Log', 'history')) {
@@ -689,8 +689,8 @@ class LdapUserMigrator
             fwrite($stdout, sprintf(
                 "  [REVERT] userId=%d -> name='%s', authtype=%d, auths_id=%d\n",
                 $uid,
-                (string)($snap['name'] ?? ''),
-                (int)($snap['authtype'] ?? 3),
+                (string)($snap[User::NAME] ?? ''),
+                (int)($snap[User::AUTHTYPE] ?? 3),
                 (int)($snap['auths_id'] ?? 0)
             ));
 
@@ -698,17 +698,17 @@ class LdapUserMigrator
                 $DB->update(
                     'glpi_users',
                     [
-                        'name'            => (string)($snap['name'] ?? ''),
-                        'authtype'        => (int)($snap['authtype'] ?? 3),
+                        User::NAME        => (string)($snap[User::NAME] ?? ''),
+                        User::AUTHTYPE    => (int)($snap[User::AUTHTYPE] ?? 3),
                         'auths_id'        => (int)($snap['auths_id'] ?? 0),
                         'user_dn'         => $snap['user_dn'] ?? null,
                         'user_dn_hash'    => $snap['user_dn_hash'] ?? null,
                         'sync_field'      => $snap['sync_field'] ?? null,
                         'is_deleted_ldap' => (int)($snap['is_deleted_ldap'] ?? 0),
-                        'is_active'       => (int)($snap['is_active'] ?? 1),
+                        User::ACTIVE      => (int)($snap[User::ACTIVE] ?? 1),
                         'date_mod'        => $now,
                     ],
-                    ['id' => $uid]
+                    [User::USERID => $uid]
                 );
 
                 if (class_exists('\Log') && method_exists('\Log', 'history')) {

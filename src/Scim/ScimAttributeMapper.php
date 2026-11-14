@@ -47,6 +47,7 @@ declare(strict_types=1);
 
 namespace GlpiPlugin\Samlsso\Scim;
 
+use GlpiPlugin\Samlsso\LoginFlow\User as SamlUser;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -110,8 +111,8 @@ final class ScimAttributeMapper
             );
         }
         if ($userName !== '') {
-            $userFields['name'] = $userName;
-            $ruleInput['name'] = $userName;
+            $userFields[SamlUser::NAME] = $userName;
+            $ruleInput[SamlUser::NAME] = $userName;
         }
 
         $externalId = null;
@@ -123,7 +124,7 @@ final class ScimAttributeMapper
         $active = null;
         if (array_key_exists('active', $scimBody)) {
             $active = self::parseBoolean($scimBody['active']);
-            $userFields['is_active'] = $active ? 1 : 0;
+            $userFields[SamlUser::ACTIVE] = $active ? 1 : 0;
         }
 
         $nameBlock = isset($scimBody['name']) && is_array($scimBody['name']) ? $scimBody['name'] : [];
@@ -132,17 +133,17 @@ final class ScimAttributeMapper
         $displayName = self::cleanString($scimBody['displayName'] ?? ($nameBlock['formatted'] ?? ''), 255);
 
         if ($givenName !== '') {
-            $userFields['firstname'] = $givenName;
+            $userFields[SamlUser::FIRSTNAME] = $givenName;
         }
         if ($familyName !== '') {
-            $userFields['realname'] = $familyName;
+            $userFields[SamlUser::REALNAME] = $familyName;
         } elseif ($givenName === '' && $displayName !== '') {
-            $userFields['realname'] = $displayName;
+            $userFields[SamlUser::REALNAME] = $displayName;
         }
 
         [$primaryEmail, $allEmails] = self::extractEmails($scimBody['emails'] ?? null, $userName);
         if ($primaryEmail !== '') {
-            $ruleInput['_useremails'] = $primaryEmail;
+            $ruleInput[SamlUser::EMAIL] = $primaryEmail;
         }
 
         $phones = self::extractPhones($scimBody['phoneNumbers'] ?? null);
@@ -152,24 +153,24 @@ final class ScimAttributeMapper
 
         $jobTitle = self::cleanString($scimBody['title'] ?? '', 255);
         if ($jobTitle !== '') {
-            $ruleInput['samlClaimedJobTitle'] = $jobTitle;
+            $ruleInput[SamlUser::SAMLJOBTITLE] = $jobTitle;
         }
 
         $address = self::extractWorkAddress($scimBody['addresses'] ?? null);
         if ($address['street'] !== '') {
-            $ruleInput['street'] = $address['street'];
+            $ruleInput[SamlUser::SAMLSTREET] = $address['street'];
         }
         if ($address['city'] !== '') {
-            $ruleInput['city'] = $address['city'];
+            $ruleInput[SamlUser::SAMLCITY] = $address['city'];
         }
         if ($address['country'] !== '') {
-            $ruleInput['country'] = $address['country'];
+            $ruleInput[SamlUser::SAMLCOUNTRY] = $address['country'];
         }
 
         $enterprise = self::findEnterpriseExtension($scimBody);
         $employeeNumber = self::cleanString($enterprise['employeeNumber'] ?? '', 255);
         if ($employeeNumber !== '') {
-            $userFields['registration_number'] = $employeeNumber;
+            $userFields[SamlUser::REGISTRATION_NUMBER] = $employeeNumber;
             $ruleInput['scimEmployeeNumber'] = $employeeNumber;
         }
 
@@ -218,15 +219,15 @@ final class ScimAttributeMapper
         string $baseScimUrl
     ): array {
         $base = rtrim($baseScimUrl, '/');
-        $id = (string) ($glpiUser['id'] ?? '');
-        $givenName = trim((string) ($glpiUser['firstname'] ?? ''));
-        $familyName = trim((string) ($glpiUser['realname'] ?? ''));
+        $id = (string) ($glpiUser[SamlUser::USERID] ?? '');
+        $givenName = trim((string) ($glpiUser[SamlUser::FIRSTNAME] ?? ''));
+        $familyName = trim((string) ($glpiUser[SamlUser::REALNAME] ?? ''));
         $formattedName = trim($givenName . ' ' . $familyName);
         if ($formattedName === '') {
-            $formattedName = (string) ($glpiUser['name'] ?? '');
+            $formattedName = (string) ($glpiUser[SamlUser::NAME] ?? '');
         }
 
-        $employeeNumber = trim((string) ($glpiUser['registration_number'] ?? ''));
+        $employeeNumber = trim((string) ($glpiUser[SamlUser::REGISTRATION_NUMBER] ?? ''));
         $schemas = [ScimDiscoveryService::SCHEMA_CORE_USER];
         if ($employeeNumber !== '') {
             $schemas[] = ScimDiscoveryService::SCHEMA_ENTERPRISE_USER;
@@ -235,7 +236,7 @@ final class ScimAttributeMapper
         $resource = [
             'schemas'  => $schemas,
             'id'       => $id,
-            'userName' => (string) ($glpiUser['name'] ?? ''),
+            'userName' => (string) ($glpiUser[SamlUser::NAME] ?? ''),
         ];
 
         if ($externalId !== null && $externalId !== '') {
@@ -248,7 +249,7 @@ final class ScimAttributeMapper
             'formatted'  => $formattedName,
         ];
         $resource['displayName'] = $formattedName;
-        $resource['active'] = ((int) ($glpiUser['is_active'] ?? 0) === 1) && ((int) ($glpiUser['is_deleted'] ?? 0) === 0);
+        $resource['active'] = ((int) ($glpiUser[SamlUser::ACTIVE] ?? 0) === 1) && ((int) ($glpiUser[SamlUser::DELETED] ?? 0) === 0);
 
         $emailEntries = [];
         foreach (array_values($emails) as $idx => $addr) {
@@ -263,14 +264,14 @@ final class ScimAttributeMapper
         $resource['emails'] = $emailEntries;
 
         $phoneEntries = [];
-        if (!empty($glpiUser['phone'])) {
-            $phoneEntries[] = ['value' => (string) $glpiUser['phone'], 'type' => 'work'];
+        if (!empty($glpiUser[SamlUser::PHONE])) {
+            $phoneEntries[] = ['value' => (string) $glpiUser[SamlUser::PHONE], 'type' => 'work'];
         }
-        if (!empty($glpiUser['mobile'])) {
-            $phoneEntries[] = ['value' => (string) $glpiUser['mobile'], 'type' => 'mobile'];
+        if (!empty($glpiUser[SamlUser::MOBILE])) {
+            $phoneEntries[] = ['value' => (string) $glpiUser[SamlUser::MOBILE], 'type' => 'mobile'];
         }
-        if (!empty($glpiUser['phone2'])) {
-            $phoneEntries[] = ['value' => (string) $glpiUser['phone2'], 'type' => 'other'];
+        if (!empty($glpiUser[SamlUser::PHONE2])) {
+            $phoneEntries[] = ['value' => (string) $glpiUser[SamlUser::PHONE2], 'type' => 'other'];
         }
         if (!empty($phoneEntries)) {
             $resource['phoneNumbers'] = $phoneEntries;
@@ -560,12 +561,12 @@ final class ScimAttributeMapper
                 continue;
             }
             $type = strtolower(trim((string) ($entry['type'] ?? 'work')));
-            if ($type === 'mobile' && !isset($result['mobile'])) {
-                $result['mobile'] = $val;
-            } elseif ($type === 'work' && !isset($result['phone'])) {
-                $result['phone'] = $val;
-            } elseif (!isset($result['phone2'])) {
-                $result['phone2'] = $val;
+            if ($type === 'mobile' && !isset($result[SamlUser::MOBILE])) {
+                $result[SamlUser::MOBILE] = $val;
+            } elseif ($type === 'work' && !isset($result[SamlUser::PHONE])) {
+                $result[SamlUser::PHONE] = $val;
+            } elseif (!isset($result[SamlUser::PHONE2])) {
+                $result[SamlUser::PHONE2] = $val;
             }
         }
 
