@@ -5,8 +5,8 @@
     align-items: flex-start !important;
     justify-content: flex-start !important;
     width: auto !important;
-    margin: 0 0.5rem 0.35rem 0.5rem !important;
-    padding: 0.25rem 0.5rem 0.65rem 0.5rem !important;
+    margin: 0 0.5rem 0.35rem !important;
+    padding: 0.25rem 0.5rem 0.65rem !important;
     background-color: rgba(0,0,0,0.02);
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
@@ -38,9 +38,6 @@
 
 .glpisaml .card-body {
     padding: 0.4rem !important;
-}
-.glpisaml .card {
-    margin-bottom: 0.35rem !important;
 }
 .glpisaml label .label-text-part {
     display: inline-flex !important;
@@ -83,6 +80,7 @@
     margin-bottom: -1px !important;
 }
 .glpisaml .card {
+    margin-bottom: 0.35rem !important;
     border: 1px solid rgba(0,0,0,.125) !important;
     border-radius: 0.25rem !important;
     box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075) !important;
@@ -96,21 +94,21 @@
     background-color: rgba(220, 53, 69, 0.05) !important;
     border: 1px solid rgba(220, 53, 69, 0.2) !important;
     border-radius: 6px !important;
-    padding: 0.5rem 0.75rem 0.8rem 0.75rem !important;
+    padding: 0.5rem 0.75rem 0.8rem !important;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 .glpisaml .form-field-warning-row {
     background-color: rgba(255, 193, 7, 0.08) !important;
     border: 1px dashed rgba(255, 193, 7, 0.4) !important;
     border-radius: 6px !important;
-    padding: 0.5rem 0.75rem 0.8rem 0.75rem !important;
+    padding: 0.5rem 0.75rem 0.8rem !important;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 .glpisaml .form-field-info-row {
     background-color: rgba(23, 162, 184, 0.08) !important;
     border: 1px dashed rgba(23, 162, 184, 0.4) !important;
     border-radius: 6px !important;
-    padding: 0.5rem 0.75rem 0.8rem 0.75rem !important;
+    padding: 0.5rem 0.75rem 0.8rem !important;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
@@ -178,19 +176,6 @@
     z-index: -1;
 }
 
-/* Chat bubble pointer pointing down to help icon */
-.glpisaml .form-field.row > .form-text-help-hover-box::before {
-    content: '';
-    position: absolute;
-    bottom: -5px; /* extends slightly below the bottom edge */
-    right: 13px !important;
-    left: auto !important;
-    transform: rotate(45deg) !important;
-    width: 10px;
-    height: 10px;
-    z-index: -1;
-}
-
 /* Info bubble (blue theme) */
 .glpisaml .form-field.row > .form-text-info-hover-box {
     background-color: hsl(188, 70%, 96%) !important;
@@ -234,6 +219,15 @@
     color: hsl(0, 0%, 20%) !important;
 }
 .glpisaml .form-field.row > .form-text-help-hover-box::before {
+    content: '';
+    position: absolute;
+    bottom: -5px; /* extends slightly below the bottom edge */
+    right: 13px !important;
+    left: auto !important;
+    transform: rotate(45deg) !important;
+    width: 10px;
+    height: 10px;
+    z-index: -1;
     background-color: hsl(0, 0%, 90%);
     border-right: 1px solid hsl(0, 0%, 75%);
     border-bottom: 1px solid hsl(0, 0%, 75%);
@@ -430,8 +424,8 @@
 
 /* Simplified forms: Categories without cards/boxes */
 .glpisaml .samlsso-category-header {
-    margin: 1.5rem 0.5rem 0.75rem 0.5rem !important;
-    padding: 0 0.5rem 0.5rem 0.5rem !important;
+    margin: 1.5rem 0.5rem 0.75rem !important;
+    padding: 0 0.5rem 0.5rem !important;
     font-size: 0.85rem !important;
     font-weight: 700 !important;
     text-transform: uppercase !important;
