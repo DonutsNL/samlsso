@@ -289,7 +289,8 @@ class LoginFlow
         // CAPTURE LOGIN FIELD
         // https://codeberg.org/QuinQuies/glpisaml/issues/3
         // https://github.com/DonutsNL/samlsso/issues/16
-        if (($id = $this->resolveIdpFromLoginForm())) {
+        $id = $this->resolveIdpFromLoginForm();
+        if ($id) {
             $_POST[LoginFlow::POSTFIELD] = $id;
         }
 
@@ -423,9 +424,8 @@ class LoginFlow
         $ssoBuiltUrl = '';
 
         // Fetch the correct configEntity GLPI
-        if (($configEntity = new ConfigEntity($this->state->getIdpId()))) { // Get the configEntity object using our stored ID
-            $samlConfig = $configEntity->getPhpSamlConfig();      // Get the correctly formatted SamlConfig array
-        }
+        $configEntity = new ConfigEntity($this->state->getIdpId());
+        $samlConfig = $configEntity->getPhpSamlConfig();
 
         // Validate if the IDP configuration is enabled
         // https://codeberg.org/QuinQuies/glpisaml/issues/4

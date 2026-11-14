@@ -703,7 +703,8 @@ class ConfigForm    //NOSONAR complexity by design.
             // Get instance of SamlConfig for db update.
             $config = new Config();
             // Perform database insert using db fields.
-            if (($id = $config->add($fields))) {
+            $id = $config->add($fields);
+            if ($id) {
                 // Save claim mappings if present in postData
                 $claimMapEntity = new ClaimMapEntity((int)$id);
                 $claimMapEntity->save($claimMap);

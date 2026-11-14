@@ -877,7 +877,8 @@ class ConfigItem    //NOSONAR
             // Start with an empty array
             $validations = [];
             // Try to parse the certificate using Openssl.
-            if (($parsedCertificate = openssl_x509_parse($certificate))) {
+            $parsedCertificate = openssl_x509_parse($certificate);
+            if ($parsedCertificate) {
                 // Create time object from current timestamp to calculate with
                 $n = new DateTimeImmutable('now');
                 // Create time objects from certificate validity properties.

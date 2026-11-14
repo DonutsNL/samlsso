@@ -92,7 +92,7 @@ namespace GlpiPlugin\Samlsso\Tests {
 
                             if ($type === T_INLINE_HTML) {
                                 // Match short tags in inline HTML context (e.g. if short_open_tag is disabled in php.ini)
-                                $pattern = '<' . '\?' . '(?!php|xml)';
+                                $pattern = '<\?(?!php|xml)';
                                 if (preg_match('/' . $pattern . '/i', $text)) {
                                     $errors[] = "$filePath: Line $line - Prohibited short tag '<?' found. Always use '<?php'.\n  Documentation: https://glpi-developer-documentation.readthedocs.io/en/master/coding-standards/index.html";
                                     break;
