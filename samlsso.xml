@@ -5,10 +5,10 @@
 <logo>https://raw.githubusercontent.com/DonutsNL/samlsso/refs/heads/main/templates/images/quinquies.jpeg</logo>
 <description>
     <short>
-        <en>A feature-rich SAML 2.0 Single Sign-On (SSO) plugin for GLPI 11+ with support for multiple Identity Providers, Just-In-Time (JIT) provisioning, and dynamic rule-based permission mapping.</en>
+        <en>A feature-rich SAML 2.0 Single Sign-On (SSO) plugin for GLPI 11 and 12 with support for multiple Identity Providers, Just-In-Time (JIT) provisioning, dynamic rule-based permission mapping, and SCIM 2.0 provisioning (Beta).</en>
     </short>
     <long>
-        <en>Samlsso is a SAML 2.0 Single Sign-On (SSO) plugin designed specifically for GLPI 11+. It connects GLPI with external Identity Providers (IdPs) such as Microsoft Entra ID (Azure), Google Workspace, Okta, and Keycloak.
+        <en>Samlsso is a SAML 2.0 Single Sign-On (SSO) plugin designed for GLPI 11 and 12. It connects GLPI with external Identity Providers (IdPs) such as Microsoft Entra ID (Azure), Google Workspace, Okta, and Keycloak.
 
 Key Features:
 - Multi-Provider Support: Configure and manage multiple SAML providers simultaneously, allowing different customers or departments to log in to the same GLPI instance using their own IdPs.
@@ -32,6 +32,7 @@ GitHub: https://github.com/DonutsNL/samlsso</en>
     <version>
         <num>1.4.0</num>
         <compatibility>~11.0.0</compatibility>
+        <compatibility>~12.0.0</compatibility>
         <download_url>https://github.com/DonutsNL/samlsso/releases/download/v1.4.0/samlsso.zip</download_url>
     </version>
     <version>
@@ -86,16 +87,27 @@ GitHub: https://github.com/DonutsNL/samlsso</en>
     </version>
 </versions>
 <langs>
+    <lang>cs_CZ</lang>
+    <lang>da_DK</lang>
     <lang>de_DE</lang>
     <lang>el_GR</lang>
     <lang>en_GB</lang>
     <lang>es_AR</lang>
     <lang>es_ES</lang>
+    <lang>fi_FI</lang>
     <lang>fr_FR</lang>
     <lang>hi_IN</lang>
+    <lang>hu_HU</lang>
     <lang>it_IT</lang>
+    <lang>nb_NO</lang>
     <lang>nl_NL</lang>
+    <lang>pl_PL</lang>
     <lang>pt_BR</lang>
+    <lang>pt_PT</lang>
+    <lang>ro_RO</lang>
+    <lang>sv_SE</lang>
+    <lang>tr_TR</lang>
+    <lang>uk_UA</lang>
 </langs>
 <license>GPLv3+</license>
 <tags>

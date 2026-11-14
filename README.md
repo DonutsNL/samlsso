@@ -1,11 +1,11 @@
 # samlSSO
 [![CodeFactor](https://www.codefactor.io/repository/github/donutsnl/samlsso/badge)](https://www.codefactor.io/repository/github/donutsnl/samlsso)
-[![GLPI Compatibility](https://img.shields.io/badge/GLPI-%E2%89%A5%2011.0.0-green.svg)](https://github.com/DonutsNL/samlsso)
-[![Tests Passing](https://img.shields.io/badge/tests-18%20suites%20passed-brightgreen.svg)](tests/RunAllTests.php)
+[![GLPI Compatibility](https://img.shields.io/badge/GLPI-11%20%7C%2012-green.svg)](https://github.com/DonutsNL/samlsso)
+[![Tests Passing](https://img.shields.io/badge/tests-24%20suites%20passed-brightgreen.svg)](tests/RunAllTests.php)
 [![GitHub release](https://img.shields.io/github/v/release/DonutsNL/samlsso.svg)](https://github.com/DonutsNL/samlsso/releases)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
-This plugin is a full rewrite by Chris Gralike of Derrick Smith's initial PHPSAML plugin for GLPI. This plugin has evolved quite a bit since then and is fully redesigned and rewritten to be compatible with GLPI 11. It now supports multiple SAML Identity Providers (IdPs), implements advanced user right rules, Just-In-Time (JIT) provisioning, and more. 
+This plugin is a full rewrite by Chris Gralike of Derrick Smith's initial PHPSAML plugin for GLPI. This plugin has evolved quite a bit since then and is fully redesigned and rewritten to be compatible with GLPI 11 and 12. It now supports multiple SAML Identity Providers (IdPs), implements advanced user right rules, Just-In-Time (JIT) provisioning, and more.
 
 The plugin is fully configurable from the GLPI UI and doesn't require any coding skills. It uses GLPI core components where possible for maximum compatibility and maintainability. It utilizes Composer for quick 3rd party library updates if security issues require it. It follows PSR best practices and, most importantly, is written with a "security-by-design-by-default" approach to help you visually identify security issues.
 
@@ -18,6 +18,7 @@ The plugin is fully configurable from the GLPI UI and doesn't require any coding
 * **Just-In-Time (JIT) Provisioning**: Automatically create and update GLPI users dynamically on successful SAML login.
 * **Flexible Claim Mapping**: Bind custom SAML assertion attributes and claims directly to GLPI user fields.
 * **User Association & Authorization Rules**: Assign profiles, groups, and entities to users based on SAML claims.
+* **SCIM 2.0 Provisioning (Beta)**: Per-IdP stateless HTTPS Bearer provisioning endpoint (`/front/scim/v2/{idpId}`) for users and group memberships.
 * **Security Hardening**: Replay attack protection using assertion ID database tracking, strict time-window verification, and state-machine-backed login/logout flows.
 * **Extensive Logging & Audit Trails**: Thorough logging of phase-by-phase login stages for security validation and SIEM monitoring.
 * **Configuration Backup & Restore**: Built-in backup functionality to easily export and restore plugin configuration state.
@@ -32,7 +33,6 @@ I am very interested in your challenges and ideas. Want to contribute those? Loo
 * Hardening the plugin security state machine
 * Translation quality and localization coverage (https://app.transifex.com/quinquies/samlsso/)
 * Usability optimization and remote logout handling
-* SCIM provisioning capability research
 * Enhancing the audit log state table for SIEM security monitoring
 
 ## Documentation
