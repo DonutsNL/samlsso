@@ -462,205 +462,269 @@ class ConfigForm    //NOSONAR complexity by design.
      */
     public function invokeForm(Request $request): Response|RedirectResponse     // NOSONAR - CRUDE returns by design.
     {
-        if ($request->get('action') === 'forcelogoff') {
-            if (!$request->isMethod('POST')) {
-                Session::addMessageAfterRedirect(__('Invalid request method for force logoff.', PLUGIN_NAME), false, ERROR);
-                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
-            }
-            if (method_exists(\Session::class, 'validateCSRF') && !\Session::validateCSRF($request->request->all())) {
-                Session::addMessageAfterRedirect(__('Security token expired or invalid.', PLUGIN_NAME), false, ERROR);
-                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
-            }
-            $config = new Config();
-            if (!$config->canUpdate()) {
-                Session::addMessageAfterRedirect(__('You do not have permission to perform this action.', PLUGIN_NAME), false, ERROR);
-                return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
-            }
-            $stateId = (int)$request->request->get('state_id');
-            if ($stateId > 0) {
-                $loginState = new LoginState();
-                if ($loginState->getFromID($stateId)) {
-                    $userId = $loginState->getUserId();
-                    if ($userId > 0) {
-                        $user = new \User();
-                        if ($user->getFromDB($userId)) {
-                            $user->update([SamlUser::USERID => $userId, SamlUser::ACTIVE => 0]);
-                        }
-                    }
-                    $loginState->setPhase(LoginState::PHASE_FORCE_LOG);
-                    Session::addMessageAfterRedirect(__('User disabled and session forced logoff.', PLUGIN_NAME));
-                } else {
-                    Session::addMessageAfterRedirect(__('Login state session not found.', PLUGIN_NAME), false, ERROR);
-                }
-            }
-            $idpId = !empty($request->request->get('id')) ? (int) $request->request->get('id') : -1;
-            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $idpId . '#logging');
+        $action = $request->get('action');
+        if ($action === 'forcelogoff') {
+            return $this->handleForceLogoffAction($request);
+        }
+        if ($action === 'generate_cert') {
+            return $this->handleGenerateCertAction($request);
+        }
+        if ($action === 'generate_scim_token') {
+            return $this->handleGenerateScimTokenAction($request);
         }
 
-        if ($request->get('action') === 'generate_cert') {
-            if (!$request->isMethod('POST')) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('Invalid request method for certificate generation.', PLUGIN_NAME),
-                ]), Response::HTTP_METHOD_NOT_ALLOWED, ['Content-Type' => 'application/json']);
-            }
-            if (method_exists(\Session::class, 'validateCSRF') && !\Session::validateCSRF($request->request->all(), true)) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('Security token expired or invalid.', PLUGIN_NAME),
-                ]), Response::HTTP_FORBIDDEN, ['Content-Type' => 'application/json']);
-            }
-            $config = new Config();
-            if (!$config->canUpdate()) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('You do not have permission to perform this action.', PLUGIN_NAME),
-                ]), Response::HTTP_FORBIDDEN, ['Content-Type' => 'application/json']);
-            }
+        return $this->dispatchCrudFormAction($request);
+    }
 
-            $commonName = trim((string)$request->request->get('common_name', ''));
-            $validYears = (int)$request->request->get('valid_years', 3);
-            $validDays  = $validYears > 0 ? ($validYears * 365) : 1095;
-            if ($request->request->has('valid_days') && (int)$request->request->get('valid_days') > 0) {
-                $validDays = (int)$request->request->get('valid_days');
-            }
-            $keyType   = strtoupper(trim((string)$request->request->get('key_type', 'RSA')));
-            $keyBits   = (int)$request->request->get('key_bits', 2048);
-            $curveName = trim((string)$request->request->get('curve_name', 'prime256v1'));
-            $digestAlg = strtolower(trim((string)$request->request->get('digest_alg', 'sha256')));
-
-            // Server-side strict community standards security checks
-            if ($keyType === 'RSA' && $keyBits < 2048) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('RSA key length must be at least 2048 bits to comply with security standards.', PLUGIN_NAME),
-                ]), Response::HTTP_BAD_REQUEST, ['Content-Type' => 'application/json']);
-            }
-
-            $pair = ConfigEntity::generateSelfSignedCertificate($commonName, $validDays, $keyType, $keyBits, $curveName, $digestAlg);
-            if ($pair === false) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('OpenSSL certificate generation failed or OpenSSL is not available.', PLUGIN_NAME),
-                ]), Response::HTTP_INTERNAL_SERVER_ERROR, ['Content-Type' => 'application/json']);
-            }
-
-            return new Response((string)json_encode([
-                'success'     => true,
-                'certificate' => $pair['certificate'],
-                'private_key' => $pair['private_key'],
-                'message'     => __('New self-signed certificate and private key generated successfully.', PLUGIN_NAME),
-            ]), Response::HTTP_OK, ['Content-Type' => 'application/json']);
+    /**
+     * Validate POST method, CSRF token, and config UPDATE rights for JSON admin endpoints.
+     *
+     * @param Request $request Incoming HTTP request.
+     * @param string $methodError Translated error message for non-POST requests.
+     * @param array $headers JSON response headers.
+     * @return Response|null Error JSON response on failure, null when authorized.
+     */
+    private function authorizeConfigJsonEndpoint(Request $request, string $methodError, array $headers): ?Response
+    {
+        if (!$request->isMethod('POST')) {
+            return new Response((string) json_encode([
+                'success' => false,
+                'error'   => $methodError,
+            ]), Response::HTTP_METHOD_NOT_ALLOWED, $headers);
+        }
+        if (method_exists(\Session::class, 'validateCSRF') && !\Session::validateCSRF($request->request->all(), true)) {
+            return new Response((string) json_encode([
+                'success' => false,
+                'error'   => __('Security token expired or invalid.', PLUGIN_NAME),
+            ]), Response::HTTP_FORBIDDEN, $headers);
+        }
+        $config = new Config();
+        if (!$config->canUpdate()) {
+            return new Response((string) json_encode([
+                'success' => false,
+                'error'   => __('You do not have permission to perform this action.', PLUGIN_NAME),
+            ]), Response::HTTP_FORBIDDEN, $headers);
         }
 
-        if ($request->get('action') === 'generate_scim_token') {
-            $jsonHeaders = [
-                'Content-Type'  => 'application/json',
-                'Cache-Control' => 'no-store, no-cache, must-revalidate',
-            ];
-            if (!$request->isMethod('POST')) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('Invalid request method for SCIM token generation.', PLUGIN_NAME),
-                ]), Response::HTTP_METHOD_NOT_ALLOWED, $jsonHeaders);
-            }
-            if (method_exists(\Session::class, 'validateCSRF') && !\Session::validateCSRF($request->request->all(), true)) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('Security token expired or invalid.', PLUGIN_NAME),
-                ]), Response::HTTP_FORBIDDEN, $jsonHeaders);
-            }
-            $config = new Config();
-            if (!$config->canUpdate()) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('You do not have permission to perform this action.', PLUGIN_NAME),
-                ]), Response::HTTP_FORBIDDEN, $jsonHeaders);
-            }
+        return null;
+    }
 
-            $targetId = (int)$request->request->get('id', -1);
-            if (
-                $targetId <= 0 ||
-                !$config->getFromDB($targetId) ||
-                (int)($config->fields[ConfigEntity::IS_DELETED] ?? 0) === 1
-            ) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('Save the Identity Provider configuration before generating a SCIM Bearer token.', PLUGIN_NAME),
-                ]), Response::HTTP_BAD_REQUEST, $jsonHeaders);
-            }
-
-            $generated = ScimAuthenticator::generateToken();
-            global $DB;
-            $updated = $DB->update(
-                Config::getTable(),
-                [
-                    ConfigEntity::SCIM_TOKEN_HASH   => $generated['hash'],
-                    ConfigEntity::SCIM_TOKEN_SOURCE => 'db',
-                ],
-                [ConfigEntity::ID => $targetId]
-            );
-            if (!$updated) {
-                return new Response((string)json_encode([
-                    'success' => false,
-                    'error'   => __('Failed to persist generated SCIM Bearer token digest.', PLUGIN_NAME),
-                ]), Response::HTTP_INTERNAL_SERVER_ERROR, $jsonHeaders);
-            }
-
-            ConfigEntity::clearCache();
-            Config::clearCache();
-
-            $actorId = (int)\Session::getLoginUserID();
-            Toolbox::logInFile(
-                PLUGIN_SAMLSSO_LOGEVENTS,
-                sprintf("SCIM Bearer token generated or rotated for IdP #%d by user #%d\n", $targetId, $actorId)
-            );
-
-            return new Response((string)json_encode([
-                'success' => true,
-                'token'   => $generated['plaintext'],
-                'message' => __('New SCIM Bearer token generated. Copy it now; it cannot be displayed again.', PLUGIN_NAME),
-            ]), Response::HTTP_OK, $jsonHeaders);
+    /**
+     * Handle POST action to disable a user and force-logoff an active login state session.
+     *
+     * @param Request $request Incoming HTTP request.
+     * @return RedirectResponse Redirect back to the ConfigForm logging tab.
+     */
+    private function handleForceLogoffAction(Request $request): RedirectResponse
+    {
+        if (!$request->isMethod('POST')) {
+            Session::addMessageAfterRedirect(__('Invalid request method for force logoff.', PLUGIN_NAME), false, ERROR);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
+        }
+        if (method_exists(\Session::class, 'validateCSRF') && !\Session::validateCSRF($request->request->all())) {
+            Session::addMessageAfterRedirect(__('Security token expired or invalid.', PLUGIN_NAME), false, ERROR);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
+        }
+        $config = new Config();
+        if (!$config->canUpdate()) {
+            Session::addMessageAfterRedirect(__('You do not have permission to perform this action.', PLUGIN_NAME), false, ERROR);
+            return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE);
         }
 
-        $inputBag = $request->getPayload();                                     // Assign the inputBag
-        $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;     // Assign the ID if any
+        $stateId = (int) $request->request->get('state_id');
+        if ($stateId > 0) {
+            $this->terminateLoginStateAndDisableUser($stateId);
+        }
+
+        $idpId = !empty($request->request->get('id')) ? (int) $request->request->get('id') : -1;
+        return new RedirectResponse(samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $idpId . '#logging');
+    }
+
+    /**
+     * Disable the GLPI user linked to a LoginState row (if any) and mark the state PHASE_FORCE_LOG.
+     *
+     * @param int $stateId LoginState record ID.
+     * @return void
+     */
+    private function terminateLoginStateAndDisableUser(int $stateId): void
+    {
+        $loginState = new LoginState();
+        if (!$loginState->getFromID($stateId)) {
+            Session::addMessageAfterRedirect(__('Login state session not found.', PLUGIN_NAME), false, ERROR);
+            return;
+        }
+
+        $userId = $loginState->getUserId();
+        if ($userId > 0) {
+            $user = new \User();
+            if ($user->getFromDB($userId)) {
+                $user->update([SamlUser::USERID => $userId, SamlUser::ACTIVE => 0]);
+            }
+        }
+        $loginState->setPhase(LoginState::PHASE_FORCE_LOG);
+        Session::addMessageAfterRedirect(__('User disabled and session forced logoff.', PLUGIN_NAME));
+    }
+
+    /**
+     * Handle AJAX POST action to generate a self-signed SP certificate/private-key pair.
+     *
+     * @param Request $request Incoming HTTP request.
+     * @return Response JSON response containing PEM pair or error message.
+     */
+    private function handleGenerateCertAction(Request $request): Response
+    {
+        $jsonHeaders = ['Content-Type' => 'application/json'];
+        $authError = $this->authorizeConfigJsonEndpoint(
+            $request,
+            __('Invalid request method for certificate generation.', PLUGIN_NAME),
+            $jsonHeaders
+        );
+        if ($authError !== null) {
+            return $authError;
+        }
+
+        $commonName = trim((string) $request->request->get('common_name', ''));
+        $validYears = (int) $request->request->get('valid_years', 3);
+        $validDays  = $validYears > 0 ? ($validYears * 365) : 1095;
+        if ($request->request->has('valid_days') && (int) $request->request->get('valid_days') > 0) {
+            $validDays = (int) $request->request->get('valid_days');
+        }
+        $keyType   = strtoupper(trim((string) $request->request->get('key_type', 'RSA')));
+        $keyBits   = (int) $request->request->get('key_bits', 2048);
+        $curveName = trim((string) $request->request->get('curve_name', 'prime256v1'));
+        $digestAlg = strtolower(trim((string) $request->request->get('digest_alg', 'sha256')));
+
+        if ($keyType === 'RSA' && $keyBits < 2048) {
+            return new Response((string) json_encode([
+                'success' => false,
+                'error'   => __('RSA key length must be at least 2048 bits to comply with security standards.', PLUGIN_NAME),
+            ]), Response::HTTP_BAD_REQUEST, $jsonHeaders);
+        }
+
+        $pair = ConfigEntity::generateSelfSignedCertificate($commonName, $validDays, $keyType, $keyBits, $curveName, $digestAlg);
+        if ($pair === false) {
+            return new Response((string) json_encode([
+                'success' => false,
+                'error'   => __('OpenSSL certificate generation failed or OpenSSL is not available.', PLUGIN_NAME),
+            ]), Response::HTTP_INTERNAL_SERVER_ERROR, $jsonHeaders);
+        }
+
+        return new Response((string) json_encode([
+            'success'     => true,
+            'certificate' => $pair['certificate'],
+            'private_key' => $pair['private_key'],
+            'message'     => __('New self-signed certificate and private key generated successfully.', PLUGIN_NAME),
+        ]), Response::HTTP_OK, $jsonHeaders);
+    }
+
+    /**
+     * Handle AJAX POST action to generate/rotate a per-IdP SCIM Bearer token digest.
+     *
+     * @param Request $request Incoming HTTP request.
+     * @return Response JSON response containing one-time plaintext token or error message.
+     */
+    private function handleGenerateScimTokenAction(Request $request): Response
+    {
+        $jsonHeaders = [
+            'Content-Type'  => 'application/json',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+        ];
+        $authError = $this->authorizeConfigJsonEndpoint(
+            $request,
+            __('Invalid request method for SCIM token generation.', PLUGIN_NAME),
+            $jsonHeaders
+        );
+        if ($authError !== null) {
+            return $authError;
+        }
+
+        $config = new Config();
+        $targetId = (int) $request->request->get('id', -1);
+        if (
+            $targetId <= 0 ||
+            !$config->getFromDB($targetId) ||
+            (int) ($config->fields[ConfigEntity::IS_DELETED] ?? 0) === 1
+        ) {
+            return new Response((string) json_encode([
+                'success' => false,
+                'error'   => __('Save the Identity Provider configuration before generating a SCIM Bearer token.', PLUGIN_NAME),
+            ]), Response::HTTP_BAD_REQUEST, $jsonHeaders);
+        }
+
+        $generated = ScimAuthenticator::generateToken();
+        global $DB;
+        $updated = $DB->update(
+            Config::getTable(),
+            [
+                ConfigEntity::SCIM_TOKEN_HASH   => $generated['hash'],
+                ConfigEntity::SCIM_TOKEN_SOURCE => 'db',
+            ],
+            [ConfigEntity::ID => $targetId]
+        );
+        if (!$updated) {
+            return new Response((string) json_encode([
+                'success' => false,
+                'error'   => __('Failed to persist generated SCIM Bearer token digest.', PLUGIN_NAME),
+            ]), Response::HTTP_INTERNAL_SERVER_ERROR, $jsonHeaders);
+        }
+
+        ConfigEntity::clearCache();
+        Config::clearCache();
+
+        $actorId = (int) \Session::getLoginUserID();
+        Toolbox::logInFile(
+            PLUGIN_SAMLSSO_LOGEVENTS,
+            sprintf("SCIM Bearer token generated or rotated for IdP #%d by user #%d\n", $targetId, $actorId)
+        );
+
+        return new Response((string) json_encode([
+            'success' => true,
+            'token'   => $generated['plaintext'],
+            'message' => __('New SCIM Bearer token generated. Copy it now; it cannot be displayed again.', PLUGIN_NAME),
+        ]), Response::HTTP_OK, $jsonHeaders);
+    }
+
+    /**
+     * Dispatch standard show/create/update/delete CRUD operations for an IdP configuration form.
+     *
+     * @param Request $request Incoming HTTP request.
+     * @return Response|RedirectResponse Rendered form or redirect response.
+     */
+    private function dispatchCrudFormAction(Request $request): Response|RedirectResponse
+    {
+        $inputBag = $request->getPayload();
+        $id = !empty($request->get('id')) ? (int) $request->get('id') : -1;
         $requestedTpl = $request->get('template');
-        $options['template'] = (is_string($requestedTpl) && $requestedTpl !== '' && ctype_alpha($requestedTpl))
-            ? $requestedTpl
-            : 'default';
-        $options['search'] = (string)$request->get('search', '');
-        $options['page'] = !empty($request->get('page')) ? (int)$request->get('page') : 1;
-                                 
-        // Add using template
-        if( !$inputBag->has('update')     &&
-            !$inputBag->has('delete')     ){                                // IF the update is empy load a given template for initial form.
+        $options = [
+            'template' => (is_string($requestedTpl) && $requestedTpl !== '' && ctype_alpha($requestedTpl)) ? $requestedTpl : 'default',
+            'search'   => (string) $request->get('search', ''),
+            'page'     => !empty($request->get('page')) ? (int) $request->get('page') : 1,
+        ];
+
+        if (!$inputBag->has('update') && !$inputBag->has('delete')) {
             Session::checkRight('config', READ);
             $this->displayUIHeader();
-            return $this->showForm($id, $options);                  // Return the form
-    
-        // Add new item
-        }elseif($inputBag->has('update')  &&                                // IF we received an update
-                $id == -1                 ){                                    // AND ID param is empty
+            return $this->showForm($id, $options);
+        }
+
+        if ($inputBag->has('update') && $id == -1) {
             Session::checkRight('config', UPDATE);
             $this->displayUIHeader();
-            return $this->addSamlConfig($inputBag->getIterator());  // Call Create handler
+            return $this->addSamlConfig($inputBag->getIterator());
+        }
 
-        // Update an item
-        }elseif($inputBag->has('update')  &&                                    // IF update is set
-                $id > 0                   ){                                    // AND $id is higher than 0
+        if ($inputBag->has('update') && $id > 0) {
             Session::checkRight('config', UPDATE);
             return $this->updateSamlConfig($inputBag->getIterator());
-
-        // Delete an item
-        }elseif($inputBag->has('delete')  &&                                    // IF get delete
-                $id > 0                   ){                                    // AND $id is higer then 0
-           Session::checkRight('config', UPDATE);
-           return $this->deleteSamlConfig($inputBag->getIterator());
-        }else{
-            $this->displayUIHeader();
-            return new Response('No valid instructions received');
         }
+
+        if ($inputBag->has('delete') && $id > 0) {
+            Session::checkRight('config', UPDATE);
+            return $this->deleteSamlConfig($inputBag->getIterator());
+        }
+
+        $this->displayUIHeader();
+        return new Response('No valid instructions received');
     }
 
 
@@ -929,178 +993,248 @@ class ConfigForm    //NOSONAR complexity by design.
     private function generateForm(ConfigEntity $configEntity, array $options = [])
     {
         global $CFG_GLPI;
+
         $fields = $configEntity->getFields();
-        // Get warnings tabs
-        $tplVars  = [];
-        $tplVars = array_merge($tplVars, $this->getTabWarnings($fields));
-       
-        // Get AuthN context as array
         $fields[ConfigEntity::AUTHN_CONTEXT][ConfigItem::VALUE] = $configEntity->getRequestedAuthnContextArray();
 
-        // get the logging entries, but only if the object already exists
-        // https://codeberg.org/QuinQuies/glpisaml/issues/15#issuecomment-1785284
-        $search = (string)($options['search'] ?? '');
-        $page = !empty($options['page']) ? (int)$options['page'] : 1;
-        $limit = 20;
+        $idpId = is_numeric($fields[ConfigEntity::ID]['value']) ? (int) $fields[ConfigEntity::ID]['value'] : -1;
+        $fields = $this->normalizeFieldSubkeys($fields);
 
-        $idpId = is_numeric($fields[ConfigEntity::ID]['value']) ? (int)$fields[ConfigEntity::ID]['value'] : -1;
+        $search = (string) ($options['search'] ?? '');
+        $page   = !empty($options['page']) ? (int) $options['page'] : 1;
+
+        $tplVars = array_merge(
+            $this->getTabWarnings($fields),
+            $this->resolveClaimMappingViewData($idpId),
+            $this->resolveLoggingViewData($idpId, $search, $page),
+            $this->resolveCredentialDisplayState($fields, (string) ($CFG_GLPI['url_base'] ?? '')),
+            $this->buildConfigFormOptionLists(),
+            [
+                'scimUrl'                   => $idpId > 0 ? (samlsso_webdir() . SamlSsoController::SCIM_ROUTE . '/' . $idpId) : '',
+                'scim_linked_users_count'   => $idpId > 0 ? ScimLink::countForConfigAndType($idpId, ScimLink::TYPE_USER) : 0,
+                'scim_linked_groups_count'  => $idpId > 0 ? ScimLink::countForConfigAndType($idpId, ScimLink::TYPE_GROUP) : 0,
+                'scim_last_sync'            => $idpId > 0 ? (ScimLink::getLastSyncForConfig($idpId) ?? '') : '',
+                'saml_xml_structure'        => $fields[ConfigEntity::SAML_XML_STRUCTURE]['value'] ?? '',
+                'plugin'                    => PLUGIN_NAME,
+                'close_form'                => Html::closeForm(false),
+                'csrf_token'                => method_exists(\Session::class, 'getNewCSRFToken') ? \Session::getNewCSRFToken() : '',
+                'currentUserId'             => (int) \Session::getLoginUserID(),
+                'currentUsername'           => (string) ($_SESSION['glpiname'] ?? ''),
+                'glpi_rootdoc'              => samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
+                'glpi_tpl_macro'            => '/components/form/fields_macros.html.twig',
+                'inputfields'               => $fields,
+                'buttonsHiddenWarn'         => (bool) $configEntity->getConfigDomain(),
+                'entityID'                  => $CFG_GLPI['url_base'] . '/',
+                'acsUrl'                    => samlsso_webdir() . SamlSsoController::ACS_ROUTE . '/' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
+                'metaUrl'                   => samlsso_webdir() . SamlSsoController::META_ROUTE . '/' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
+                'sloUrl'                    => samlsso_webdir() . SamlSsoController::SLO_ROUTE . '/' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
+            ]
+        );
+
+        return TemplateRenderer::getInstance()->render('@samlsso/configForm.html.twig', $tplVars);
+    }
+
+    /**
+     * Resolve claim mapping rows, validation errors, presets, and observed claim warnings.
+     *
+     * @param int $idpId IdP configuration ID.
+     * @return array Associative array of claim-mapping template variables.
+     */
+    private function resolveClaimMappingViewData(int $idpId): array
+    {
         $claimMapEntity = new ClaimMapEntity($idpId);
-        
-        $claimErrors = [];
-        $claimMapValid = true;
+        $claimErrors    = [];
+        $claimMapValid  = true;
+
         if (isset($_POST['claim_map']) && is_array($_POST['claim_map'])) {
             $claimMappings = $_POST['claim_map'];
             $claimMapValid = $claimMapEntity->validate($claimMappings);
-            $claimErrors = $claimMapEntity->getErrors();
+            $claimErrors   = $claimMapEntity->getErrors();
             $claimMappings = ClaimMapEntity::sortMappings($claimMappings);
         } else {
             $claimMappings = $claimMapEntity->getMappings();
         }
 
-        $observedClaims = $claimMapEntity->getObservedClaims();
-        $presets = ClaimMapEntity::getPresets();
-
-        $claimWarnings = [];
-        $hasClaimWarning = false;
+        $observedClaims   = $claimMapEntity->getObservedClaims();
+        $claimWarnings    = [];
+        $hasClaimWarning  = false;
         $unusedRuleFields = [];
         if ($idpId > 0) {
             $unusedRuleFields = $claimMapEntity->getUnusedRuleFields();
-            if (!empty($unusedRuleFields)) {
-                $hasClaimWarning = true;
-            }
-            if (!empty($observedClaims)) {
-                foreach ($claimMappings as $index => $mapping) {
-                    $claim = $mapping[ClaimMap::SAML_CLAIM] ?? '';
-                    if ($claim !== '' && !in_array($claim, $observedClaims, true)) {
-                        $claimWarnings[$index] = __('This claim key has not been observed in any SAML responses yet.', PLUGIN_NAME);
-                        $hasClaimWarning = true;
-                    }
+            $hasClaimWarning  = !empty($unusedRuleFields);
+            foreach ($claimMappings as $index => $mapping) {
+                $claim = $mapping[ClaimMap::SAML_CLAIM] ?? '';
+                if (!empty($observedClaims) && $claim !== '' && !in_array($claim, $observedClaims, true)) {
+                    $claimWarnings[$index] = __('This claim key has not been observed in any SAML responses yet.', PLUGIN_NAME);
+                    $hasClaimWarning = true;
                 }
             }
         }
 
-        if ($idpId > 0) {
-            $totalCount = LoginState::getLoggingEntriesCount($idpId, $search);
-            $totalPages = (int)max(1, ceil($totalCount / $limit));
-            if ($page > $totalPages) {
-                $page = $totalPages;
-            }
-            $logging = LoginState::getLoggingEntries($idpId, $search, $page, $limit);
-        } else {
-            $logging = [];
-            $totalCount = 0;
-            $totalPages = 1;
-            $page = 1;
+        return [
+            'claim_mappings'      => $claimMappings,
+            'claim_errors'        => $claimErrors,
+            'observed_claims'     => $observedClaims,
+            'mapping_presets'     => ClaimMapEntity::getPresets(),
+            'allowed_user_fields' => ClaimMapItem::ALLOWED_USER_FIELDS,
+            'allowed_rule_fields' => ClaimMapItem::ALLOWED_RULE_FIELDS,
+            'claim_warnings'      => $claimWarnings,
+            'unused_rule_fields'  => $unusedRuleFields,
+            'claim_tab_warning'   => ($hasClaimWarning || !$claimMapValid) ? '⚠️' : '',
+        ];
+    }
+
+    /**
+     * Fetch paginated authentication logging entries for the Logging tab.
+     *
+     * @param int $idpId IdP configuration ID.
+     * @param string $search Optional search term.
+     * @param int $page Requested page number.
+     * @param int $limit Entries per page.
+     * @return array Associative array of logging template variables.
+     */
+    private function resolveLoggingViewData(int $idpId, string $search, int $page, int $limit = 20): array
+    {
+        if ($idpId <= 0) {
+            return [
+                'loggingfields'       => [],
+                'logging_search'      => $search,
+                'logging_page'        => 1,
+                'logging_total_pages' => 1,
+                'logging_total_count' => 0,
+            ];
         }
 
-        // Twig strict_variables compatibility (GLPI 12 instances running with
-        // kernel.debug=true, e.g. a git checkout install): the form templates
-        // below read errors/formtitle/formexplain/validate for every field,
-        // but validation does not always populate those sub-keys. Default the
-        // optional sub-keys so strict mode renders exactly like production
-        // (where undefined keys resolve to an empty string).
+        $totalCount = LoginState::getLoggingEntriesCount($idpId, $search);
+        $totalPages = (int) max(1, ceil($totalCount / $limit));
+        $clampedPage = min($page, $totalPages);
+
+        return [
+            'loggingfields'       => LoginState::getLoggingEntries($idpId, $search, $clampedPage, $limit),
+            'logging_search'      => $search,
+            'logging_page'        => $clampedPage,
+            'logging_total_pages' => $totalPages,
+            'logging_total_count' => $totalCount,
+        ];
+    }
+
+    /**
+     * Default optional field sub-keys so Twig strict_variables renders cleanly.
+     *
+     * @param array $fields Configuration fields array.
+     * @return array Normalized fields array.
+     */
+    private function normalizeFieldSubkeys(array $fields): array
+    {
+        $requiredSubkeys = [
+            ConfigItem::ERRORS,
+            ConfigItem::FORMTITLE,
+            ConfigItem::FORMEXPLAIN,
+            ConfigItem::VALIDATE,
+            ConfigItem::FIELD,
+            ConfigItem::VALUE,
+        ];
         foreach ($fields as $fkey => $fval) {
             if (!is_array($fval)) {
                 continue;
             }
-            foreach ([ConfigItem::ERRORS, ConfigItem::FORMTITLE, ConfigItem::FORMEXPLAIN, ConfigItem::VALIDATE, ConfigItem::FIELD, ConfigItem::VALUE] as $skey) {
+            foreach ($requiredSubkeys as $skey) {
                 if (!array_key_exists($skey, $fval)) {
                     $fields[$fkey][$skey] = '';
                 }
             }
         }
+        return $fields;
+    }
 
-        $spCertVal = (string)($fields[ConfigEntity::SP_CERTIFICATE][ConfigItem::VALUE] ?? '');
-        $isTestCert = empty(trim($spCertVal)) ||
-            str_contains($spCertVal, 'withlove.from.donuts.nl') ||
-            (($fields[ConfigEntity::SP_CERTIFICATE]['validate']['subject']['CN'] ?? '') === 'withlove.from.donuts.nl');
-        $opensslAvailable = extension_loaded('openssl') && function_exists('openssl_pkey_new');
-        $urlBase = (string)($CFG_GLPI['url_base'] ?? '');
-        $defaultCertCn = !empty($urlBase) ? ((string)parse_url($urlBase, PHP_URL_HOST) ?: 'glpi-saml-sp') : 'glpi-saml-sp';
+    /**
+     * Compute certificate/OpenSSL UI flags and scrub DB-stored or privileged secrets from form output.
+     *
+     * @param array $fields Normalized config fields array (scrubbed in-place).
+     * @param string $urlBase GLPI base URL for default CN inference.
+     * @return array Credential display state variables for Twig.
+     */
+    private function resolveCredentialDisplayState(array &$fields, string $urlBase): array
+    {
+        $spCertVal = (string) ($fields[ConfigEntity::SP_CERTIFICATE][ConfigItem::VALUE] ?? '');
+        $isTestCert = empty(trim($spCertVal))
+            || str_contains($spCertVal, 'withlove.from.donuts.nl')
+            || (($fields[ConfigEntity::SP_CERTIFICATE]['validate']['subject']['CN'] ?? '') === 'withlove.from.donuts.nl');
 
-        $spKeySource = (string)($fields[ConfigEntity::SP_KEY_SOURCE][ConfigItem::VALUE] ?? 'db');
-        $hasStoredSpKey = ($spKeySource === 'db' && !empty($fields[ConfigEntity::SP_KEY][ConfigItem::VALUE]));
+        $spKeySource = (string) ($fields[ConfigEntity::SP_KEY_SOURCE][ConfigItem::VALUE] ?? 'db');
+        $hasStoredSpKey = $spKeySource === 'db' && !empty($fields[ConfigEntity::SP_KEY][ConfigItem::VALUE]);
         if ($spKeySource === 'db' || !Session::haveRight('config', UPDATE)) {
             $fields[ConfigEntity::SP_KEY][ConfigItem::VALUE] = '';
         }
 
-        $idpId = (int)($fields[ConfigEntity::ID][ConfigItem::VALUE] ?? -1);
-        $scimTokenSource = (string)($fields[ConfigEntity::SCIM_TOKEN_SOURCE][ConfigItem::VALUE] ?? 'db');
-        $rawScimHash = (string)($fields[ConfigEntity::SCIM_TOKEN_HASH][ConfigItem::VALUE] ?? '');
-        $hasStoredScimToken = ($scimTokenSource === 'db' && preg_match('/^[a-fA-F0-9]{64}$/', $rawScimHash) === 1);
+        $scimTokenSource = (string) ($fields[ConfigEntity::SCIM_TOKEN_SOURCE][ConfigItem::VALUE] ?? 'db');
+        $rawScimHash = (string) ($fields[ConfigEntity::SCIM_TOKEN_HASH][ConfigItem::VALUE] ?? '');
+        $hasStoredScimToken = $scimTokenSource === 'db' && preg_match('/^[a-fA-F0-9]{64}$/', $rawScimHash) === 1;
         if ($scimTokenSource === 'db' || !Session::haveRight('config', UPDATE)) {
             $fields[ConfigEntity::SCIM_TOKEN_HASH][ConfigItem::VALUE] = '';
         }
 
-        $tplVars = array_merge($tplVars, [
-            'is_test_certificate'       =>  $isTestCert,
-            'has_stored_sp_key'         =>  $hasStoredSpKey,
-            'has_stored_scim_token'     =>  $hasStoredScimToken,
-            'scimUrl'                   =>  $idpId > 0 ? (samlsso_webdir() . SamlSsoController::SCIM_ROUTE . '/' . $idpId) : '',
-            'scim_linked_users_count'   =>  $idpId > 0 ? ScimLink::countForConfigAndType($idpId, ScimLink::TYPE_USER) : 0,
-            'scim_linked_groups_count'  =>  $idpId > 0 ? ScimLink::countForConfigAndType($idpId, ScimLink::TYPE_GROUP) : 0,
-            'scim_last_sync'            =>  $idpId > 0 ? (ScimLink::getLastSyncForConfig($idpId) ?? '') : '',
-            'openssl_available'         =>  $opensslAvailable,
-            'default_cert_cn'           =>  $defaultCertCn,
-            'claim_mappings'            =>  $claimMappings,
-            'claim_errors'              =>  $claimErrors,
-            'observed_claims'           =>  $observedClaims,
-            'mapping_presets'           =>  $presets,
-            'allowed_user_fields'       =>  ClaimMapItem::ALLOWED_USER_FIELDS,
-            'allowed_rule_fields'       =>  ClaimMapItem::ALLOWED_RULE_FIELDS,
-            'claim_warnings'            =>  $claimWarnings,
-            'unused_rule_fields'        =>  $unusedRuleFields,
-            'claim_tab_warning'         =>  ($hasClaimWarning || !$claimMapValid) ? '⚠️' : '',
-            'saml_xml_structure'        =>  $fields[ConfigEntity::SAML_XML_STRUCTURE]['value'] ?? '',
-            'plugin'                    =>  PLUGIN_NAME,
-            'close_form'                =>  Html::closeForm(false),
-            'csrf_token'                =>  method_exists(\Session::class, 'getNewCSRFToken') ? \Session::getNewCSRFToken() : '',
-            'currentUserId'             =>  (int) \Session::getLoginUserID(),
-            'currentUsername'           =>  (string) ($_SESSION['glpiname'] ?? ''),
-            'glpi_rootdoc'              =>  samlsso_webdir() . SamlSsoController::CONFIGFORM_ROUTE . '?id=' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
-            'glpi_tpl_macro'            =>  '/components/form/fields_macros.html.twig',
-            'inputfields'               =>  $fields,
-            'buttonsHiddenWarn'         =>  ($configEntity->getConfigDomain()) ? true : false,
-            'loggingfields'             =>  $logging,
-            'logging_search'            =>  $search,
-            'logging_page'              =>  $page,
-            'logging_total_pages'       =>  $totalPages,
-            'logging_total_count'       =>  $totalCount,
-            'entityID'                  =>  $CFG_GLPI['url_base'].'/',
-            'acsUrl'                    =>  samlsso_webdir() . SamlSsoController::ACS_ROUTE . '/' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
-            'metaUrl'                   =>  samlsso_webdir() . SamlSsoController::META_ROUTE . '/' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
-            'sloUrl'                    =>  samlsso_webdir() . SamlSsoController::SLO_ROUTE . '/' . $fields[ConfigEntity::ID][ConfigItem::VALUE],
-            'inputOptionsBool'          =>  [ 1                                 => __('Yes', PLUGIN_NAME),
-                                              0                                 => __('No', PLUGIN_NAME)],
-            'inputOptionsNameFormat'    =>  [Saml2Const::NAMEID_UNSPECIFIED     => __('Unspecified', PLUGIN_NAME),
-                                             Saml2Const::NAMEID_EMAIL_ADDRESS   => __('Email Address', PLUGIN_NAME),
-                                             Saml2Const::NAMEID_TRANSIENT       => __('Transient', PLUGIN_NAME),
-                                             Saml2Const::NAMEID_PERSISTENT      => __('Persistent', PLUGIN_NAME)],
-            'inputOptionsKeySource'     =>  ['db'     => __('Database (legacy)', PLUGIN_NAME),
-                                             'file'   => __('Secure File Path', PLUGIN_NAME),
-                                             'env'    => __('Environment Variable', PLUGIN_NAME),
-                                             'define' => __('PHP Define / Constant', PLUGIN_NAME)],
-            'inputOptionsAuthnContext'  =>  ['PasswordProtectedTransport'   => __('PasswordProtectedTransport', PLUGIN_NAME),
-                                             'Password'                     => __('Password', PLUGIN_NAME),
-                                             'X509'                         => __('X509', PLUGIN_NAME),
-                                             'none'                         => __('none', PLUGIN_NAME)],
-            'inputOptionsAuthnCompare'  =>  ['exact'                        => __('Exact', PLUGIN_NAME),
-                                             'minimum'                      => __('Minimum', PLUGIN_NAME),
-                                             'maximum'                      => __('Maximum', PLUGIN_NAME),
-                                             'better'                       => __('Better', PLUGIN_NAME)],
-            'inputOptionsScimTokenSource' => ['db'     => __('Database (SHA-256 Digest)', PLUGIN_NAME),
-                                              'env'    => __('Environment Variable', PLUGIN_NAME),
-                                              'define' => __('PHP Define / Constant', PLUGIN_NAME)],
-            'inputOptionsScimDeprovision' => ['disable'  => __('Disable User & Force Logoff', PLUGIN_NAME),
-                                              'trashbin' => __('Move to Trashbin, Disable & Force Logoff', PLUGIN_NAME)],
-            'inputOptionsScimGroupPolicy' => ['create_scoped' => __('Create & Manage Groups', PLUGIN_NAME),
-                                              'link_existing' => __('Link Existing GLPI Groups Only', PLUGIN_NAME),
-                                              'disabled'      => __('Disabled (Users Only)', PLUGIN_NAME)],
-            'inputOptionsIcons'         =>  self::getAvailableIcons(),
-        ]);
+        return [
+            'is_test_certificate'   => $isTestCert,
+            'has_stored_sp_key'     => $hasStoredSpKey,
+            'has_stored_scim_token' => $hasStoredScimToken,
+            'openssl_available'     => extension_loaded('openssl') && function_exists('openssl_pkey_new'),
+            'default_cert_cn'       => !empty($urlBase) ? ((string) parse_url($urlBase, PHP_URL_HOST) ?: 'glpi-saml-sp') : 'glpi-saml-sp',
+        ];
+    }
 
-        // https://codeberg.org/QuinQuies/glpisaml/issues/12
-        return TemplateRenderer::getInstance()->render('@samlsso/configForm.html.twig',  $tplVars);
+    /**
+     * Build translated select-option lists used across the configuration form tabs.
+     *
+     * @return array Associative array of dropdown option arrays.
+     */
+    private function buildConfigFormOptionLists(): array
+    {
+        return [
+            'inputOptionsBool' => [
+                1 => __('Yes', PLUGIN_NAME),
+                0 => __('No', PLUGIN_NAME),
+            ],
+            'inputOptionsNameFormat' => [
+                Saml2Const::NAMEID_UNSPECIFIED   => __('Unspecified', PLUGIN_NAME),
+                Saml2Const::NAMEID_EMAIL_ADDRESS => __('Email Address', PLUGIN_NAME),
+                Saml2Const::NAMEID_TRANSIENT     => __('Transient', PLUGIN_NAME),
+                Saml2Const::NAMEID_PERSISTENT    => __('Persistent', PLUGIN_NAME),
+            ],
+            'inputOptionsKeySource' => [
+                'db'     => __('Database (legacy)', PLUGIN_NAME),
+                'file'   => __('Secure File Path', PLUGIN_NAME),
+                'env'    => __('Environment Variable', PLUGIN_NAME),
+                'define' => __('PHP Define / Constant', PLUGIN_NAME),
+            ],
+            'inputOptionsAuthnContext' => [
+                'PasswordProtectedTransport' => __('PasswordProtectedTransport', PLUGIN_NAME),
+                'Password'                   => __('Password', PLUGIN_NAME),
+                'X509'                       => __('X509', PLUGIN_NAME),
+                'none'                       => __('none', PLUGIN_NAME),
+            ],
+            'inputOptionsAuthnCompare' => [
+                'exact'   => __('Exact', PLUGIN_NAME),
+                'minimum' => __('Minimum', PLUGIN_NAME),
+                'maximum' => __('Maximum', PLUGIN_NAME),
+                'better'  => __('Better', PLUGIN_NAME),
+            ],
+            'inputOptionsScimTokenSource' => [
+                'db'     => __('Database (SHA-256 Digest)', PLUGIN_NAME),
+                'env'    => __('Environment Variable', PLUGIN_NAME),
+                'define' => __('PHP Define / Constant', PLUGIN_NAME),
+            ],
+            'inputOptionsScimDeprovision' => [
+                'disable'  => __('Disable User & Force Logoff', PLUGIN_NAME),
+                'trashbin' => __('Move to Trashbin, Disable & Force Logoff', PLUGIN_NAME),
+            ],
+            'inputOptionsScimGroupPolicy' => [
+                'create_scoped' => __('Create & Manage Groups', PLUGIN_NAME),
+                'link_existing' => __('Link Existing GLPI Groups Only', PLUGIN_NAME),
+                'disabled'      => __('Disabled (Users Only)', PLUGIN_NAME),
+            ],
+            'inputOptionsIcons' => self::getAvailableIcons(),
+        ];
     }
 
     /**
