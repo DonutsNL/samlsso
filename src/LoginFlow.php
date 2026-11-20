@@ -73,11 +73,13 @@ use GlpiPlugin\Samlsso\LoginFlow\Auth as GlpiAuth;
 class LoginFlow
 {
     // https://codeberg.org/QuinQuies/glpisaml/issues/37
-    public const POSTFIELD   = 'samlIdpId';
-    public const GETFIELD    = 'samlIdpId';
-    public const SAMLBYPASS  = 'bypass';
-    public const SLOLOGOUT   = 'sloLogout';
-    public const LOCALLOGOUT = 'localLogout';
+    public const POSTFIELD           = 'samlIdpId';
+    public const GETFIELD            = 'samlIdpId';
+    public const SAMLBYPASS          = 'bypass';
+    public const BYPASS_HASH_KEY     = 'bypass_hash';
+    public const BYPASS_PROOF_PREFIX = 'samlsso_bypass|';
+    public const SLOLOGOUT           = 'sloLogout';
+    public const LOCALLOGOUT         = 'localLogout';
 
     /**
      * Holds the state object
@@ -391,6 +393,46 @@ class LoginFlow
     }
 
     /**
+     * Resolve the server-side emergency bypass secret from constant or environment.
+     *
+     * @return string Configured secret token, or empty string when unset.
+     */
+    public static function resolveBypassToken(): string
+    {
+        return defined('PLUGIN_SAMLSSO_BYPASS_TOKEN')
+            ? (string) PLUGIN_SAMLSSO_BYPASS_TOKEN
+            : (string) getenv('SAMLSSO_BYPASS_TOKEN');
+    }
+
+    /**
+     * Compute a session-bound HMAC-SHA256 bypass proof so the raw secret is never stored in $_SESSION.
+     *
+     * @param string $requiredToken Server-side configured bypass secret.
+     * @return string Hex-encoded HMAC-SHA256 digest bound to the active PHP session ID.
+     */
+    public static function computeBypassProof(string $requiredToken): string
+    {
+        return hash_hmac('sha256', self::BYPASS_PROOF_PREFIX . session_id(), $requiredToken);
+    }
+
+    /**
+     * Verify whether the current PHP session holds a valid, server-verified emergency bypass proof.
+     *
+     * @return bool True when bypass is active and matches the current server bypass secret.
+     */
+    public static function hasValidBypassSession(): bool
+    {
+        if (empty($_SESSION['glpi_plugins']['samlsso'][self::SAMLBYPASS])) {
+            return false;
+        }
+        $requiredToken = self::resolveBypassToken();
+        $sessionHash = (string) ($_SESSION['glpi_plugins']['samlsso'][self::BYPASS_HASH_KEY] ?? '');
+        return $requiredToken !== ''
+            && $sessionHash !== ''
+            && hash_equals(self::computeBypassProof($requiredToken), $sessionHash);
+    }
+
+    /**
      * Checks whether an administrator emergency bypass token has been cryptographically
      * verified and recorded in the active PHP session.
      *
@@ -398,7 +440,7 @@ class LoginFlow
      */
     private static function isSessionBypassActive(): bool
     {
-        return !empty($_SESSION['glpi_plugins']['samlsso']['bypass']);
+        return self::hasValidBypassSession();
     }
 
     /**
@@ -415,16 +457,15 @@ class LoginFlow
         $noAutoUpperSet = isset($_GET['noAUTO']);
 
         if ($bypassRequested || $noAutoRequested) {
-            $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN')
-                ? (string)PLUGIN_SAMLSSO_BYPASS_TOKEN
-                : (string)getenv('SAMLSSO_BYPASS_TOKEN');
+            $requiredToken = self::resolveBypassToken();
             $providedToken = $_GET['token'] ?? $_GET['bypass_token'] ?? null;
 
             if ($requiredToken === '' || $providedToken === null || !hash_equals($requiredToken, (string)$providedToken)) {
                 return false;
             }
 
-            $_SESSION['glpi_plugins']['samlsso']['bypass'] = true;
+            $_SESSION['glpi_plugins']['samlsso'][self::SAMLBYPASS] = true;
+            $_SESSION['glpi_plugins']['samlsso'][self::BYPASS_HASH_KEY] = self::computeBypassProof($requiredToken);
 
             if (!$bypassRequested || !$noAutoUpperSet) {
                 $this->state->addLoginFlowTrace(['bypassUsed' => true]);

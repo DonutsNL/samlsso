@@ -216,7 +216,7 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception("Invalid bypass token must not bypass enforced SSO! Got: " . $redirectTarget);
             }
 
-            // Case 3: bypass with correct token should succeed and set session bypass flag
+            // Case 3: bypass with correct token should succeed and set session bypass proof without plaintext token
             Loginstate::$lastInstance = null;
             $_POST = [];
             $_GET = [LoginFlow::SAMLBYPASS => 1, 'token' => 'SecretToken12345'];
@@ -229,12 +229,23 @@ namespace GlpiPlugin\Samlsso\Tests {
                     $redirected = true;
                 }
             }
-            putenv('SAMLSSO_BYPASS_TOKEN');
             if (!$redirected) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
                 throw new \Exception("Bypass failed to redirect without leaking secret token!");
             }
-            if (empty($_SESSION['glpi_plugins']['samlsso']['bypass']) || isset($_SESSION['glpi_plugins']['samlsso']['bypass_token'])) {
-                throw new \Exception("Bypass session state invalid or leaked plaintext bypass_token!");
+            $storedHash = $_SESSION['glpi_plugins']['samlsso'][LoginFlow::BYPASS_HASH_KEY] ?? '';
+            if (
+                empty($_SESSION['glpi_plugins']['samlsso'][LoginFlow::SAMLBYPASS])
+                || isset($_SESSION['glpi_plugins']['samlsso']['bypass_token'])
+                || $storedHash === ''
+                || $storedHash === 'SecretToken12345'
+            ) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                throw new \Exception("Bypass session state invalid, missing HMAC proof, or leaked plaintext bypass_token!");
+            }
+            if (!LoginFlow::hasValidBypassSession()) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                throw new \Exception("Verified bypass session failed LoginFlow::hasValidBypassSession()!");
             }
 
             // Case 4: once verified in session, local login fields remain visible even when hide_login_fields=true
@@ -243,7 +254,25 @@ namespace GlpiPlugin\Samlsso\Tests {
             $flow->showLoginScreen();
             $bypassScreenHtml = ob_get_clean();
             if (str_contains($bypassScreenHtml, '#login_password')) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
                 throw new \Exception("Verified session bypass should NOT inject CSS hiding #login_password!");
+            }
+
+            // Case 5: forged boolean bypass without valid HMAC proof or after token rotation/removal must fail closed
+            $_SESSION['glpi_plugins']['samlsso'][LoginFlow::BYPASS_HASH_KEY] = 'forged_hash';
+            if (LoginFlow::hasValidBypassSession()) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                throw new \Exception("Forged bypass_hash must fail closed!");
+            }
+            $_SESSION['glpi_plugins']['samlsso'][LoginFlow::BYPASS_HASH_KEY] = $storedHash;
+            putenv('SAMLSSO_BYPASS_TOKEN=RotatedSecret99999');
+            if (LoginFlow::hasValidBypassSession()) {
+                putenv('SAMLSSO_BYPASS_TOKEN');
+                throw new \Exception("Bypass proof must fail closed after server bypass token rotation!");
+            }
+            putenv('SAMLSSO_BYPASS_TOKEN');
+            if (LoginFlow::hasValidBypassSession()) {
+                throw new \Exception("Bypass proof must fail closed when SAMLSSO_BYPASS_TOKEN is unset!");
             }
 
             // Clean up

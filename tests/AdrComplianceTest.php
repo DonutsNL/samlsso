@@ -418,15 +418,19 @@ namespace GlpiPlugin\Samlsso\Tests {
                 throw new \Exception('ADR 0004 violation: Config::getIsEnforced() must filter by ConfigEntity::IS_ACTIVE => 1.');
             }
 
-            // 3. Verify administrative right checks in ConfigForm, bypass token hash_equals in LoginFlow, proxy IP gating in LoginState, and controller firewall enforcement
+            // 3. Verify administrative right checks in ConfigForm, bypass token hash_equals in LoginFlow/setup.php, proxy IP gating in LoginState, and controller firewall enforcement
+            $setup = $this->readPluginFile('setup.php');
             if (
                 !str_contains($configForm, "Session::checkRight('config', UPDATE)") ||
                 !str_contains($loginFlow, 'hash_equals($requiredToken, (string)$providedToken)') ||
+                !str_contains($loginFlow, 'function hasValidBypassSession') ||
+                !str_contains($setup, 'LoginFlow::hasValidBypassSession()') ||
+                str_contains($setup, "['bypass_token']") ||
                 !str_contains($loginState, 'function resolveClientIp') ||
                 !str_contains($loginState, 'FILTER_VALIDATE_IP') ||
                 substr_count($controller, '#[SecurityStrategy(Firewall::STRATEGY_NO_CHECK)]') > 4
             ) {
-                throw new \Exception('ADR 0004 violation: Missing admin right check, bypass hash_equals, proxy-gated resolveClientIp(), or unexpected STRATEGY_NO_CHECK on admin controller routes.');
+                throw new \Exception('ADR 0004 violation: Missing admin right check, bypass hash_equals/hasValidBypassSession wiring, proxy-gated resolveClientIp(), or unexpected STRATEGY_NO_CHECK on admin controller routes.');
             }
 
             // 4. Verify per-IdP SCIM 2.0 fail-closed auth, parser bounds, undisclosed digest, and dual-core session revocation

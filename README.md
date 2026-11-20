@@ -4,18 +4,11 @@
 [![GLPI Compatibility](https://img.shields.io/badge/GLPI-11%20%7C%2012-green.svg)](https://github.com/DonutsNL/samlsso)
 [![Tests Passing](https://img.shields.io/badge/tests-24%20suites%20passed-brightgreen.svg)](tests/RunAllTests.php)
 [![GitHub release](https://img.shields.io/github/v/release/DonutsNL/samlsso.svg)](https://github.com/DonutsNL/samlsso/releases)
-[![Pre-release](https://img.shields.io/badge/RC-v1.4.0--rc1-orange.svg)](https://github.com/DonutsNL/samlsso/releases/tag/v1.4.0-rc1)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
-> [!IMPORTANT]
-> **Release Candidate Available (`v1.4.0-rc1`) — Feedback Wanted!**
-> [`v1.4.0-rc1`](https://github.com/DonutsNL/samlsso/releases/tag/v1.4.0-rc1) is now available on GitHub Releases for **non-production testing**.
-> The GLPI Marketplace descriptor (`samlsso.xml`) remains on the current stable channel until `1.4.0` verification is complete.
->
-> Please test in staging and share your findings via [GitHub Issues](https://github.com/DonutsNL/samlsso/issues) or [Discord](https://discord.gg/KyMdkqJcGz), especially around:
-> - **SCIM 2.0 Provisioning (`Beta`)**: User and group synchronization, Bearer authentication, CIDR filtering, and offboarding with Microsoft Entra ID, Okta, or Keycloak ([Wiki setup guide](https://github.com/DonutsNL/samlsso/wiki/Configure-SCIM-Provisioning)).
-> - **LDAP-to-SAML User Migration**: `php bin/console plugins:samlsso:migrate_ldap_users` and `AUTHS_ID_OFFSET` namespace isolation ([Wiki migration guide](https://github.com/DonutsNL/samlsso/wiki/Migrating-Users-from-LDAP-to-SAML)).
-> - **GLPI 11 & 12 Compatibility / CSP Compliance**: Admin configuration UI, popover diagnostics, certificate modals, and JIT rule behavior.
+> [!NOTE]
+> **`v1.4.0` Released** — Full **GLPI 11 & 12** compatibility, **GLPI CSP readiness**, **LDAP-to-SAML CLI user migration** (`plugins:samlsso:migrate_ldap_users`), and **Per-IdP SCIM 2.0 Provisioning (`Beta`)**.
+> Upgrading from `1.3.x`? Review the **[`v1.4.0` Release Notes](https://github.com/DonutsNL/samlsso/releases/tag/v1.4.0)** for upgrade instructions and security breaking changes (external `auths_id` namespace isolation, token-guarded `?bypass=1`, encrypted SP keys, and GLPI Core session timeout delegation).
 
 ---
 
@@ -82,7 +75,7 @@ Comprehensive setup manuals, IdP walkthroughs, and troubleshooting playbooks liv
 Share challenges, deployment quirks, or SCIM `Beta` feedback via [GitHub Issues](https://github.com/DonutsNL/samlsso/issues) (check issues labeled `Public feedback wanted`) or join the community [Discord](https://discord.gg/KyMdkqJcGz).
 
 ### Current Focus
-- Gathering `v1.4.0-rc1` real-world feedback on **SCIM 2.0 Provisioning (`Beta`)** and **GLPI 12** deployments
+- Gathering real-world feedback on **SCIM 2.0 Provisioning (`Beta`)** and **GLPI 12** deployments
 - Hardening the plugin security state machine and introducing environment-agnostic smoke testing ([#202](https://github.com/DonutsNL/samlsso/issues/202))
 - Translation quality and localization coverage ([Transifex](https://app.transifex.com/quinquies/samlsso/))
 - Usability optimization and remote logout (SLO) handling

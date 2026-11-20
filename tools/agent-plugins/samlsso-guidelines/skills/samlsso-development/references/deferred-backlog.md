@@ -12,6 +12,9 @@ This file serves as persistent cross-session memory for:
 When analyzing a reported GitHub issue, check whether it touches any of the files below and propose folding the corresponding improvement into the fix:
 
 - **Issue #202 (Environment-Agnostic 3-Tier Smoke Testing Suite)**: Introduce `tools/smoke/` (`kernel_smoke.php` via `\Glpi\Kernel\Kernel`, `http_smoke.sh` via `curl`, and Playwright browser/CSP smoke tests) configured strictly via CLI args, env vars, or gitignored `.env.smoke.local` (never committing dev hostnames, paths, or credentials to the public repo). Default mode must be read-only / fail-closed (`--mutate` opt-in for throwaway fixtures). Covers live Symfony routes (`meta`, `acs`, `logout` with SLO no-redirect invariant, `scim/v2`), GLPI CLI/schema integrity, `samlSSO.css`, all 8 `ConfigForm` tabs, `SamlSsoPopoverManager`, and `#193` CSP `data-*` handlers.
+- **Issue #204 Follow-Up (`glpi_users.last_login` & RC Version Strings)**:
+  - Update `glpi_users.last_login` cleanly on SAML SSO login (since `LoginFlow` calls `Session::init()` directly rather than `Auth::login()`, leaving `last_login = NULL` for SSO users).
+  - For future Release Candidates, declare `PLUGIN_SAMLSSO_VERSION` as `X.Y.Z-rcN` during pre-release builds so `version_compare('X.Y.Z-rc1', 'X.Y.Z')` triggers GLPI's standard upgrade migration when moving from RC to final without needing `plugin:install -f`.
 
 ---
 
