@@ -167,23 +167,17 @@ function plugin_init_samlsso(): void                                            
     $is_login_post = isset($_POST['login_name']) && isset($_POST['login_password']);
     
     // Check if bypass flag exists in the whitelisted plugin session namespace
-    $is_bypassed = !empty($_SESSION['glpi_plugins']['samlsso']['bypass']);
+    $is_bypassed = !empty($_SESSION['glpi_plugins']['samlsso'][LoginFlow::SAMLBYPASS]);
 
     if (Session::getLoginUserID() !== false && $is_bypassed) {
-        unset($_SESSION['glpi_plugins']['samlsso']['bypass'], $_SESSION['glpi_plugins']['samlsso']['bypass_token']);
+        unset(
+            $_SESSION['glpi_plugins']['samlsso'][LoginFlow::SAMLBYPASS],
+            $_SESSION['glpi_plugins']['samlsso'][LoginFlow::BYPASS_HASH_KEY]
+        );
     }
 
     if ($is_login_post && Session::getLoginUserID() === false && Config::getIsEnforced()) {
-        $allowed = false;
-        if ($is_bypassed) {
-            $requiredToken = defined('PLUGIN_SAMLSSO_BYPASS_TOKEN')
-                ? (string)PLUGIN_SAMLSSO_BYPASS_TOKEN
-                : (string)getenv('SAMLSSO_BYPASS_TOKEN');
-            $sessionToken = (string)($_SESSION['glpi_plugins']['samlsso']['bypass_token'] ?? '');
-            if ($requiredToken !== '' && $sessionToken !== '' && hash_equals($requiredToken, $sessionToken)) {
-                $allowed = true;
-            }
-        }
+        $allowed = LoginFlow::hasValidBypassSession();
 
         if (!$allowed) {
             // Log the blocked login attempt to the plugin events log
