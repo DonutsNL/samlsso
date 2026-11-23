@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    GLPISaml
- *  @version    1.4.0
+ *  @version    1.4.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -146,6 +146,11 @@ class LoginState extends CommonDBTM
      */
     private function getState(string $samlInResponseTo): void
     {
+        if ($samlInResponseTo === '' && session_id() === '') {
+            $this->createInitialState();
+            return;
+        }
+
         $sessionIterator = $this->fetchStateIterator($samlInResponseTo);
         if ($sessionIterator->numrows() > 0) {
             if ($sessionIterator->numrows() !== 1) {
@@ -381,6 +386,10 @@ class LoginState extends CommonDBTM
      */
     public function writeState(): bool
     {
+        if (empty($this->state[LoginState::SESSION_ID])) {
+            return false;
+        }
+
         if (!isset($this->state[LoginState::STATE_ID])) {
             $id = $this->add($this->state);
             if ($id) {
@@ -1558,6 +1567,7 @@ class LoginState extends CommonDBTM
                     UPDATE $table SET location = '' where id > 0;
                 SQL;
             $DB->doQuery($query);
+            self::finalizeEmptySessionTimedOutStates(true);
             Session::addMessageAfterRedirect("🆗 Cleaned: $table.");
         }
     }
@@ -1683,6 +1693,38 @@ class LoginState extends CommonDBTM
                 LoginState::PHASE => LoginState::PHASE_TIMED_OUT
             ],
             $whereOrphan
+        );
+
+        self::finalizeEmptySessionTimedOutStates();
+    }
+
+    /**
+     * Transition expired or leftover empty-session states directly to PHASE_LOGOFF so
+     * orphaned sessionless records can never accumulate in active lookup phases.
+     *
+     * @param bool $includePendingAcs Also transition unauthenticated empty-session ACS rows (during upgrades).
+     * @return void
+     */
+    private static function finalizeEmptySessionTimedOutStates(bool $includePendingAcs = false): void
+    {
+        global $DB;
+
+        $phases = $includePendingAcs
+            ? [LoginState::PHASE_SAML_ACS, LoginState::PHASE_TIMED_OUT]
+            : LoginState::PHASE_TIMED_OUT;
+
+        $DB->update(
+            LoginState::getTable(),
+            [
+                LoginState::PHASE => LoginState::PHASE_LOGOFF,
+            ],
+            [
+                LoginState::PHASE => $phases,
+                'OR' => [
+                    [LoginState::SESSION_ID => ''],
+                    [LoginState::SESSION_ID => null],
+                ],
+            ]
         );
     }
 

@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.4.0
+ *  @version    1.4.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -634,6 +634,59 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             echo "✅ Custom login screen header rendering verified (Issue #159)\n";
         }
+
+        /**
+         * Test that CLI invocations, sessionless GLPI stateless paths, and SP metadata requests
+         * exit LoginFlow::doAuth() early without touching LoginState or triggering Enforce SSO (#209, #211).
+         *
+         * @throws \Exception if any stateless/CLI guard triggers enforced SSO redirect or LoginState mutation.
+         */
+        public function testStatelessCliAndMetaFastExit(): void
+        {
+            global $GLPI_IS_COMMAND_LINE;
+
+            MockConfig::$mockConfig['enforced'] = true;
+            MockConfig::$mockConfig['only_one_id'] = 5;
+
+            $originalSid = session_id();
+            $originalUri = $_SERVER['REQUEST_URI'] ?? '/';
+            $originalCli = $GLPI_IS_COMMAND_LINE ?? false;
+
+            try {
+                $GLPI_IS_COMMAND_LINE = true;
+                Loginstate::$lastInstance = null;
+                $_SERVER['REQUEST_URI'] = '';
+                (new LoginFlow())->doAuth();
+                if (Loginstate::$lastInstance !== null) {
+                    throw new \Exception("CLI doAuth() should return before instantiating LoginState.");
+                }
+
+                $GLPI_IS_COMMAND_LINE = false;
+                session_id('');
+                Loginstate::$lastInstance = null;
+                $_SERVER['REQUEST_URI'] = '/front/css.php';
+                (new LoginFlow())->doAuth();
+                if (Loginstate::$lastInstance !== null) {
+                    throw new \Exception("Sessionless stateless doAuth() should return before instantiating LoginState.");
+                }
+
+                session_id($originalSid !== '' ? $originalSid : 'test_harness_session');
+                Loginstate::$lastInstance = null;
+                $_SERVER['REQUEST_URI'] = '/plugins/samlsso/' . \GlpiPlugin\Samlsso\Controller\SamlSsoController::META_ROUTE . '/5';
+                (new LoginFlow())->doAuth();
+                if (Loginstate::$lastInstance !== null) {
+                    throw new \Exception("SP metadata route doAuth() should return before instantiating LoginState.");
+                }
+            } finally {
+                $GLPI_IS_COMMAND_LINE = $originalCli;
+                $_SERVER['REQUEST_URI'] = $originalUri;
+                if (!headers_sent()) {
+                    session_id($originalSid !== '' ? $originalSid : 'test_harness_session');
+                }
+            }
+
+            echo "✅ Stateless, CLI, and SP metadata fast-exit verified in doAuth() (Issues #209, #211)\n";
+        }
     }
 }
 
@@ -659,6 +712,7 @@ namespace {
         $test->testAuthenticatedUserFastPath();
         $test->testDeepLinkRelayStatePreservation();
         $test->testCustomLoginScreenHeaderAndButtonIconRendering();
+        $test->testStatelessCliAndMetaFastExit();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

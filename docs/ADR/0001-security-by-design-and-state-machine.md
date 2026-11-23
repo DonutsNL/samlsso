@@ -55,10 +55,11 @@ stateDiagram-v2
 3. **Minimal Outbound SAML Protocol Parameters Only**: Outbound `AuthnRequest` (`LoginFlow::performSamlIdpRequest()` -> `$auth->login()`) and `LogoutRequest` (`LoginFlow::handleLogoutDispatch()` -> `performSloRedirectLogout()` -> `buildIdpSloUrl()` -> `$samlAuth->logout()`) requests must never append synthetic flow/CSRF tokens, nonces, cookies, deep-link return URLs, or non-protocol query parameters (`$parameters = []`). Because `onelogin/php-saml` internally populates `RelayState` (`$returnTo ?: Utils::getSelfRoutedURLNoQuery()`), both calls pass only the static public `$CFG_GLPI['url_base'] ?? '/'` so internal request paths and object IDs are never disclosed to external IdPs or browser history.
 4. **Inbound `RelayState` Ignored & Server-Side Boundary**: Incoming `POST['RelayState']` at `/front/acs/{idpId}` is **ignored** and never required to match a synthetic flow token or treated as a redirect URL. Because `/front/acs/{idpId}` is stateless (`SessionManager::registerPluginStatelessPath()`, supporting `SameSite=Strict`), a non-cookie-bound `RelayState` or `samlsso_flow_token` adds zero security beyond `SAML_REQUEST_ID` (`InResponseTo` + `SubjectConfirmationData/@InResponseTo`) and unique single-use `SAML_RESPONSE_ID`, while enforcing it breaks compliant IdPs and Entra ID configurations that omit or overwrite `RelayState` (`#188`). All replay, timeout, IdP-binding, and phase-transition controls remain strictly server-side in `glpi_plugin_samlsso_loginstates`.
 
-### 5. Background AJAX Isolation & Force Logoff Enforcement
+### 5. Background AJAX Isolation, Sessionless/CLI Exclusion & Force Logoff Enforcement
 1. Background AJAX sub-requests (`Toolbox::isAjax()`) must never trigger SSO redirects or advance `PHASE_INITIAL` to `PHASE_SAML_ACS`.
 2. Before skipping AJAX or excluded paths in `LoginFlow::doAuth()`, the plugin evaluates `PHASE_FORCE_LOG (6)` and `PHASE_TIMED_OUT (7)`, terminating revoked AJAX requests with HTTP 401 and redirecting revoked browser sessions to `/index.php?noAuto=1`.
-3. `LOGIN_FLOW_TRACE` is stored as a `TEXT` column containing PHP-serialized arrays (`unserialize(..., ['allowed_classes' => false])`) with all values HTML-escaped via `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')`.
+3. CLI executions (`isCommandLine()`), SP metadata requests (`SamlSsoController::META_ROUTE`), and GLPI stateless/sessionless requests (`session_id() === ''`, such as `/front/css.php`, `/front/locale.php`, `/front/cron.php`, `/api.php`) must return from `LoginFlow::doAuth()` immediately without querying or persisting `LoginState` rows. `LoginState::getState()` and `LoginState::writeState()` must never query or store empty `sessionId` rows (`''`), and `LoginState::expireStaleAcsRequests()` transitions any stale or leftover empty-session timed-out rows straight to `PHASE_LOGOFF (8)`.
+4. `LOGIN_FLOW_TRACE` is stored as a `TEXT` column containing PHP-serialized arrays (`unserialize(..., ['allowed_classes' => false])`) with all values HTML-escaped via `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')`.
 
 ---
 
@@ -69,6 +70,7 @@ stateDiagram-v2
 - **NEVER** append synthetic security/CSRF/flow tokens (`flow_token`, `samlsso_flow_token`), cookies, nonces, deep-link URLs, or non-protocol query parameters to outbound `AuthnRequest` / `LogoutRequest` calls (`$auth->login()`, `$samlAuth->logout()`) or `RelayState`.
 - **NEVER** read post-login redirect URLs or require synthetic tokens from `$_POST['RelayState']`, `samlsso_flow_token`, or unvalidated client parameters on `/front/acs/{idpId}`.
 - **NEVER** capture or apply post-login `REDIRECT` targets during SLO or logout flows (`LoginFlow::handleLogoutDispatch()`).
+- **NEVER** query or persist empty `sessionId` (`''`) rows in `LoginState` (`getState()` / `writeState()`), or run `LoginFlow::doAuth()` state creation for CLI (`isCommandLine()`), `META_ROUTE`, or sessionless stateless requests (`session_id() === ''`).
 - **NEVER** use raw string paths for ACS, SLO, or SCIM routes; always reference `SamlSsoController::ACS_ROUTE`, `SamlSsoController::SLO_ROUTE`, and `SamlSsoController::SCIM_ROUTE`.
 
 ---

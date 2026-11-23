@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.4.0
+ *  @version    1.4.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -122,7 +122,7 @@ namespace {
         define('PLUGIN_SAMLSSO_LOGEVENTS', '_events.log');
     }
     if (!defined('PLUGIN_SAMLSSO_VERSION')) {
-        define('PLUGIN_SAMLSSO_VERSION', '1.4.0');
+        define('PLUGIN_SAMLSSO_VERSION', '1.4.1');
     }
     if (!defined('PLUGIN_SAMLSSO_SRCDIR')) {
         define('PLUGIN_SAMLSSO_SRCDIR', dirname(__DIR__) . '/src');

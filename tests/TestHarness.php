@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.4.0
+ *  @version    1.4.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -1922,6 +1922,10 @@ namespace GlpiPlugin\Samlsso\Tests {
                 ob_start();
             }
 
+            if (session_id() === '' && !headers_sent()) {
+                session_id('test_harness_session');
+            }
+
             $this->db = new MockDB();
             $DB = $this->db;
             $CFG_GLPI = ['url_base' => 'http://glpi.local'];
@@ -1964,5 +1968,9 @@ namespace GlpiPlugin\Samlsso\Tests {
             }
             throw new \Exception("Trace key '$key' with value '$valueSnippet' not found in login flow trace.");
         }
+    }
+
+    if (session_id() === '' && !headers_sent()) {
+        session_id('test_harness_session');
     }
 }

@@ -34,7 +34,7 @@ declare(strict_types=1);
  * ------------------------------------------------------------------------
  *
  *  @package    Samlsso
- *  @version    1.4.0
+ *  @version    1.4.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -111,10 +111,7 @@ class LoginFlow
     public function doAuth()                         //NOSONAR - complexity by design
     {
         $requestPath = $this->extractRequestPath();
-        if (
-            str_contains($requestPath, SamlSsoController::ACS_ROUTE) ||
-            str_contains($requestPath, SamlSsoController::SCIM_ROUTE)
-        ) {
+        if ($this->shouldSkipAuthEvaluation($requestPath)) {
             return;
         }
 
@@ -169,6 +166,28 @@ class LoginFlow
     {
         $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
         return is_string($requestPath) ? $requestPath : '';
+    }
+
+    /**
+     * Determine whether CLI execution, sessionless stateless endpoints, or plugin SAML/SCIM routes
+     * must bypass LoginState lookup and enforced SSO evaluation.
+     *
+     * @param string $requestPath Normalized request URI path.
+     * @return bool True when doAuth() must return immediately without touching LoginState.
+     */
+    private function shouldSkipAuthEvaluation(string $requestPath): bool
+    {
+        if (function_exists('isCommandLine') && isCommandLine()) {
+            return true;
+        }
+
+        if (session_id() === '') {
+            return true;
+        }
+
+        return str_contains($requestPath, SamlSsoController::ACS_ROUTE)
+            || str_contains($requestPath, SamlSsoController::SCIM_ROUTE)
+            || str_contains($requestPath, SamlSsoController::META_ROUTE);
     }
 
     /**

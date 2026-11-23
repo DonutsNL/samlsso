@@ -32,7 +32,7 @@
  * ------------------------------------------------------------------------
  *
  *  @package    samlSSO
- *  @version    1.4.0
+ *  @version    1.4.1
  *  @author     Chris Gralike
  *  @copyright  Copyright (c) 2024 by Chris Gralike
  *  @license    GPLv3+
@@ -797,10 +797,73 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ LoginState: duplicate matching state rows throw LoginStateException (Issue #190)\n";
         }
+
+        /**
+         * Test that empty session_id() lookups never collide on duplicate empty-session rows,
+         * writeState() refuses to persist empty sessionId rows, and expireStaleAcsRequests()
+         * transitions empty-session timed-out rows to PHASE_LOGOFF (#209, #211).
+         *
+         * @throws \Exception if empty sessionId safeguards or cleanup transitions fail.
+         */
+        public function testEmptySessionIdProtectionAndTimeoutSelfHealing(): void
+        {
+            global $DB;
+            $db = new MockDB();
+            $DB = $db;
+
+            $table = LoginState::getTable();
+            $row = [
+                LoginState::STATE_ID        => 1130,
+                LoginState::IDP_ID          => 1,
+                LoginState::SESSION_ID      => '',
+                LoginState::SAML_REQUEST_ID => 'ONELOGIN_empty_1',
+                LoginState::PHASE           => LoginState::PHASE_TIMED_OUT,
+            ];
+            $db->setResponse($table, [$row, array_merge($row, [LoginState::STATE_ID => 1131, LoginState::SAML_REQUEST_ID => 'ONELOGIN_empty_2'])]);
+
+            $prevSid = session_id();
+            session_id('');
+            try {
+                $state = new LoginState();
+                if ($state->getStateId() !== -1 || $state->getPhase() !== LoginState::PHASE_INITIAL) {
+                    throw new \Exception("Empty session_id() should produce fresh in-memory PHASE_INITIAL state without matching DB rows.");
+                }
+                if ($state->writeState() !== false) {
+                    throw new \Exception("writeState() must refuse to persist rows with an empty SESSION_ID.");
+                }
+            } finally {
+                session_id($prevSid);
+            }
+
+            LoginState::resetCleanupThrottle();
+            LoginState::expireStaleAcsRequests(true);
+
+            $foundLogoffCleanup = false;
+            foreach ($db->updatedRows as $update) {
+                if (
+                    $update['table'] === $table &&
+                    ($update['data'][LoginState::PHASE] ?? null) === LoginState::PHASE_LOGOFF &&
+                    ($update['where'][LoginState::PHASE] ?? null) === LoginState::PHASE_TIMED_OUT &&
+                    isset($update['where']['OR'])
+                ) {
+                    $foundLogoffCleanup = true;
+                    break;
+                }
+            }
+            if (!$foundLogoffCleanup) {
+                throw new \Exception("expireStaleAcsRequests() must transition empty-session PHASE_TIMED_OUT rows to PHASE_LOGOFF.");
+            }
+
+            echo "✅ LoginState: empty sessionId collision guard and stale PHASE_TIMED_OUT self-healing verified (Issues #209, #211)\n";
+        }
     }
 }
 
 namespace {
+    ob_start();
+    if (session_id() === '' && !headers_sent()) {
+        session_id('login_state_test_sid');
+    }
     $test = new GlpiPlugin\Samlsso\Tests\LoginStateTest();
     try {
         $test->testLoginStateLoggingTimezones();
@@ -817,8 +880,13 @@ namespace {
         $test->testStaticAssetRedirectDetection();
         $test->testStatelessReplayDoesNotMutateAuthenticatedSession();
         $test->testDuplicateStatesThrowException();
+        $test->testEmptySessionIdProtectionAndTimeoutSelfHealing();
         $test = null;
+        ob_end_flush();
     } catch (\Exception $e) {
+        if (ob_get_level() > 0) {
+            ob_end_flush();
+        }
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";
         exit(1);
     }
