@@ -25,7 +25,7 @@ GLPIPATH="${FULLPATH%$KNOWN_SUFFIX}"
 
 # Verify GLPIPATH points to an directory.
 if [ -d "$GLPIPATH" ]; then
-	find "$GLPIPATH/samlsso" -type f -name "*.php" -not -path "*/vendor/*" -exec sed -i "s/$OLDVERSION/$NEWVERSION/g" {} +
+	find "$GLPIPATH/samlsso" -type f -name "*.php" -not -path "*/vendor/*" -exec sed -i -e "/@version/s/$OLDVERSION/$NEWVERSION/g" -e "/PLUGIN_SAMLSSO_VERSION/s/$OLDVERSION/$NEWVERSION/g" {} +
 
 	# Run automated tests and verify success before release
 	echo "Running automated test suite..."

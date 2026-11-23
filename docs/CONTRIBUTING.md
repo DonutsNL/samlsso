@@ -85,13 +85,21 @@ To package a new release zip using `tools/mkzip.sh`:
    ```bash
    ./tools/mkzip.sh
    ```
-   *Note: This script automatically bumps version docstrings in all PHP files (excluding `vendor/`), executes the automated test runner, and aborts the release packaging if any tests fail.*
+   *Note: This script automatically updates `@version` docblocks and `PLUGIN_SAMLSSO_VERSION` in PHP files (excluding `vendor/`, without altering `@since` tags), executes the automated test runner, and aborts release packaging if any tests fail.*
 4. Manually update `samlsso.xml` to add a new `<version>` block listing the new version and its download URL.
 5. Run the test suite:
    ```bash
    php tests/RunAllTests.php
    ```
    *Note: All tests must be green before pushing.*
+
+### 3. Descriptive Pre-Releases & Reporter Verification
+When shipping pre-GA test builds from a version branch (while holding `main` and `main:samlsso.xml` back until GA approval):
+- Avoid generic `rc` / `Release Candidate` labels. Use descriptive pre-release tags and titles matching the scope:
+  - **Bugfix Test Release**: `v<version>-bugfix.<n>` (e.g., `v1.4.1-bugfix.1`, title `v1.4.1 Bugfix Test Release (Pre-release)`)
+  - **Feature Preview**: `v<version>-preview.<n>` (title `v<version> Feature Preview (Pre-release)`)
+- Publish as a GitHub **Pre-release** (`--prerelease`) attaching `release/samlsso.zip` with clear non-production testing instructions.
+- Comment on every covered open GitHub issue linking the test release download and specific verification steps so reporters can confirm the fix prior to GA closure.
 
 ---
 *For questions or architectural clarification, engage with the repository owner (DonutsNL) via the Discord link in the README.*

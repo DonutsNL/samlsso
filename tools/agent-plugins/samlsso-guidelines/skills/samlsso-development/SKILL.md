@@ -53,7 +53,8 @@ Execute these workflows automatically without waiting for the user to type `/lea
    php tests/RunAllTests.php
    ```
    All 24 test suites (including `AdrComplianceTest.php` and `ConfigIntegrityTest.php`) must pass before proposing or pushing any commit. Keep passing test output concise (single `✅` line per test, no raw data dumps); print input, return value, and execution state (exception/redirect/trace) only on failure.
-2. **Release Packaging (`./tools/mkzip.sh`)**:
-   - Update `PLUGIN_SAMLSSO_VERSION` in `setup.php` and `OLDVERSION` / `NEWVERSION` in `tools/mkzip.sh` when bumping versions.
-   - Run `./tools/mkzip.sh` (which runs `RunAllTests.php` and builds `release/samlsso.zip`).
+2. **Release Packaging (`./tools/mkzip.sh`) & Pre-Release Workflow**:
+   - Update `PLUGIN_SAMLSSO_VERSION` in `setup.php` and `OLDVERSION` / `NEWVERSION` in `tools/mkzip.sh` when bumping versions (`mkzip.sh` updates `@version` docblocks and `PLUGIN_SAMLSSO_VERSION` cleanly without touching historical `@since` tags).
+   - Run `./tools/mkzip.sh` (which executes `RunAllTests.php` and builds `release/samlsso.zip`).
+   - For pre-release testing builds on a version branch (`main` and `main:samlsso.xml` untouched until GA), avoid generic `rc` / `Release Candidate` labels: publish a GitHub `--prerelease` with descriptive naming (`v<version>-bugfix.<n>` / `v<version> Bugfix Test Release (Pre-release)` for patch fixes, or `v<version>-preview.<n>` / `v<version> Feature Preview (Pre-release)` for feature releases), attach `release/samlsso.zip`, and notify reporters on the relevant open GitHub issues with clear verification steps.
    - Push verified commits to `origin/<branch>` with proxy variables unset (`HTTPS_PROXY= HTTP_PROXY= ALL_PROXY= git push`).
