@@ -103,24 +103,14 @@ function samlsso_webdir(bool $relative = false): string
 {
     global $CFG_GLPI;
 
-    $webPath = '';
-    if (method_exists('Plugin', 'getWebDir')) {
-        $resolved = Plugin::getWebDir(PLUGIN_NAME);
-        if (is_string($resolved) && $resolved !== '') {
-            $webPath = $resolved;
-        }
-    }
-    if ($webPath === '') {
-        $rootDoc = (isset($CFG_GLPI['root_doc'])) ? (string) $CFG_GLPI['root_doc'] : '';
-        $webPath = $rootDoc . '/plugins/' . PLUGIN_NAME;
-    }
+    $subPath = (method_exists('Plugin', 'getWebDir') ? (string) Plugin::getWebDir(PLUGIN_NAME, false) : '')
+        ?: '/plugins/' . PLUGIN_NAME;
 
-    if ($relative) {
-        return rtrim($webPath, '/') . '/';
-    }
+    $base = $relative
+        ? (string) ($CFG_GLPI['root_doc'] ?? '')
+        : ((string) ($CFG_GLPI['url_base'] ?? '') ?: (string) ($CFG_GLPI['root_doc'] ?? ''));
 
-    $urlBase = (isset($CFG_GLPI['url_base'])) ? rtrim((string) $CFG_GLPI['url_base'], '/') : '';
-    return $urlBase . rtrim($webPath, '/') . '/';
+    return rtrim($base, '/') . '/' . trim($subPath, '/') . '/';
 }
 
 /**

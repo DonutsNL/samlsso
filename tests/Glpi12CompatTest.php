@@ -275,6 +275,86 @@ namespace GlpiPlugin\Samlsso\Tests {
 
             echo "✅ Validated RuleSaml rightname: governed by 'rule_ldap' for user identity rights.\n";
         }
+
+        /**
+         * Verify samlsso_webdir() and samlsso_plugin_web_dir() across root and subdirectory installs
+         * on both GLPI 12 (no Plugin::getWebDir) and GLPI 11 (Plugin::getWebDir returning subpath) (#207).
+         *
+         * @throws \Exception if any subdirectory or root URL doubles path segments or omits prefixes.
+         */
+        public function testSamlssoWebdirSubdirectoryResolution(): void
+        {
+            $setupPath = realpath(__DIR__ . '/../setup.php');
+            if ($setupPath === false) {
+                throw new \Exception('Could not resolve setup.php path.');
+            }
+
+            $cases = [
+                'glpi12_root' => [
+                    'pluginDef' => 'class Plugin {}',
+                    'urlBase'   => 'https://glpi.local',
+                    'rootDoc'   => '',
+                    'abs'       => 'https://glpi.local/plugins/samlsso/',
+                    'rel'       => '/plugins/samlsso/',
+                ],
+                'glpi12_subdir' => [
+                    'pluginDef' => 'class Plugin {}',
+                    'urlBase'   => 'https://glpi.local/glpi',
+                    'rootDoc'   => '/glpi',
+                    'abs'       => 'https://glpi.local/glpi/plugins/samlsso/',
+                    'rel'       => '/glpi/plugins/samlsso/',
+                ],
+                'glpi12_nested_trailing' => [
+                    'pluginDef' => 'class Plugin {}',
+                    'urlBase'   => 'https://glpi.local/apps/helpdesk/',
+                    'rootDoc'   => '/apps/helpdesk/',
+                    'abs'       => 'https://glpi.local/apps/helpdesk/plugins/samlsso/',
+                    'rel'       => '/apps/helpdesk/plugins/samlsso/',
+                ],
+                'glpi12_empty_url_base' => [
+                    'pluginDef' => 'class Plugin {}',
+                    'urlBase'   => '',
+                    'rootDoc'   => '/glpi',
+                    'abs'       => '/glpi/plugins/samlsso/',
+                    'rel'       => '/glpi/plugins/samlsso/',
+                ],
+                'glpi11_marketplace_subdir' => [
+                    'pluginDef' => 'class Plugin { public static function getWebDir(string $dir, bool $full = true): string { return ($full ? "/glpi" : "") . "/marketplace/" . $dir; } }',
+                    'urlBase'   => 'https://glpi.local/glpi',
+                    'rootDoc'   => '/glpi',
+                    'abs'       => 'https://glpi.local/glpi/marketplace/samlsso/',
+                    'rel'       => '/glpi/marketplace/samlsso/',
+                ],
+            ];
+
+            foreach ($cases as $name => $case) {
+                $tempFile = tempnam(sys_get_temp_dir(), 'samlsso_webdir_');
+                $script = sprintf(
+                    "<?php\n%s\nglobal \$CFG_GLPI;\n\$CFG_GLPI = ['url_base' => %s, 'root_doc' => %s];\nrequire_once %s;\necho json_encode(['abs' => samlsso_webdir(false), 'rel' => samlsso_webdir(true), 'legacy' => samlsso_plugin_web_dir()]);\n",
+                    $case['pluginDef'],
+                    var_export($case['urlBase'], true),
+                    var_export($case['rootDoc'], true),
+                    var_export($setupPath, true)
+                );
+                file_put_contents($tempFile, $script);
+
+                $output = [];
+                $status = 0;
+                exec('php ' . escapeshellarg($tempFile) . ' 2>&1', $output, $status);
+                unlink($tempFile);
+
+                $raw = implode("\n", $output);
+                $decoded = json_decode($raw, true);
+                if ($status !== 0 || !is_array($decoded)) {
+                    throw new \Exception("Subprocess failed for case '$name': $raw");
+                }
+                if ($decoded['abs'] !== $case['abs'] || $decoded['rel'] !== $case['rel']) {
+                    throw new \Exception("Case '$name' mismatch. Expected abs='{$case['abs']}', rel='{$case['rel']}'; got " . $raw);
+                }
+            }
+
+            echo "✅ Validated samlsso_webdir() across root, subdirectory, trailing-slash, and GLPI 11 marketplace cases (#207).\n";
+        }
     }
 }
 
@@ -290,6 +370,7 @@ namespace {
         $test->testCompatLayerContainsNoObfuscation();
         $test->testStatelessPathRegistration();
         $test->testRuleSamlRightnameIsRuleLdap();
+        $test->testSamlssoWebdirSubdirectoryResolution();
         $test = null;
     } catch (\Exception $e) {
         echo "\n❌ Test Failed: " . $e->getMessage() . "\n";

@@ -1,4 +1,5 @@
 **V1.4.1**
+- Fixed duplicate subdirectory paths returned by `samlsso_webdir()` when GLPI is installed under a webroot subdirectory (https://github.com/DonutsNL/samlsso/issues/207) by passing explicit `$full = false` to `Plugin::getWebDir()` when present and pairing a single relative plugin subpath with `$CFG_GLPI['root_doc']` (relative) or `$CFG_GLPI['url_base']` (absolute), plus subdirectory regression tests in `Glpi12CompatTest`.
 - Prevented empty `sessionId` state collisions and outages across CLI cron and GLPI 12 stateless endpoints (https://github.com/DonutsNL/samlsso/issues/209, https://github.com/DonutsNL/samlsso/issues/211): updated `LoginFlow::doAuth()` to return early for `isCommandLine()`, `SamlSsoController::META_ROUTE`, and empty `session_id()` requests; updated `LoginState::getState()` and `LoginState::writeState()` to never query or persist empty `SESSION_ID` rows; updated `LoginState::expireStaleAcsRequests()` and `LoginState::install()` to transition empty-session `PHASE_TIMED_OUT` rows to `PHASE_LOGOFF`; and added automated regression coverage in `FlowLogicTest` and `LoginStateTest`.
 
 **V1.4.0**
